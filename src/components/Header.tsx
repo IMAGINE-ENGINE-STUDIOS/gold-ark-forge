@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -67,20 +68,9 @@ const Header = () => {
               ))}
             </nav>
 
-            {/* Auth Buttons */}
-            <div className="hidden md:flex items-center gap-4">
-              <Link
-                to="/login"
-                className="font-display text-sm tracking-wider text-gold hover:text-gold-light transition-colors uppercase px-4 py-2"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="btn-primary-gold px-6 py-2 text-sm"
-              >
-                Register
-              </Link>
+            {/* Connect Vault Button */}
+            <div className="hidden md:flex items-center">
+              <ConnectWalletButton />
             </div>
 
             {/* Mobile Menu Button */}
@@ -109,21 +99,8 @@ const Header = () => {
                 {item.label}
               </Link>
             ))}
-            <div className="flex gap-4 pt-4 border-t border-gold/20">
-              <Link
-                to="/login"
-                className="font-display text-sm tracking-wider text-gold uppercase py-2"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="btn-primary-gold px-6 py-2 text-sm"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Register
-              </Link>
+            <div className="pt-4 border-t border-gold/20">
+              <ConnectWalletButton />
             </div>
           </nav>
         </div>

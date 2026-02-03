@@ -14,16 +14,244 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attestations: {
+        Row: {
+          authority_name: string
+          bar_id: string
+          created_at: string
+          document_hash: string
+          document_url: string | null
+          id: string
+          valid_until: string | null
+        }
+        Insert: {
+          authority_name: string
+          bar_id: string
+          created_at?: string
+          document_hash: string
+          document_url?: string | null
+          id?: string
+          valid_until?: string | null
+        }
+        Update: {
+          authority_name?: string
+          bar_id?: string
+          created_at?: string
+          document_hash?: string
+          document_url?: string | null
+          id?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attestations_bar_id_fkey"
+            columns: ["bar_id"]
+            isOneToOne: false
+            referencedRelation: "bullion_bars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bullion_bars: {
+        Row: {
+          created_at: string
+          custody_status: Database["public"]["Enums"]["custody_status"]
+          id: string
+          jurisdiction: string
+          last_verified_at: string | null
+          metal_type: Database["public"]["Enums"]["metal_type"]
+          price_per_oz: number | null
+          purity: number
+          serial_number: string
+          vault_id: string
+          weight_oz: number
+        }
+        Insert: {
+          created_at?: string
+          custody_status?: Database["public"]["Enums"]["custody_status"]
+          id?: string
+          jurisdiction?: string
+          last_verified_at?: string | null
+          metal_type: Database["public"]["Enums"]["metal_type"]
+          price_per_oz?: number | null
+          purity?: number
+          serial_number: string
+          vault_id: string
+          weight_oz: number
+        }
+        Update: {
+          created_at?: string
+          custody_status?: Database["public"]["Enums"]["custody_status"]
+          id?: string
+          jurisdiction?: string
+          last_verified_at?: string | null
+          metal_type?: Database["public"]["Enums"]["metal_type"]
+          price_per_oz?: number | null
+          purity?: number
+          serial_number?: string
+          vault_id?: string
+          weight_oz?: number
+        }
+        Relationships: []
+      }
+      price_feeds: {
+        Row: {
+          change_24h: number | null
+          id: string
+          metal_type: Database["public"]["Enums"]["metal_type"]
+          price_usd: number
+          updated_at: string
+        }
+        Insert: {
+          change_24h?: number | null
+          id?: string
+          metal_type: Database["public"]["Enums"]["metal_type"]
+          price_usd: number
+          updated_at?: string
+        }
+        Update: {
+          change_24h?: number | null
+          id?: string
+          metal_type?: Database["public"]["Enums"]["metal_type"]
+          price_usd?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          user_id: string | null
+          wallet_address: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+          wallet_address?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
+      reserve_snapshots: {
+        Row: {
+          bar_count: number
+          bitcoin_txid: string | null
+          created_at: string
+          id: string
+          merkle_root: string
+          snapshot_id: string
+          total_gold_oz: number
+          total_platinum_oz: number
+          total_silver_oz: number
+        }
+        Insert: {
+          bar_count?: number
+          bitcoin_txid?: string | null
+          created_at?: string
+          id?: string
+          merkle_root: string
+          snapshot_id: string
+          total_gold_oz?: number
+          total_platinum_oz?: number
+          total_silver_oz?: number
+        }
+        Update: {
+          bar_count?: number
+          bitcoin_txid?: string | null
+          created_at?: string
+          id?: string
+          merkle_root?: string
+          snapshot_id?: string
+          total_gold_oz?: number
+          total_platinum_oz?: number
+          total_silver_oz?: number
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vault_holdings: {
+        Row: {
+          acquired_at: string
+          bar_id: string
+          id: string
+          status: Database["public"]["Enums"]["holding_status"]
+          wallet_address: string
+        }
+        Insert: {
+          acquired_at?: string
+          bar_id: string
+          id?: string
+          status?: Database["public"]["Enums"]["holding_status"]
+          wallet_address: string
+        }
+        Update: {
+          acquired_at?: string
+          bar_id?: string
+          id?: string
+          status?: Database["public"]["Enums"]["holding_status"]
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_holdings_bar_id_fkey"
+            columns: ["bar_id"]
+            isOneToOne: true
+            referencedRelation: "bullion_bars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      custody_status: "free" | "pledged" | "redeemed"
+      holding_status: "active" | "pending_redemption" | "redeemed"
+      metal_type: "gold" | "silver" | "platinum"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +378,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      custody_status: ["free", "pledged", "redeemed"],
+      holding_status: ["active", "pending_redemption", "redeemed"],
+      metal_type: ["gold", "silver", "platinum"],
+    },
   },
 } as const
