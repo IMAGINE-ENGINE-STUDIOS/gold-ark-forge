@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import heroBackground from '@/assets/hero-background.webp';
+import heroBackground from '@/assets/hero-background.jpg';
 
 const Hero = () => {
   return (
