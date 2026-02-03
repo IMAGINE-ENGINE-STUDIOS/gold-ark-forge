@@ -133,7 +133,7 @@
 }
 
 @layer components {
-  /* Greek Key Border Pattern */
+  /* Greek Key Border Pattern - Basic */
   .greek-key-border {
     background-image: 
       repeating-linear-gradient(
@@ -147,6 +147,58 @@
       );
     background-size: 36px 4px;
     background-repeat: repeat-x;
+  }
+
+  /* Greek Key Border - Rich Version */
+  .greek-key-border-rich {
+    position: relative;
+    background: linear-gradient(90deg, 
+      hsl(var(--gold-dark)) 0%, 
+      hsl(var(--gold)) 25%, 
+      hsl(var(--gold-shine)) 50%, 
+      hsl(var(--gold)) 75%, 
+      hsl(var(--gold-dark)) 100%
+    );
+  }
+  
+  .greek-key-border-rich::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        transparent 12px,
+        hsl(var(--navy) / 0.3) 12px,
+        hsl(var(--navy) / 0.3) 15px,
+        transparent 15px,
+        transparent 24px
+      );
+    background-size: 48px 100%;
+  }
+
+  /* Greek Key Border - Dark Background Version */
+  .greek-key-border-rich-dark {
+    position: relative;
+    background: hsl(var(--navy-dark));
+  }
+  
+  .greek-key-border-rich-dark::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        transparent 12px,
+        hsl(var(--gold) / 0.6) 12px,
+        hsl(var(--gold) / 0.6) 15px,
+        transparent 15px,
+        transparent 24px
+      );
+    background-size: 48px 100%;
   }
 
   .greek-key-border-vertical {
@@ -169,6 +221,9 @@
     background: var(--gradient-gold);
     background-size: 200% 100%;
     animation: shimmer 3s ease-in-out infinite;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .silver-shimmer {
@@ -186,6 +241,113 @@
   @keyframes shimmer {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
+  }
+
+  /* Ornate Corner Pieces */
+  .ornate-corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    z-index: 10;
+  }
+  
+  .ornate-corner-tl {
+    top: 8px;
+    left: 8px;
+    border-left: 3px solid hsl(var(--gold));
+    border-top: 3px solid hsl(var(--gold));
+  }
+  
+  .ornate-corner-tr {
+    top: 8px;
+    right: 8px;
+    border-right: 3px solid hsl(var(--gold));
+    border-top: 3px solid hsl(var(--gold));
+  }
+  
+  .ornate-corner-bl {
+    bottom: 8px;
+    left: 8px;
+    border-left: 3px solid hsl(var(--gold));
+    border-bottom: 3px solid hsl(var(--gold));
+  }
+  
+  .ornate-corner-br {
+    bottom: 8px;
+    right: 8px;
+    border-right: 3px solid hsl(var(--gold));
+    border-bottom: 3px solid hsl(var(--gold));
+  }
+
+  /* Rich Gold Frame for Cards */
+  .gold-frame-ornate {
+    background: var(--gradient-gold);
+    border-radius: 4px;
+    box-shadow: 
+      0 8px 32px -8px hsla(43, 72%, 50%, 0.4),
+      0 4px 16px -4px hsla(213, 32%, 16%, 0.2),
+      inset 0 1px 0 hsla(45, 85%, 72%, 0.5);
+  }
+
+  .silver-frame-ornate {
+    background: var(--gradient-silver);
+    border-radius: 4px;
+    box-shadow: 
+      0 8px 32px -8px hsla(210, 6%, 67%, 0.4),
+      0 4px 16px -4px hsla(213, 32%, 16%, 0.2),
+      inset 0 1px 0 hsla(210, 12%, 90%, 0.5);
+  }
+
+  .platinum-frame-ornate {
+    background: var(--gradient-platinum);
+    border-radius: 4px;
+    box-shadow: 
+      0 8px 32px -8px hsla(210, 4%, 76%, 0.4),
+      0 4px 16px -4px hsla(213, 32%, 16%, 0.2),
+      inset 0 1px 0 hsla(210, 6%, 88%, 0.5);
+  }
+
+  /* Metallic Buttons */
+  .btn-gold-metallic {
+    background: var(--gradient-gold);
+    color: hsl(var(--navy));
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    border: 2px solid hsl(var(--gold-dark));
+    transition: all 0.3s ease;
+  }
+  
+  .btn-gold-metallic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -4px hsla(43, 72%, 50%, 0.5);
+  }
+
+  .btn-silver-metallic {
+    background: var(--gradient-silver);
+    color: hsl(var(--navy));
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    border: 2px solid hsl(var(--silver-dark));
+    transition: all 0.3s ease;
+  }
+  
+  .btn-silver-metallic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -4px hsla(210, 6%, 67%, 0.5);
+  }
+
+  .btn-platinum-metallic {
+    background: var(--gradient-platinum);
+    color: hsl(var(--navy));
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    border: 2px solid hsl(var(--platinum-dark));
+    transition: all 0.3s ease;
+  }
+  
+  .btn-platinum-metallic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -4px hsla(210, 4%, 76%, 0.5);
   }
 
   /* Geometric Frame */
