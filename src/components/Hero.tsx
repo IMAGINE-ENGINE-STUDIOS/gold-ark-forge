@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import heroBackground from '@/assets/hero-background.jpg';
+import heroBackground from '@/assets/hero-background.png';
 
 const Hero = () => {
   return (
