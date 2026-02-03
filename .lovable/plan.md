@@ -1,290 +1,257 @@
 
-# GOLD ARROW - Backend Integration Plan
+# Rich Hellenic Design Overhaul
 
 ## Overview
-This plan transforms the static landing page into a fully functional non-custodial bullion marketplace with MetaMask wallet connection (called "Vault" on this platform), real-time pricing, Chainlink Proof-of-Reserve verification, and Bitcoin blockchain anchoring.
+This plan transforms the current website from a flat, web-like design to a rich, immersive Greek-inspired interface with **real photorealistic column images**, detailed gold frames, authentic bullion imagery, and architectural elements that make the platform feel like a solid, physical institution.
 
 ---
 
-## Phase 1: Database Foundation
+## Key Design Elements from Mockup
 
-### 1.1 Core Tables
-Create the essential database tables for the bullion registry and verification system:
+Based on the reference image, these are the critical visual elements needed:
 
+1. **Real Greek Columns** - Photorealistic marble columns on left and right sides of the hero section (not CSS patterns)
+2. **Temple Background** - Central Greek temple architecture with blue sky
+3. **Shield-Shaped Metal Cards** - Gold, silver, platinum with proper metallic frames
+4. **Rich Gold Borders** - Ornate gold corner pieces and frame decorations
+5. **Greek Key Patterns** - Detailed meander borders at top and bottom of sections
+6. **Photorealistic Icons** - Temple, vault door, gold ingot with laurel wreath
+7. **Layered Visual Depth** - Shadows, gradients, and overlays for a 3D feel
+
+---
+
+## Phase 1: Generate High-Quality Assets
+
+Generate the following photorealistic images using AI:
+
+| Asset | Description | File Path |
+|-------|-------------|-----------|
+| Left Column | Single Greek marble column, full height, dramatic lighting | `src/assets/column-left.png` |
+| Right Column | Single Greek marble column, full height, mirrored | `src/assets/column-right.png` |
+| Hero Temple | Greek temple with columns, blue sky, clouds, gold accents | `src/assets/hero-temple-rich.jpg` |
+| Gold Bullion | Stack of gold bars on marble surface, dramatic lighting | `src/assets/gold-bars-rich.jpg` |
+| Silver Bullion | Stack of silver bars on marble surface | `src/assets/silver-bars-rich.jpg` |
+| Platinum Bullion | Stack of platinum bars on marble surface | `src/assets/platinum-bars-rich.jpg` |
+| Marketplace Scene | Ancient Greek agora/marketplace with columns, warm lighting | `src/assets/marketplace-rich.jpg` |
+| Vault Door | Massive bank vault door, steel, gold accents | `src/assets/vault-door-rich.jpg` |
+| Temple Icon | Small temple icon with gold tint for features | `src/assets/icon-temple.png` |
+| Vault Icon | Vault door circular icon | `src/assets/icon-vault.png` |
+| Certified Icon | Gold ingot with laurel wreath | `src/assets/icon-certified.png` |
+
+---
+
+## Phase 2: Hero Section Redesign
+
+### Current State
+- Uses CSS patterns for column decoration
+- Simple gradient overlay
+- Basic temple icon
+
+### New Implementation
 ```text
-+-------------------+     +--------------------+     +----------------------+
-|   bullion_bars    |     |  vault_holdings    |     |  reserve_snapshots   |
-+-------------------+     +--------------------+     +----------------------+
-| serial_number     |---->| bar_id (FK)        |     | snapshot_id          |
-| metal_type        |     | wallet_address     |     | merkle_root          |
-| weight_oz         |     | acquired_at        |     | total_gold_oz        |
-| purity            |     | status             |     | total_silver_oz      |
-| vault_id          |     +--------------------+     | total_platinum_oz    |
-| custody_status    |                               | bar_count            |
-| last_verified_at  |     +--------------------+     | bitcoin_txid         |
-+-------------------+     |  attestations      |     | created_at           |
-                          +--------------------+     +----------------------+
-                          | bar_id (FK)        |
-                          | authority_name     |
-                          | document_hash      |
-                          | valid_until        |
-                          +--------------------+
++------------------------------------------------------------------+
+|  [REAL COLUMN IMAGE]   |   TEMPLE BACKGROUND   |  [REAL COLUMN]  |
+|                        |                       |                 |
+|  Left Column           |  "Your Gateway to     |  Right Column   |
+|  Full Height           |   Precious Metals"    |  Full Height    |
+|  Marble Texture        |                       |  Mirrored       |
+|  Shadow Effects        |  SECURE. VERIFIED.    |  Shadow Effects |
+|                        |                       |                 |
+|                        |  [ENTER MARKETPLACE]  |                 |
++------------------------------------------------------------------+
 ```
 
-### 1.2 Tables to Create
-- **profiles** - User identity linked to wallet addresses
-- **bullion_bars** - Physical bullion registry (Gold, Silver, Platinum)
-- **vault_holdings** - Links wallet addresses to their bullion
-- **attestations** - Government/authority verification records
-- **reserve_snapshots** - Merkle root proofs for Chainlink
-- **price_feeds** - Cached metal spot prices
+### Technical Changes
+- Import column images as actual `<img>` elements positioned absolutely on left/right
+- Remove CSS-based column patterns
+- Add proper shadows between columns and content
+- Reduce overlay opacity to show more of the temple background
+- Add subtle parallax/depth effect
 
 ---
 
-## Phase 2: Wallet Connection (The Vault)
+## Phase 3: Metal Cards with Rich Frames
 
-### 2.1 Wallet Context & Provider
-Create a React context for wallet state management:
-- `src/contexts/WalletContext.tsx` - Global wallet state
-- Stores connected address, chain ID, connection status
-- Handles MetaMask events (accountsChanged, chainChanged)
+### Current State
+- Simple border frames
+- Basic corner decorations using CSS
 
-### 2.2 Connect Wallet Button
-Add a "Connect Vault" button in the Header:
-- Replaces Login/Register for non-custodial flow
-- Shows truncated wallet address when connected
-- Dropdown with disconnect option
-
-### 2.3 Wallet Connection Flow
+### New Implementation
 ```text
-User clicks "Connect Vault"
-       |
-       v
-MetaMask popup appears
-       |
-       v
-User approves connection
-       |
-       v
-Wallet address stored in context
-       |
-       v
-Profile auto-created in database
-       |
-       v
-User can access Vault page
++--------------------------------------------+
+|   [ORNATE GOLD CORNER]      [GOLD CORNER]  |
+|                                            |
+|        [BULLION IMAGE]                     |
+|        Gold bars on marble                 |
+|        Dramatic studio lighting            |
+|                                            |
+|   +------------------------------------+   |
+|   |     ★ EXPLORE GOLD ★               |   |
+|   +------------------------------------+   |
+|                                            |
+|   [GOLD CORNER]          [GOLD CORNER]     |
++--------------------------------------------+
 ```
 
----
-
-## Phase 3: Core Pages
-
-### 3.1 Marketplace Page (`/marketplace`)
-Full bullion marketplace with:
-- **Bullion Grid** - Display available bars from database
-- **Filters** - Metal type, weight range, price range
-- **Real-time Prices** - From price_feeds table
-- **Order Book Display** - Buy/sell interface (non-custodial)
-- Sub-routes: `/marketplace/gold`, `/marketplace/silver`, `/marketplace/platinum`
-
-### 3.2 Vault Page (`/vault`)
-Personal holdings dashboard:
-- **Holdings Overview** - User's bullion by wallet address
-- **Proof Status** - Chainlink verification status
-- **Bitcoin Anchoring** - Link to blockchain explorer for TXIDs
-- **Redemption Requests** - Form to request physical delivery
-
-### 3.3 Certification Page (`/certification`)
-Verification transparency:
-- **How It Works** - Explanation of the verification system
-- **Live Merkle Proof** - Current reserve snapshot
-- **Authority Attestations** - List of government/auditor verifications
-- **Bitcoin Anchor History** - All anchored proofs with TXIDs
+### Technical Changes
+- Shield/badge shape using clip-path
+- Thick gold borders with gradient shine
+- Inner shadow for depth
+- Metallic button with proper gradient
+- Hover animation (scale + glow)
 
 ---
 
-## Phase 4: Chainlink Proof-of-Reserve Integration
+## Phase 4: Features Section with Rich Icons
 
-### 4.1 Edge Function: `generate-proof-snapshot`
-Backend function that:
-- Queries all bullion bars and attestations
-- Builds Merkle tree from normalized data
-- Generates reserve snapshot with totals
-- Stores in reserve_snapshots table
-- Returns Merkle root for oracle consumption
+### Current State
+- Simple SVG icons
+- Basic layout
 
-### 4.2 Edge Function: `chainlink-oracle-endpoint`
-Read-only API for Chainlink nodes:
-- Returns current reserve totals
-- Exposes Merkle root for verification
-- Used by Proof-of-Reserve feeds
-
-### 4.3 Frontend Integration
-- Display current PoR status on Vault page
-- Show last verification timestamp
-- Visual indicator: "Reserves Verified" badge
-
----
-
-## Phase 5: Bitcoin Blockchain Anchoring
-
-### 5.1 Edge Function: `anchor-to-bitcoin`
-Uses a third-party service to:
-- Take Merkle root from latest snapshot
-- Create OP_RETURN transaction with hash
-- Store resulting TXID in reserve_snapshots
-- Triggered manually or on schedule
-
-### 5.2 Verification Display
-- Show Bitcoin TXID on Certification page
-- Direct link to blockchain explorer (mempool.space)
-- Historical list of all anchored proofs
-
----
-
-## Phase 6: Real-Time Price Feeds
-
-### 6.1 Edge Function: `fetch-metal-prices`
-Fetches spot prices from public API:
-- Gold, Silver, Platinum prices in USD
-- Updates price_feeds table
-- Called on interval (e.g., every 5 minutes)
-
-### 6.2 Frontend Integration
-- MetalCards component fetches from database
-- Live price updates on Marketplace
-- Price change indicators (+/-%)
-
----
-
-## File Structure Summary
-
+### New Implementation
 ```text
-src/
-├── contexts/
-│   └── WalletContext.tsx        # MetaMask wallet state
-├── hooks/
-│   ├── useWallet.ts             # Wallet connection hook
-│   ├── useBullionBars.ts        # Query bullion registry
-│   ├── useVaultHoldings.ts      # User holdings query
-│   ├── useReserveProof.ts       # Proof-of-Reserve data
-│   └── useMetalPrices.ts        # Real-time price feed
-├── pages/
-│   ├── Marketplace.tsx          # Bullion marketplace
-│   ├── MarketplaceMetal.tsx     # Single metal view
-│   ├── Vault.tsx                # User vault/holdings
-│   ├── Certification.tsx        # Verification transparency
-│   └── About.tsx                # Company info
-├── components/
-│   ├── wallet/
-│   │   ├── ConnectWalletButton.tsx
-│   │   └── WalletDropdown.tsx
-│   ├── marketplace/
-│   │   ├── BullionGrid.tsx
-│   │   ├── BullionCard.tsx
-│   │   ├── MarketplaceFilters.tsx
-│   │   └── OrderBook.tsx
-│   ├── vault/
-│   │   ├── HoldingsTable.tsx
-│   │   ├── ProofStatus.tsx
-│   │   └── RedemptionForm.tsx
-│   └── certification/
-│       ├── MerkleProofDisplay.tsx
-│       ├── AttestationList.tsx
-│       └── BitcoinAnchorHistory.tsx
-supabase/
-├── functions/
-│   ├── generate-proof-snapshot/
-│   │   └── index.ts
-│   ├── chainlink-oracle-endpoint/
-│   │   └── index.ts
-│   ├── anchor-to-bitcoin/
-│   │   └── index.ts
-│   └── fetch-metal-prices/
-│       └── index.ts
-└── config.toml                   # Edge function config
++==========================================+
+|          GREEK KEY BORDER                |
++==========================================+
+
+   [TEMPLE ICON]       [VAULT ICON]       [CERTIFIED ICON]
+   Photorealistic      Vault door         Gold ingot with
+   mini temple         circular           laurel wreath
+
+   LIVE MARKETPLACE    SECURE VAULT       CERTIFIED ASSETS
+   Trade Gold, Silver  Institutional      Fully Verified
+   & Platinum          Grade Storage      Bullion
+
++==========================================+
+|          GREEK KEY BORDER                |
++==========================================+
+```
+
+### Technical Changes
+- Use generated photorealistic icon images
+- Add subtle shadow beneath each icon
+- Proper vertical dividers between sections
+- Enhanced Greek key border pattern
+
+---
+
+## Phase 5: Vault Preview with Ornate Frames
+
+### Current State
+- Simple gold border lines
+- Basic gradient overlay
+
+### New Implementation
+```text
++--------------------------------------------------+
+|                    NAVY BACKGROUND               |
+|  +----------------------+  +--------------------+|
+|  | [GOLD CORNER FRAME]  |  | [GOLD CORNER FRAME]||
+|  |                      |  |                    ||
+|  |    MARKETPLACE       |  |    VAULT DOOR      ||
+|  |    Greek agora       |  |    Bank vault      ||
+|  |    scene             |  |    massive door    ||
+|  |                      |  |                    ||
+|  | ENTER THE MARKETPLACE|  | ACCESS THE VAULT   ||
+|  | Buy & Sell Metals    |  | Safeguard Assets   ||
+|  | [GOLD CORNER FRAME]  |  | [GOLD CORNER FRAME]||
+|  +----------------------+  +--------------------+|
++--------------------------------------------------+
+```
+
+### Technical Changes
+- Ornate gold corner pieces (generated or CSS)
+- Thicker gold borders
+- Better image quality for backgrounds
+- Text on semi-transparent navy overlay
+
+---
+
+## Phase 6: CSS Enhancements
+
+### New CSS Classes to Add
+
+```css
+/* Enhanced Greek Key Border - More detailed */
+.greek-key-border-rich { ... }
+
+/* Ornate corner frame pieces */
+.ornate-corner { ... }
+
+/* Column shadow effect */
+.column-shadow-left { ... }
+.column-shadow-right { ... }
+
+/* Shield/badge card shape */
+.shield-card { ... }
+
+/* Metallic button effects */
+.btn-gold-metallic { ... }
+.btn-silver-metallic { ... }
+.btn-platinum-metallic { ... }
+
+/* Rich gold frame */
+.gold-frame-ornate { ... }
 ```
 
 ---
 
-## Database Schema (SQL Preview)
+## Phase 7: Header Refinements
 
-### bullion_bars
-```sql
-- id (uuid, primary key)
-- serial_number (text, unique)
-- metal_type (enum: gold, silver, platinum)
-- weight_oz (decimal)
-- purity (decimal, e.g., 0.9999)
-- vault_id (text)
-- jurisdiction (text)
-- custody_status (enum: free, pledged, redeemed)
-- last_verified_at (timestamp)
-- created_at (timestamp)
-```
-
-### vault_holdings
-```sql
-- id (uuid, primary key)
-- wallet_address (text)
-- bar_id (uuid, FK to bullion_bars)
-- acquired_at (timestamp)
-- status (enum: active, pending_redemption, redeemed)
-```
-
-### reserve_snapshots
-```sql
-- id (uuid, primary key)
-- snapshot_id (text, unique)
-- merkle_root (text)
-- total_gold_oz (decimal)
-- total_silver_oz (decimal)
-- total_platinum_oz (decimal)
-- bar_count (integer)
-- bitcoin_txid (text, nullable)
-- created_at (timestamp)
-```
+Match the mockup header more closely:
+- Navy background with Greek key pattern at very top
+- Gold temple icon larger
+- "GOLD ARROW" branding more prominent
+- Navigation bar on cream/marble background
+- Diamond separators between nav items
 
 ---
 
-## Security Considerations
+## Files to Modify
 
-1. **Non-Custodial Architecture**
-   - Platform never holds private keys
-   - All transactions signed by user wallets
-   - Database stores wallet addresses, not keys
-
-2. **Row-Level Security (RLS)**
-   - vault_holdings: Users see only their own holdings
-   - bullion_bars: Public read, admin write
-   - reserve_snapshots: Public read only
-
-3. **Edge Function Authentication**
-   - Public endpoints for oracle/price feeds
-   - Protected endpoints for user-specific actions
-   - Admin endpoints for proof generation
+| File | Changes |
+|------|---------|
+| `src/components/Hero.tsx` | Add real column images, update layout |
+| `src/components/MetalCards.tsx` | Shield shape, rich frames, new images |
+| `src/components/Features.tsx` | Photorealistic icons, better layout |
+| `src/components/VaultPreview.tsx` | Ornate gold frames, new images |
+| `src/components/Header.tsx` | Match mockup styling more closely |
+| `src/index.css` | New CSS classes for rich effects |
 
 ---
 
-## Implementation Priority
+## New Assets to Generate
 
-| Priority | Task | Complexity |
-|----------|------|------------|
-| 1 | Database tables + RLS | Medium |
-| 2 | Wallet connection (Vault) | Medium |
-| 3 | Marketplace page | Medium |
-| 4 | Vault page (holdings) | Medium |
-| 5 | Price feed edge function | Low |
-| 6 | Certification page | Low |
-| 7 | Proof snapshot generation | High |
-| 8 | Chainlink oracle endpoint | Medium |
-| 9 | Bitcoin anchoring | High |
+| Priority | Asset | Purpose |
+|----------|-------|---------|
+| 1 | `column-left.png` | Left side Greek column (transparent PNG) |
+| 2 | `column-right.png` | Right side Greek column (transparent PNG) |
+| 3 | `hero-temple-rich.jpg` | Central hero background |
+| 4 | `gold-bars-rich.jpg` | Gold card bullion image |
+| 5 | `silver-bars-rich.jpg` | Silver card bullion image |
+| 6 | `platinum-bars-rich.jpg` | Platinum card bullion image |
+| 7 | `marketplace-rich.jpg` | Greek marketplace scene |
+| 8 | `vault-door-rich.jpg` | Vault door image |
+| 9 | `icon-temple.png` | Features section icon |
+| 10 | `icon-vault.png` | Features section icon |
+| 11 | `icon-certified.png` | Features section icon |
 
 ---
 
-## Technical Notes
+## Implementation Order
 
-- **MetaMask Integration**: Uses `window.ethereum` API directly (no extra libraries needed)
-- **Chainlink**: Oracle nodes will call the public edge function endpoint
-- **Bitcoin**: Requires external service (e.g., OpenTimestamps or custom anchoring service) with API key
-- **Price Feeds**: Will use free public API initially (e.g., metals-api.com)
+1. **Generate column images** - These are the most impactful visual change
+2. **Update Hero.tsx** - Add real columns to sides
+3. **Generate bullion images** - Rich gold/silver/platinum bars
+4. **Update MetalCards.tsx** - Shield frames with new images
+5. **Generate feature icons** - Temple, vault, certified
+6. **Update Features.tsx** - Replace SVG with image icons
+7. **Update VaultPreview.tsx** - Ornate gold corner frames
+8. **Update CSS** - Add all new rich styling classes
+9. **Final polish** - Shadows, transitions, hover effects
+
+---
+
+## Expected Result
+
+The website will transform from a flat, modern web design to an immersive, institution-quality platform that feels like walking into a Greek temple bank vault. Real marble columns frame the content, gold gleams from every frame, and the overall aesthetic conveys trust, permanence, and value - exactly matching the mockup reference.
