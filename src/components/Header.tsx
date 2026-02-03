@@ -9,17 +9,17 @@ const Header = () => {
   const navItems = [
     { label: 'Marketplace', href: '/marketplace' },
     { label: 'The Vault', href: '/vault' },
-    { label: 'Certification', href: '/certification' },
-    { label: 'About', href: '/about' },
+    { label: 'About Us', href: '/about' },
+    { label: 'Insights', href: '/certification' },
   ];
 
   return (
     <header className="relative z-50">
       {/* Greek Key Border Top */}
-      <div className="h-2 greek-key-border" />
+      <div className="h-3 bg-gradient-to-r from-gold-dark via-gold to-gold-dark" />
       
-      {/* Main Header */}
-      <div className="navy-overlay">
+      {/* Main Header - Navy Background */}
+      <div className="bg-navy border-b-4 border-gold">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
@@ -28,55 +28,53 @@ const Header = () => {
               <div className="relative">
                 <svg 
                   viewBox="0 0 60 50" 
-                  className="w-12 h-10 text-gold"
+                  className="w-14 h-12 text-gold"
                   fill="currentColor"
                 >
                   {/* Roof */}
-                  <polygon points="30,2 58,18 2,18" fill="currentColor" />
+                  <polygon points="30,0 58,16 2,16" />
                   {/* Frieze */}
-                  <rect x="5" y="18" width="50" height="4" fill="currentColor" />
+                  <rect x="5" y="16" width="50" height="4" />
                   {/* Columns */}
-                  <rect x="8" y="22" width="5" height="26" fill="currentColor" />
-                  <rect x="18" y="22" width="5" height="26" fill="currentColor" />
-                  <rect x="28" y="22" width="5" height="26" fill="currentColor" />
-                  <rect x="38" y="22" width="5" height="26" fill="currentColor" />
-                  <rect x="48" y="22" width="5" height="26" fill="currentColor" />
+                  <rect x="8" y="20" width="5" height="26" />
+                  <rect x="18" y="20" width="5" height="26" />
+                  <rect x="28" y="20" width="5" height="26" />
+                  <rect x="38" y="20" width="5" height="26" />
+                  <rect x="48" y="20" width="5" height="26" />
                   {/* Base */}
-                  <rect x="3" y="48" width="54" height="2" fill="currentColor" />
+                  <rect x="3" y="46" width="54" height="4" />
                 </svg>
               </div>
               <div className="flex flex-col">
-                <span className="font-display text-xl md:text-2xl tracking-wider text-gold-light group-hover:text-gold transition-colors">
+                <span className="font-display text-2xl md:text-3xl tracking-[0.1em] text-gold group-hover:text-gold-light transition-colors">
                   GOLD ARROW
                 </span>
-                <span className="text-[10px] md:text-xs tracking-[0.2em] text-silver-light uppercase">
+                <span className="text-[10px] md:text-xs tracking-[0.15em] text-gold/70 uppercase">
                   The New Standard in Asset Certification
                 </span>
               </div>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center gap-8">
-              {navItems.map((item) => (
-                <Link
-                  key={item.label}
-                  to={item.href}
-                  className="font-display text-sm tracking-wider text-marble hover:text-gold transition-colors uppercase"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-
-            {/* Connect Vault Button */}
-            <div className="hidden md:flex items-center">
-              <ConnectWalletButton />
+            {/* Auth Buttons - Desktop */}
+            <div className="hidden md:flex items-center gap-3">
+              <Link
+                to="/login"
+                className="px-5 py-2 font-display text-sm tracking-wider text-navy bg-gradient-to-b from-gold-light via-gold to-gold-dark border border-gold-dark hover:from-gold hover:to-gold-light transition-all uppercase"
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                className="px-5 py-2 font-display text-sm tracking-wider text-gold bg-navy border-2 border-gold hover:bg-gold hover:text-navy transition-all uppercase"
+              >
+                Register
+              </Link>
             </div>
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="lg:hidden text-gold p-2"
+              className="md:hidden text-gold p-2"
               aria-label="Toggle menu"
             >
               {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -85,29 +83,63 @@ const Header = () => {
         </div>
       </div>
 
+      {/* Navigation Bar - Cream/Marble Background */}
+      <div className="bg-gradient-to-b from-marble-warm to-marble border-b-2 border-gold/30 hidden lg:block">
+        <div className="h-2 greek-key-border opacity-50" />
+        <nav className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-center gap-12">
+            {navItems.map((item, index) => (
+              <div key={item.label} className="flex items-center gap-12">
+                <Link
+                  to={item.href}
+                  className="font-display text-sm tracking-[0.15em] text-navy/80 hover:text-gold-dark transition-colors uppercase relative group"
+                >
+                  {item.label}
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gold group-hover:w-full transition-all" />
+                </Link>
+                {index < navItems.length - 1 && (
+                  <span className="text-gold/40">◆</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </nav>
+        <div className="h-2 greek-key-border opacity-50" />
+      </div>
+
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="lg:hidden absolute top-full left-0 right-0 navy-overlay border-t border-gold/20">
+        <div className="lg:hidden absolute top-full left-0 right-0 bg-navy border-b-2 border-gold">
           <nav className="container mx-auto px-4 py-6 flex flex-col gap-4">
             {navItems.map((item) => (
               <Link
                 key={item.label}
                 to={item.href}
-                className="font-display text-sm tracking-wider text-marble hover:text-gold transition-colors uppercase py-2"
+                className="font-display text-sm tracking-wider text-gold hover:text-gold-light transition-colors uppercase py-2 border-b border-gold/20"
                 onClick={() => setIsMenuOpen(false)}
               >
                 {item.label}
               </Link>
             ))}
-            <div className="pt-4 border-t border-gold/20">
-              <ConnectWalletButton />
+            <div className="flex gap-3 pt-4">
+              <Link
+                to="/login"
+                className="px-5 py-2 font-display text-sm tracking-wider text-navy bg-gold uppercase flex-1 text-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                className="px-5 py-2 font-display text-sm tracking-wider text-gold border border-gold uppercase flex-1 text-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Register
+              </Link>
             </div>
           </nav>
         </div>
       )}
-
-      {/* Greek Key Border Bottom */}
-      <div className="h-1 greek-key-border" />
     </header>
   );
 };
