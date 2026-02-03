@@ -1,41 +1,20 @@
+import iconTemple from '@/assets/icon-temple.png';
+import iconVault from '@/assets/icon-vault.png';
+import iconCertified from '@/assets/icon-certified.png';
+
 const features = [
   {
-    icon: (
-      <svg viewBox="0 0 60 50" className="w-12 h-10" fill="currentColor">
-        <polygon points="30,2 58,18 2,18" />
-        <rect x="5" y="18" width="50" height="3" />
-        <rect x="8" y="21" width="4" height="22" />
-        <rect x="18" y="21" width="4" height="22" />
-        <rect x="28" y="21" width="4" height="22" />
-        <rect x="38" y="21" width="4" height="22" />
-        <rect x="48" y="21" width="4" height="22" />
-        <rect x="3" y="43" width="54" height="3" />
-      </svg>
-    ),
+    icon: iconTemple,
     title: 'Live Marketplace',
     description: 'Trade Gold, Silver, & Platinum with Real-Time Pricing.',
   },
   {
-    icon: (
-      <svg viewBox="0 0 50 50" className="w-10 h-10" fill="currentColor">
-        <circle cx="25" cy="25" r="23" fill="none" stroke="currentColor" strokeWidth="2" />
-        <circle cx="25" cy="25" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
-        <circle cx="25" cy="25" r="8" fill="currentColor" />
-        <rect x="23" y="4" width="4" height="8" />
-        <rect x="23" y="38" width="4" height="8" />
-        <rect x="4" y="23" width="8" height="4" />
-        <rect x="38" y="23" width="8" height="4" />
-      </svg>
-    ),
+    icon: iconVault,
     title: 'Secure Vault',
     description: 'Institutional-Grade Storage & Protection.',
   },
   {
-    icon: (
-      <svg viewBox="0 0 50 50" className="w-10 h-10" fill="currentColor">
-        <polygon points="25,2 32,18 50,18 36,28 42,46 25,36 8,46 14,28 0,18 18,18" />
-      </svg>
-    ),
+    icon: iconCertified,
     title: 'Certified Assets',
     description: 'Fully Verified & Authenticated Bullion.',
   },
@@ -43,42 +22,58 @@ const features = [
 
 const Features = () => {
   return (
-    <section className="py-16 bg-marble">
-      {/* Greek Key Border */}
-      <div className="h-4 greek-key-border mb-8" />
+    <section className="py-20 bg-marble relative">
+      {/* Greek Key Border Top */}
+      <div className="absolute top-0 left-0 right-0">
+        <div className="h-6 greek-key-border-rich" />
+      </div>
 
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 pt-8">
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto relative">
           {features.map((feature, index) => (
             <div
               key={feature.title}
-              className="text-center group"
+              className="text-center group relative"
             >
-              {/* Icon Container */}
-              <div className="inline-flex items-center justify-center w-20 h-20 mb-4 text-gold/70 group-hover:text-gold transition-colors">
-                {feature.icon}
+              {/* Icon Container with glow */}
+              <div className="relative inline-block mb-6">
+                {/* Icon image */}
+                <div className="w-24 h-24 mx-auto relative">
+                  <img 
+                    src={feature.icon} 
+                    alt={feature.title}
+                    className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
+                  />
+                  {/* Glow effect on hover */}
+                  <div className="absolute inset-0 blur-xl bg-gold/20 opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+                </div>
               </div>
 
               {/* Content */}
-              <h3 className="font-display text-lg md:text-xl text-navy mb-2 tracking-wide uppercase">
+              <h3 className="font-display text-xl md:text-2xl text-navy mb-3 tracking-wide uppercase">
                 {feature.title}
               </h3>
-              <p className="text-navy/60 text-sm leading-relaxed">
+              <p className="text-navy/60 leading-relaxed max-w-xs mx-auto">
                 {feature.description}
               </p>
 
-              {/* Divider between items */}
+              {/* Decorative divider */}
+              <div className="mt-6 mx-auto w-20 h-1 bg-gradient-to-r from-transparent via-gold to-transparent" />
+
+              {/* Vertical divider between items */}
               {index < features.length - 1 && (
-                <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 w-px h-24 bg-gold/20" />
+                <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 w-px h-32 bg-gradient-to-b from-transparent via-gold/40 to-transparent" />
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Greek Key Border */}
-      <div className="h-4 greek-key-border mt-8" />
+      {/* Greek Key Border Bottom */}
+      <div className="absolute bottom-0 left-0 right-0">
+        <div className="h-6 greek-key-border-rich" />
+      </div>
     </section>
   );
 };

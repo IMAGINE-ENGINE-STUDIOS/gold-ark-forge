@@ -1,86 +1,88 @@
 import { Link } from 'react-router-dom';
-import goldBullion from '@/assets/gold-bullion-card.jpg';
-import silverBullion from '@/assets/silver-bullion-card.jpg';
-import platinumBullion from '@/assets/platinum-bullion-card.jpg';
+import goldBullion from '@/assets/gold-bars-rich.jpg';
+import silverBullion from '@/assets/silver-bars-rich.jpg';
+import platinumBullion from '@/assets/platinum-bars-rich.jpg';
 
 const metals = [
   {
     name: 'Gold',
     image: goldBullion,
     href: '/marketplace/gold',
-    borderColor: 'border-gold',
-    bgGradient: 'from-gold/20 via-gold/10 to-transparent',
-    buttonBg: 'bg-gradient-to-b from-gold-light via-gold to-gold-dark',
-    buttonText: 'text-navy',
+    frameClass: 'gold-frame-ornate',
+    buttonClass: 'btn-gold-metallic',
+    shimmerClass: 'gold-shimmer',
   },
   {
     name: 'Silver',
     image: silverBullion,
     href: '/marketplace/silver',
-    borderColor: 'border-silver',
-    bgGradient: 'from-silver/20 via-silver/10 to-transparent',
-    buttonBg: 'bg-gradient-to-b from-silver-light via-silver to-silver-dark',
-    buttonText: 'text-navy',
+    frameClass: 'silver-frame-ornate',
+    buttonClass: 'btn-silver-metallic',
+    shimmerClass: 'silver-shimmer',
   },
   {
     name: 'Platinum',
     image: platinumBullion,
     href: '/marketplace/platinum',
-    borderColor: 'border-platinum',
-    bgGradient: 'from-platinum/20 via-platinum/10 to-transparent',
-    buttonBg: 'bg-gradient-to-b from-platinum-light via-platinum to-platinum-dark',
-    buttonText: 'text-navy',
+    frameClass: 'platinum-frame-ornate',
+    buttonClass: 'btn-platinum-metallic',
+    shimmerClass: 'platinum-shimmer',
   },
 ];
 
 const MetalCards = () => {
   return (
-    <section className="py-16 bg-gradient-marble relative overflow-hidden">
-      {/* Decorative columns on sides */}
-      <div className="absolute left-0 top-0 bottom-0 w-8 md:w-16 bg-gradient-to-r from-marble-warm to-transparent opacity-80" />
-      <div className="absolute right-0 top-0 bottom-0 w-8 md:w-16 bg-gradient-to-l from-marble-warm to-transparent opacity-80" />
+    <section className="py-20 bg-marble relative overflow-hidden">
+      {/* Decorative marble texture */}
+      <div className="absolute inset-0 marble-texture" />
 
       <div className="container mx-auto px-4 relative z-10">
         {/* Metal Cards Grid */}
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-10 max-w-6xl mx-auto">
           {metals.map((metal) => (
             <Link
               key={metal.name}
               to={metal.href}
               className="group relative"
             >
-              {/* Card Container - Shield/Badge Shape */}
-              <div className={`relative bg-marble border-4 ${metal.borderColor} overflow-hidden transition-all duration-300 group-hover:shadow-xl group-hover:-translate-y-1`}>
-                {/* Top gradient accent */}
-                <div className={`absolute top-0 left-0 right-0 h-24 bg-gradient-to-b ${metal.bgGradient}`} />
-                
-                {/* Corner decorations */}
-                <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-gold/50" />
-                <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-gold/50" />
-                <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-gold/50" />
-                <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-gold/50" />
+              {/* Card Container - Shield Shape */}
+              <div className={`relative ${metal.frameClass} p-1 transition-all duration-300 group-hover:-translate-y-2`}>
+                {/* Inner card */}
+                <div className="bg-cream p-6 relative overflow-hidden">
+                  {/* Ornate corner pieces */}
+                  <div className="ornate-corner ornate-corner-tl" />
+                  <div className="ornate-corner ornate-corner-tr" />
+                  <div className="ornate-corner ornate-corner-bl" />
+                  <div className="ornate-corner ornate-corner-br" />
 
-                {/* Image Container */}
-                <div className="relative p-6 pb-4">
-                  <div className="aspect-square overflow-hidden rounded bg-white/50 shadow-inner">
-                    <img
-                      src={metal.image}
-                      alt={`${metal.name} Bullion`}
-                      className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                    />
+                  {/* Image Container with inner border */}
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 border-4 border-gold/30 z-10 pointer-events-none" />
+                    <div className="aspect-[4/3] overflow-hidden">
+                      <img
+                        src={metal.image}
+                        alt={`${metal.name} Bullion`}
+                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Button */}
-                <div className="px-6 pb-6">
-                  <div className={`${metal.buttonBg} ${metal.buttonText} py-3 px-4 font-display text-sm tracking-[0.15em] uppercase text-center border border-current/20 shadow-md group-hover:shadow-lg transition-shadow`}>
-                    ★ Explore {metal.name} ★
+                  {/* Button */}
+                  <div className={`${metal.buttonClass} py-4 px-6 text-center shadow-lg group-hover:shadow-xl transition-shadow`}>
+                    <span className="font-display text-base tracking-[0.15em] uppercase">
+                      ★ Explore {metal.name} ★
+                    </span>
                   </div>
                 </div>
               </div>
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* Greek Key Border Bottom */}
+      <div className="absolute bottom-0 left-0 right-0">
+        <div className="h-6 greek-key-border-rich" />
       </div>
     </section>
   );
