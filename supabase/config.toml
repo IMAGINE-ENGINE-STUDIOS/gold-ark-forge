@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.siwe-auth]
 verify_jwt = false
+
+[functions.certificate-registry]
+verify_jwt = false
