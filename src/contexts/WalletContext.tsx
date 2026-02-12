@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 
 // WalletConnect Project ID - Replace with your own from https://cloud.walletconnect.com
-const WALLETCONNECT_PROJECT_ID = 'YOUR_WALLETCONNECT_PROJECT_ID';
+const WALLETCONNECT_PROJECT_ID = '7fb952b5-8f7f-46f1-9ea8-b9b5ae501cdd';
 
 type WalletType = 'metamask' | 'walletconnect' | null;
 
@@ -116,10 +116,6 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
 
   // Connect via WalletConnect
   const connectWalletConnect = useCallback(async () => {
-    if (WALLETCONNECT_PROJECT_ID === 'YOUR_WALLETCONNECT_PROJECT_ID') {
-      setError('WalletConnect Project ID not configured. Please set your Project ID from cloud.walletconnect.com');
-      return;
-    }
 
     setIsConnecting(true);
     setError(null);
