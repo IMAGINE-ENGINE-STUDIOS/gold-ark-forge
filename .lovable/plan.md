@@ -1,176 +1,104 @@
 
 
-# Institutional Non-Custodial Bullion Certificate Platform -- Implementation Plan
+# Phase 3: Certificate Registry and Marketplace Rewrite
 
-## Current State vs. Target
+## Overview
 
-The existing codebase has a basic bullion marketplace with simplified tables (`bullion_bars`, `vault_holdings`, `reserve_snapshots`, `attestations`, `price_feeds`, `profiles`). The wallet integration uses MetaMask/WalletConnect as if this were an EVM token project. The spec demands a fundamentally different architecture:
+Replace the legacy bullion-bars-based Marketplace with a certificate-centric view. Create a `certificate-registry` edge function for certificate lifecycle management, new React hooks for querying certificates, and rewrite the Marketplace and Certification pages to use the new data model.
 
-- **Identity**: Wallet-only (EVM for SIWE auth + Bitcoin addresses for settlement)
-- **Core model**: Partner-signed certificates (not bearer tokens), event-sourced
-- **Settlement**: Bitcoin PSBT-based, non-custodial
-- **Anchoring**: Merkle-batched OP_RETURN commitments to Bitcoin
-- **Partners**: Vault/dealer systems as issuers; platform is evidence plane only
+## What Changes
 
-This is too large for a single implementation pass. The plan is broken into **5 phases**, each deliverable independently.
+### 1. New Edge Function: `certificate-registry`
 
----
+**File**: `supabase/functions/certificate-registry/index.ts`
 
-## Phase 1: Database Schema Overhaul
+A single edge function handling certificate lifecycle operations via an `action` parameter:
 
-Migrate from the current simplified schema to the spec's institutional data model. Existing tables (`bullion_bars`, `vault_holdings`, `attestations`) will be replaced or restructured.
+- **`list`** -- Public: list active certificates with joined partner info, filterable by metal type (extracted from `metadata_json`)
+- **`get`** -- Public: get single certificate with full partner info and event history
+- **`create`** -- Admin/partner only: create a new certificate with partner signature, insert matching `certificate_events` (type: `issue`)
+- **`freeze` / `unfreeze` / `revoke`** -- Admin/partner only: state transitions with event logging
+- **`transfer_intent`** -- Authenticated wallet: propose a transfer (creates `transfers` record + `certificate_events` entry)
 
-### New Tables
+Config update in `supabase/config.toml`:
+```toml
+[functions.certificate-registry]
+verify_jwt = false
+```
 
-1. **`partners`** -- Certified vault/dealer entities (partner_id, legal_name, jurisdiction, partner_type, status, api_base_url, mtls_spki_fingerprint)
-2. **`partner_sites`** -- Physical vault locations linked to partners
-3. **`wallets`** -- Wallet-only identities (wallet_type: evm|btc, address, last_seen_at)
-4. **`certificates`** -- Partner-signed certificate records with metadata_json (bar identifiers, weight, fineness, refiner stamp), partner_sig, status (active|frozen|revoked|redeemed)
-5. **`certificate_events`** -- Append-only event log (issue, transfer_intent, transfer_exec, freeze, unfreeze, revoke, redeem) with partner signatures
-6. **`transfers`** -- Transfer workflow objects with PSBT storage (psbt_base64, btc_txid, status lifecycle)
-7. **`anchors`** -- Bitcoin commitment records (merkle_root, commit_txid, commit_height, status: pending|broadcast|confirmed|reorged)
-8. **`anchor_leaves`** -- Mapping events to Merkle leaves (leaf_hash, leaf_index)
-9. **`disputes`** -- Optional dispute resolution for transfers
-10. **`audit_logs`** -- Security and operations audit trail (actor_type, action, resource_type, ip_addr)
+### 2. New React Hook: `useCertificates`
 
-### Migration Strategy
+**File**: `src/hooks/useCertificates.ts`
 
-- Keep `price_feeds` (still needed for reference pricing)
-- Keep `profiles` and `user_roles` (for admin portal access)
-- Drop or deprecate `bullion_bars`, `vault_holdings`, `reserve_snapshots`, `attestations` after migrating any test data
-- Add new enums: `wallet_type` (evm, btc), `cert_status` (active, frozen, revoked, redeemed), `transfer_status` (proposed, btc_settlement_pending, partner_review, completed, cancelled, expired, disputed), `anchor_status` (pending, broadcast, confirmed, reorged, abandoned), `partner_type` (vault, dealer, custodian, arbiter), `partner_status` (active, suspended, offboarded)
+- `useCertificates(options?)` -- Query certificates table with partner join, filter by metal type (via metadata_json->>metal_type), status
+- `useCertificate(certId)` -- Single certificate with partner info
+- `useCertificateEvents(certId)` -- Event timeline for a certificate
 
-### RLS Policies
+These hooks query the database directly (certificates are publicly viewable via RLS) rather than going through the edge function, for read performance.
 
-- Certificates: publicly viewable (SELECT), partner-managed (INSERT/UPDATE via admin role + partner checks)
-- Certificate events: publicly viewable, append-only by admin/partner
-- Transfers: viewable by involved wallets, creatable by authenticated wallets
-- Anchors and anchor_leaves: publicly viewable, managed by system/admin
-- Partners and partner_sites: publicly viewable, admin-managed
-- Wallets: self-viewable, auto-created on first auth
-- Audit logs: admin-only read, system-only write
+### 3. Marketplace Page Rewrite
 
----
+**File**: `src/pages/Marketplace.tsx`
 
-## Phase 2: Wallet Identity and SIWE Authentication
+Replace `useBullionBars` with `useCertificates`. Each card now shows:
+- Partner name (from joined `partners` table)
+- Certificate status badge (active/frozen/revoked/redeemed)
+- Bar metadata from `metadata_json`: serial number, refiner stamp, fineness, weight, metal type
+- Computed value using `price_feeds` spot price
+- Link to certificate detail page (`/marketplace/certificate/:certId`)
 
-Replace the current EVM-only wallet connection with a dual-wallet identity system.
+Keep the existing live prices bar and metal filter UI (gold/silver/platinum), but filter by `metadata_json->>metal_type` instead of `bullion_bars.metal_type`.
 
-### Changes
+### 4. New Certificate Detail Page
 
-1. **WalletContext rewrite**: Support both EVM (MetaMask for SIWE login) and Bitcoin wallet addresses
-   - MetaMask remains for session authentication via SIWE (Sign-In with Ethereum, EIP-4361)
-   - Add Bitcoin address registration (user provides their BTC address for settlement)
-   - Remove WalletConnect dependency (or keep as secondary EVM auth option)
+**File**: `src/pages/CertificateDetail.tsx`
 
-2. **SIWE Auth Edge Function** (`siwe-auth`):
-   - `POST /v1/auth/nonce` -- Generate one-time nonce
-   - `POST /v1/auth/siwe` -- Verify SIWE signature, create/find wallet record, issue session JWT
-   - Wallet-only identity: no email/password, no PII stored
+New page at route `/marketplace/certificate/:certId` showing:
+- Full bar metadata (serial, refiner, fineness, weight, jurisdiction)
+- Partner attribution (legal name, jurisdiction, type)
+- Certificate status and version
+- Event timeline (from `certificate_events`) showing issue, transfers, freezes, etc.
+- Anchor proof link (if events have been anchored -- from `anchor_leaves` join)
+- Owner wallet address (truncated)
 
-3. **Wallet registration flow**:
-   - On SIWE login, auto-create `wallets` record (type: evm)
-   - Allow user to register a BTC address for settlement (stored in `wallets` table, type: btc)
-   - Link both wallet types to user profile
+### 5. Route Update
 
-4. **UI updates**:
-   - WalletSelectorDialog: show MetaMask for "Sign In" (SIWE), plus a "Register BTC Address" field
-   - ConnectWalletButton: display both EVM and BTC addresses when connected
-   - Remove Etherscan links, replace with mempool.space for BTC
+**File**: `src/App.tsx`
 
----
+Add route: `/marketplace/certificate/:certId` pointing to `CertificateDetail` component. Keep existing `/marketplace` and `/marketplace/:metal` routes.
 
-## Phase 3: Certificate Registry and Partner Integration
+### 6. Certification Page Update
 
-Build the core certificate lifecycle.
+**File**: `src/pages/Certification.tsx`
 
-### Edge Functions
+Update "How Verification Works" section to reference partner-signed certificates instead of "tokenized bullion". Keep the anchor history section but source it from the `anchors` table instead of `reserve_snapshots`. Add a section showing recent certificate events that have been anchored.
 
-1. **`certificate-registry`** -- CRUD operations:
-   - `CreateCertificateDraft` (admin/partner) -> stores draft with partner signature
-   - `ActivateCertificate` (partner signs) -> status: active
-   - `TransferIntent` (user-signed) -> creates transfer record
-   - `Freeze/Unfreeze/Revoke` (partner-only actions)
-   - `AttachEvidence` (hash pointer to assay/audit docs)
+### 7. New Hook: `useAnchors`
 
-2. **`partner-adapter`** -- Standardized interface for partner vault APIs:
-   - Push mode: webhook receiver for partner events
-   - Pull mode: scheduled polling of partner endpoints
-   - Signature verification for partner-signed payloads
+**File**: `src/hooks/useAnchors.ts`
 
-### UI Pages
+- `useAnchors(limit?)` -- Query anchors table ordered by created_at desc
+- `useAnchorForEvent(eventId)` -- Find anchor + leaf for a specific certificate event
 
-- **Marketplace rewrite**: Show certificates (not raw bars), with partner attribution, bar metadata (serial, refiner stamp, fineness, weight), and verification status
-- **Certificate Detail page**: Full certificate history, event timeline, Merkle proofs, partner info
-- **Certification page update**: Show certificate-level proofs instead of simple reserve snapshots
+Replaces the `useReserveHistory` hook usage on the Certification page.
 
----
+## Files Summary
 
-## Phase 4: Bitcoin Anchor Service (Enhanced)
+| Action | File |
+|--------|------|
+| Create | `supabase/functions/certificate-registry/index.ts` |
+| Create | `src/hooks/useCertificates.ts` |
+| Create | `src/hooks/useAnchors.ts` |
+| Create | `src/pages/CertificateDetail.tsx` |
+| Rewrite | `src/pages/Marketplace.tsx` |
+| Update | `src/pages/Certification.tsx` |
+| Update | `src/App.tsx` (add route) |
+| Update | `supabase/config.toml` (add function config) |
 
-Upgrade the current mock anchoring to production-ready Merkle batching.
+## Technical Notes
 
-### Edge Function Updates
-
-1. **`generate-proof-snapshot` rewrite** -> **`anchor-batch`**:
-   - Collect unanchored certificate_events
-   - Build Merkle tree with canonical leaf hashes: `SHA256("BULLCERTv1" || partner_id || cert_id || event_id || event_hash || partner_sig_hash)`
-   - Store anchor record + anchor_leaves mapping
-   - Output unsigned PSBT with OP_RETURN (protocol tag + version + 32-byte root)
-   - Status lifecycle: pending -> broadcast -> confirmed (with reorg detection)
-
-2. **`anchor-to-bitcoin` rewrite**:
-   - Accept anchor_id, construct OP_RETURN tx
-   - Keep OP_RETURN payload minimal and stable
-   - Support RBF for fee bumping
-   - Track confirmation depth (1=soft, 6=confirmed, 30=final)
-
-3. **Proof retrieval edge function** (`get-proof`):
-   - Given event_id, return: Merkle branch + index + root + Bitcoin txid + block metadata
-   - Verifiable by any third party
-
-### Cadence
-
-- Default: every 10 minutes OR 5,000 events, whichever first (configurable)
-
----
-
-## Phase 5: PSBT Transfer Engine and Escrow
-
-Build the Bitcoin settlement coordination layer.
-
-### Edge Functions
-
-1. **`psbt-transfer`** -- Non-custodial transfer coordination:
-   - Construct unsigned PSBTs (BIP-174 v0)
-   - Template A: Simple BTC settlement (buyer UTXOs -> seller payout + optional fee + change)
-   - Platform NEVER signs customer inputs
-   - Store psbt_base64 in transfers table
-   - Track btc_txid once user broadcasts
-
-2. **`escrow-coordinator`** -- Optional multisig patterns:
-   - Template B: 2-of-3 P2WSH (buyer + seller + arbiter)
-   - Template C: CLTV refund paths (BIP-65)
-   - Template D: CSV relative timelock refunds (BIP-112)
-
-### UI
-
-- Transfer proposal flow: seller lists certificate, buyer creates transfer intent
-- PSBT signing UX: display unsigned PSBT, user signs in their Bitcoin wallet
-- Escrow status tracking with timelock countdown
-
----
-
-## Technical Considerations
-
-- **No Bitcoin Core RPC in Lovable Cloud**: Edge functions cannot run a Bitcoin node. For Phase 4-5, the platform will need an external Bitcoin API (e.g., mempool.space API, Blockstream Esplora API) for UTXO lookups, fee estimation, and broadcast. This is a "delivery service" pattern consistent with the non-custodial mandate.
-- **PSBT construction in edge functions**: Use a lightweight JS Bitcoin library (e.g., `bitcoinjs-lib` via esm.sh import in Deno) for PSBT construction. Platform constructs but never signs customer inputs.
-- **Partner API simulation**: Until real partners onboard, the admin portal will simulate partner-signed events for testing.
-- **MetaMask Bitcoin support**: MetaMask announced native BTC support (Dec 2025). The SIWE flow uses EVM signatures for auth; BTC addresses are registered separately for settlement.
-
-## Recommended Starting Point
-
-**Phase 1 (Database Schema)** is the foundation everything else depends on. I recommend starting there, then Phase 2 (auth), then Phase 3 (certificates), with Phases 4-5 building on top.
-
-Shall I begin with Phase 1?
+- The `metadata_json` JSONB column on certificates stores bar-level data: `{ metal_type, serial_number, refiner_stamp, fineness, weight_oz, jurisdiction }`. Filtering by metal type uses Supabase's `->>'metal_type'` JSONB accessor.
+- The `useBullionBars` hook and old `bullion_bars` table remain intact (not deleted) for backward compatibility, but are no longer referenced by the Marketplace.
+- Certificate cards link to `/marketplace/certificate/:certId` instead of the old `/marketplace/:metal/:id` pattern.
+- The edge function uses `SUPABASE_SERVICE_ROLE_KEY` for write operations (admin-gated) and validates the caller's role before allowing mutations.
 
