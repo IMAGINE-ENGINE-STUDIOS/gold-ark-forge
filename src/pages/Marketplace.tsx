@@ -58,11 +58,12 @@ const Marketplace = () => {
     (cert.metadata_json as any)?.jurisdiction || '—';
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-navy">
       <Header />
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}
         <div className="text-center mb-12">
+          <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-6" />
           <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
             CERTIFICATE MARKETPLACE
           </h1>
@@ -150,7 +151,7 @@ const Marketplace = () => {
                         <Badge variant="outline" className={`${metalTextColors[metal] || 'text-gold'} border-current mb-2`}>
                           {metal.toUpperCase()}
                         </Badge>
-                        <h3 className="font-display text-xl text-marble">{weight} oz Bar</h3>
+                        <h3 className="font-display text-xl text-navy">{weight} oz Bar</h3>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={statusColors[cert.status] || ''}>
@@ -160,30 +161,30 @@ const Marketplace = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-2 text-sm text-marble/70 mb-4">
+                    <div className="space-y-2 text-sm text-navy/50 mb-4">
                       <div className="flex justify-between">
                         <span>Partner:</span>
-                        <span className="text-marble">{cert.partners.legal_name}</span>
+                        <span className="text-navy font-medium">{cert.partners.legal_name}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Serial:</span>
-                        <span className="font-mono text-marble">{getSerialNumber(cert)}</span>
+                        <span className="font-mono text-navy">{getSerialNumber(cert)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Fineness:</span>
-                        <span className="text-marble">{(getFineness(cert) * 100).toFixed(2)}%</span>
+                        <span className="text-navy">{(getFineness(cert) * 100).toFixed(2)}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Jurisdiction:</span>
-                        <span className="text-marble">{getJurisdiction(cert)}</span>
+                        <span className="text-navy">{getJurisdiction(cert)}</span>
                       </div>
                     </div>
 
                     {spotPrice && weight > 0 && (
                       <div className="border-t border-gold/20 pt-4 mb-4">
                         <div className="flex justify-between items-end">
-                          <span className="text-marble/70 text-sm">Est. Value:</span>
-                          <span className="text-gold font-display text-xl">
+                          <span className="text-navy/50 text-sm">Est. Value:</span>
+                          <span className="text-gold-dark font-display text-xl">
                             {formatPrice(weight * spotPrice)}
                           </span>
                         </div>
@@ -204,8 +205,8 @@ const Marketplace = () => {
           </div>
         ) : (
           <div className="text-center py-16">
-            <div className="text-marble/50 text-lg mb-4">No certificates available at this time.</div>
-            <p className="text-marble/30 text-sm">Check back soon for new listings.</p>
+            <div className="text-marble/60 text-lg mb-4 font-display">No certificates available at this time.</div>
+            <p className="text-marble/40 text-sm">Check back soon for new listings.</p>
           </div>
         )}
       </main>
