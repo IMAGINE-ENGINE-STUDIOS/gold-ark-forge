@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "@/contexts/WalletContext";
+import WalletSelectorDialog from "@/components/wallet/WalletSelectorDialog";
 import Index from "./pages/Index";
 import Marketplace from "./pages/Marketplace";
 import Vault from "./pages/Vault";
@@ -19,6 +20,7 @@ const App = () => (
       <WalletProvider>
         <Toaster />
         <Sonner />
+        <WalletSelectorDialog />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
