@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 
 // WalletConnect Project ID - Replace with your own from https://cloud.walletconnect.com
-const WALLETCONNECT_PROJECT_ID = '7fb952b5-8f7f-46f1-9ea8-b9b5ae501cdd';
+const WALLETCONNECT_PROJECT_ID = '782e84f4b218dd6d081f40e92354847c';
 
 type WalletType = 'metamask' | 'walletconnect' | null;
 
