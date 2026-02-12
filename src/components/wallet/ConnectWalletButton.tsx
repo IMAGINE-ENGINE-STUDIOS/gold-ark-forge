@@ -14,7 +14,7 @@ const truncateAddress = (address: string) => {
 };
 
 const ConnectWalletButton = () => {
-  const { address, isConnecting, isConnected, connect, disconnect, error } = useWallet();
+  const { address, isConnecting, isConnected, disconnect, error, setShowWalletSelector, walletType } = useWallet();
 
   if (isConnected && address) {
     return (
@@ -51,6 +51,9 @@ const ConnectWalletButton = () => {
             </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator className="bg-gold/20" />
+          <DropdownMenuItem className="text-marble/50 text-xs cursor-default">
+            Connected via {walletType === 'walletconnect' ? 'WalletConnect' : 'MetaMask'}
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={disconnect}
             className="flex items-center gap-2 text-red-400 hover:text-red-300 cursor-pointer"
@@ -66,7 +69,7 @@ const ConnectWalletButton = () => {
   return (
     <div className="flex flex-col items-end gap-1">
       <button
-        onClick={connect}
+        onClick={() => setShowWalletSelector(true)}
         disabled={isConnecting}
         className="btn-primary-gold px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
       >
