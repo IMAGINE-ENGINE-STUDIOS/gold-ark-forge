@@ -1,257 +1,176 @@
 
-# Rich Hellenic Design Overhaul
 
-## Overview
-This plan transforms the current website from a flat, web-like design to a rich, immersive Greek-inspired interface with **real photorealistic column images**, detailed gold frames, authentic bullion imagery, and architectural elements that make the platform feel like a solid, physical institution.
+# Institutional Non-Custodial Bullion Certificate Platform -- Implementation Plan
 
----
+## Current State vs. Target
 
-## Key Design Elements from Mockup
+The existing codebase has a basic bullion marketplace with simplified tables (`bullion_bars`, `vault_holdings`, `reserve_snapshots`, `attestations`, `price_feeds`, `profiles`). The wallet integration uses MetaMask/WalletConnect as if this were an EVM token project. The spec demands a fundamentally different architecture:
 
-Based on the reference image, these are the critical visual elements needed:
+- **Identity**: Wallet-only (EVM for SIWE auth + Bitcoin addresses for settlement)
+- **Core model**: Partner-signed certificates (not bearer tokens), event-sourced
+- **Settlement**: Bitcoin PSBT-based, non-custodial
+- **Anchoring**: Merkle-batched OP_RETURN commitments to Bitcoin
+- **Partners**: Vault/dealer systems as issuers; platform is evidence plane only
 
-1. **Real Greek Columns** - Photorealistic marble columns on left and right sides of the hero section (not CSS patterns)
-2. **Temple Background** - Central Greek temple architecture with blue sky
-3. **Shield-Shaped Metal Cards** - Gold, silver, platinum with proper metallic frames
-4. **Rich Gold Borders** - Ornate gold corner pieces and frame decorations
-5. **Greek Key Patterns** - Detailed meander borders at top and bottom of sections
-6. **Photorealistic Icons** - Temple, vault door, gold ingot with laurel wreath
-7. **Layered Visual Depth** - Shadows, gradients, and overlays for a 3D feel
+This is too large for a single implementation pass. The plan is broken into **5 phases**, each deliverable independently.
 
 ---
 
-## Phase 1: Generate High-Quality Assets
+## Phase 1: Database Schema Overhaul
 
-Generate the following photorealistic images using AI:
+Migrate from the current simplified schema to the spec's institutional data model. Existing tables (`bullion_bars`, `vault_holdings`, `attestations`) will be replaced or restructured.
 
-| Asset | Description | File Path |
-|-------|-------------|-----------|
-| Left Column | Single Greek marble column, full height, dramatic lighting | `src/assets/column-left.png` |
-| Right Column | Single Greek marble column, full height, mirrored | `src/assets/column-right.png` |
-| Hero Temple | Greek temple with columns, blue sky, clouds, gold accents | `src/assets/hero-temple-rich.jpg` |
-| Gold Bullion | Stack of gold bars on marble surface, dramatic lighting | `src/assets/gold-bars-rich.jpg` |
-| Silver Bullion | Stack of silver bars on marble surface | `src/assets/silver-bars-rich.jpg` |
-| Platinum Bullion | Stack of platinum bars on marble surface | `src/assets/platinum-bars-rich.jpg` |
-| Marketplace Scene | Ancient Greek agora/marketplace with columns, warm lighting | `src/assets/marketplace-rich.jpg` |
-| Vault Door | Massive bank vault door, steel, gold accents | `src/assets/vault-door-rich.jpg` |
-| Temple Icon | Small temple icon with gold tint for features | `src/assets/icon-temple.png` |
-| Vault Icon | Vault door circular icon | `src/assets/icon-vault.png` |
-| Certified Icon | Gold ingot with laurel wreath | `src/assets/icon-certified.png` |
+### New Tables
 
----
+1. **`partners`** -- Certified vault/dealer entities (partner_id, legal_name, jurisdiction, partner_type, status, api_base_url, mtls_spki_fingerprint)
+2. **`partner_sites`** -- Physical vault locations linked to partners
+3. **`wallets`** -- Wallet-only identities (wallet_type: evm|btc, address, last_seen_at)
+4. **`certificates`** -- Partner-signed certificate records with metadata_json (bar identifiers, weight, fineness, refiner stamp), partner_sig, status (active|frozen|revoked|redeemed)
+5. **`certificate_events`** -- Append-only event log (issue, transfer_intent, transfer_exec, freeze, unfreeze, revoke, redeem) with partner signatures
+6. **`transfers`** -- Transfer workflow objects with PSBT storage (psbt_base64, btc_txid, status lifecycle)
+7. **`anchors`** -- Bitcoin commitment records (merkle_root, commit_txid, commit_height, status: pending|broadcast|confirmed|reorged)
+8. **`anchor_leaves`** -- Mapping events to Merkle leaves (leaf_hash, leaf_index)
+9. **`disputes`** -- Optional dispute resolution for transfers
+10. **`audit_logs`** -- Security and operations audit trail (actor_type, action, resource_type, ip_addr)
 
-## Phase 2: Hero Section Redesign
+### Migration Strategy
 
-### Current State
-- Uses CSS patterns for column decoration
-- Simple gradient overlay
-- Basic temple icon
+- Keep `price_feeds` (still needed for reference pricing)
+- Keep `profiles` and `user_roles` (for admin portal access)
+- Drop or deprecate `bullion_bars`, `vault_holdings`, `reserve_snapshots`, `attestations` after migrating any test data
+- Add new enums: `wallet_type` (evm, btc), `cert_status` (active, frozen, revoked, redeemed), `transfer_status` (proposed, btc_settlement_pending, partner_review, completed, cancelled, expired, disputed), `anchor_status` (pending, broadcast, confirmed, reorged, abandoned), `partner_type` (vault, dealer, custodian, arbiter), `partner_status` (active, suspended, offboarded)
 
-### New Implementation
-```text
-+------------------------------------------------------------------+
-|  [REAL COLUMN IMAGE]   |   TEMPLE BACKGROUND   |  [REAL COLUMN]  |
-|                        |                       |                 |
-|  Left Column           |  "Your Gateway to     |  Right Column   |
-|  Full Height           |   Precious Metals"    |  Full Height    |
-|  Marble Texture        |                       |  Mirrored       |
-|  Shadow Effects        |  SECURE. VERIFIED.    |  Shadow Effects |
-|                        |                       |                 |
-|                        |  [ENTER MARKETPLACE]  |                 |
-+------------------------------------------------------------------+
-```
+### RLS Policies
 
-### Technical Changes
-- Import column images as actual `<img>` elements positioned absolutely on left/right
-- Remove CSS-based column patterns
-- Add proper shadows between columns and content
-- Reduce overlay opacity to show more of the temple background
-- Add subtle parallax/depth effect
+- Certificates: publicly viewable (SELECT), partner-managed (INSERT/UPDATE via admin role + partner checks)
+- Certificate events: publicly viewable, append-only by admin/partner
+- Transfers: viewable by involved wallets, creatable by authenticated wallets
+- Anchors and anchor_leaves: publicly viewable, managed by system/admin
+- Partners and partner_sites: publicly viewable, admin-managed
+- Wallets: self-viewable, auto-created on first auth
+- Audit logs: admin-only read, system-only write
 
 ---
 
-## Phase 3: Metal Cards with Rich Frames
+## Phase 2: Wallet Identity and SIWE Authentication
 
-### Current State
-- Simple border frames
-- Basic corner decorations using CSS
+Replace the current EVM-only wallet connection with a dual-wallet identity system.
 
-### New Implementation
-```text
-+--------------------------------------------+
-|   [ORNATE GOLD CORNER]      [GOLD CORNER]  |
-|                                            |
-|        [BULLION IMAGE]                     |
-|        Gold bars on marble                 |
-|        Dramatic studio lighting            |
-|                                            |
-|   +------------------------------------+   |
-|   |     ★ EXPLORE GOLD ★               |   |
-|   +------------------------------------+   |
-|                                            |
-|   [GOLD CORNER]          [GOLD CORNER]     |
-+--------------------------------------------+
-```
+### Changes
 
-### Technical Changes
-- Shield/badge shape using clip-path
-- Thick gold borders with gradient shine
-- Inner shadow for depth
-- Metallic button with proper gradient
-- Hover animation (scale + glow)
+1. **WalletContext rewrite**: Support both EVM (MetaMask for SIWE login) and Bitcoin wallet addresses
+   - MetaMask remains for session authentication via SIWE (Sign-In with Ethereum, EIP-4361)
+   - Add Bitcoin address registration (user provides their BTC address for settlement)
+   - Remove WalletConnect dependency (or keep as secondary EVM auth option)
+
+2. **SIWE Auth Edge Function** (`siwe-auth`):
+   - `POST /v1/auth/nonce` -- Generate one-time nonce
+   - `POST /v1/auth/siwe` -- Verify SIWE signature, create/find wallet record, issue session JWT
+   - Wallet-only identity: no email/password, no PII stored
+
+3. **Wallet registration flow**:
+   - On SIWE login, auto-create `wallets` record (type: evm)
+   - Allow user to register a BTC address for settlement (stored in `wallets` table, type: btc)
+   - Link both wallet types to user profile
+
+4. **UI updates**:
+   - WalletSelectorDialog: show MetaMask for "Sign In" (SIWE), plus a "Register BTC Address" field
+   - ConnectWalletButton: display both EVM and BTC addresses when connected
+   - Remove Etherscan links, replace with mempool.space for BTC
 
 ---
 
-## Phase 4: Features Section with Rich Icons
+## Phase 3: Certificate Registry and Partner Integration
 
-### Current State
-- Simple SVG icons
-- Basic layout
+Build the core certificate lifecycle.
 
-### New Implementation
-```text
-+==========================================+
-|          GREEK KEY BORDER                |
-+==========================================+
+### Edge Functions
 
-   [TEMPLE ICON]       [VAULT ICON]       [CERTIFIED ICON]
-   Photorealistic      Vault door         Gold ingot with
-   mini temple         circular           laurel wreath
+1. **`certificate-registry`** -- CRUD operations:
+   - `CreateCertificateDraft` (admin/partner) -> stores draft with partner signature
+   - `ActivateCertificate` (partner signs) -> status: active
+   - `TransferIntent` (user-signed) -> creates transfer record
+   - `Freeze/Unfreeze/Revoke` (partner-only actions)
+   - `AttachEvidence` (hash pointer to assay/audit docs)
 
-   LIVE MARKETPLACE    SECURE VAULT       CERTIFIED ASSETS
-   Trade Gold, Silver  Institutional      Fully Verified
-   & Platinum          Grade Storage      Bullion
+2. **`partner-adapter`** -- Standardized interface for partner vault APIs:
+   - Push mode: webhook receiver for partner events
+   - Pull mode: scheduled polling of partner endpoints
+   - Signature verification for partner-signed payloads
 
-+==========================================+
-|          GREEK KEY BORDER                |
-+==========================================+
-```
+### UI Pages
 
-### Technical Changes
-- Use generated photorealistic icon images
-- Add subtle shadow beneath each icon
-- Proper vertical dividers between sections
-- Enhanced Greek key border pattern
+- **Marketplace rewrite**: Show certificates (not raw bars), with partner attribution, bar metadata (serial, refiner stamp, fineness, weight), and verification status
+- **Certificate Detail page**: Full certificate history, event timeline, Merkle proofs, partner info
+- **Certification page update**: Show certificate-level proofs instead of simple reserve snapshots
 
 ---
 
-## Phase 5: Vault Preview with Ornate Frames
+## Phase 4: Bitcoin Anchor Service (Enhanced)
 
-### Current State
-- Simple gold border lines
-- Basic gradient overlay
+Upgrade the current mock anchoring to production-ready Merkle batching.
 
-### New Implementation
-```text
-+--------------------------------------------------+
-|                    NAVY BACKGROUND               |
-|  +----------------------+  +--------------------+|
-|  | [GOLD CORNER FRAME]  |  | [GOLD CORNER FRAME]||
-|  |                      |  |                    ||
-|  |    MARKETPLACE       |  |    VAULT DOOR      ||
-|  |    Greek agora       |  |    Bank vault      ||
-|  |    scene             |  |    massive door    ||
-|  |                      |  |                    ||
-|  | ENTER THE MARKETPLACE|  | ACCESS THE VAULT   ||
-|  | Buy & Sell Metals    |  | Safeguard Assets   ||
-|  | [GOLD CORNER FRAME]  |  | [GOLD CORNER FRAME]||
-|  +----------------------+  +--------------------+|
-+--------------------------------------------------+
-```
+### Edge Function Updates
 
-### Technical Changes
-- Ornate gold corner pieces (generated or CSS)
-- Thicker gold borders
-- Better image quality for backgrounds
-- Text on semi-transparent navy overlay
+1. **`generate-proof-snapshot` rewrite** -> **`anchor-batch`**:
+   - Collect unanchored certificate_events
+   - Build Merkle tree with canonical leaf hashes: `SHA256("BULLCERTv1" || partner_id || cert_id || event_id || event_hash || partner_sig_hash)`
+   - Store anchor record + anchor_leaves mapping
+   - Output unsigned PSBT with OP_RETURN (protocol tag + version + 32-byte root)
+   - Status lifecycle: pending -> broadcast -> confirmed (with reorg detection)
+
+2. **`anchor-to-bitcoin` rewrite**:
+   - Accept anchor_id, construct OP_RETURN tx
+   - Keep OP_RETURN payload minimal and stable
+   - Support RBF for fee bumping
+   - Track confirmation depth (1=soft, 6=confirmed, 30=final)
+
+3. **Proof retrieval edge function** (`get-proof`):
+   - Given event_id, return: Merkle branch + index + root + Bitcoin txid + block metadata
+   - Verifiable by any third party
+
+### Cadence
+
+- Default: every 10 minutes OR 5,000 events, whichever first (configurable)
 
 ---
 
-## Phase 6: CSS Enhancements
+## Phase 5: PSBT Transfer Engine and Escrow
 
-### New CSS Classes to Add
+Build the Bitcoin settlement coordination layer.
 
-```css
-/* Enhanced Greek Key Border - More detailed */
-.greek-key-border-rich { ... }
+### Edge Functions
 
-/* Ornate corner frame pieces */
-.ornate-corner { ... }
+1. **`psbt-transfer`** -- Non-custodial transfer coordination:
+   - Construct unsigned PSBTs (BIP-174 v0)
+   - Template A: Simple BTC settlement (buyer UTXOs -> seller payout + optional fee + change)
+   - Platform NEVER signs customer inputs
+   - Store psbt_base64 in transfers table
+   - Track btc_txid once user broadcasts
 
-/* Column shadow effect */
-.column-shadow-left { ... }
-.column-shadow-right { ... }
+2. **`escrow-coordinator`** -- Optional multisig patterns:
+   - Template B: 2-of-3 P2WSH (buyer + seller + arbiter)
+   - Template C: CLTV refund paths (BIP-65)
+   - Template D: CSV relative timelock refunds (BIP-112)
 
-/* Shield/badge card shape */
-.shield-card { ... }
+### UI
 
-/* Metallic button effects */
-.btn-gold-metallic { ... }
-.btn-silver-metallic { ... }
-.btn-platinum-metallic { ... }
-
-/* Rich gold frame */
-.gold-frame-ornate { ... }
-```
+- Transfer proposal flow: seller lists certificate, buyer creates transfer intent
+- PSBT signing UX: display unsigned PSBT, user signs in their Bitcoin wallet
+- Escrow status tracking with timelock countdown
 
 ---
 
-## Phase 7: Header Refinements
+## Technical Considerations
 
-Match the mockup header more closely:
-- Navy background with Greek key pattern at very top
-- Gold temple icon larger
-- "GOLD ARROW" branding more prominent
-- Navigation bar on cream/marble background
-- Diamond separators between nav items
+- **No Bitcoin Core RPC in Lovable Cloud**: Edge functions cannot run a Bitcoin node. For Phase 4-5, the platform will need an external Bitcoin API (e.g., mempool.space API, Blockstream Esplora API) for UTXO lookups, fee estimation, and broadcast. This is a "delivery service" pattern consistent with the non-custodial mandate.
+- **PSBT construction in edge functions**: Use a lightweight JS Bitcoin library (e.g., `bitcoinjs-lib` via esm.sh import in Deno) for PSBT construction. Platform constructs but never signs customer inputs.
+- **Partner API simulation**: Until real partners onboard, the admin portal will simulate partner-signed events for testing.
+- **MetaMask Bitcoin support**: MetaMask announced native BTC support (Dec 2025). The SIWE flow uses EVM signatures for auth; BTC addresses are registered separately for settlement.
 
----
+## Recommended Starting Point
 
-## Files to Modify
+**Phase 1 (Database Schema)** is the foundation everything else depends on. I recommend starting there, then Phase 2 (auth), then Phase 3 (certificates), with Phases 4-5 building on top.
 
-| File | Changes |
-|------|---------|
-| `src/components/Hero.tsx` | Add real column images, update layout |
-| `src/components/MetalCards.tsx` | Shield shape, rich frames, new images |
-| `src/components/Features.tsx` | Photorealistic icons, better layout |
-| `src/components/VaultPreview.tsx` | Ornate gold frames, new images |
-| `src/components/Header.tsx` | Match mockup styling more closely |
-| `src/index.css` | New CSS classes for rich effects |
+Shall I begin with Phase 1?
 
----
-
-## New Assets to Generate
-
-| Priority | Asset | Purpose |
-|----------|-------|---------|
-| 1 | `column-left.png` | Left side Greek column (transparent PNG) |
-| 2 | `column-right.png` | Right side Greek column (transparent PNG) |
-| 3 | `hero-temple-rich.jpg` | Central hero background |
-| 4 | `gold-bars-rich.jpg` | Gold card bullion image |
-| 5 | `silver-bars-rich.jpg` | Silver card bullion image |
-| 6 | `platinum-bars-rich.jpg` | Platinum card bullion image |
-| 7 | `marketplace-rich.jpg` | Greek marketplace scene |
-| 8 | `vault-door-rich.jpg` | Vault door image |
-| 9 | `icon-temple.png` | Features section icon |
-| 10 | `icon-vault.png` | Features section icon |
-| 11 | `icon-certified.png` | Features section icon |
-
----
-
-## Implementation Order
-
-1. **Generate column images** - These are the most impactful visual change
-2. **Update Hero.tsx** - Add real columns to sides
-3. **Generate bullion images** - Rich gold/silver/platinum bars
-4. **Update MetalCards.tsx** - Shield frames with new images
-5. **Generate feature icons** - Temple, vault, certified
-6. **Update Features.tsx** - Replace SVG with image icons
-7. **Update VaultPreview.tsx** - Ornate gold corner frames
-8. **Update CSS** - Add all new rich styling classes
-9. **Final polish** - Shadows, transitions, hover effects
-
----
-
-## Expected Result
-
-The website will transform from a flat, modern web design to an immersive, institution-quality platform that feels like walking into a Greek temple bank vault. Real marble columns frame the content, gold gleams from every frame, and the overall aesthetic conveys trust, permanence, and value - exactly matching the mockup reference.
