@@ -7,6 +7,7 @@ import { WalletProvider } from "@/contexts/WalletContext";
 import WalletSelectorDialog from "@/components/wallet/WalletSelectorDialog";
 import Index from "./pages/Index";
 import Marketplace from "./pages/Marketplace";
+import CertificateDetail from "./pages/CertificateDetail";
 import Vault from "./pages/Vault";
 import Certification from "./pages/Certification";
 import About from "./pages/About";
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="/marketplace/:metal" element={<Marketplace />} />
+            <Route path="/marketplace/certificate/:certId" element={<CertificateDetail />} />
             <Route path="/vault" element={<Vault />} />
             <Route path="/certification" element={<Certification />} />
             <Route path="/about" element={<About />} />

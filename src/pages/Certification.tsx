@@ -1,6 +1,7 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useLatestReserveProof, useReserveHistory, useAttestations } from '@/hooks/useReserveProof';
+import { useLatestReserveProof, useAttestations } from '@/hooks/useReserveProof';
+import { useAnchors } from '@/hooks/useAnchors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,23 +9,16 @@ import { Shield, Bitcoin, ExternalLink, FileCheck, Link as LinkIcon, CheckCircle
 
 const Certification = () => {
   const { data: latestProof, isLoading: proofLoading } = useLatestReserveProof();
-  const { data: proofHistory, isLoading: historyLoading } = useReserveHistory(10);
+  const { data: anchors, isLoading: anchorsLoading } = useAnchors(10);
   const { data: attestations, isLoading: attestationsLoading } = useAttestations();
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-  };
 
-  const truncateHash = (hash: string, length = 12) => {
-    if (hash.length <= length * 2) return hash;
-    return `${hash.slice(0, length)}...${hash.slice(-length)}`;
-  };
+  const truncateHash = (hash: string, length = 12) =>
+    hash.length <= length * 2 ? hash : `${hash.slice(0, length)}...${hash.slice(-length)}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -36,8 +30,8 @@ const Certification = () => {
             VERIFICATION & CERTIFICATION
           </h1>
           <p className="text-marble/70 max-w-2xl mx-auto">
-            Transparent proof of our bullion reserves through Chainlink oracles, 
-            government attestations, and Bitcoin blockchain anchoring.
+            Transparent proof of partner-signed bullion certificates through Chainlink oracles,
+            authority attestations, and Bitcoin blockchain anchoring.
           </p>
         </div>
 
@@ -54,10 +48,10 @@ const Certification = () => {
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gold/10 flex items-center justify-center">
                   <FileCheck className="text-gold" size={28} />
                 </div>
-                <h3 className="font-display text-lg text-marble mb-2">1. Attestation</h3>
+                <h3 className="font-display text-lg text-marble mb-2">1. Partner Signing</h3>
                 <p className="text-marble/60 text-sm">
-                  Government authorities and independent auditors verify physical bullion 
-                  in certified vaults and sign attestation documents.
+                  Certified vault operators and dealers cryptographically sign each bullion
+                  certificate, attesting to the physical bar's existence, serial number, and fineness.
                 </p>
               </div>
               <div className="text-center">
@@ -66,8 +60,8 @@ const Certification = () => {
                 </div>
                 <h3 className="font-display text-lg text-marble mb-2">2. Chainlink PoR</h3>
                 <p className="text-marble/60 text-sm">
-                  Chainlink Proof-of-Reserve oracles query our API to verify that 
-                  total tokenized bullion matches physical reserves.
+                  Chainlink Proof-of-Reserve oracles query our registry to verify that
+                  issued certificates match physical reserves held by authorized partners.
                 </p>
               </div>
               <div className="text-center">
@@ -76,8 +70,8 @@ const Certification = () => {
                 </div>
                 <h3 className="font-display text-lg text-marble mb-2">3. Bitcoin Anchoring</h3>
                 <p className="text-marble/60 text-sm">
-                  Reserve snapshots are hashed into Merkle roots and permanently 
-                  anchored to the Bitcoin blockchain via OP_RETURN.
+                  Certificate events are Merkle-batched and permanently anchored
+                  to the Bitcoin blockchain via OP_RETURN commitments.
                 </p>
               </div>
             </div>
@@ -104,7 +98,7 @@ const Certification = () => {
                   <CheckCircle2 size={20} />
                   <span className="font-display">Reserves Verified</span>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-gradient-to-br from-gold/20 to-gold/5 p-4 rounded-lg border border-gold/30">
                     <div className="text-gold/70 text-sm mb-1">Total Gold</div>
@@ -189,18 +183,10 @@ const Certification = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gold/20">
-                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">
-                        Authority
-                      </th>
-                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">
-                        Document Hash
-                      </th>
-                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">
-                        Valid Until
-                      </th>
-                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">
-                        Status
-                      </th>
+                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">Authority</th>
+                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">Document Hash</th>
+                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">Valid Until</th>
+                      <th className="text-left py-3 px-4 text-marble/70 font-display text-sm">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -209,29 +195,18 @@ const Certification = () => {
                         ? new Date(attestation.valid_until) > new Date()
                         : true;
                       return (
-                        <tr
-                          key={attestation.id}
-                          className="border-b border-gold/10 hover:bg-navy-light/20"
-                        >
-                          <td className="py-3 px-4 text-marble">
-                            {attestation.authority_name}
-                          </td>
+                        <tr key={attestation.id} className="border-b border-gold/10 hover:bg-navy-light/20">
+                          <td className="py-3 px-4 text-marble">{attestation.authority_name}</td>
                           <td className="py-3 px-4 font-mono text-xs text-marble/70">
                             {truncateHash(attestation.document_hash)}
                           </td>
                           <td className="py-3 px-4 text-marble/70">
-                            {attestation.valid_until
-                              ? formatDate(attestation.valid_until)
-                              : 'Perpetual'}
+                            {attestation.valid_until ? formatDate(attestation.valid_until) : 'Perpetual'}
                           </td>
                           <td className="py-3 px-4">
                             <Badge
                               variant="outline"
-                              className={
-                                isValid
-                                  ? 'text-green-400 border-green-400'
-                                  : 'text-red-400 border-red-400'
-                              }
+                              className={isValid ? 'text-green-400 border-green-400' : 'text-red-400 border-red-400'}
                             >
                               {isValid ? 'Active' : 'Expired'}
                             </Badge>
@@ -250,7 +225,7 @@ const Certification = () => {
           </CardContent>
         </Card>
 
-        {/* Bitcoin Anchor History */}
+        {/* Bitcoin Anchor History (now from anchors table) */}
         <Card className="bg-navy-light/30 border-gold/20">
           <CardHeader>
             <CardTitle className="font-display text-xl text-gold-light flex items-center gap-2">
@@ -259,36 +234,48 @@ const Certification = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {historyLoading ? (
+            {anchorsLoading ? (
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : proofHistory && proofHistory.length > 0 ? (
+            ) : anchors && anchors.length > 0 ? (
               <div className="space-y-3">
-                {proofHistory.map((proof) => (
+                {anchors.map((anchor) => (
                   <div
-                    key={proof.id}
+                    key={anchor.anchor_id}
                     className="flex items-center justify-between p-4 bg-navy/30 rounded-lg border border-gold/10"
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-marble/70 text-sm">
-                        {formatDate(proof.created_at)}
+                        {formatDate(anchor.created_at)}
                       </div>
                       <Badge variant="outline" className="text-gold border-gold">
-                        {proof.bar_count} bars
+                        {anchor.leaf_count} events
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          anchor.status === 'confirmed'
+                            ? 'text-green-400 border-green-400'
+                            : anchor.status === 'broadcast'
+                            ? 'text-yellow-400 border-yellow-400'
+                            : 'text-marble/50 border-marble/30'
+                        }
+                      >
+                        {anchor.status}
                       </Badge>
                     </div>
-                    {proof.bitcoin_txid ? (
+                    {anchor.commit_txid ? (
                       <a
-                        href={`https://mempool.space/tx/${proof.bitcoin_txid}`}
+                        href={`https://mempool.space/tx/${anchor.commit_txid}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 text-gold hover:text-gold-light"
                       >
                         <span className="font-mono text-xs hidden md:inline">
-                          {truncateHash(proof.bitcoin_txid, 8)}
+                          {truncateHash(anchor.commit_txid, 8)}
                         </span>
                         <ExternalLink size={14} />
                       </a>
