@@ -13,55 +13,79 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Fetch latest reserve snapshot
-    const { data: snapshot, error } = await supabase
-      .from('reserve_snapshots')
-      .select('*')
+    // Compute live reserve totals from active certificates
+    const { data: activeCerts, error: certsError } = await supabase
+      .from('certificates')
+      .select('metadata_json')
+      .eq('status', 'active')
+
+    if (certsError) throw certsError
+
+    let gold_oz = 0, silver_oz = 0, platinum_oz = 0, cert_count = 0
+
+    if (activeCerts && activeCerts.length > 0) {
+      for (const cert of activeCerts) {
+        const meta = cert.metadata_json as { metal_type?: string; weight_oz?: number }
+        const weight = Number(meta?.weight_oz || 0)
+        cert_count++
+        switch (meta?.metal_type) {
+          case 'gold': gold_oz += weight; break
+          case 'silver': silver_oz += weight; break
+          case 'platinum': platinum_oz += weight; break
+        }
+      }
+    }
+
+    // Fetch latest anchor with commit_txid
+    const { data: latestAnchor } = await supabase
+      .from('anchors')
+      .select('anchor_id, merkle_root, commit_txid, status, created_at')
+      .in('status', ['confirmed', 'broadcast'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (error) throw error
+    // If no active certificates, fall back to reserve_snapshots
+    if (cert_count === 0) {
+      const { data: snapshot } = await supabase
+        .from('reserve_snapshots')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    if (!snapshot) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: null,
-          message: 'No reserve snapshot available',
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      if (snapshot) {
+        gold_oz = Number(snapshot.total_gold_oz)
+        silver_oz = Number(snapshot.total_silver_oz)
+        platinum_oz = Number(snapshot.total_platinum_oz)
+        cert_count = snapshot.bar_count
+      }
     }
 
-    // Format response for Chainlink oracle consumption
-    // Chainlink expects specific format with reserves data
     const oracleResponse = {
       success: true,
       timestamp: new Date().toISOString(),
-      snapshot_id: snapshot.snapshot_id,
-      merkle_root: snapshot.merkle_root,
+      anchor_id: latestAnchor?.anchor_id || null,
+      merkle_root: latestAnchor?.merkle_root || null,
       reserves: {
         gold: {
-          total_oz: Number(snapshot.total_gold_oz),
-          // Convert to smallest unit for Chainlink (8 decimals)
-          total_units: Math.floor(Number(snapshot.total_gold_oz) * 100000000),
+          total_oz: gold_oz,
+          total_units: Math.floor(gold_oz * 100000000),
         },
         silver: {
-          total_oz: Number(snapshot.total_silver_oz),
-          total_units: Math.floor(Number(snapshot.total_silver_oz) * 100000000),
+          total_oz: silver_oz,
+          total_units: Math.floor(silver_oz * 100000000),
         },
         platinum: {
-          total_oz: Number(snapshot.total_platinum_oz),
-          total_units: Math.floor(Number(snapshot.total_platinum_oz) * 100000000),
+          total_oz: platinum_oz,
+          total_units: Math.floor(platinum_oz * 100000000),
         },
       },
-      bar_count: snapshot.bar_count,
-      bitcoin_anchor: snapshot.bitcoin_txid || null,
-      last_updated: snapshot.created_at,
+      bar_count: cert_count,
+      bitcoin_anchor: latestAnchor?.commit_txid || null,
+      last_updated: latestAnchor?.created_at || new Date().toISOString(),
     }
 
     return new Response(

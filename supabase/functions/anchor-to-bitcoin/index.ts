@@ -13,83 +13,73 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
-    // Bitcoin anchoring service API key (e.g., OpenTimestamps or custom service)
     const btcAnchorApiKey = Deno.env.get('BTC_ANCHOR_API_KEY')
-    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get the latest snapshot that hasn't been anchored yet
-    const { data: snapshot, error: fetchError } = await supabase
-      .from('reserve_snapshots')
+    // Query latest pending anchor
+    const { data: anchor, error: fetchError } = await supabase
+      .from('anchors')
       .select('*')
-      .is('bitcoin_txid', null)
+      .eq('status', 'pending')
+      .is('commit_txid', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (fetchError) throw fetchError
 
-    if (!snapshot) {
+    if (!anchor) {
       return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'No unanchored snapshots found',
-        }),
+        JSON.stringify({ success: true, message: 'No pending anchors found' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // If no API key is configured, simulate anchoring for demo purposes
-    // In production, this would call a real Bitcoin anchoring service
+    // Generate or obtain TXID
     let txid: string
-
     if (btcAnchorApiKey) {
-      // Real anchoring service call would go here
-      // Example: OpenTimestamps, Chainpoint, or custom OP_RETURN service
-      
-      // Placeholder for actual API call:
-      // const response = await fetch('https://anchoring-service.com/api/anchor', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Authorization': `Bearer ${btcAnchorApiKey}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     hash: snapshot.merkle_root,
-      //     metadata: {
-      //       snapshot_id: snapshot.snapshot_id,
-      //       timestamp: snapshot.created_at,
-      //     },
-      //   }),
-      // })
-      // const result = await response.json()
-      // txid = result.txid
-
-      // For now, generate a mock TXID
+      // Real anchoring service would go here
       txid = `btc_${Date.now().toString(16)}${Math.random().toString(16).substring(2, 18)}`
     } else {
-      // Demo mode: generate a realistic-looking mock TXID
+      // Demo mode: 64-char hex TXID
       const mockTxBytes = new Uint8Array(32)
       crypto.getRandomValues(mockTxBytes)
-      txid = Array.from(mockTxBytes)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
+      txid = Array.from(mockTxBytes).map(b => b.toString(16).padStart(2, '0')).join('')
     }
 
-    // Update the snapshot with the Bitcoin TXID
+    // Update anchor: set commit_txid, status = broadcast, commit_time = now
     const { error: updateError } = await supabase
-      .from('reserve_snapshots')
-      .update({ bitcoin_txid: txid })
-      .eq('id', snapshot.id)
+      .from('anchors')
+      .update({
+        commit_txid: txid,
+        status: 'broadcast',
+        commit_time: new Date().toISOString(),
+      })
+      .eq('anchor_id', anchor.anchor_id)
 
     if (updateError) throw updateError
+
+    // Backward compat: update latest reserve_snapshot's bitcoin_txid if it has none
+    const { data: latestSnapshot } = await supabase
+      .from('reserve_snapshots')
+      .select('id')
+      .is('bitcoin_txid', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (latestSnapshot) {
+      await supabase
+        .from('reserve_snapshots')
+        .update({ bitcoin_txid: txid })
+        .eq('id', latestSnapshot.id)
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        snapshot_id: snapshot.snapshot_id,
-        merkle_root: snapshot.merkle_root,
+        anchor_id: anchor.anchor_id,
+        merkle_root: anchor.merkle_root,
         bitcoin_txid: txid,
         explorer_url: `https://mempool.space/tx/${txid}`,
         anchored_at: new Date().toISOString(),
