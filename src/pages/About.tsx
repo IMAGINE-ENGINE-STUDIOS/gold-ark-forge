@@ -5,7 +5,7 @@ import { Shield, Bitcoin, Link as LinkIcon, Building2, Users, Lock } from 'lucid
 
 const About = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-navy">
       <Header />
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}

@@ -24,7 +24,7 @@ const Certification = () => {
     hash.length <= length * 2 ? hash : `${hash.slice(0, length)}...${hash.slice(-length)}`;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-navy">
       <Header />
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}

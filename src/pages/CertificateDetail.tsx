@@ -39,7 +39,7 @@ const CertificateDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-navy">
         <Header />
         <main className="container mx-auto px-4 py-12">
           <Skeleton className="h-10 w-64 mb-8" />
@@ -53,7 +53,7 @@ const CertificateDetail = () => {
 
   if (!cert) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-navy">
         <Header />
         <main className="container mx-auto px-4 py-12 text-center">
           <h1 className="font-display text-3xl text-marble mb-4">Certificate Not Found</h1>
@@ -72,7 +72,7 @@ const CertificateDetail = () => {
   const spotPrice = prices?.[metalType]?.price_usd ? Number(prices[metalType].price_usd) : null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-navy">
       <Header />
       <main className="container mx-auto px-4 py-12">
         <Link to="/marketplace" className="inline-flex items-center gap-2 text-gold hover:text-gold-light mb-8">
