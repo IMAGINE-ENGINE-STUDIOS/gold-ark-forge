@@ -55,20 +55,9 @@ const Header = () => {
               </div>
             </Link>
 
-            {/* Auth Buttons - Desktop */}
-            <div className="hidden md:flex items-center gap-3">
-              <Link
-                to="/login"
-                className="px-5 py-2 font-display text-sm tracking-wider text-navy bg-gradient-to-b from-gold-light via-gold to-gold-dark border border-gold-dark hover:from-gold hover:to-gold-light transition-all uppercase"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="px-5 py-2 font-display text-sm tracking-wider text-gold bg-navy border-2 border-gold hover:bg-gold hover:text-navy transition-all uppercase"
-              >
-                Register
-              </Link>
+            {/* Wallet Auth - Desktop */}
+            <div className="hidden md:flex items-center">
+              <ConnectWalletButton />
             </div>
 
             {/* Mobile Menu Button */}
@@ -121,21 +110,8 @@ const Header = () => {
                 {item.label}
               </Link>
             ))}
-            <div className="flex gap-3 pt-4">
-              <Link
-                to="/login"
-                className="px-5 py-2 font-display text-sm tracking-wider text-navy bg-gold uppercase flex-1 text-center"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="px-5 py-2 font-display text-sm tracking-wider text-gold border border-gold uppercase flex-1 text-center"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Register
-              </Link>
+            <div className="pt-4">
+              <ConnectWalletButton />
             </div>
           </nav>
         </div>
