@@ -1,104 +1,87 @@
 
 
-# Phase 3: Certificate Registry and Marketplace Rewrite
+# Phase 4: Vault Rewrite and Transfer Flow
 
 ## Overview
 
-Replace the legacy bullion-bars-based Marketplace with a certificate-centric view. Create a `certificate-registry` edge function for certificate lifecycle management, new React hooks for querying certificates, and rewrite the Marketplace and Certification pages to use the new data model.
+Rewrite the Vault page from legacy `bullion_bars` / `vault_holdings` model to certificate-based holdings, and build the transfer initiation UI so certificate owners can propose transfers to other wallets.
 
 ## What Changes
 
-### 1. New Edge Function: `certificate-registry`
+### 1. New Hook: `useWalletCertificates`
 
-**File**: `supabase/functions/certificate-registry/index.ts`
+**File**: `src/hooks/useWalletCertificates.ts`
 
-A single edge function handling certificate lifecycle operations via an `action` parameter:
+Query certificates owned by the connected wallet. The `certificates` table has `owner_wallet_id` which references a `wallets.wallet_id`. The hook needs to:
 
-- **`list`** -- Public: list active certificates with joined partner info, filterable by metal type (extracted from `metadata_json`)
-- **`get`** -- Public: get single certificate with full partner info and event history
-- **`create`** -- Admin/partner only: create a new certificate with partner signature, insert matching `certificate_events` (type: `issue`)
-- **`freeze` / `unfreeze` / `revoke`** -- Admin/partner only: state transitions with event logging
-- **`transfer_intent`** -- Authenticated wallet: propose a transfer (creates `transfers` record + `certificate_events` entry)
+- Look up the user's wallet_id from the `wallets` table using their EVM address
+- Query `certificates` where `owner_wallet_id` matches, joined with `partners`
+- Compute holdings summary (total oz by metal type, estimated value using `price_feeds`)
+- Also provide a `useWalletTransfers` hook to show pending/completed transfers for the wallet
 
-Config update in `supabase/config.toml`:
-```toml
-[functions.certificate-registry]
-verify_jwt = false
-```
+### 2. New Hook: `useTransfers`
 
-### 2. New React Hook: `useCertificates`
+**File**: `src/hooks/useTransfers.ts`
 
-**File**: `src/hooks/useCertificates.ts`
+- `useWalletTransfers(walletId)` -- Query `transfers` table where `seller_wallet_id` or `buyer_wallet_id` matches, with certificate join
+- `useTransfer(transferId)` -- Single transfer detail with certificate and counterparty info
 
-- `useCertificates(options?)` -- Query certificates table with partner join, filter by metal type (via metadata_json->>metal_type), status
-- `useCertificate(certId)` -- Single certificate with partner info
-- `useCertificateEvents(certId)` -- Event timeline for a certificate
+### 3. Vault Page Rewrite
 
-These hooks query the database directly (certificates are publicly viewable via RLS) rather than going through the edge function, for read performance.
+**File**: `src/pages/Vault.tsx`
 
-### 3. Marketplace Page Rewrite
+Replace legacy `useVaultHoldings` / `useReserveProof` with certificate-based data:
 
-**File**: `src/pages/Marketplace.tsx`
+- **Summary Cards**: Show total gold/silver/platinum oz computed from owned certificates' `metadata_json.weight_oz`, grouped by `metadata_json.metal_type`
+- **Holdings Ledger**: Each row is a certificate the user owns, showing serial number, metal type, weight, partner name, status, and a link to the certificate detail page
+- **Transfer Section**: Show pending incoming/outgoing transfers from the `transfers` table
+- **Proof Status**: Replace `reserve_snapshots` with the latest anchor from `anchors` table (already available via `useAnchors`)
+- Keep the existing vault door hero and locked state when wallet is not connected
 
-Replace `useBullionBars` with `useCertificates`. Each card now shows:
-- Partner name (from joined `partners` table)
-- Certificate status badge (active/frozen/revoked/redeemed)
-- Bar metadata from `metadata_json`: serial number, refiner stamp, fineness, weight, metal type
-- Computed value using `price_feeds` spot price
-- Link to certificate detail page (`/marketplace/certificate/:certId`)
+### 4. Transfer Initiation Component
 
-Keep the existing live prices bar and metal filter UI (gold/silver/platinum), but filter by `metadata_json->>metal_type` instead of `bullion_bars.metal_type`.
+**File**: `src/components/vault/TransferInitiateDialog.tsx`
 
-### 4. New Certificate Detail Page
+A dialog that allows certificate owners to propose a transfer:
 
-**File**: `src/pages/CertificateDetail.tsx`
+- Select a certificate from owned holdings
+- Enter buyer wallet address (EVM address)
+- Optional terms JSON (price, conditions)
+- Calls `certificate-registry` edge function with `action: "transfer_intent"`
+- Shows confirmation with transfer ID
 
-New page at route `/marketplace/certificate/:certId` showing:
-- Full bar metadata (serial, refiner, fineness, weight, jurisdiction)
-- Partner attribution (legal name, jurisdiction, type)
-- Certificate status and version
-- Event timeline (from `certificate_events`) showing issue, transfers, freezes, etc.
-- Anchor proof link (if events have been anchored -- from `anchor_leaves` join)
-- Owner wallet address (truncated)
+### 5. Transfer Status Cards
 
-### 5. Route Update
+**File**: `src/components/vault/TransferCard.tsx`
 
-**File**: `src/App.tsx`
+A card component displaying transfer details:
 
-Add route: `/marketplace/certificate/:certId` pointing to `CertificateDetail` component. Keep existing `/marketplace` and `/marketplace/:metal` routes.
+- Certificate info (metal type, weight, serial)
+- Counterparty wallet (truncated)
+- Status badge (proposed, btc_settlement_pending, partner_review, completed, cancelled, expired, disputed)
+- Transfer creation date
+- Link to certificate detail
 
-### 6. Certification Page Update
+### 6. Route Updates
 
-**File**: `src/pages/Certification.tsx`
-
-Update "How Verification Works" section to reference partner-signed certificates instead of "tokenized bullion". Keep the anchor history section but source it from the `anchors` table instead of `reserve_snapshots`. Add a section showing recent certificate events that have been anchored.
-
-### 7. New Hook: `useAnchors`
-
-**File**: `src/hooks/useAnchors.ts`
-
-- `useAnchors(limit?)` -- Query anchors table ordered by created_at desc
-- `useAnchorForEvent(eventId)` -- Find anchor + leaf for a specific certificate event
-
-Replaces the `useReserveHistory` hook usage on the Certification page.
+No new routes needed -- the Vault page already exists at `/vault`.
 
 ## Files Summary
 
 | Action | File |
 |--------|------|
-| Create | `supabase/functions/certificate-registry/index.ts` |
-| Create | `src/hooks/useCertificates.ts` |
-| Create | `src/hooks/useAnchors.ts` |
-| Create | `src/pages/CertificateDetail.tsx` |
-| Rewrite | `src/pages/Marketplace.tsx` |
-| Update | `src/pages/Certification.tsx` |
-| Update | `src/App.tsx` (add route) |
-| Update | `supabase/config.toml` (add function config) |
+| Create | `src/hooks/useWalletCertificates.ts` |
+| Create | `src/hooks/useTransfers.ts` |
+| Create | `src/components/vault/TransferInitiateDialog.tsx` |
+| Create | `src/components/vault/TransferCard.tsx` |
+| Rewrite | `src/pages/Vault.tsx` |
 
-## Technical Notes
+## Technical Details
 
-- The `metadata_json` JSONB column on certificates stores bar-level data: `{ metal_type, serial_number, refiner_stamp, fineness, weight_oz, jurisdiction }`. Filtering by metal type uses Supabase's `->>'metal_type'` JSONB accessor.
-- The `useBullionBars` hook and old `bullion_bars` table remain intact (not deleted) for backward compatibility, but are no longer referenced by the Marketplace.
-- Certificate cards link to `/marketplace/certificate/:certId` instead of the old `/marketplace/:metal/:id` pattern.
-- The edge function uses `SUPABASE_SERVICE_ROLE_KEY` for write operations (admin-gated) and validates the caller's role before allowing mutations.
+- The `wallets` table maps `address` (EVM string) to `wallet_id` (UUID). The Vault hooks first resolve the connected EVM address to a `wallet_id`, then query `certificates.owner_wallet_id`.
+- If the user has no wallet record yet (first-time visitor), the hooks return empty arrays gracefully.
+- The transfer initiation calls the existing `certificate-registry` edge function's `transfer_intent` action, which validates ownership and creates both a `transfers` record and a `certificate_events` entry.
+- The existing `useVaultHoldings` and `useReserveProof` hooks remain intact (not deleted) but are no longer imported by the Vault page.
+- The Vault page keeps its current visual design language (vault door hero, ornate gold frames, Greek key borders) but replaces the data source entirely.
+- Holdings summary is computed client-side from the certificates array, combining `metadata_json.weight_oz` values grouped by `metadata_json.metal_type`, and multiplied by spot prices from `price_feeds` for estimated total value.
 
