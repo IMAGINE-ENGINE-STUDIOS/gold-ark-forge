@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      anchor_leaves: {
+        Row: {
+          anchor_id: string
+          anchor_leaf_id: string
+          created_at: string
+          event_id: string
+          leaf_hash: string
+          leaf_index: number
+        }
+        Insert: {
+          anchor_id: string
+          anchor_leaf_id?: string
+          created_at?: string
+          event_id: string
+          leaf_hash: string
+          leaf_index: number
+        }
+        Update: {
+          anchor_id?: string
+          anchor_leaf_id?: string
+          created_at?: string
+          event_id?: string
+          leaf_hash?: string
+          leaf_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anchor_leaves_anchor_id_fkey"
+            columns: ["anchor_id"]
+            isOneToOne: false
+            referencedRelation: "anchors"
+            referencedColumns: ["anchor_id"]
+          },
+          {
+            foreignKeyName: "anchor_leaves_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "certificate_events"
+            referencedColumns: ["event_id"]
+          },
+        ]
+      }
+      anchors: {
+        Row: {
+          anchor_id: string
+          commit_height: number | null
+          commit_time: string | null
+          commit_txid: string | null
+          created_at: string
+          leaf_count: number
+          merkle_root: string
+          status: Database["public"]["Enums"]["anchor_status"]
+        }
+        Insert: {
+          anchor_id?: string
+          commit_height?: number | null
+          commit_time?: string | null
+          commit_txid?: string | null
+          created_at?: string
+          leaf_count?: number
+          merkle_root: string
+          status?: Database["public"]["Enums"]["anchor_status"]
+        }
+        Update: {
+          anchor_id?: string
+          commit_height?: number | null
+          commit_time?: string | null
+          commit_txid?: string | null
+          created_at?: string
+          leaf_count?: number
+          merkle_root?: string
+          status?: Database["public"]["Enums"]["anchor_status"]
+        }
+        Relationships: []
+      }
       attestations: {
         Row: {
           authority_name: string
@@ -51,6 +126,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_id: string
+          actor_type: string
+          audit_id: string
+          created_at: string
+          details_json: Json
+          ip_addr: unknown
+          resource_id: string
+          resource_type: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          actor_type: string
+          audit_id?: string
+          created_at?: string
+          details_json?: Json
+          ip_addr?: unknown
+          resource_id: string
+          resource_type: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          actor_type?: string
+          audit_id?: string
+          created_at?: string
+          details_json?: Json
+          ip_addr?: unknown
+          resource_id?: string
+          resource_type?: string
+          user_agent?: string | null
+        }
+        Relationships: []
       }
       bullion_bars: {
         Row: {
@@ -91,6 +205,224 @@ export type Database = {
           serial_number?: string
           vault_id?: string
           weight_oz?: number
+        }
+        Relationships: []
+      }
+      certificate_events: {
+        Row: {
+          actor_wallet_id: string | null
+          cert_id: string
+          created_at: string
+          event_id: string
+          event_payload: Json
+          event_type: string
+          partner_id: string | null
+          partner_sig: string | null
+        }
+        Insert: {
+          actor_wallet_id?: string | null
+          cert_id: string
+          created_at?: string
+          event_id?: string
+          event_payload?: Json
+          event_type: string
+          partner_id?: string | null
+          partner_sig?: string | null
+        }
+        Update: {
+          actor_wallet_id?: string | null
+          cert_id?: string
+          created_at?: string
+          event_id?: string
+          event_payload?: Json
+          event_type?: string
+          partner_id?: string | null
+          partner_sig?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificate_events_actor_wallet_id_fkey"
+            columns: ["actor_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["wallet_id"]
+          },
+          {
+            foreignKeyName: "certificate_events_cert_id_fkey"
+            columns: ["cert_id"]
+            isOneToOne: false
+            referencedRelation: "certificates"
+            referencedColumns: ["cert_id"]
+          },
+          {
+            foreignKeyName: "certificate_events_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["partner_id"]
+          },
+        ]
+      }
+      certificates: {
+        Row: {
+          cert_id: string
+          cert_version: number
+          issued_at: string
+          metadata_json: Json
+          owner_wallet_id: string
+          partner_id: string
+          partner_sig: string
+          partner_sig_alg: string
+          status: Database["public"]["Enums"]["cert_status"]
+          updated_at: string
+        }
+        Insert: {
+          cert_id?: string
+          cert_version?: number
+          issued_at?: string
+          metadata_json?: Json
+          owner_wallet_id: string
+          partner_id: string
+          partner_sig: string
+          partner_sig_alg: string
+          status?: Database["public"]["Enums"]["cert_status"]
+          updated_at?: string
+        }
+        Update: {
+          cert_id?: string
+          cert_version?: number
+          issued_at?: string
+          metadata_json?: Json
+          owner_wallet_id?: string
+          partner_id?: string
+          partner_sig?: string
+          partner_sig_alg?: string
+          status?: Database["public"]["Enums"]["cert_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_owner_wallet_id_fkey"
+            columns: ["owner_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["wallet_id"]
+          },
+          {
+            foreignKeyName: "certificates_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["partner_id"]
+          },
+        ]
+      }
+      disputes: {
+        Row: {
+          created_at: string
+          dispute_id: string
+          resolution: string | null
+          status: string
+          transfer_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dispute_id?: string
+          resolution?: string | null
+          status?: string
+          transfer_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dispute_id?: string
+          resolution?: string | null
+          status?: string
+          transfer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "transfers"
+            referencedColumns: ["transfer_id"]
+          },
+        ]
+      }
+      partner_sites: {
+        Row: {
+          address_text: string | null
+          created_at: string
+          partner_id: string
+          region: string
+          site_id: string
+          site_name: string
+          status: string
+        }
+        Insert: {
+          address_text?: string | null
+          created_at?: string
+          partner_id: string
+          region: string
+          site_id?: string
+          site_name: string
+          status?: string
+        }
+        Update: {
+          address_text?: string | null
+          created_at?: string
+          partner_id?: string
+          region?: string
+          site_id?: string
+          site_name?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_sites_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["partner_id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          api_base_url: string
+          created_at: string
+          jurisdiction: string
+          legal_name: string
+          mtls_spki_fingerprint: string | null
+          partner_id: string
+          partner_type: Database["public"]["Enums"]["partner_type"]
+          status: Database["public"]["Enums"]["partner_status"]
+          updated_at: string
+        }
+        Insert: {
+          api_base_url: string
+          created_at?: string
+          jurisdiction: string
+          legal_name: string
+          mtls_spki_fingerprint?: string | null
+          partner_id?: string
+          partner_type: Database["public"]["Enums"]["partner_type"]
+          status?: Database["public"]["Enums"]["partner_status"]
+          updated_at?: string
+        }
+        Update: {
+          api_base_url?: string
+          created_at?: string
+          jurisdiction?: string
+          legal_name?: string
+          mtls_spki_fingerprint?: string | null
+          partner_id?: string
+          partner_type?: Database["public"]["Enums"]["partner_type"]
+          status?: Database["public"]["Enums"]["partner_status"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -181,6 +513,67 @@ export type Database = {
         }
         Relationships: []
       }
+      transfers: {
+        Row: {
+          btc_txid: string | null
+          buyer_wallet_id: string
+          cert_id: string
+          created_at: string
+          psbt_base64: string | null
+          seller_wallet_id: string
+          status: Database["public"]["Enums"]["transfer_status"]
+          terms_json: Json
+          transfer_id: string
+          updated_at: string
+        }
+        Insert: {
+          btc_txid?: string | null
+          buyer_wallet_id: string
+          cert_id: string
+          created_at?: string
+          psbt_base64?: string | null
+          seller_wallet_id: string
+          status?: Database["public"]["Enums"]["transfer_status"]
+          terms_json?: Json
+          transfer_id?: string
+          updated_at?: string
+        }
+        Update: {
+          btc_txid?: string | null
+          buyer_wallet_id?: string
+          cert_id?: string
+          created_at?: string
+          psbt_base64?: string | null
+          seller_wallet_id?: string
+          status?: Database["public"]["Enums"]["transfer_status"]
+          terms_json?: Json
+          transfer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfers_buyer_wallet_id_fkey"
+            columns: ["buyer_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["wallet_id"]
+          },
+          {
+            foreignKeyName: "transfers_cert_id_fkey"
+            columns: ["cert_id"]
+            isOneToOne: false
+            referencedRelation: "certificates"
+            referencedColumns: ["cert_id"]
+          },
+          {
+            foreignKeyName: "transfers_seller_wallet_id_fkey"
+            columns: ["seller_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["wallet_id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -234,6 +627,30 @@ export type Database = {
           },
         ]
       }
+      wallets: {
+        Row: {
+          address: string
+          created_at: string
+          last_seen_at: string | null
+          wallet_id: string
+          wallet_type: Database["public"]["Enums"]["wallet_type"]
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          last_seen_at?: string | null
+          wallet_id?: string
+          wallet_type: Database["public"]["Enums"]["wallet_type"]
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          last_seen_at?: string | null
+          wallet_id?: string
+          wallet_type?: Database["public"]["Enums"]["wallet_type"]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -248,10 +665,28 @@ export type Database = {
       }
     }
     Enums: {
+      anchor_status:
+        | "pending"
+        | "broadcast"
+        | "confirmed"
+        | "reorged"
+        | "abandoned"
       app_role: "admin" | "user"
+      cert_status: "active" | "frozen" | "revoked" | "redeemed"
       custody_status: "free" | "pledged" | "redeemed"
       holding_status: "active" | "pending_redemption" | "redeemed"
       metal_type: "gold" | "silver" | "platinum"
+      partner_status: "active" | "suspended" | "offboarded"
+      partner_type: "vault" | "dealer" | "custodian" | "arbiter"
+      transfer_status:
+        | "proposed"
+        | "btc_settlement_pending"
+        | "partner_review"
+        | "completed"
+        | "cancelled"
+        | "expired"
+        | "disputed"
+      wallet_type: "evm" | "btc"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -379,10 +814,30 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      anchor_status: [
+        "pending",
+        "broadcast",
+        "confirmed",
+        "reorged",
+        "abandoned",
+      ],
       app_role: ["admin", "user"],
+      cert_status: ["active", "frozen", "revoked", "redeemed"],
       custody_status: ["free", "pledged", "redeemed"],
       holding_status: ["active", "pending_redemption", "redeemed"],
       metal_type: ["gold", "silver", "platinum"],
+      partner_status: ["active", "suspended", "offboarded"],
+      partner_type: ["vault", "dealer", "custodian", "arbiter"],
+      transfer_status: [
+        "proposed",
+        "btc_settlement_pending",
+        "partner_review",
+        "completed",
+        "cancelled",
+        "expired",
+        "disputed",
+      ],
+      wallet_type: ["evm", "btc"],
     },
   },
 } as const
