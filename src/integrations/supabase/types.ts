@@ -513,6 +513,30 @@ export type Database = {
         }
         Relationships: []
       }
+      siwe_nonces: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          nonce: string
+          used: boolean
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          nonce: string
+          used?: boolean
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          nonce?: string
+          used?: boolean
+        }
+        Relationships: []
+      }
       transfers: {
         Row: {
           btc_txid: string | null

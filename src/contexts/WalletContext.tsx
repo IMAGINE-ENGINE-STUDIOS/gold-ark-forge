@@ -1,22 +1,23 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-// WalletConnect Project ID - Replace with your own from https://cloud.walletconnect.com
-const WALLETCONNECT_PROJECT_ID = '782e84f4b218dd6d081f40e92354847c';
-
-type WalletType = 'metamask' | 'walletconnect' | null;
+type WalletType = 'metamask' | null;
 
 interface WalletContextType {
-  address: string | null;
-  chainId: string | null;
+  evmAddress: string | null;
+  btcAddress: string | null;
   isConnecting: boolean;
-  isConnected: boolean;
+  isAuthenticated: boolean;
   error: string | null;
   walletType: WalletType;
-  connect: (type: WalletType) => Promise<void>;
-  disconnect: () => void;
+  signIn: () => Promise<void>;
+  registerBtcAddress: (address: string) => Promise<void>;
+  disconnect: () => Promise<void>;
   showWalletSelector: boolean;
   setShowWalletSelector: (show: boolean) => void;
+  // Legacy compat aliases
+  address: string | null;
+  isConnected: boolean;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -32,51 +33,61 @@ declare global {
   }
 }
 
+// SIWE message builder (EIP-4361)
+function buildSiweMessage(params: {
+  domain: string;
+  address: string;
+  uri: string;
+  nonce: string;
+  chainId: number;
+  issuedAt: string;
+}): string {
+  return `${params.domain} wants you to sign in with your Ethereum account:
+${params.address}
+
+Sign in to Gold Arrow — The New Standard in Asset Certification
+
+URI: ${params.uri}
+Version: 1
+Chain ID: ${params.chainId}
+Nonce: ${params.nonce}
+Issued At: ${params.issuedAt}`;
+}
+
+// BTC address validation (P2PKH, P2SH, bech32, bech32m, testnet)
+function isValidBtcAddress(address: string): boolean {
+  return /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{39,59}|tb1[a-z0-9]{39,59})$/.test(address);
+}
+
 export const WalletProvider = ({ children }: { children: ReactNode }) => {
-  const [address, setAddress] = useState<string | null>(null);
-  const [chainId, setChainId] = useState<string | null>(null);
+  const [evmAddress, setEvmAddress] = useState<string | null>(null);
+  const [btcAddress, setBtcAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [walletType, setWalletType] = useState<WalletType>(null);
-  const [wcProvider, setWcProvider] = useState<any>(null);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
 
-  const isConnected = !!address;
+  const isAuthenticated = !!evmAddress;
 
-  // Save wallet address to profile
-  const saveWalletToProfile = useCallback(async (walletAddress: string) => {
+  // Load BTC address from profile when authenticated
+  const loadBtcAddress = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from('profiles')
-        .update({ wallet_address: walletAddress })
-        .eq('user_id', user.id);
+    if (!user) return;
+
+    // Check wallets table for btc type
+    const { data: btcWallet } = await supabase
+      .from('wallets')
+      .select('address')
+      .eq('wallet_type', 'btc')
+      .maybeSingle();
+
+    if (btcWallet) {
+      setBtcAddress(btcWallet.address);
     }
   }, []);
 
-  // Handle account changes (MetaMask)
-  const handleAccountsChanged = useCallback((accounts: unknown) => {
-    const accountsArray = accounts as string[];
-    if (accountsArray.length === 0) {
-      setAddress(null);
-      setWalletType(null);
-      localStorage.removeItem('walletConnected');
-      localStorage.removeItem('walletType');
-    } else {
-      const newAddress = accountsArray[0];
-      setAddress(newAddress);
-      localStorage.setItem('walletConnected', 'true');
-      saveWalletToProfile(newAddress);
-    }
-  }, [saveWalletToProfile]);
-
-  // Handle chain changes
-  const handleChainChanged = useCallback((newChainId: unknown) => {
-    setChainId(newChainId as string);
-  }, []);
-
-  // Connect via MetaMask
-  const connectMetaMask = useCallback(async () => {
+  // SIWE Sign In flow
+  const signIn = useCallback(async () => {
     if (!window.ethereum) {
       setError('MetaMask not installed. Please install MetaMask to connect.');
       return;
@@ -84,185 +95,200 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
 
     setIsConnecting(true);
     setError(null);
+    setShowWalletSelector(false);
 
     try {
+      // 1. Request MetaMask accounts
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
       }) as string[];
 
-      if (accounts.length > 0) {
-        setAddress(accounts[0]);
-        setWalletType('metamask');
-        localStorage.setItem('walletConnected', 'true');
-        localStorage.setItem('walletType', 'metamask');
-        await saveWalletToProfile(accounts[0]);
+      if (accounts.length === 0) {
+        setError('No accounts found. Please unlock MetaMask.');
+        return;
       }
 
+      const userAddress = accounts[0];
+
+      // 2. Get chain ID
       const chainIdHex = await window.ethereum.request({
         method: 'eth_chainId',
       }) as string;
-      setChainId(chainIdHex);
+      const chainId = parseInt(chainIdHex, 16);
+
+      // 3. Request nonce from edge function
+      const { data: nonceData, error: nonceError } = await supabase.functions.invoke('siwe-auth', {
+        body: { action: 'nonce' },
+      });
+
+      if (nonceError || !nonceData?.nonce) {
+        throw new Error('Failed to get nonce from server');
+      }
+
+      // 4. Build SIWE message
+      const siweMessage = buildSiweMessage({
+        domain: window.location.host,
+        address: userAddress,
+        uri: window.location.origin,
+        nonce: nonceData.nonce,
+        chainId,
+        issuedAt: new Date().toISOString(),
+      });
+
+      // 5. Sign message with MetaMask
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [siweMessage, userAddress],
+      }) as string;
+
+      // 6. Verify with edge function
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('siwe-auth', {
+        body: { action: 'verify', siweMessage, signature },
+      });
+
+      if (verifyError || !verifyData?.session) {
+        throw new Error(verifyData?.error || 'SIWE verification failed');
+      }
+
+      // 7. Set Supabase session
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: verifyData.session.access_token,
+        refresh_token: verifyData.session.refresh_token,
+      });
+
+      if (sessionError) throw sessionError;
+
+      // 8. Update local state
+      setEvmAddress(userAddress);
+      setWalletType('metamask');
+      localStorage.setItem('siweConnected', 'true');
+
+      // 9. Load BTC address if registered
+      await loadBtcAddress();
     } catch (err) {
       const error = err as { code?: number; message?: string };
       if (error.code === 4001) {
-        setError('Connection rejected. Please approve the connection in MetaMask.');
+        setError('Connection rejected. Please approve the signature in MetaMask.');
       } else {
-        setError('Failed to connect wallet. Please try again.');
+        setError(error.message || 'Failed to sign in. Please try again.');
+        console.error('SIWE sign-in error:', err);
       }
     } finally {
       setIsConnecting(false);
     }
-  }, [saveWalletToProfile]);
+  }, [loadBtcAddress]);
 
-  // Connect via WalletConnect
-  const connectWalletConnect = useCallback(async () => {
+  // Register BTC address for settlement
+  const registerBtcAddress = useCallback(async (address: string) => {
+    if (!isValidBtcAddress(address)) {
+      setError('Invalid Bitcoin address format.');
+      return;
+    }
 
-    setIsConnecting(true);
-    setError(null);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('You must be signed in to register a BTC address.');
+      return;
+    }
 
     try {
-      const { default: EthereumProvider } = await import('@walletconnect/ethereum-provider');
+      // Upsert BTC wallet record
+      const { error: walletError } = await supabase
+        .from('wallets')
+        .upsert(
+          {
+            address: address,
+            wallet_type: 'btc' as const,
+            last_seen_at: new Date().toISOString(),
+          },
+          { onConflict: 'address' }
+        );
 
-      const provider = await EthereumProvider.init({
-        projectId: WALLETCONNECT_PROJECT_ID,
-        chains: [1], // Ethereum Mainnet
-        optionalChains: [137, 10, 42161], // Polygon, Optimism, Arbitrum
-        showQrModal: true,
-        metadata: {
-          name: 'Gold Arrow',
-          description: 'The New Standard in Asset Certification',
-          url: window.location.origin,
-          icons: [`${window.location.origin}/favicon.ico`],
-        },
-      });
+      if (walletError) throw walletError;
 
-      await provider.connect();
-
-      const accounts = provider.accounts;
-      if (accounts.length > 0) {
-        setAddress(accounts[0]);
-        setWalletType('walletconnect');
-        setWcProvider(provider);
-        localStorage.setItem('walletConnected', 'true');
-        localStorage.setItem('walletType', 'walletconnect');
-        await saveWalletToProfile(accounts[0]);
-      }
-
-      setChainId(`0x${provider.chainId.toString(16)}`);
-
-      // WalletConnect event listeners
-      provider.on('accountsChanged', (accs: string[]) => {
-        if (accs.length === 0) {
-          setAddress(null);
-          setWalletType(null);
-          localStorage.removeItem('walletConnected');
-          localStorage.removeItem('walletType');
-        } else {
-          setAddress(accs[0]);
-          saveWalletToProfile(accs[0]);
-        }
-      });
-
-      provider.on('chainChanged', (newChainId: string | number) => {
-        const id = typeof newChainId === 'number' ? `0x${newChainId.toString(16)}` : String(newChainId);
-        setChainId(id);
-      });
-
-      provider.on('disconnect', () => {
-        setAddress(null);
-        setWalletType(null);
-        setWcProvider(null);
-        localStorage.removeItem('walletConnected');
-        localStorage.removeItem('walletType');
-      });
+      setBtcAddress(address);
+      setError(null);
     } catch (err) {
-      console.error('WalletConnect error:', err);
-      setError('Failed to connect via WalletConnect. Please try again.');
-    } finally {
-      setIsConnecting(false);
+      console.error('BTC registration error:', err);
+      setError('Failed to register BTC address.');
     }
-  }, [saveWalletToProfile]);
+  }, []);
 
-  // Unified connect function
-  const connect = useCallback(async (type: WalletType) => {
-    setShowWalletSelector(false);
-    if (type === 'metamask') {
-      await connectMetaMask();
-    } else if (type === 'walletconnect') {
-      await connectWalletConnect();
-    }
-  }, [connectMetaMask, connectWalletConnect]);
-
-  // Disconnect wallet
+  // Disconnect
   const disconnect = useCallback(async () => {
-    if (walletType === 'walletconnect' && wcProvider) {
-      try {
-        await wcProvider.disconnect();
-      } catch (err) {
-        console.error('WalletConnect disconnect error:', err);
-      }
-    }
-    setAddress(null);
-    setChainId(null);
+    await supabase.auth.signOut();
+    setEvmAddress(null);
+    setBtcAddress(null);
     setWalletType(null);
-    setWcProvider(null);
-    localStorage.removeItem('walletConnected');
-    localStorage.removeItem('walletType');
-  }, [walletType, wcProvider]);
+    localStorage.removeItem('siweConnected');
+  }, []);
 
-  // Check for existing connection on mount
+  // Session restoration on mount
   useEffect(() => {
-    const checkConnection = async () => {
-      const savedType = localStorage.getItem('walletType') as WalletType;
-      if (localStorage.getItem('walletConnected') === 'true' && savedType === 'metamask' && window.ethereum) {
-        try {
-          const accounts = await window.ethereum.request({
-            method: 'eth_accounts',
-          }) as string[];
-
-          if (accounts.length > 0) {
-            setAddress(accounts[0]);
-            setWalletType('metamask');
-            const chainIdHex = await window.ethereum.request({
-              method: 'eth_chainId',
-            }) as string;
-            setChainId(chainIdHex);
-          }
-        } catch (err) {
-          console.error('Failed to check wallet connection:', err);
+    const restoreSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const walletAddr = session.user.user_metadata?.wallet_address;
+        if (walletAddr) {
+          setEvmAddress(walletAddr);
+          setWalletType('metamask');
+          await loadBtcAddress();
         }
       }
     };
 
-    checkConnection();
-  }, []);
+    restoreSession();
 
-  // Set up MetaMask event listeners
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setEvmAddress(null);
+        setBtcAddress(null);
+        setWalletType(null);
+      } else if (session?.user?.user_metadata?.wallet_address) {
+        setEvmAddress(session.user.user_metadata.wallet_address);
+        setWalletType('metamask');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [loadBtcAddress]);
+
+  // MetaMask account change listener
   useEffect(() => {
-    if (window.ethereum && walletType === 'metamask') {
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      window.ethereum.on('chainChanged', handleChainChanged);
+    if (!window.ethereum || !evmAddress) return;
 
-      return () => {
-        window.ethereum?.removeListener('accountsChanged', handleAccountsChanged);
-        window.ethereum?.removeListener('chainChanged', handleChainChanged);
-      };
-    }
-  }, [handleAccountsChanged, handleChainChanged, walletType]);
+    const handleAccountsChanged = (accounts: unknown) => {
+      const accs = accounts as string[];
+      if (accs.length === 0) {
+        disconnect();
+      }
+      // If account changed, user needs to re-sign in
+    };
+
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
+    return () => {
+      window.ethereum?.removeListener('accountsChanged', handleAccountsChanged);
+    };
+  }, [evmAddress, disconnect]);
 
   return (
     <WalletContext.Provider
       value={{
-        address,
-        chainId,
+        evmAddress,
+        btcAddress,
         isConnecting,
-        isConnected,
+        isAuthenticated,
         error,
         walletType,
-        connect,
+        signIn,
+        registerBtcAddress,
         disconnect,
         showWalletSelector,
         setShowWalletSelector,
+        // Legacy compat
+        address: evmAddress,
+        isConnected: isAuthenticated,
       }}
     >
       {children}

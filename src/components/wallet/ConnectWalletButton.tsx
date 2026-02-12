@@ -1,5 +1,5 @@
 import { useWallet } from '@/contexts/WalletContext';
-import { Wallet, ChevronDown, LogOut, ExternalLink } from 'lucide-react';
+import { Wallet, ChevronDown, LogOut, ExternalLink, Bitcoin } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,21 +14,29 @@ const truncateAddress = (address: string) => {
 };
 
 const ConnectWalletButton = () => {
-  const { address, isConnecting, isConnected, disconnect, error, setShowWalletSelector, walletType } = useWallet();
+  const {
+    evmAddress,
+    btcAddress,
+    isConnecting,
+    isAuthenticated,
+    disconnect,
+    error,
+    setShowWalletSelector,
+  } = useWallet();
 
-  if (isConnected && address) {
+  if (isAuthenticated && evmAddress) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 btn-primary-gold px-4 py-2 text-sm">
             <Wallet size={16} />
-            <span>{truncateAddress(address)}</span>
+            <span>{truncateAddress(evmAddress)}</span>
             <ChevronDown size={14} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className="w-56 bg-navy border-gold/20"
+          className="w-64 bg-navy border-gold/20"
         >
           <DropdownMenuItem asChild>
             <Link
@@ -41,7 +49,7 @@ const ConnectWalletButton = () => {
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a
-              href={`https://etherscan.io/address/${address}`}
+              href={`https://etherscan.io/address/${evmAddress}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-marble hover:text-gold cursor-pointer"
@@ -50,12 +58,45 @@ const ConnectWalletButton = () => {
               View on Etherscan
             </a>
           </DropdownMenuItem>
+
+          {btcAddress ? (
+            <>
+              <DropdownMenuSeparator className="bg-gold/20" />
+              <DropdownMenuItem className="text-marble/50 text-xs cursor-default font-display tracking-wider">
+                BTC Settlement
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a
+                  href={`https://mempool.space/address/${btcAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-marble hover:text-gold cursor-pointer"
+                >
+                  <Bitcoin size={16} />
+                  <span className="font-mono text-xs truncate">{truncateAddress(btcAddress)}</span>
+                  <ExternalLink size={12} className="ml-auto" />
+                </a>
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <>
+              <DropdownMenuSeparator className="bg-gold/20" />
+              <DropdownMenuItem
+                onClick={() => setShowWalletSelector(true)}
+                className="flex items-center gap-2 text-gold/70 hover:text-gold cursor-pointer"
+              >
+                <Bitcoin size={16} />
+                Register BTC Address
+              </DropdownMenuItem>
+            </>
+          )}
+
           <DropdownMenuSeparator className="bg-gold/20" />
           <DropdownMenuItem className="text-marble/50 text-xs cursor-default">
-            Connected via {walletType === 'walletconnect' ? 'WalletConnect' : 'MetaMask'}
+            Authenticated via SIWE (MetaMask)
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={disconnect}
+            onClick={() => disconnect()}
             className="flex items-center gap-2 text-red-400 hover:text-red-300 cursor-pointer"
           >
             <LogOut size={16} />

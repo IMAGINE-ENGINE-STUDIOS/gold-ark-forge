@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.fetch-metal-prices]
 verify_jwt = false
+
+[functions.siwe-auth]
+verify_jwt = false
