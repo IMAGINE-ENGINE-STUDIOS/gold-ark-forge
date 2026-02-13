@@ -46,7 +46,12 @@ const formatDate = (dateString: string) =>
 
 const Vault = () => {
   const { isConnected, address } = useWallet();
-  const { data: walletId, isLoading: walletIdLoading } = useWalletId(address);
+  const [demoMode, setDemoMode] = useState(false);
+
+  const effectiveConnected = isConnected || demoMode;
+  const effectiveAddress = address || (demoMode ? '0xDemo...ViewOnly' : null);
+
+  const { data: walletId, isLoading: walletIdLoading } = useWalletId(effectiveAddress);
   const { data: certificates, isLoading: certsLoading } = useWalletCertificates(walletId ?? null);
   const { summary, isLoading: summaryLoading } = useWalletHoldingsSummary(certificates);
   const { data: transfers, isLoading: transfersLoading } = useWalletTransfers(walletId ?? null);
@@ -57,7 +62,7 @@ const Vault = () => {
   const latestAnchor = anchors?.[0] ?? null;
 
   /* ── Disconnected state ── */
-  if (!isConnected) {
+  if (!effectiveConnected) {
     return (
       <div className="min-h-screen bg-navy">
         <Header />
@@ -93,6 +98,13 @@ const Vault = () => {
                 </p>
 
                 <ConnectWalletButton />
+
+                <button
+                  onClick={() => setDemoMode(true)}
+                  className="mt-4 block mx-auto font-display text-sm tracking-wider text-gold/50 hover:text-gold transition-colors underline underline-offset-4"
+                >
+                  Preview Vault (Read-Only Demo)
+                </button>
 
                 <div className="flex items-center justify-center gap-8 mt-12">
                   <div className="flex items-center gap-2 text-gold/60">
@@ -145,13 +157,13 @@ const Vault = () => {
 
                 <div>
                   <h1 className="font-display text-4xl md:text-5xl text-gold tracking-wide">
-                    MY VAULT
+                    {demoMode ? 'VAULT PREVIEW' : 'MY VAULT'}
                   </h1>
                   <div className="flex items-center gap-2 text-gold/60 mt-2">
                     <Wallet size={16} />
-                    <span className="font-mono text-sm">{address}</span>
-                    <Badge variant="outline" className="text-green-400 border-green-400 ml-2">
-                      <CheckCircle size={12} className="mr-1" /> Secured
+                    <span className="font-mono text-sm">{effectiveAddress}</span>
+                    <Badge variant="outline" className={`ml-2 ${demoMode ? 'text-yellow-400 border-yellow-400' : 'text-green-400 border-green-400'}`}>
+                      <CheckCircle size={12} className="mr-1" /> {demoMode ? 'Demo' : 'Secured'}
                     </Badge>
                   </div>
                 </div>
