@@ -28,6 +28,7 @@ const TradingViewTicker = memo(() => {
       displayMode: 'adaptive',
       colorTheme: 'dark',
       locale: 'en',
+      affiliate_id: '162505',
     });
 
     containerRef.current.appendChild(script);
