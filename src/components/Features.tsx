@@ -2,122 +2,94 @@ import React from 'react';
 
 const MarketplaceIcon = () => (
   <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-    {/* Temple / Marketplace icon */}
     <defs>
-      <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="f-gold" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#C5A75F" />
-        <stop offset="40%" stopColor="#FFD700" />
-        <stop offset="60%" stopColor="#DAA520" />
+        <stop offset="35%" stopColor="#FFD700" />
+        <stop offset="65%" stopColor="#DAA520" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
-      <linearGradient id="gold-shine" x1="50%" y1="0%" x2="50%" y2="100%">
+      <linearGradient id="f-gold-v" x1="50%" y1="0%" x2="50%" y2="100%">
         <stop offset="0%" stopColor="#FFD700" stopOpacity="0.9" />
-        <stop offset="100%" stopColor="#B8860B" stopOpacity="0.6" />
+        <stop offset="100%" stopColor="#B8860B" stopOpacity="0.7" />
       </linearGradient>
     </defs>
-    {/* Pediment / Triangle */}
-    <polygon points="48,12 16,38 80,38" fill="url(#gold-grad)" stroke="#DAA520" strokeWidth="1.5" />
-    {/* Inner pediment detail */}
-    <polygon points="48,20 28,36 68,36" fill="none" stroke="#FFD700" strokeWidth="0.8" opacity="0.5" />
+    {/* Pediment */}
+    <polyline points="14,38 48,12 82,38" fill="none" stroke="url(#f-gold)" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
     {/* Architrave */}
-    <rect x="14" y="38" width="68" height="5" rx="1" fill="url(#gold-shine)" />
+    <line x1="12" y1="40" x2="84" y2="40" stroke="url(#f-gold)" strokeWidth="2" strokeLinecap="round" />
     {/* Columns */}
-    <rect x="20" y="43" width="6" height="32" rx="2" fill="url(#gold-grad)" stroke="#DAA520" strokeWidth="0.8" />
-    <rect x="36" y="43" width="6" height="32" rx="2" fill="url(#gold-grad)" stroke="#DAA520" strokeWidth="0.8" />
-    <rect x="54" y="43" width="6" height="32" rx="2" fill="url(#gold-grad)" stroke="#DAA520" strokeWidth="0.8" />
-    <rect x="70" y="43" width="6" height="32" rx="2" fill="url(#gold-grad)" stroke="#DAA520" strokeWidth="0.8" />
-    {/* Column capitals */}
-    <rect x="18" y="42" width="10" height="3" rx="1" fill="#FFD700" />
-    <rect x="34" y="42" width="10" height="3" rx="1" fill="#FFD700" />
-    <rect x="52" y="42" width="10" height="3" rx="1" fill="#FFD700" />
-    <rect x="68" y="42" width="10" height="3" rx="1" fill="#FFD700" />
-    {/* Base / Steps */}
-    <rect x="12" y="75" width="72" height="4" rx="1" fill="url(#gold-shine)" />
-    <rect x="8" y="79" width="80" height="4" rx="1" fill="url(#gold-grad)" opacity="0.8" />
-    {/* Chart line inside temple */}
-    <polyline points="30,66 38,58 46,62 54,52 62,56 66,50" fill="none" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
-    <circle cx="54" cy="52" r="2" fill="#FFD700" opacity="0.8" />
+    <line x1="22" y1="42" x2="22" y2="72" stroke="url(#f-gold-v)" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="40" y1="42" x2="40" y2="72" stroke="url(#f-gold-v)" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="56" y1="42" x2="56" y2="72" stroke="url(#f-gold-v)" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="74" y1="42" x2="74" y2="72" stroke="url(#f-gold-v)" strokeWidth="2.5" strokeLinecap="round" />
+    {/* Base */}
+    <line x1="10" y1="74" x2="86" y2="74" stroke="url(#f-gold)" strokeWidth="2" strokeLinecap="round" />
+    <line x1="8" y1="78" x2="88" y2="78" stroke="url(#f-gold)" strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
+    {/* Chart line */}
+    <polyline points="32,66 42,58 50,62 60,50 68,46" fill="none" stroke="#FFD700" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.45" />
+    <circle cx="68" cy="46" r="2" fill="#FFD700" opacity="0.5" />
   </svg>
 );
 
 const VaultIcon = () => (
   <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
     <defs>
-      <linearGradient id="silver-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="f-silver" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#E8E8E8" />
-        <stop offset="30%" stopColor="#C0C0C0" />
-        <stop offset="70%" stopColor="#A8A8A8" />
-        <stop offset="100%" stopColor="#808080" />
+        <stop offset="50%" stopColor="#C0C0C0" />
+        <stop offset="100%" stopColor="#909090" />
       </linearGradient>
-      <linearGradient id="vault-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="f-vgold" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#DAA520" />
         <stop offset="50%" stopColor="#FFD700" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
-      <radialGradient id="lock-glow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#FFD700" stopOpacity="0.3" />
-        <stop offset="100%" stopColor="#FFD700" stopOpacity="0" />
-      </radialGradient>
     </defs>
-    {/* Vault door body */}
-    <rect x="16" y="14" width="64" height="68" rx="6" fill="url(#silver-grad)" stroke="#A8A8A8" strokeWidth="2" />
+    {/* Vault body */}
+    <rect x="18" y="16" width="60" height="64" rx="5" fill="none" stroke="url(#f-silver)" strokeWidth="2" />
     {/* Inner border */}
-    <rect x="22" y="20" width="52" height="56" rx="4" fill="none" stroke="#C0C0C0" strokeWidth="1.5" />
-    {/* Vault handle / wheel */}
-    <circle cx="48" cy="48" r="16" fill="none" stroke="url(#vault-gold)" strokeWidth="3" />
-    <circle cx="48" cy="48" r="20" fill="url(#lock-glow)" />
-    <circle cx="48" cy="48" r="6" fill="url(#vault-gold)" />
-    {/* Wheel spokes */}
-    <line x1="48" y1="32" x2="48" y2="38" stroke="#DAA520" strokeWidth="2" strokeLinecap="round" />
-    <line x1="48" y1="58" x2="48" y2="64" stroke="#DAA520" strokeWidth="2" strokeLinecap="round" />
-    <line x1="32" y1="48" x2="38" y2="48" stroke="#DAA520" strokeWidth="2" strokeLinecap="round" />
-    <line x1="58" y1="48" x2="64" y2="48" stroke="#DAA520" strokeWidth="2" strokeLinecap="round" />
+    <rect x="24" y="22" width="48" height="52" rx="3" fill="none" stroke="#C0C0C0" strokeWidth="1" opacity="0.4" />
+    {/* Wheel */}
+    <circle cx="48" cy="48" r="16" fill="none" stroke="url(#f-vgold)" strokeWidth="2" />
+    <circle cx="48" cy="48" r="5" fill="url(#f-vgold)" opacity="0.7" />
+    {/* Spokes */}
+    <line x1="48" y1="34" x2="48" y2="40" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="48" y1="56" x2="48" y2="62" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="34" y1="48" x2="40" y2="48" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="56" y1="48" x2="62" y2="48" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
     {/* Diagonal spokes */}
-    <line x1="36.7" y1="36.7" x2="40.9" y2="40.9" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="55.1" y1="55.1" x2="59.3" y2="59.3" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="59.3" y1="36.7" x2="55.1" y2="40.9" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="40.9" y1="55.1" x2="36.7" y2="59.3" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="38.1" y1="38.1" x2="42" y2="42" stroke="#DAA520" strokeWidth="1.2" strokeLinecap="round" />
+    <line x1="54" y1="54" x2="57.9" y2="57.9" stroke="#DAA520" strokeWidth="1.2" strokeLinecap="round" />
+    <line x1="57.9" y1="38.1" x2="54" y2="42" stroke="#DAA520" strokeWidth="1.2" strokeLinecap="round" />
+    <line x1="42" y1="54" x2="38.1" y2="57.9" stroke="#DAA520" strokeWidth="1.2" strokeLinecap="round" />
     {/* Locking bolts */}
-    <circle cx="16" cy="30" r="3" fill="#A8A8A8" stroke="#808080" strokeWidth="1" />
-    <circle cx="16" cy="48" r="3" fill="#A8A8A8" stroke="#808080" strokeWidth="1" />
-    <circle cx="16" cy="66" r="3" fill="#A8A8A8" stroke="#808080" strokeWidth="1" />
-    {/* Rivets */}
-    <circle cx="26" cy="24" r="1.5" fill="#B0B0B0" />
-    <circle cx="70" cy="24" r="1.5" fill="#B0B0B0" />
-    <circle cx="26" cy="72" r="1.5" fill="#B0B0B0" />
-    <circle cx="70" cy="72" r="1.5" fill="#B0B0B0" />
+    <circle cx="18" cy="32" r="2.5" fill="none" stroke="#A8A8A8" strokeWidth="1.2" />
+    <circle cx="18" cy="48" r="2.5" fill="none" stroke="#A8A8A8" strokeWidth="1.2" />
+    <circle cx="18" cy="64" r="2.5" fill="none" stroke="#A8A8A8" strokeWidth="1.2" />
   </svg>
 );
 
 const CertifiedIcon = () => (
   <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
     <defs>
-      <linearGradient id="cert-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="f-cgold" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#C5A75F" />
-        <stop offset="40%" stopColor="#FFD700" />
-        <stop offset="60%" stopColor="#DAA520" />
+        <stop offset="35%" stopColor="#FFD700" />
+        <stop offset="65%" stopColor="#DAA520" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
-      <linearGradient id="ribbon-red" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stopColor="#DAA520" />
-        <stop offset="100%" stopColor="#8B6914" />
-      </linearGradient>
     </defs>
-    {/* Shield / Badge shape */}
-    <path d="M48 8 L78 22 L78 52 Q78 72 48 88 Q18 72 18 52 L18 22 Z" fill="none" stroke="url(#cert-gold)" strokeWidth="2.5" />
-    <path d="M48 14 L72 26 L72 50 Q72 67 48 82 Q24 67 24 50 L24 26 Z" fill="url(#cert-gold)" opacity="0.12" />
-    {/* Inner shield detail */}
-    <path d="M48 20 L66 30 L66 48 Q66 62 48 74 Q30 62 30 48 L30 30 Z" fill="none" stroke="#DAA520" strokeWidth="1" opacity="0.5" />
+    {/* Shield */}
+    <path d="M48 8 L78 22 L78 52 Q78 72 48 88 Q18 72 18 52 L18 22 Z" fill="none" stroke="url(#f-cgold)" strokeWidth="2" strokeLinejoin="round" />
+    <path d="M48 16 L70 27 L70 49 Q70 65 48 78 Q26 65 26 49 L26 27 Z" fill="url(#f-cgold)" opacity="0.06" />
     {/* Checkmark */}
-    <polyline points="36,48 44,58 62,36" fill="none" stroke="url(#cert-gold)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-    {/* Star accents */}
-    <polygon points="48,16 49.5,19.5 53,19.5 50,21.5 51.5,25 48,23 44.5,25 46,21.5 43,19.5 46.5,19.5" fill="#FFD700" opacity="0.8" />
-    {/* Small decorative dots */}
-    <circle cx="32" cy="34" r="1.5" fill="#DAA520" opacity="0.6" />
-    <circle cx="64" cy="34" r="1.5" fill="#DAA520" opacity="0.6" />
+    <polyline points="36,50 44,60 62,36" fill="none" stroke="url(#f-cgold)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+    {/* Star */}
+    <polygon points="48,14 49.5,18 53,18 50,20.5 51.5,24 48,22 44.5,24 46,20.5 43,18 46.5,18" fill="#FFD700" opacity="0.6" />
     {/* Ribbon tails */}
-    <path d="M38 76 L34 88 L40 84 L44 90" fill="none" stroke="url(#ribbon-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M58 76 L62 88 L56 84 L52 90" fill="none" stroke="url(#ribbon-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M38 76 L34 88 L40 84 L44 90" fill="none" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+    <path d="M58 76 L62 88 L56 84 L52 90" fill="none" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
   </svg>
 );
 
