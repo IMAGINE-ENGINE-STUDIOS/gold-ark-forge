@@ -40,6 +40,7 @@ const TradingViewChart = memo(({ symbol = 'OANDA:XAUUSD', height = 500 }: Tradin
       save_image: false,
       calendar: false,
       support_host: 'https://www.tradingview.com',
+      affiliate_id: '162505',
     });
 
     containerRef.current.appendChild(script);
