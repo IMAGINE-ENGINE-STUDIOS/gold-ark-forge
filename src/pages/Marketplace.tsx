@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import TradingViewTicker from '@/components/tradingview/TradingViewTicker';
+import TradingViewChart from '@/components/tradingview/TradingViewChart';
 import { useCertificates, MetalType, CertificateWithPartner } from '@/hooks/useCertificates';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Shield, ArrowUpRight, Filter } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Shield, ArrowUpRight, Filter, ChevronDown } from 'lucide-react';
 
 const metalColors: Record<string, string> = {
   gold: 'from-gold/20 to-gold/5 border-gold/30',
@@ -57,9 +60,20 @@ const Marketplace = () => {
   const getJurisdiction = (cert: CertificateWithPartner): string =>
     (cert.metadata_json as any)?.jurisdiction || '—';
 
+  const [chartSymbol, setChartSymbol] = useState('OANDA:XAUUSD');
+  const [chartOpen, setChartOpen] = useState(false);
+
+  const chartSymbols = [
+    { key: 'OANDA:XAUUSD', label: 'Gold' },
+    { key: 'OANDA:XAGUSD', label: 'Silver' },
+    { key: 'OANDA:XPTUSD', label: 'Platinum' },
+    { key: 'BITSTAMP:BTCUSD', label: 'Bitcoin' },
+  ];
+
   return (
     <div className="min-h-screen bg-navy">
       <Header />
+      <TradingViewTicker />
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}
         <div className="text-center mb-12">
@@ -94,6 +108,33 @@ const Marketplace = () => {
             </div>
           ))}
         </div>
+
+        {/* Collapsible Advanced Chart */}
+        <Collapsible open={chartOpen} onOpenChange={setChartOpen} className="mb-8">
+          <CollapsibleTrigger className="flex items-center gap-2 text-gold font-display text-sm tracking-wider hover:text-gold-light transition-colors mb-3">
+            <ChevronDown size={16} className={`transition-transform ${chartOpen ? 'rotate-180' : ''}`} />
+            Advanced Chart
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {chartSymbols.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setChartSymbol(key)}
+                  className={`px-3 py-1.5 rounded text-xs font-display transition-all ${
+                    chartSymbol === key ? 'bg-gold text-navy' : 'bg-navy-light/50 text-marble hover:bg-navy-light border border-gold/20'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <TradingViewChart symbol={chartSymbol} height={450} />
+            <p className="text-marble/40 text-xs text-center mt-2">
+              Visualization only — powered by TradingView. No trading or order execution.
+            </p>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-8">
