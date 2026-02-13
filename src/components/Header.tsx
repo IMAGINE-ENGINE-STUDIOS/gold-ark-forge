@@ -8,7 +8,9 @@ const Header = () => {
 
   const navItems = [
     { label: 'Marketplace', href: '/marketplace' },
+    { label: 'Markets', href: '/markets' },
     { label: 'The Vault', href: '/vault' },
+    { label: 'Verify', href: '/verify' },
     { label: 'About Us', href: '/about' },
     { label: 'Insights', href: '/certification' },
   ];
