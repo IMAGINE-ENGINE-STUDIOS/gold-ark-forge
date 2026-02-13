@@ -13,9 +13,21 @@ const InstitutionalIcon = () => (
         <stop offset="0%" stopColor="#FFD700" stopOpacity="0.9" />
         <stop offset="100%" stopColor="#B8860B" stopOpacity="0.7" />
       </linearGradient>
+      <linearGradient id="ci-shimmer" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#FFD700" stopOpacity="0">
+          <animate attributeName="offset" values="-0.5;1.5" dur="3.5s" repeatCount="indefinite" />
+        </stop>
+        <stop offset="20%" stopColor="#FFFACD" stopOpacity="0.6">
+          <animate attributeName="offset" values="-0.3;1.7" dur="3.5s" repeatCount="indefinite" />
+        </stop>
+        <stop offset="40%" stopColor="#FFD700" stopOpacity="0">
+          <animate attributeName="offset" values="-0.1;1.9" dur="3.5s" repeatCount="indefinite" />
+        </stop>
+      </linearGradient>
     </defs>
     {/* Pediment */}
     <polygon points="48,10 14,36 82,36" fill="none" stroke="url(#ci-gold)" strokeWidth="1.8" strokeLinejoin="round" />
+    <polygon points="48,10 14,36 82,36" fill="none" stroke="url(#ci-shimmer)" strokeWidth="1.8" strokeLinejoin="round" />
     {/* Architrave */}
     <line x1="12" y1="38" x2="84" y2="38" stroke="url(#ci-gold)" strokeWidth="2" strokeLinecap="round" />
     {/* Columns */}
@@ -31,9 +43,15 @@ const InstitutionalIcon = () => (
     {/* Base */}
     <line x1="10" y1="74" x2="86" y2="74" stroke="url(#ci-gold)" strokeWidth="2.5" strokeLinecap="round" />
     <line x1="8" y1="78" x2="88" y2="78" stroke="url(#ci-gold)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-    {/* Rising trend line */}
-    <polyline points="30,66 40,58 50,62 60,52 70,48" fill="none" stroke="#FFD700" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
-    <circle cx="70" cy="48" r="2" fill="#FFD700" opacity="0.6" />
+    {/* Rising trend line - animated draw */}
+    <polyline points="30,66 40,58 50,62 60,52 70,48" fill="none" stroke="#FFD700" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="80" strokeDashoffset="80">
+      <animate attributeName="stroke-dashoffset" from="80" to="0" dur="3s" repeatCount="indefinite" />
+    </polyline>
+    {/* Pulsing dot */}
+    <circle cx="70" cy="48" r="2" fill="#FFD700">
+      <animate attributeName="r" values="1.5;3;1.5" dur="2.5s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.3;0.8;0.3" dur="2.5s" repeatCount="indefinite" />
+    </circle>
   </svg>
 );
 
@@ -46,9 +64,21 @@ const FamilyOfficeIcon = () => (
         <stop offset="65%" stopColor="#DAA520" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
+      <linearGradient id="cf-shimmer" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#FFD700" stopOpacity="0">
+          <animate attributeName="offset" values="-0.5;1.5" dur="4s" repeatCount="indefinite" />
+        </stop>
+        <stop offset="15%" stopColor="#FFFACD" stopOpacity="0.5">
+          <animate attributeName="offset" values="-0.35;1.65" dur="4s" repeatCount="indefinite" />
+        </stop>
+        <stop offset="30%" stopColor="#FFD700" stopOpacity="0">
+          <animate attributeName="offset" values="-0.2;1.8" dur="4s" repeatCount="indefinite" />
+        </stop>
+      </linearGradient>
     </defs>
     {/* Shield */}
     <path d="M48 8 L80 22 L80 50 Q80 72 48 88 Q16 72 16 50 L16 22 Z" fill="none" stroke="url(#cf-gold)" strokeWidth="2" strokeLinejoin="round" />
+    <path d="M48 8 L80 22 L80 50 Q80 72 48 88 Q16 72 16 50 L16 22 Z" fill="none" stroke="url(#cf-shimmer)" strokeWidth="2" strokeLinejoin="round" />
     <path d="M48 14 L74 26 L74 48 Q74 67 48 82 Q22 67 22 48 L22 26 Z" fill="url(#cf-gold)" opacity="0.06" />
     {/* Tree trunk */}
     <line x1="48" y1="70" x2="48" y2="42" stroke="url(#cf-gold)" strokeWidth="2.5" strokeLinecap="round" />
@@ -59,12 +89,27 @@ const FamilyOfficeIcon = () => (
     <path d="M48 42 Q42 36 36 28" fill="none" stroke="url(#cf-gold)" strokeWidth="1.5" strokeLinecap="round" />
     <path d="M48 42 Q54 36 60 28" fill="none" stroke="url(#cf-gold)" strokeWidth="1.5" strokeLinecap="round" />
     <line x1="48" y1="42" x2="48" y2="24" stroke="url(#cf-gold)" strokeWidth="1.5" strokeLinecap="round" />
-    {/* Leaf circles */}
-    <circle cx="30" cy="32" r="3" fill="#FFD700" opacity="0.7" />
-    <circle cx="66" cy="32" r="3" fill="#FFD700" opacity="0.7" />
-    <circle cx="36" cy="26" r="2.5" fill="#DAA520" opacity="0.6" />
-    <circle cx="60" cy="26" r="2.5" fill="#DAA520" opacity="0.6" />
-    <circle cx="48" cy="22" r="3" fill="#FFD700" opacity="0.8" />
+    {/* Leaf circles - breathing pulse */}
+    <circle cx="30" cy="32" r="3" fill="#FFD700">
+      <animate attributeName="r" values="2.5;3.5;2.5" dur="3s" begin="0s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="3s" begin="0s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="66" cy="32" r="3" fill="#FFD700">
+      <animate attributeName="r" values="2.5;3.5;2.5" dur="3s" begin="0.5s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="3s" begin="0.5s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="36" cy="26" r="2.5" fill="#DAA520">
+      <animate attributeName="r" values="2;3;2" dur="3s" begin="1s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.4;0.8;0.4" dur="3s" begin="1s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="60" cy="26" r="2.5" fill="#DAA520">
+      <animate attributeName="r" values="2;3;2" dur="3s" begin="1.5s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.4;0.8;0.4" dur="3s" begin="1.5s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="48" cy="22" r="3" fill="#FFD700">
+      <animate attributeName="r" values="2.5;4;2.5" dur="3s" begin="0.3s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.5;1;0.5" dur="3s" begin="0.3s" repeatCount="indefinite" />
+    </circle>
     {/* Roots */}
     <path d="M48 70 Q40 74 34 76" fill="none" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
     <path d="M48 70 Q56 74 62 76" fill="none" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
@@ -81,12 +126,16 @@ const GovernmentIcon = () => (
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
     </defs>
-    {/* Globe */}
+    {/* Globe - slow rotation */}
     <circle cx="48" cy="48" r="30" fill="none" stroke="url(#cg-gold)" strokeWidth="1.8" />
-    {/* Latitude */}
-    <ellipse cx="48" cy="48" rx="30" ry="12" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.35" />
-    {/* Longitude */}
-    <ellipse cx="48" cy="48" rx="12" ry="30" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.35" />
+    <g style={{ transformOrigin: '48px 48px' }}>
+      <animateTransform attributeName="transform" type="rotate" from="0 48 48" to="360 48 48" dur="30s" repeatCount="indefinite" />
+      {/* Latitude */}
+      <ellipse cx="48" cy="48" rx="30" ry="12" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.35" />
+      <ellipse cx="48" cy="48" rx="30" ry="22" fill="none" stroke="#DAA520" strokeWidth="0.5" opacity="0.2" />
+      {/* Longitude */}
+      <ellipse cx="48" cy="48" rx="12" ry="30" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.35" />
+    </g>
     {/* Left laurel */}
     <path d="M18 68 Q8 52 18 32" fill="none" stroke="url(#cg-gold)" strokeWidth="1.8" strokeLinecap="round" />
     <ellipse cx="13" cy="40" rx="3" ry="5" transform="rotate(-15 13 40)" fill="#DAA520" opacity="0.4" />
@@ -97,8 +146,10 @@ const GovernmentIcon = () => (
     <ellipse cx="83" cy="40" rx="3" ry="5" transform="rotate(15 83 40)" fill="#DAA520" opacity="0.4" />
     <ellipse cx="85" cy="50" rx="3" ry="5" transform="rotate(5 85 50)" fill="#DAA520" opacity="0.4" />
     <ellipse cx="83" cy="60" rx="3" ry="5" transform="rotate(-10 83 60)" fill="#DAA520" opacity="0.4" />
-    {/* Central star */}
-    <polygon points="48,30 51,40 62,40 53,46 56,56 48,50 40,56 43,46 34,40 45,40" fill="url(#cg-gold)" opacity="0.7" />
+    {/* Central star - pulsing */}
+    <polygon points="48,30 51,40 62,40 53,46 56,56 48,50 40,56 43,46 34,40 45,40" fill="url(#cg-gold)">
+      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="3s" repeatCount="indefinite" />
+    </polygon>
   </svg>
 );
 
