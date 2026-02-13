@@ -1,96 +1,111 @@
 
+# Phase 7: TradingView Widgets + Public Verification API
 
-# Phase 5: Bitcoin Anchoring Engine Upgrade and Chainlink Oracle Integration
+## Part A -- TradingView Market Visualization
 
-## Overview
+Embed free TradingView widgets for real-time market data visualization. No data proxying, no trading buttons -- purely read-only chart visualization.
 
-Upgrade the three backend functions (`generate-proof-snapshot`, `anchor-to-bitcoin`, `chainlink-oracle-endpoint`) from the legacy `bullion_bars` / `reserve_snapshots` model to the certificate-based architecture. The snapshot engine will now compute Merkle trees from `certificate_events`, populate `anchors` + `anchor_leaves`, and the Chainlink oracle endpoint will serve certificate-derived reserve data. The Certification page will be updated to show the unified certificate-based proof system.
+### New Components
 
-## What Changes
+1. **`src/components/tradingview/TradingViewChart.tsx`**
+   - Reusable component that renders the TradingView Advanced Chart widget via an iframe/script embed
+   - Accepts a `symbol` prop (e.g., `OANDA:XAUUSD`, `OANDA:XAGUSD`, `OANDA:XPTUSD`, `BITSTAMP:BTCUSD`)
+   - Dark theme to match the navy palette
+   - Responsive height/width
 
-### 1. Rewrite: `generate-proof-snapshot` Edge Function
+2. **`src/components/tradingview/TradingViewTicker.tsx`**
+   - Horizontal ticker tape widget showing live prices for Gold, Silver, Platinum, and BTC
+   - Placed at the top of the Marketplace page
 
-**File**: `supabase/functions/generate-proof-snapshot/index.ts`
+3. **`src/components/tradingview/SymbolOverview.tsx`**
+   - Mini symbol overview cards for the homepage MetalCards section or a new dashboard section
+   - Shows sparkline + price for each metal
 
-Currently reads from `bullion_bars` and writes to `reserve_snapshots`. Rewrite to:
+### Page Changes
 
-- Query **unanchored** `certificate_events` (events not yet linked to an `anchor_leaves` row)
-- SHA-256 hash each event's canonical JSON (`event_id + event_type + cert_id + created_at + event_payload`)
-- Build a Merkle tree from those leaf hashes
-- Insert an `anchors` row with the Merkle root, `leaf_count`, status = `pending`
-- Insert corresponding `anchor_leaves` rows linking each `event_id` to its `leaf_index` and `leaf_hash`
-- Also update `reserve_snapshots` table with aggregated certificate totals (for backward compat with Chainlink endpoint) -- compute totals from all active certificates' `metadata_json.weight_oz` grouped by `metadata_json.metal_type`
-- Return the anchor ID, Merkle root, and leaf count
+- **`src/pages/Marketplace.tsx`**: Add the TradingView ticker tape above the existing prices bar. Add a collapsible Advanced Chart section below the prices bar (default symbol: XAUUSD, switchable to XAGUSD/XPTUSD/BTCUSD).
+- **`src/pages/Index.tsx`**: Add a "Market Overview" section between MetalCards and Features using the SymbolOverview widget.
+- **New page: `src/pages/Markets.tsx`**: Dedicated full-page charts view with tabbed Advanced Charts for all four symbols, plus the ticker tape. Add `/markets` route and nav link.
 
-### 2. Rewrite: `anchor-to-bitcoin` Edge Function
+### Nav Update
 
-**File**: `supabase/functions/anchor-to-bitcoin/index.ts`
+- **`src/components/Header.tsx`**: Add "Markets" link to the navigation bar between Marketplace and The Vault.
 
-Currently reads from `reserve_snapshots`. Rewrite to:
+### TradingView Widget Rules (Compliance)
+- Free widget embed only (no API keys needed)
+- No trading buttons or order execution
+- Charts are visualization-only with TradingView attribution
+- No data reselling or proxying
 
-- Query the latest `anchors` row where `status = 'pending'` and `commit_txid IS NULL`
-- Use the anchor's `merkle_root` (bytea) as the data to commit
-- In demo mode (no `BTC_ANCHOR_API_KEY`), generate a simulated 64-char hex TXID
-- Update the `anchors` row: set `commit_txid`, `status = 'broadcast'`, `commit_time = now()`
-- Also update the corresponding `reserve_snapshots` row's `bitcoin_txid` if one was created in the same batch (backward compat)
-- Return the anchor ID, TXID, and explorer URL
+---
 
-### 3. Rewrite: `chainlink-oracle-endpoint` Edge Function
+## Part B -- Public Verification API
 
-**File**: `supabase/functions/chainlink-oracle-endpoint/index.ts`
+A new edge function exposing read-only endpoints for independent certificate verification.
 
-Currently reads from `reserve_snapshots`. Rewrite to:
+### New Edge Function
 
-- Compute live reserve totals by querying all `certificates` with `status = 'active'`, aggregating `metadata_json->>'weight_oz'` grouped by `metadata_json->>'metal_type'`
-- Count total active certificates as `bar_count`
-- Fetch the latest confirmed anchor (`anchors` where `status = 'confirmed'` or `'broadcast'`) for the Bitcoin commitment reference
-- Format response in Chainlink-compatible JSON with 8-decimal integer units
-- Include the latest anchor's `commit_txid` as the `bitcoin_anchor` field
-- Fall back to `reserve_snapshots` if no anchors exist (backward compat)
+**`supabase/functions/public-verify/index.ts`**
 
-### 4. Update: Certification Page
+Actions (all read-only, using anon client):
 
-**File**: `src/pages/Certification.tsx`
+| Action | Input | Output |
+|--------|-------|--------|
+| `verify` | `cert_id` | Certificate data + partner info + status + issued_at |
+| `history` | `cert_id` | Full ownership/event history (append-only timeline) |
+| `anchor_proof` | `cert_id` or `event_id` | Merkle leaf hash, branch, root, Bitcoin TXID |
+| `reserve_snapshot` | (none, or `snapshot_id`) | Latest reserve totals + merkle root + BTC anchor |
 
-- Replace the "Current Reserve Status" section: instead of reading from `useLatestReserveProof` (which queries `reserve_snapshots`), compute reserve totals from all active certificates using a new `useCertificateReserveTotals` hook
-- The "Bitcoin Anchor History" section already uses `useAnchors` -- no change needed
-- Add a new "Recent Anchored Events" section showing the latest `anchor_leaves` with their linked `certificate_events`, demonstrating the inclusion proof chain
-- Remove the `useLatestReserveProof` import (keep the hook file intact for backward compat)
+All responses include cache headers (`Cache-Control: public, max-age=60`).
 
-### 5. New Hook: `useCertificateReserveTotals`
+### Config Update
 
-**File**: `src/hooks/useCertificateReserveTotals.ts`
+**`supabase/config.toml`**: Add `[functions.public-verify]` with `verify_jwt = false`.
 
-- Query all certificates with `status = 'active'`, selecting only `metadata_json`
-- Client-side aggregate `weight_oz` by `metal_type`
-- Return `{ gold_oz, silver_oz, platinum_oz, cert_count }`
-- Used by the Certification page to replace `useLatestReserveProof` for the reserve summary display
+### New Frontend Page
 
-### 6. New Hook: `useAnchoredEvents`
+**`src/pages/Verify.tsx`**: Simple public verification tool where anyone can paste a certificate ID and see its authenticity, event history, and anchor proof. Accessible at `/verify`.
 
-**File**: `src/hooks/useAnchoredEvents.ts`
+### Frontend Hook
 
-- Query `anchor_leaves` joined with `certificate_events` and `anchors`, ordered by `created_at` desc, limited to recent entries
-- Returns event type, cert_id, leaf hash, anchor status, and commit txid
-- Used by the Certification page in the new "Recent Anchored Events" section
+**`src/hooks/usePublicVerify.ts`**: Hook wrapping calls to the `public-verify` edge function for the Verify page.
 
-## Files Summary
+### Route + Nav Updates
 
-| Action | File |
-|--------|------|
-| Rewrite | `supabase/functions/generate-proof-snapshot/index.ts` |
-| Rewrite | `supabase/functions/anchor-to-bitcoin/index.ts` |
-| Rewrite | `supabase/functions/chainlink-oracle-endpoint/index.ts` |
-| Update | `src/pages/Certification.tsx` |
-| Create | `src/hooks/useCertificateReserveTotals.ts` |
-| Create | `src/hooks/useAnchoredEvents.ts` |
+- **`src/App.tsx`**: Add `/verify` route.
+- **`src/components/Header.tsx`**: Add "Verify" link to navigation.
+
+---
 
 ## Technical Details
 
-- The `anchors.merkle_root` column is `bytea`. The edge function will store the SHA-256 hash as raw bytes using `\\x` hex encoding in the SQL insert.
-- The `anchor_leaves.leaf_hash` is also `bytea`. Same encoding approach.
-- The canonical leaf format for hashing is: `SHA256(JSON.stringify({ event_id, event_type, cert_id, created_at, event_payload }))` -- this ensures deterministic reproduction of the Merkle tree.
-- The Chainlink endpoint maintains backward compatibility: if no active certificates exist, it falls back to `reserve_snapshots` data. This ensures existing oracle integrations continue working during the transition.
-- The `generate-proof-snapshot` function is idempotent -- if called with no new unanchored events, it returns a message indicating nothing to anchor rather than creating an empty batch.
-- No database migrations are needed -- all tables (`anchors`, `anchor_leaves`, `certificate_events`, `certificates`) already exist with the correct schema.
+### TradingView Embed Pattern
 
+Each widget component will:
+1. Create a `div` with a unique `ref`
+2. Inject a `<script>` tag from `s3.tradingview.com/external-embedding/embed-widget-*.js`
+3. Clean up the script on unmount
+4. Use `useEffect` with the symbol as a dependency to re-render on changes
+
+### Public Verify Edge Function Security
+- Uses anon key (read-only, respects RLS)
+- No writes, no service role key needed for reads
+- Rate limiting via standard edge function limits
+- Zero secret exposure
+
+### File Summary
+
+| Action | File |
+|--------|------|
+| Create | `src/components/tradingview/TradingViewChart.tsx` |
+| Create | `src/components/tradingview/TradingViewTicker.tsx` |
+| Create | `src/components/tradingview/SymbolOverview.tsx` |
+| Create | `src/pages/Markets.tsx` |
+| Create | `src/pages/Verify.tsx` |
+| Create | `src/hooks/usePublicVerify.ts` |
+| Create | `supabase/functions/public-verify/index.ts` |
+| Update | `src/pages/Marketplace.tsx` (add ticker + chart) |
+| Update | `src/pages/Index.tsx` (add market overview section) |
+| Update | `src/components/Header.tsx` (add Markets + Verify nav links) |
+| Update | `src/App.tsx` (add /markets and /verify routes) |
+| Update | `supabase/config.toml` (add public-verify function) |
