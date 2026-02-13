@@ -1,13 +1,16 @@
 import { Link } from 'react-router-dom';
-import heroBackground from '@/assets/hero-background.png';
+import heroVideo from '@/assets/hero-background.mp4';
 
 const Hero = () => {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Full Hero Background Image */}
-      <img 
-        src={heroBackground} 
-        alt="Greek temple with gold and silver bullion" 
+      {/* Full Hero Background Video */}
+      <video
+        src={heroVideo}
+        autoPlay
+        loop
+        muted
+        playsInline
         className="absolute inset-0 w-full h-full object-cover object-center"
       />
 
