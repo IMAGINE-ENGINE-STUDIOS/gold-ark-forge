@@ -1,123 +1,104 @@
 import React from 'react';
 
 const InstitutionalIcon = () => (
-  <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+  <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
     <defs>
-      <linearGradient id="inst-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="ci-gold" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#C5A75F" />
-        <stop offset="40%" stopColor="#FFD700" />
-        <stop offset="60%" stopColor="#DAA520" />
+        <stop offset="35%" stopColor="#FFD700" />
+        <stop offset="65%" stopColor="#DAA520" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
-      <linearGradient id="inst-silver" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#E0E0E0" />
-        <stop offset="50%" stopColor="#C0C0C0" />
-        <stop offset="100%" stopColor="#909090" />
+      <linearGradient id="ci-gold-v" x1="50%" y1="0%" x2="50%" y2="100%">
+        <stop offset="0%" stopColor="#FFD700" stopOpacity="0.9" />
+        <stop offset="100%" stopColor="#B8860B" stopOpacity="0.7" />
       </linearGradient>
     </defs>
-    {/* Pillar base */}
-    <rect x="8" y="54" width="48" height="4" rx="1" fill="url(#inst-gold)" opacity="0.8" />
-    <rect x="12" y="50" width="40" height="4" rx="1" fill="url(#inst-gold)" />
-    {/* Left pillar */}
-    <rect x="16" y="22" width="5" height="28" rx="1.5" fill="url(#inst-silver)" stroke="#DAA520" strokeWidth="0.5" />
-    <rect x="14.5" y="21" width="8" height="3" rx="1" fill="#FFD700" />
-    {/* Right pillar */}
-    <rect x="43" y="22" width="5" height="28" rx="1.5" fill="url(#inst-silver)" stroke="#DAA520" strokeWidth="0.5" />
-    <rect x="41.5" y="21" width="8" height="3" rx="1" fill="#FFD700" />
     {/* Pediment */}
-    <polygon points="32,6 10,22 54,22" fill="url(#inst-gold)" stroke="#DAA520" strokeWidth="1" />
-    <polygon points="32,12 20,20 44,20" fill="none" stroke="#FFD700" strokeWidth="0.5" opacity="0.6" />
-    {/* Central diamond / keystone */}
-    <polygon points="32,13 35,17 32,21 29,17" fill="#FFD700" stroke="#B8860B" strokeWidth="0.5" />
-    {/* Rising chart bars inside */}
-    <rect x="24" y="40" width="3" height="9" rx="0.5" fill="url(#inst-gold)" opacity="0.6" />
-    <rect x="29" y="35" width="3" height="14" rx="0.5" fill="url(#inst-gold)" opacity="0.7" />
-    <rect x="34" y="30" width="3" height="19" rx="0.5" fill="url(#inst-gold)" opacity="0.85" />
-    <rect x="39" y="26" width="3" height="23" rx="0.5" fill="url(#inst-gold)" />
+    <polygon points="48,10 14,36 82,36" fill="none" stroke="url(#ci-gold)" strokeWidth="1.8" strokeLinejoin="round" />
+    {/* Architrave */}
+    <line x1="12" y1="38" x2="84" y2="38" stroke="url(#ci-gold)" strokeWidth="2" strokeLinecap="round" />
+    {/* Columns */}
+    <line x1="22" y1="40" x2="22" y2="72" stroke="url(#ci-gold-v)" strokeWidth="3" strokeLinecap="round" />
+    <line x1="38" y1="40" x2="38" y2="72" stroke="url(#ci-gold-v)" strokeWidth="3" strokeLinecap="round" />
+    <line x1="58" y1="40" x2="58" y2="72" stroke="url(#ci-gold-v)" strokeWidth="3" strokeLinecap="round" />
+    <line x1="74" y1="40" x2="74" y2="72" stroke="url(#ci-gold-v)" strokeWidth="3" strokeLinecap="round" />
+    {/* Column capitals */}
+    <line x1="19" y1="40" x2="25" y2="40" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" />
+    <line x1="35" y1="40" x2="41" y2="40" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" />
+    <line x1="55" y1="40" x2="61" y2="40" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" />
+    <line x1="71" y1="40" x2="77" y2="40" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" />
+    {/* Base */}
+    <line x1="10" y1="74" x2="86" y2="74" stroke="url(#ci-gold)" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="8" y1="78" x2="88" y2="78" stroke="url(#ci-gold)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    {/* Rising trend line */}
+    <polyline points="30,66 40,58 50,62 60,52 70,48" fill="none" stroke="#FFD700" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+    <circle cx="70" cy="48" r="2" fill="#FFD700" opacity="0.6" />
   </svg>
 );
 
 const FamilyOfficeIcon = () => (
-  <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+  <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
     <defs>
-      <linearGradient id="fam-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="cf-gold" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#C5A75F" />
-        <stop offset="40%" stopColor="#FFD700" />
-        <stop offset="60%" stopColor="#DAA520" />
+        <stop offset="35%" stopColor="#FFD700" />
+        <stop offset="65%" stopColor="#DAA520" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
-      <linearGradient id="fam-silver" x1="50%" y1="0%" x2="50%" y2="100%">
-        <stop offset="0%" stopColor="#E8E8E8" />
-        <stop offset="100%" stopColor="#A0A0A0" />
-      </linearGradient>
     </defs>
-    {/* Shield outline */}
-    <path d="M32 6 L54 16 L54 36 Q54 52 32 60 Q10 52 10 36 L10 16 Z" fill="none" stroke="url(#fam-gold)" strokeWidth="2" />
-    <path d="M32 10 L50 18 L50 35 Q50 49 32 56 Q14 49 14 35 L14 18 Z" fill="url(#fam-gold)" opacity="0.08" />
-    {/* Inner shield line */}
-    <path d="M32 14 L46 21 L46 34 Q46 46 32 52 Q18 46 18 34 L18 21 Z" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.4" />
-    {/* Tree of life / generational symbol */}
-    {/* Trunk */}
-    <line x1="32" y1="46" x2="32" y2="30" stroke="url(#fam-gold)" strokeWidth="2.5" strokeLinecap="round" />
-    {/* Root lines */}
-    <line x1="32" y1="46" x2="26" y2="50" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="32" y1="46" x2="38" y2="50" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Shield */}
+    <path d="M48 8 L80 22 L80 50 Q80 72 48 88 Q16 72 16 50 L16 22 Z" fill="none" stroke="url(#cf-gold)" strokeWidth="2" strokeLinejoin="round" />
+    <path d="M48 14 L74 26 L74 48 Q74 67 48 82 Q22 67 22 48 L22 26 Z" fill="url(#cf-gold)" opacity="0.06" />
+    {/* Tree trunk */}
+    <line x1="48" y1="70" x2="48" y2="42" stroke="url(#cf-gold)" strokeWidth="2.5" strokeLinecap="round" />
     {/* Main branches */}
-    <line x1="32" y1="34" x2="24" y2="26" stroke="url(#fam-gold)" strokeWidth="2" strokeLinecap="round" />
-    <line x1="32" y1="34" x2="40" y2="26" stroke="url(#fam-gold)" strokeWidth="2" strokeLinecap="round" />
-    <line x1="32" y1="30" x2="26" y2="22" stroke="url(#fam-gold)" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="32" y1="30" x2="38" y2="22" stroke="url(#fam-gold)" strokeWidth="1.5" strokeLinecap="round" />
-    {/* Leaf dots */}
-    <circle cx="24" cy="26" r="2.5" fill="#FFD700" />
-    <circle cx="40" cy="26" r="2.5" fill="#FFD700" />
-    <circle cx="26" cy="22" r="2" fill="#DAA520" />
-    <circle cx="38" cy="22" r="2" fill="#DAA520" />
-    <circle cx="32" cy="18" r="2.5" fill="#FFD700" />
-    {/* Crown top */}
-    <line x1="32" y1="30" x2="32" y2="18" stroke="url(#fam-gold)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M48 50 Q38 42 30 34" fill="none" stroke="url(#cf-gold)" strokeWidth="2" strokeLinecap="round" />
+    <path d="M48 50 Q58 42 66 34" fill="none" stroke="url(#cf-gold)" strokeWidth="2" strokeLinecap="round" />
+    {/* Upper branches */}
+    <path d="M48 42 Q42 36 36 28" fill="none" stroke="url(#cf-gold)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M48 42 Q54 36 60 28" fill="none" stroke="url(#cf-gold)" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="48" y1="42" x2="48" y2="24" stroke="url(#cf-gold)" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Leaf circles */}
+    <circle cx="30" cy="32" r="3" fill="#FFD700" opacity="0.7" />
+    <circle cx="66" cy="32" r="3" fill="#FFD700" opacity="0.7" />
+    <circle cx="36" cy="26" r="2.5" fill="#DAA520" opacity="0.6" />
+    <circle cx="60" cy="26" r="2.5" fill="#DAA520" opacity="0.6" />
+    <circle cx="48" cy="22" r="3" fill="#FFD700" opacity="0.8" />
+    {/* Roots */}
+    <path d="M48 70 Q40 74 34 76" fill="none" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    <path d="M48 70 Q56 74 62 76" fill="none" stroke="#DAA520" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
   </svg>
 );
 
 const GovernmentIcon = () => (
-  <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+  <svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
     <defs>
-      <linearGradient id="gov-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <linearGradient id="cg-gold" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#C5A75F" />
-        <stop offset="40%" stopColor="#FFD700" />
-        <stop offset="60%" stopColor="#DAA520" />
+        <stop offset="35%" stopColor="#FFD700" />
+        <stop offset="65%" stopColor="#DAA520" />
         <stop offset="100%" stopColor="#B8860B" />
       </linearGradient>
-      <linearGradient id="gov-silver" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#E0E0E0" />
-        <stop offset="50%" stopColor="#C0C0C0" />
-        <stop offset="100%" stopColor="#808080" />
-      </linearGradient>
     </defs>
-    {/* Globe circle */}
-    <circle cx="32" cy="32" r="24" fill="none" stroke="url(#gov-gold)" strokeWidth="2" />
-    <circle cx="32" cy="32" r="20" fill="url(#gov-gold)" opacity="0.06" />
-    {/* Latitude lines */}
-    <ellipse cx="32" cy="32" rx="24" ry="10" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.4" />
-    <ellipse cx="32" cy="32" rx="24" ry="18" fill="none" stroke="#DAA520" strokeWidth="0.6" opacity="0.3" />
-    {/* Longitude line */}
-    <ellipse cx="32" cy="32" rx="10" ry="24" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.4" />
-    {/* Meridian */}
-    <line x1="32" y1="8" x2="32" y2="56" stroke="#DAA520" strokeWidth="0.6" opacity="0.3" />
-    <line x1="8" y1="32" x2="56" y2="32" stroke="#DAA520" strokeWidth="0.6" opacity="0.3" />
-    {/* Laurel wreath left */}
-    <path d="M14 44 Q8 36 14 28" fill="none" stroke="url(#gov-gold)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M12 42 Q7 36 12 30" fill="none" stroke="#DAA520" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
-    {/* Laurel leaves left */}
-    <ellipse cx="11" cy="33" rx="2" ry="3.5" transform="rotate(-20 11 33)" fill="#DAA520" opacity="0.5" />
-    <ellipse cx="10" cy="38" rx="2" ry="3.5" transform="rotate(-10 10 38)" fill="#DAA520" opacity="0.5" />
-    {/* Laurel wreath right */}
-    <path d="M50 44 Q56 36 50 28" fill="none" stroke="url(#gov-gold)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M52 42 Q57 36 52 30" fill="none" stroke="#DAA520" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
-    {/* Laurel leaves right */}
-    <ellipse cx="53" cy="33" rx="2" ry="3.5" transform="rotate(20 53 33)" fill="#DAA520" opacity="0.5" />
-    <ellipse cx="54" cy="38" rx="2" ry="3.5" transform="rotate(10 54 38)" fill="#DAA520" opacity="0.5" />
+    {/* Globe */}
+    <circle cx="48" cy="48" r="30" fill="none" stroke="url(#cg-gold)" strokeWidth="1.8" />
+    {/* Latitude */}
+    <ellipse cx="48" cy="48" rx="30" ry="12" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.35" />
+    {/* Longitude */}
+    <ellipse cx="48" cy="48" rx="12" ry="30" fill="none" stroke="#DAA520" strokeWidth="0.8" opacity="0.35" />
+    {/* Left laurel */}
+    <path d="M18 68 Q8 52 18 32" fill="none" stroke="url(#cg-gold)" strokeWidth="1.8" strokeLinecap="round" />
+    <ellipse cx="13" cy="40" rx="3" ry="5" transform="rotate(-15 13 40)" fill="#DAA520" opacity="0.4" />
+    <ellipse cx="11" cy="50" rx="3" ry="5" transform="rotate(-5 11 50)" fill="#DAA520" opacity="0.4" />
+    <ellipse cx="13" cy="60" rx="3" ry="5" transform="rotate(10 13 60)" fill="#DAA520" opacity="0.4" />
+    {/* Right laurel */}
+    <path d="M78 68 Q88 52 78 32" fill="none" stroke="url(#cg-gold)" strokeWidth="1.8" strokeLinecap="round" />
+    <ellipse cx="83" cy="40" rx="3" ry="5" transform="rotate(15 83 40)" fill="#DAA520" opacity="0.4" />
+    <ellipse cx="85" cy="50" rx="3" ry="5" transform="rotate(5 85 50)" fill="#DAA520" opacity="0.4" />
+    <ellipse cx="83" cy="60" rx="3" ry="5" transform="rotate(-10 83 60)" fill="#DAA520" opacity="0.4" />
     {/* Central star */}
-    <polygon points="32,22 34,28 40,28 35,32 37,38 32,34 27,38 29,32 24,28 30,28" fill="url(#gov-gold)" stroke="#B8860B" strokeWidth="0.5" />
+    <polygon points="48,30 51,40 62,40 53,46 56,56 48,50 40,56 43,46 34,40 45,40" fill="url(#cg-gold)" opacity="0.7" />
   </svg>
 );
 
@@ -182,16 +163,11 @@ const ClientTypes = () => {
             >
               {/* Icon Container */}
               <div className="relative inline-block mb-8">
-                {/* Geometric Frame */}
-                <div className="w-28 h-28 border-2 border-gold/40 rotate-45 flex items-center justify-center group-hover:border-gold transition-colors">
-                  <div className="w-20 h-20 border border-gold/30 group-hover:border-gold/60 transition-colors flex items-center justify-center -rotate-45">
-                    <div className="w-14 h-14">
-                      <client.Icon />
-                    </div>
-                  </div>
+                <div className="w-24 h-24">
+                  <client.Icon />
                 </div>
-                {/* Glow effect */}
-                <div className="absolute inset-0 blur-2xl bg-gold/10 -z-10 group-hover:bg-gold/20 transition-colors" />
+                {/* Subtle glow */}
+                <div className="absolute inset-0 blur-xl bg-gold/10 -z-10 group-hover:bg-gold/20 transition-colors" />
               </div>
 
               {/* Content */}
