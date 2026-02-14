@@ -14,6 +14,8 @@ import TradingViewForexHeatmap from '@/components/tradingview/TradingViewForexHe
 import TradingViewCryptoMarket from '@/components/tradingview/TradingViewCryptoMarket';
 import TradingViewSingleTicker from '@/components/tradingview/TradingViewSingleTicker';
 import TradingViewEconomicCalendar from '@/components/tradingview/TradingViewEconomicCalendar';
+import TradingViewTopStories from '@/components/tradingview/TradingViewTopStories';
+import TradingViewCompanyProfile from '@/components/tradingview/TradingViewCompanyProfile';
 
 interface ShowcaseSection {
   id: string;
@@ -23,12 +25,14 @@ interface ShowcaseSection {
 }
 
 const sections: ShowcaseSection[] = [
-  { id: 'ticker-tape', title: 'Ticker Tape', description: 'Scrolling real-time quotes in a classic Wall Street ticker format. Ideal for headers and persistent price bars.', category: 'Tickers' },
-  { id: 'single-ticker', title: 'Single Ticker', description: 'Compact single-symbol quote display showing price, change, and percentage. Perfect for inline spotlights.', category: 'Tickers' },
+  { id: 'ticker-tape', title: 'Live Ticker Tape', description: 'Scrolling real-time quotes in a classic Wall Street ticker format. Ideal for headers and persistent price bars.', category: 'Tickers' },
+  { id: 'single-ticker', title: 'Single Quote', description: 'Compact single-symbol quote display showing price, change, and percentage. Perfect for inline spotlights.', category: 'Tickers' },
   { id: 'mini-chart', title: 'Mini Chart', description: 'Compact symbol overview with a small chart and key stats. Great for sidebars and card layouts.', category: 'Charts' },
-  { id: 'symbol-overview', title: 'Symbol Overview', description: 'Multi-symbol area chart with date range selector. A visual snapshot of multiple assets at a glance.', category: 'Charts' },
-  { id: 'advanced-chart', title: 'Advanced Chart', description: 'Full-featured interactive chart with indicators, drawing tools, and timeframes. The flagship TradingView experience.', category: 'Charts' },
+  { id: 'symbol-overview', title: 'Multi-Asset Overview', description: 'Multi-symbol area chart with date range selector. A visual snapshot of multiple assets at a glance.', category: 'Charts' },
+  { id: 'advanced-chart', title: 'Advanced Chart', description: 'Full-featured interactive chart with indicators, drawing tools, and timeframes. The flagship charting experience.', category: 'Charts' },
   { id: 'technical-analysis', title: 'Technical Analysis', description: 'Oscillators and moving average summary gauge showing buy/sell/neutral signals across timeframes.', category: 'Analysis' },
+  { id: 'company-profile', title: 'Company Profile', description: 'Detailed company information including description, sector, industry, and key financial data.', category: 'Analysis' },
+  { id: 'top-stories', title: 'Market News', description: 'Latest news headlines and stories related to specific symbols. Stay informed with real-time market coverage.', category: 'News' },
   { id: 'market-overview', title: 'Market Overview', description: 'Tabbed watchlist with embedded chart. Covers multiple asset classes in one widget.', category: 'Watchlists' },
   { id: 'stock-heatmap', title: 'Stock Heatmap', description: 'Visual heatmap of market sectors by market cap and daily change. Macro view at a glance.', category: 'Heatmaps' },
   { id: 'forex-cross-rates', title: 'Forex Cross Rates', description: 'Currency cross-rate matrix showing relative strength between major forex pairs.', category: 'Heatmaps' },
@@ -38,7 +42,7 @@ const sections: ShowcaseSection[] = [
   { id: 'economic-calendar', title: 'Economic Calendar', description: 'Upcoming economic events, reports, and data releases with impact ratings and forecasts.', category: 'Data' },
 ];
 
-const categories = ['All', 'Tickers', 'Charts', 'Analysis', 'Watchlists', 'Heatmaps', 'Screeners', 'Data'];
+const categories = ['All', 'Tickers', 'Charts', 'Analysis', 'News', 'Watchlists', 'Heatmaps', 'Screeners', 'Data'];
 
 const TradingViewShowroom = () => {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -59,14 +63,14 @@ const TradingViewShowroom = () => {
         <div className="text-center mb-12">
           <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-6" />
           <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
-            TRADINGVIEW SHOWROOM
+            MARKET INTELLIGENCE
           </h1>
           <p className="text-marble/70 max-w-3xl mx-auto">
-            A comprehensive showcase of every TradingView widget available for integration. 
-            From real-time tickers to interactive heatmaps — explore the full suite of market visualization tools.
+            Gold Arrow's comprehensive suite of market visualization and analysis tools.
+            From real-time tickers to interactive heatmaps — every tool you need to monitor global markets.
           </p>
           <p className="text-marble/40 text-xs mt-3">
-            All widgets are visualization-only. Gold Arrow does not execute trades or provide financial advice.
+            Visualization only — Gold Arrow does not execute trades or provide financial advice.
           </p>
         </div>
 
@@ -112,7 +116,6 @@ const TradingViewShowroom = () => {
               <h2 className="font-display text-2xl md:text-3xl text-gold-light mb-2">{title}</h2>
               <p className="text-marble/60 text-sm mb-6 max-w-2xl">{description}</p>
 
-              {/* Render appropriate widget */}
               {id === 'ticker-tape' && (
                 <div className="rounded-lg overflow-hidden border border-gold/20">
                   <TradingViewTicker />
@@ -144,6 +147,18 @@ const TradingViewShowroom = () => {
                   <TradingViewTechnicalAnalysis symbol="BITSTAMP:BTCUSD" height={420} />
                 </div>
               )}
+              {id === 'company-profile' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <TradingViewCompanyProfile symbol="NASDAQ:AAPL" height={480} />
+                  <TradingViewCompanyProfile symbol="NASDAQ:GOOGL" height={480} />
+                </div>
+              )}
+              {id === 'top-stories' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <TradingViewTopStories symbol="OANDA:XAUUSD" height={500} />
+                  <TradingViewTopStories symbol="BITSTAMP:BTCUSD" height={500} />
+                </div>
+              )}
               {id === 'market-overview' && <TradingViewMarketOverview height={500} />}
               {id === 'stock-heatmap' && <TradingViewHeatmap height={500} />}
               {id === 'forex-cross-rates' && <TradingViewForexCrossRates height={400} />}
@@ -156,7 +171,7 @@ const TradingViewShowroom = () => {
         </div>
 
         <p className="text-marble/30 text-xs text-center mt-16 pt-8 border-t border-gold/10">
-          All market data provided by TradingView. Gold Arrow affiliate ID: 162505. Visualization only — no trading executed.
+          Market data powered by industry-standard feeds. Visualization only — no trading executed.
         </p>
       </main>
       <Footer />
