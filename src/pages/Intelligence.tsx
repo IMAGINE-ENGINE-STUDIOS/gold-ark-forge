@@ -30,11 +30,16 @@ import GAActivityFeed from '@/components/ga-widgets/GAActivityFeed';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
 import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
 import GAAnchorStatus from '@/components/ga-widgets/GAAnchorStatus';
+import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
+import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
+import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
+import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
+import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
 
 import {
   Shield, BarChart3, Vault, FileCheck2, History, Grid3X3, TrendingUp,
   Gauge, Building2, Network, SlidersHorizontal, Layers,
-  Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText,
+  Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText, Fish,
 } from 'lucide-react';
 
 const sections = [
@@ -51,8 +56,14 @@ const sections = [
   { id: 'ethereum', label: 'ETHEREUM', icon: Network },
   { id: 'xrp', label: 'XRP', icon: Layers },
   { id: 'tron', label: 'TRON', icon: Layers },
+  { id: 'whales', label: 'WHALES', icon: Fish },
   { id: 'sec', label: 'SEC', icon: FileText },
+  // DeFi & Sentiment (free)
+  { id: 'defi', label: 'DeFi TVL', icon: Layers },
+  { id: 'sentiment', label: 'SENTIMENT', icon: Gauge },
+  { id: 'crypto-market', label: 'COINS', icon: Layers },
   // Proprietary
+  { id: 'ratios', label: 'RATIOS', icon: BarChart3 },
   { id: 'reserves', label: 'RESERVES', icon: Shield },
   { id: 'profiles', label: 'PROFILES', icon: Layers },
   { id: 'vault', label: 'VAULT', icon: Vault },
@@ -228,13 +239,47 @@ const Intelligence = () => {
           <SectionDivider label="SEC EDGAR FILINGS" />
           <GASECFilings />
         </section>
+
+        {/* [13] Whale Watch */}
+        <section id="whales">
+          <SectionDivider label="WHALE WATCH" />
+          <GAWhaleWatch />
+        </section>
       </div>
 
       <div className="greek-key-border-rich h-2" />
 
+      {/* ═══════════════ TIER 2.5: DeFi & SENTIMENT (FREE) ═══════════════ */}
+      <div className="container mx-auto px-6 py-12 space-y-12">
+        <TierBanner label="DeFi & SENTIMENT" sub="FREE PUBLIC APIs · ZERO COST" />
+
+        {/* Crypto Market + Fear & Greed */}
+        <section id="crypto-market">
+          <SectionDivider label="CRYPTO MARKET OVERVIEW" />
+          <GACryptoMarket />
+        </section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <section id="sentiment">
+            <SectionDivider label="MARKET SENTIMENT" />
+            <GAFearGreed />
+          </section>
+          <section id="defi">
+            <SectionDivider label="DeFi TOTAL VALUE LOCKED" />
+            <GADeFiDashboard />
+          </section>
+        </div>
+      </div>
+
       {/* ═══════════════ TIER 3: PROPRIETARY (CLOUD DB) ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="PROPRIETARY DATA" sub="GOLD ARROW INTERNAL · LOVABLE CLOUD" />
+
+        {/* Metal Ratios */}
+        <section id="ratios">
+          <SectionDivider label="METAL RATIOS" />
+          <GAGoldRatio />
+        </section>
 
         {/* Reserve Gauge + Timeline */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
