@@ -510,4 +510,45 @@
   .fade-in-up-delay-2 { animation-delay: 0.2s; }
   .fade-in-up-delay-3 { animation-delay: 0.3s; }
   .fade-in-up-delay-4 { animation-delay: 0.4s; }
+
+  /* Skeleton Shimmer */
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsla(43, 72%, 50%, 0.04) 40%,
+      hsla(43, 72%, 50%, 0.08) 50%,
+      hsla(43, 72%, 50%, 0.04) 60%,
+      transparent 100%
+    );
+    animation: skeletonShimmer 1.8s ease-in-out infinite;
+  }
+
+  @keyframes skeletonShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Smooth value transition */
+  .value-transition {
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Widget hover glow */
+  .widget-glow {
+    transition: box-shadow 0.4s ease, border-color 0.4s ease;
+  }
+
+  .widget-glow:hover {
+    box-shadow: 0 0 40px -10px hsla(43, 72%, 50%, 0.15);
+    border-color: hsla(43, 72%, 50%, 0.35);
+  }
 }
