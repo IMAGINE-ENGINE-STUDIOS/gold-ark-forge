@@ -187,7 +187,7 @@ serve(async (req) => {
       // Let's use the admin API to create a custom token approach
       // The cleanest way: update the user's password to a known value for this session, then sign in
       const sessionPassword = crypto.randomUUID();
-      await supabaseAdmin.auth.admin.updateUser(userId, {
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
         password: sessionPassword,
       });
 
