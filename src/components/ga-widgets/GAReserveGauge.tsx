@@ -2,12 +2,13 @@ import { useCertificateReserveTotals } from '@/hooks/useCertificateReserveTotals
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useLatestReserveProof } from '@/hooks/useReserveProof';
 import { Shield, Lock, CheckCircle2 } from 'lucide-react';
+import { useInView } from '@/hooks/useInView';
 
 const GAReserveGauge = () => {
+  const { ref, inView } = useInView();
   const { data: totals, isLoading: loadingTotals } = useCertificateReserveTotals();
   const { data: prices, isLoading: loadingPrices } = useMetalPrices();
   const { data: proof } = useLatestReserveProof();
-
   const isLoading = loadingTotals || loadingPrices;
 
   const goldValue = (totals?.gold_oz ?? 0) * (prices?.gold?.price_usd ?? 0);
@@ -27,7 +28,7 @@ const GAReserveGauge = () => {
   let accumulatedOffset = 0;
 
   return (
-    <div className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden">
+    <div ref={ref} className={`relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden transition-all duration-700 ease-out hover:border-gold/40 hover:shadow-[0_0_30px_-10px_hsla(43,72%,50%,0.15)] ${inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
       <div className="ornate-corner ornate-corner-tl" />
       <div className="ornate-corner ornate-corner-tr" />
       <div className="ornate-corner ornate-corner-bl" />

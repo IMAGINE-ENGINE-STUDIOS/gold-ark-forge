@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { RefreshCw, Layers, TrendingUp, TrendingDown } from 'lucide-react';
+import { Layers, TrendingUp, TrendingDown } from 'lucide-react';
+import WidgetShell from './WidgetShell';
+import AnimatedNumber from './AnimatedNumber';
 
 interface ChainTVL {
   name: string;
@@ -13,7 +15,6 @@ interface Protocol {
   chain: string;
   change_1d: number;
   category: string;
-  symbol: string;
 }
 
 const formatTVL = (n: number) => {
@@ -36,7 +37,6 @@ const GADeFiDashboard = () => {
         fetch('https://api.llama.fi/protocols').then(r => r.json()),
       ]);
 
-      // Top chains by TVL
       const sorted = (chainsRes as any[])
         .sort((a, b) => b.tvl - a.tvl)
         .slice(0, 10)
@@ -44,7 +44,6 @@ const GADeFiDashboard = () => {
       setChains(sorted);
       setTotalTVL(sorted.reduce((acc: number, c: ChainTVL) => acc + c.tvl, 0));
 
-      // Top protocols
       const topProtocols = (protocolsRes as any[])
         .sort((a, b) => b.tvl - a.tvl)
         .slice(0, 10)
@@ -54,7 +53,6 @@ const GADeFiDashboard = () => {
           chain: p.chain ?? p.chains?.[0] ?? 'Multi',
           change_1d: p.change_1d ?? 0,
           category: p.category ?? '—',
-          symbol: p.symbol ?? '',
         }));
       setProtocols(topProtocols);
     } catch (e) {
@@ -70,86 +68,91 @@ const GADeFiDashboard = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  if (loading) {
-    return (
-      <div className="rounded-sm border border-gold/20 bg-navy-light/50 p-8 animate-pulse">
-        <div className="h-6 w-48 bg-gold/10 rounded mb-4" />
-        {[...Array(6)].map((_, i) => <div key={i} className="h-10 bg-gold/5 rounded mb-2" />)}
-      </div>
-    );
-  }
+  const maxChainTVL = chains.length > 0 ? chains[0].tvl : 1;
 
   return (
-    <div className="rounded-sm border border-gold/20 bg-navy-light/50 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gold/10 bg-navy-dark/50">
-        <div className="flex items-center gap-3">
-          <Layers className="w-5 h-5 text-gold" />
-          <span className="font-display text-sm tracking-[0.15em] text-gold-light">DeFi TVL DASHBOARD</span>
-          <span className="text-[10px] text-marble/30 font-mono ml-2">defillama.com</span>
+    <WidgetShell icon={Layers} title="DeFi TVL DASHBOARD" source="defillama.com" onRefresh={fetchData}>
+      {loading ? (
+        <div className="space-y-3">
+          <div className="h-16 bg-navy-light/30 rounded skeleton-shimmer" />
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-10 bg-navy-light/20 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.1}s` }} />
+          ))}
         </div>
-        <button onClick={fetchData} className="text-marble/40 hover:text-gold transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Total TVL Banner */}
-      <div className="px-6 py-4 border-b border-gold/10 bg-navy-dark/30 text-center">
-        <span className="text-[10px] font-display tracking-[0.3em] text-marble/40">TOTAL VALUE LOCKED</span>
-        <p className="font-display text-3xl text-gold-light mt-1">{formatTVL(totalTVL)}</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gold/10">
-        {/* Chains */}
-        <div className="p-4">
-          <h3 className="text-[10px] font-display tracking-[0.2em] text-marble/40 mb-3 px-2">TOP CHAINS</h3>
-          <div className="space-y-1">
-            {chains.map((chain, i) => (
-              <div key={chain.name} className="flex items-center justify-between px-2 py-2 rounded hover:bg-gold/5 transition-colors">
-                <div className="flex items-center gap-2">
-                  <span className="text-marble/30 font-mono text-[10px] w-4">{i + 1}</span>
-                  <span className="text-marble text-xs font-display tracking-wider">{chain.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs text-marble/60">{formatTVL(chain.tvl)}</span>
-                  {chain.change_1d !== 0 && (
-                    <span className={`font-mono text-[10px] flex items-center gap-0.5 ${chain.change_1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {chain.change_1d >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                      {Math.abs(chain.change_1d).toFixed(1)}%
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+      ) : (
+        <div className="space-y-6">
+          {/* Total TVL */}
+          <div className="text-center py-3 rounded bg-navy-dark/30 border border-gold/10">
+            <span className="text-[10px] font-display tracking-[0.3em] text-marble/35">TOTAL VALUE LOCKED</span>
+            <div className="mt-1">
+              <AnimatedNumber value={totalTVL} prefix="$" decimals={0} className="font-display text-3xl text-gold-light" />
+            </div>
           </div>
-        </div>
 
-        {/* Protocols */}
-        <div className="p-4">
-          <h3 className="text-[10px] font-display tracking-[0.2em] text-marble/40 mb-3 px-2">TOP PROTOCOLS</h3>
-          <div className="space-y-1">
-            {protocols.map((p, i) => (
-              <div key={p.name} className="flex items-center justify-between px-2 py-2 rounded hover:bg-gold/5 transition-colors">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-marble/30 font-mono text-[10px] w-4">{i + 1}</span>
-                  <div className="min-w-0">
-                    <span className="text-marble text-xs font-display tracking-wider block truncate">{p.name}</span>
-                    <span className="text-marble/30 text-[9px]">{p.category} · {p.chain}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Chains with visual bars */}
+            <div>
+              <h3 className="text-[10px] font-display tracking-[0.2em] text-marble/40 mb-3">TOP CHAINS</h3>
+              <div className="space-y-2">
+                {chains.map((chain, i) => {
+                  const barWidth = Math.max(4, (chain.tvl / maxChainTVL) * 100);
+                  return (
+                    <div key={chain.name} className="group relative">
+                      {/* Bar background */}
+                      <div
+                        className="absolute inset-y-0 left-0 bg-gold/[0.04] rounded transition-all duration-700 ease-out"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                      <div className="relative flex items-center justify-between px-3 py-2 rounded hover:bg-gold/5 transition-colors duration-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-marble/25 font-mono text-[10px] w-4">{i + 1}</span>
+                          <span className="text-marble text-xs font-display tracking-wider">{chain.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-marble/60">{formatTVL(chain.tvl)}</span>
+                          {chain.change_1d !== 0 && (
+                            <span className={`font-mono text-[10px] flex items-center gap-0.5 ${chain.change_1d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {chain.change_1d >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                              {Math.abs(chain.change_1d).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Protocols */}
+            <div>
+              <h3 className="text-[10px] font-display tracking-[0.2em] text-marble/40 mb-3">TOP PROTOCOLS</h3>
+              <div className="space-y-2">
+                {protocols.map((p, i) => (
+                  <div key={p.name} className="flex items-center justify-between px-3 py-2 rounded hover:bg-gold/5 transition-colors duration-300">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-marble/25 font-mono text-[10px] w-4">{i + 1}</span>
+                      <div className="min-w-0">
+                        <span className="text-marble text-xs font-display tracking-wider block truncate">{p.name}</span>
+                        <span className="text-marble/25 text-[9px]">{p.category} · {p.chain}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="font-mono text-xs text-marble/60">{formatTVL(p.tvl)}</span>
+                      {p.change_1d !== 0 && (
+                        <span className={`font-mono text-[10px] ${p.change_1d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {p.change_1d >= 0 ? '+' : ''}{p.change_1d.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="font-mono text-xs text-marble/60">{formatTVL(p.tvl)}</span>
-                  {p.change_1d !== 0 && (
-                    <span className={`font-mono text-[10px] ${p.change_1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {p.change_1d >= 0 ? '+' : ''}{p.change_1d.toFixed(1)}%
-                    </span>
-                  )}
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+    </WidgetShell>
   );
 };
 

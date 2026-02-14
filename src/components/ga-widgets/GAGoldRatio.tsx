@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import WidgetShell from './WidgetShell';
+import AnimatedNumber from './AnimatedNumber';
 
 interface PriceFeed {
   metal_type: 'gold' | 'silver' | 'platinum';
@@ -13,7 +15,7 @@ const GAGoldRatio = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchPrices = async () => {
       const { data } = await supabase.from('price_feeds').select('metal_type, price_usd, change_24h');
       if (data) {
         const map: Record<string, PriceFeed> = {};
@@ -22,17 +24,8 @@ const GAGoldRatio = () => {
       }
       setLoading(false);
     };
-    fetch();
+    fetchPrices();
   }, []);
-
-  if (loading) {
-    return (
-      <div className="rounded-sm border border-gold/20 bg-navy-light/50 p-8 animate-pulse">
-        <div className="h-6 w-48 bg-gold/10 rounded mb-4" />
-        <div className="h-32 bg-gold/5 rounded" />
-      </div>
-    );
-  }
 
   const gold = prices.gold?.price_usd ?? 0;
   const silver = prices.silver?.price_usd ?? 0;
@@ -45,76 +38,95 @@ const GAGoldRatio = () => {
   const ratios = [
     {
       label: 'GOLD / SILVER',
-      value: gsr.toFixed(1),
+      value: gsr,
+      decimals: 1,
       sub: `${gsr.toFixed(1)} oz silver = 1 oz gold`,
       signal: gsr > 80 ? 'Silver undervalued' : gsr < 60 ? 'Silver overvalued' : 'Neutral',
-      signalColor: gsr > 80 ? 'text-green-400' : gsr < 60 ? 'text-red-400' : 'text-gold',
+      signalColor: gsr > 80 ? 'text-emerald-400' : gsr < 60 ? 'text-red-400' : 'text-gold',
       historic: '~67 (50yr avg)',
+      gaugePercent: Math.min(100, (gsr / 100) * 100),
     },
     {
       label: 'GOLD / PLATINUM',
-      value: gpr.toFixed(2),
+      value: gpr,
+      decimals: 2,
       sub: platinum > 0 ? `Gold is ${gpr > 1 ? 'more' : 'less'} expensive than platinum` : '—',
       signal: gpr > 2 ? 'Platinum undervalued' : gpr < 1 ? 'Platinum overvalued' : 'At parity zone',
-      signalColor: gpr > 2 ? 'text-green-400' : gpr < 1 ? 'text-red-400' : 'text-gold',
+      signalColor: gpr > 2 ? 'text-emerald-400' : gpr < 1 ? 'text-red-400' : 'text-gold',
       historic: '~1.0 (historic parity)',
+      gaugePercent: Math.min(100, (gpr / 3) * 100),
     },
     {
       label: 'SILVER / PLATINUM',
-      value: spr.toFixed(4),
+      value: spr,
+      decimals: 4,
       sub: platinum > 0 ? `${(1 / spr).toFixed(0)} oz silver per oz platinum` : '—',
       signal: '—',
       signalColor: 'text-marble/50',
       historic: '—',
+      gaugePercent: Math.min(100, spr * 5000),
     },
   ];
 
   return (
-    <div className="rounded-sm border border-gold/20 bg-navy-light/50 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gold/10 bg-navy-dark/50">
-        <div className="flex items-center gap-3">
-          <BarChart3 className="w-5 h-5 text-gold" />
-          <span className="font-display text-sm tracking-[0.15em] text-gold-light">METAL RATIOS</span>
-          <span className="text-[10px] text-marble/30 font-mono ml-2">proprietary</span>
+    <WidgetShell icon={BarChart3} title="METAL RATIOS" source="proprietary">
+      {loading ? (
+        <div className="space-y-4">
+          <div className="h-16 bg-navy-light/30 rounded skeleton-shimmer" />
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-20 bg-navy-light/20 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.1}s` }} />
+          ))}
         </div>
-      </div>
-
-      {/* Current prices summary */}
-      <div className="grid grid-cols-3 divide-x divide-gold/10 border-b border-gold/10">
-        {(['gold', 'silver', 'platinum'] as const).map((m) => {
-          const p = prices[m];
-          const change = p?.change_24h ?? 0;
-          const pos = change >= 0;
-          return (
-            <div key={m} className="px-4 py-3 text-center">
-              <span className="text-[10px] font-display tracking-[0.2em] text-marble/40 uppercase">{m}</span>
-              <p className="font-mono text-sm text-marble mt-1">${p?.price_usd?.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? '—'}</p>
-              <div className={`flex items-center justify-center gap-1 text-[10px] font-mono mt-0.5 ${pos ? 'text-green-400' : 'text-red-400'}`}>
-                {pos ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                {Math.abs(change).toFixed(2)}%
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Ratios */}
-      <div className="divide-y divide-gold/5">
-        {ratios.map((r) => (
-          <div key={r.label} className="px-6 py-4 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">{r.label}</span>
-              <p className="font-display text-2xl text-gold-light mt-1">{r.value}</p>
-              <p className="text-[10px] text-marble/30 mt-0.5">{r.sub}</p>
-            </div>
-            <div className="text-right">
-              <p className={`text-xs font-display tracking-wider ${r.signalColor}`}>{r.signal}</p>
-              <p className="text-[10px] text-marble/20 mt-1">{r.historic}</p>
-            </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Current prices summary */}
+          <div className="grid grid-cols-3 gap-3">
+            {(['gold', 'silver', 'platinum'] as const).map((m) => {
+              const p = prices[m];
+              const change = p?.change_24h ?? 0;
+              const pos = change >= 0;
+              return (
+                <div key={m} className="text-center p-3 rounded bg-navy-dark/40 border border-gold/10 hover:border-gold/25 transition-all duration-300">
+                  <span className="text-[10px] font-display tracking-[0.2em] text-marble/35 uppercase">{m}</span>
+                  <p className="font-mono text-sm text-marble mt-1">${p?.price_usd?.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? '—'}</p>
+                  <div className={`flex items-center justify-center gap-1 text-[10px] font-mono mt-0.5 ${pos ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {pos ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                    {Math.abs(change).toFixed(2)}%
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
-    </div>
+
+          {/* Ratios with visual gauges */}
+          <div className="space-y-4">
+            {ratios.map((r) => (
+              <div key={r.label} className="p-4 rounded bg-navy-dark/20 border border-gold/5 hover:border-gold/15 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">{r.label}</span>
+                  <span className={`text-xs font-display tracking-wider ${r.signalColor}`}>{r.signal}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <AnimatedNumber value={r.value} decimals={r.decimals} className="font-display text-2xl text-gold-light" />
+                  <div className="flex-1">
+                    <div className="h-2 bg-navy-light/50 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-gold-dark to-gold transition-all duration-1000 ease-out"
+                        style={{ width: `${r.gaugePercent}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[10px] text-marble/25">{r.sub}</p>
+                  <p className="text-[10px] text-marble/20">{r.historic}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </WidgetShell>
   );
 };
 

@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { RefreshCw, ExternalLink, Fuel, Layers, Clock } from 'lucide-react';
+import { ExternalLink, Fuel, Layers, Clock } from 'lucide-react';
+import WidgetShell from './WidgetShell';
+import AnimatedNumber from './AnimatedNumber';
+import LivePulse from './LivePulse';
 
 const RPC_URL = 'https://eth.llamarpc.com';
 
@@ -20,7 +23,6 @@ const GAEthereumNetwork = () => {
   const [blockTime, setBlockTime] = useState<number | null>(null);
   const [txCount, setTxCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchAll = useCallback(async () => {
     try {
@@ -33,7 +35,6 @@ const GAEthereumNetwork = () => {
       setBlockNumber(bn);
       setGasPrice(Math.round(parseInt(gasPriceHex, 16) / 1e9));
 
-      // Get block details
       const block = await rpcCall('eth_getBlockByNumber', [blockHex, false]);
       if (block) {
         setBlockTime(parseInt(block.timestamp, 16));
@@ -42,7 +43,6 @@ const GAEthereumNetwork = () => {
           setBaseFee(Math.round(parseInt(block.baseFeePerGas, 16) / 1e9));
         }
       }
-      setLastRefresh(new Date());
     } catch (e) {
       console.error('Ethereum fetch error:', e);
     } finally {
@@ -58,75 +58,83 @@ const GAEthereumNetwork = () => {
 
   const timeSince = blockTime ? Math.floor(Date.now() / 1000 - blockTime) : null;
 
-  if (loading) {
-    return (
-      <div className="rounded-sm border border-gold/20 bg-navy-light/50 p-8 animate-pulse">
-        <div className="h-6 w-48 bg-gold/10 rounded mb-4" />
-        <div className="grid grid-cols-2 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-gold/5 rounded" />)}
-        </div>
-      </div>
-    );
-  }
+  // Gas gauge SVG
+  const gasLevel = gasPrice ? Math.min(100, (gasPrice / 100) * 100) : 0;
 
   return (
-    <div className="rounded-sm border border-gold/20 bg-navy-light/50 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gold/10 bg-navy-dark/50">
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center">
-            <span className="text-[8px] font-bold text-white">Ξ</span>
+    <WidgetShell
+      icon={() => (
+        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center">
+          <span className="text-[8px] font-bold text-white">Ξ</span>
+        </div>
+      )}
+      title="ETHEREUM NETWORK"
+      source="public RPC"
+      onRefresh={fetchAll}
+    >
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-24 bg-navy-light/30 rounded skeleton-shimmer" style={{ animationDelay: `${i * 0.1}s` }} />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <LivePulse connected={!!blockNumber} label="LIVE" />
+            <span className="text-[10px] text-marble/20 font-mono">{txCount?.toLocaleString()} txns in block</span>
           </div>
-          <span className="font-display text-sm tracking-[0.15em] text-gold-light">ETHEREUM NETWORK</span>
-          <span className="text-[10px] text-marble/30 font-mono ml-2">public RPC</span>
-        </div>
-        <button onClick={fetchAll} className="text-marble/40 hover:text-gold transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      </div>
 
-      <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-navy-dark/40 rounded p-4 border border-gold/10">
-          <div className="flex items-center gap-2 mb-2">
-            <Layers className="w-3.5 h-3.5 text-gold/60" />
-            <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">BLOCK</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-navy-dark/40 rounded p-4 border border-gold/10 hover:border-gold/25 transition-all duration-300">
+              <div className="flex items-center gap-2 mb-2">
+                <Layers className="w-3.5 h-3.5 text-gold/50" />
+                <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">BLOCK</span>
+              </div>
+              <AnimatedNumber value={blockNumber ?? 0} className="font-display text-xl text-gold-light" />
+            </div>
+
+            <div className="bg-navy-dark/40 rounded p-4 border border-gold/10 hover:border-gold/25 transition-all duration-300">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-3.5 h-3.5 text-gold/50" />
+                <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">LAST BLOCK</span>
+              </div>
+              <p className="font-display text-xl text-marble">{timeSince !== null ? `${timeSince}s ago` : '—'}</p>
+              <p className="text-[10px] text-marble/30 mt-1">~12s target</p>
+            </div>
+
+            {/* Gas with visual gauge */}
+            <div className="bg-navy-dark/40 rounded p-4 border border-gold/10 hover:border-gold/25 transition-all duration-300">
+              <div className="flex items-center gap-2 mb-2">
+                <Fuel className="w-3.5 h-3.5 text-gold/50" />
+                <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">GAS PRICE</span>
+              </div>
+              <AnimatedNumber value={gasPrice ?? 0} suffix=" Gwei" className="font-display text-xl text-marble" />
+              <div className="mt-2 h-1.5 bg-navy-light/50 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-gold to-red-400 transition-all duration-1000"
+                  style={{ width: `${gasLevel}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-marble/30 mt-1">base: {baseFee ?? '—'} Gwei</p>
+            </div>
+
+            <div className="bg-navy-dark/40 rounded p-4 border border-gold/10 hover:border-gold/25 transition-all duration-300 flex flex-col justify-between">
+              <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">EXPLORER</span>
+              <a
+                href={`https://etherscan.io/block/${blockNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-gold/50 hover:text-gold text-xs mt-2 transition-colors duration-300"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                View on Etherscan
+              </a>
+            </div>
           </div>
-          <p className="font-display text-xl text-gold-light">{blockNumber?.toLocaleString()}</p>
-          <p className="text-[10px] text-marble/30 mt-1">{txCount?.toLocaleString()} txns</p>
         </div>
-
-        <div className="bg-navy-dark/40 rounded p-4 border border-gold/10">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-3.5 h-3.5 text-gold/60" />
-            <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">LAST BLOCK</span>
-          </div>
-          <p className="font-display text-xl text-marble">{timeSince !== null ? `${timeSince}s ago` : '—'}</p>
-          <p className="text-[10px] text-marble/30 mt-1">~12s target</p>
-        </div>
-
-        <div className="bg-navy-dark/40 rounded p-4 border border-gold/10">
-          <div className="flex items-center gap-2 mb-2">
-            <Fuel className="w-3.5 h-3.5 text-gold/60" />
-            <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">GAS PRICE</span>
-          </div>
-          <p className="font-display text-xl text-marble">{gasPrice} Gwei</p>
-          <p className="text-[10px] text-marble/30 mt-1">base: {baseFee ?? '—'} Gwei</p>
-        </div>
-
-        <div className="bg-navy-dark/40 rounded p-4 border border-gold/10 flex flex-col justify-between">
-          <span className="text-[10px] font-display tracking-[0.2em] text-marble/40">EXPLORER</span>
-          <a
-            href={`https://etherscan.io/block/${blockNumber}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-gold/70 hover:text-gold text-xs mt-2 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            View on Etherscan
-          </a>
-          <p className="text-[10px] text-marble/20 mt-1">{lastRefresh.toLocaleTimeString()}</p>
-        </div>
-      </div>
-    </div>
+      )}
+    </WidgetShell>
   );
 };
 
