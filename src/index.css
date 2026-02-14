@@ -511,33 +511,3 @@
   .fade-in-up-delay-3 { animation-delay: 0.3s; }
   .fade-in-up-delay-4 { animation-delay: 0.4s; }
 }
-
-/* Block all TradingView external links and branding */
-.tradingview-widget-container {
-  position: relative;
-}
-
-.tradingview-widget-container::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 32px;
-  background: hsl(var(--navy));
-  z-index: 10;
-}
-
-/* Prevent all clicks on TradingView widget iframes to block external navigation */
-.tradingview-widget-container__widget {
-  pointer-events: none;
-}
-
-/* Hide TradingView copyright/branding links */
-.tradingview-widget-copyright,
-.tradingview-widget-container__widget a[href*="tradingview.com"],
-.tradingview-widget-container a[href*="tradingview.com"] {
-  display: none !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
