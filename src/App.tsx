@@ -15,6 +15,7 @@ import About from "./pages/About";
 import Admin from "./pages/Admin";
 import Verify from "./pages/Verify";
 import TradingViewShowroom from "./pages/TradingViewShowroom";
+import Intelligence from "./pages/Intelligence";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/certification" element={<Certification />} />
             <Route path="/verify" element={<Verify />} />
             <Route path="/showroom" element={<TradingViewShowroom />} />
+            <Route path="/intelligence" element={<Intelligence />} />
             <Route path="/about" element={<About />} />
             <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
