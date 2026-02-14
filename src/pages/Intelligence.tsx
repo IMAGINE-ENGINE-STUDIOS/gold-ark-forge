@@ -10,6 +10,22 @@ import TradingViewHeatmap from '@/components/tradingview/TradingViewHeatmap';
 import TradingViewCryptoMarket from '@/components/tradingview/TradingViewCryptoMarket';
 import TradingViewEconomicCalendar from '@/components/tradingview/TradingViewEconomicCalendar';
 import TradingViewSingleTicker from '@/components/tradingview/TradingViewSingleTicker';
+// NEW: Missing showroom widgets
+import TradingViewTickers from '@/components/tradingview/TradingViewTickers';
+import TradingViewSymbolInfo from '@/components/tradingview/TradingViewSymbolInfo';
+import TradingViewSnaps from '@/components/tradingview/TradingViewSnaps';
+import TradingViewMiniChart from '@/components/tradingview/TradingViewMiniChart';
+import SymbolOverview from '@/components/tradingview/SymbolOverview';
+import TradingViewFundamentalData from '@/components/tradingview/TradingViewFundamentalData';
+import TradingViewCompanyProfile from '@/components/tradingview/TradingViewCompanyProfile';
+import TradingViewMarketOverview from '@/components/tradingview/TradingViewMarketOverview';
+import TradingViewMarketQuotes from '@/components/tradingview/TradingViewMarketQuotes';
+import TradingViewHotlists from '@/components/tradingview/TradingViewHotlists';
+import TradingViewStockMarket from '@/components/tradingview/TradingViewStockMarket';
+import TradingViewForexCrossRates from '@/components/tradingview/TradingViewForexCrossRates';
+import TradingViewForexHeatmap from '@/components/tradingview/TradingViewForexHeatmap';
+import TradingViewScreener from '@/components/tradingview/TradingViewScreener';
+import WidgetCarousel from '@/components/tradingview/WidgetCarousel';
 
 // Blockchain live widgets (free APIs)
 import GABitcoinNetwork from '@/components/ga-widgets/GABitcoinNetwork';
@@ -35,22 +51,32 @@ import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
+import WidgetShell from '@/components/ga-widgets/WidgetShell';
 
 import {
   Shield, BarChart3, Vault, FileCheck2, History, Grid3X3, TrendingUp,
   Gauge, Building2, Network, SlidersHorizontal, Layers,
   Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText, Fish,
+  DollarSign, LineChart, Info, Eye, Briefcase, Globe, Flame, BarChart, ArrowLeftRight,
 } from 'lucide-react';
 
 const sections = [
   // Market Data (free)
   { id: 'prices', label: 'PRICES', icon: TrendingUp },
+  { id: 'tickers-strip', label: 'TICKERS', icon: DollarSign },
+  { id: 'mini-charts', label: 'MINI', icon: LineChart },
+  { id: 'symbol-overview', label: 'OVERVIEW', icon: Eye },
   { id: 'chart', label: 'CHART', icon: BarChart3 },
   { id: 'analysis', label: 'ANALYSIS', icon: Gauge },
+  { id: 'fundamentals', label: 'FUNDMNTL', icon: Briefcase },
   { id: 'crypto', label: 'CRYPTO', icon: Layers },
   { id: 'news', label: 'NEWS', icon: Newspaper },
-  { id: 'calendar', label: 'CALENDAR', icon: CalendarDays },
+  { id: 'market-overview', label: 'MARKETS', icon: Globe },
+  { id: 'hotlists', label: 'HOT', icon: Flame },
+  { id: 'forex', label: 'FOREX', icon: ArrowLeftRight },
   { id: 'heatmap-stocks', label: 'STOCKS', icon: LayoutGrid },
+  { id: 'screener-commodities', label: 'COMMODS', icon: BarChart },
+  { id: 'calendar', label: 'CALENDAR', icon: CalendarDays },
   // Blockchain Live (free)
   { id: 'bitcoin', label: 'BITCOIN', icon: Bitcoin },
   { id: 'ethereum', label: 'ETHEREUM', icon: Network },
@@ -152,7 +178,6 @@ const Intelligence = () => {
         <section id="prices">
           <SectionDivider label="SPOT PRICES" />
           <GAPriceCards />
-          {/* Crypto tickers row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
             <TradingViewSingleTicker symbol="BITSTAMP:BTCUSD" />
             <TradingViewSingleTicker symbol="BITSTAMP:ETHUSD" />
@@ -161,46 +186,277 @@ const Intelligence = () => {
           </div>
         </section>
 
+        {/* [NEW] Tickers Strip */}
+        <section id="tickers-strip">
+          <SectionDivider label="TICKERS STRIP" />
+          <WidgetShell icon={DollarSign} title="LIVE TICKERS" badge="MULTI-ASSET" source="TradingView">
+            <WidgetCarousel
+              variants={[
+                {
+                  label: 'Metals & Crypto',
+                  render: () => <TradingViewTickers />,
+                },
+                {
+                  label: 'Indices',
+                  render: () => (
+                    <TradingViewTickers symbols={[
+                      { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
+                      { proName: 'FOREXCOM:DJI', title: 'Dow Jones' },
+                      { proName: 'FOREXCOM:NSXUSD', title: 'Nasdaq' },
+                      { proName: 'TVC:UKX', title: 'FTSE 100' },
+                    ]} />
+                  ),
+                },
+                {
+                  label: 'Forex',
+                  render: () => (
+                    <TradingViewTickers symbols={[
+                      { proName: 'FX:EURUSD', title: 'EUR/USD' },
+                      { proName: 'FX:GBPUSD', title: 'GBP/USD' },
+                      { proName: 'FX:USDJPY', title: 'USD/JPY' },
+                      { proName: 'FX:AUDUSD', title: 'AUD/USD' },
+                    ]} />
+                  ),
+                },
+              ]}
+            />
+          </WidgetShell>
+        </section>
+
+        {/* [NEW] Mini Charts */}
+        <section id="mini-charts">
+          <SectionDivider label="MINI CHARTS" />
+          <WidgetShell icon={LineChart} title="COMPACT CHARTS" badge="QUICK VIEW" source="TradingView">
+            <WidgetCarousel
+              variants={[
+                {
+                  label: 'Metals',
+                  render: () => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <TradingViewMiniChart symbol="OANDA:XAUUSD" height={220} />
+                      <TradingViewMiniChart symbol="OANDA:XAGUSD" height={220} />
+                      <TradingViewMiniChart symbol="OANDA:XPTUSD" height={220} />
+                    </div>
+                  ),
+                },
+                {
+                  label: 'Crypto',
+                  render: () => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <TradingViewMiniChart symbol="BITSTAMP:BTCUSD" height={220} />
+                      <TradingViewMiniChart symbol="BITSTAMP:ETHUSD" height={220} />
+                      <TradingViewMiniChart symbol="BINANCE:SOLUSD" height={220} />
+                    </div>
+                  ),
+                },
+                {
+                  label: 'Stocks',
+                  render: () => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <TradingViewMiniChart symbol="NASDAQ:AAPL" height={220} />
+                      <TradingViewMiniChart symbol="NASDAQ:GOOGL" height={220} />
+                      <TradingViewMiniChart symbol="NASDAQ:TSLA" height={220} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </WidgetShell>
+        </section>
+
+        {/* [NEW] Multi-Asset Symbol Overview */}
+        <section id="symbol-overview">
+          <SectionDivider label="MULTI-ASSET OVERVIEW" />
+          <WidgetShell icon={Eye} title="ASSET OVERVIEW" badge="MULTI-SYMBOL" source="TradingView">
+            <SymbolOverview />
+          </WidgetShell>
+        </section>
+
         {/* [2] Advanced Chart */}
         <section id="chart">
           <SectionDivider label="ADVANCED CHART" />
-          <TradingViewChart symbol="OANDA:XAUUSD" height={500} />
+          <WidgetShell icon={BarChart3} title="INTERACTIVE CHART" badge="FULL-FEATURED" source="TradingView">
+            <WidgetCarousel
+              variants={[
+                { label: 'Gold', render: () => <TradingViewChart symbol="OANDA:XAUUSD" height={500} /> },
+                { label: 'Silver', render: () => <TradingViewChart symbol="OANDA:XAGUSD" height={500} /> },
+                { label: 'Bitcoin', render: () => <TradingViewChart symbol="BITSTAMP:BTCUSD" height={500} /> },
+                { label: 'S&P 500', render: () => <TradingViewChart symbol="FOREXCOM:SPXUSD" height={500} /> },
+              ]}
+            />
+          </WidgetShell>
         </section>
 
         {/* [3] Technical Analysis */}
         <section id="analysis">
           <SectionDivider label="TECHNICAL ANALYSIS" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TradingViewTechnicalAnalysis symbol="OANDA:XAUUSD" height={400} />
-            <TradingViewTechnicalAnalysis symbol="BITSTAMP:BTCUSD" height={400} />
+          <WidgetShell icon={Gauge} title="TECHNICAL SIGNALS" badge="BUY · SELL · NEUTRAL" source="TradingView">
+            <WidgetCarousel
+              variants={[
+                {
+                  label: 'Metals',
+                  render: () => (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <TradingViewTechnicalAnalysis symbol="OANDA:XAUUSD" height={400} />
+                      <TradingViewTechnicalAnalysis symbol="OANDA:XAGUSD" height={400} />
+                    </div>
+                  ),
+                },
+                {
+                  label: 'Crypto',
+                  render: () => (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <TradingViewTechnicalAnalysis symbol="BITSTAMP:BTCUSD" height={400} />
+                      <TradingViewTechnicalAnalysis symbol="BITSTAMP:ETHUSD" height={400} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </WidgetShell>
+        </section>
+
+        {/* [NEW] Fundamental Data + Company Profile */}
+        <section id="fundamentals">
+          <SectionDivider label="FUNDAMENTALS & PROFILES" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <WidgetShell icon={Briefcase} title="FUNDAMENTAL DATA" badge="FINANCIALS" source="TradingView">
+              <WidgetCarousel
+                variants={[
+                  { label: 'Apple', render: () => <TradingViewFundamentalData symbol="NASDAQ:AAPL" height={460} /> },
+                  { label: 'Google', render: () => <TradingViewFundamentalData symbol="NASDAQ:GOOGL" height={460} /> },
+                  { label: 'Tesla', render: () => <TradingViewFundamentalData symbol="NASDAQ:TSLA" height={460} /> },
+                ]}
+              />
+            </WidgetShell>
+            <WidgetShell icon={Info} title="COMPANY PROFILE" badge="OVERVIEW" source="TradingView">
+              <WidgetCarousel
+                variants={[
+                  { label: 'Apple', render: () => <TradingViewCompanyProfile symbol="NASDAQ:AAPL" height={460} /> },
+                  { label: 'Google', render: () => <TradingViewCompanyProfile symbol="NASDAQ:GOOGL" height={460} /> },
+                  { label: 'Microsoft', render: () => <TradingViewCompanyProfile symbol="NASDAQ:MSFT" height={460} /> },
+                ]}
+              />
+            </WidgetShell>
           </div>
         </section>
 
         {/* [4] Crypto Market */}
         <section id="crypto">
           <SectionDivider label="CRYPTO MARKET" />
-          <TradingViewCryptoMarket height={500} />
+          <WidgetShell icon={Layers} title="CRYPTOCURRENCY SCREENER" badge="LIVE" source="TradingView">
+            <TradingViewCryptoMarket height={500} />
+          </WidgetShell>
         </section>
 
         {/* [5] Market News */}
         <section id="news">
           <SectionDivider label="MARKET NEWS" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TradingViewTopStories symbol="OANDA:XAUUSD" height={450} />
-            <TradingViewTopStories symbol="BITSTAMP:BTCUSD" height={450} />
+          <WidgetShell icon={Newspaper} title="TOP STORIES" badge="REAL-TIME" source="TradingView">
+            <WidgetCarousel
+              variants={[
+                {
+                  label: 'Metals & Crypto',
+                  render: () => (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <TradingViewTopStories symbol="OANDA:XAUUSD" height={450} />
+                      <TradingViewTopStories symbol="BITSTAMP:BTCUSD" height={450} />
+                    </div>
+                  ),
+                },
+                {
+                  label: 'Tech Stocks',
+                  render: () => (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <TradingViewTopStories symbol="NASDAQ:AAPL" height={450} />
+                      <TradingViewTopStories symbol="NASDAQ:TSLA" height={450} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </WidgetShell>
+        </section>
+
+        {/* [NEW] Market Overview + Market Quotes */}
+        <section id="market-overview">
+          <SectionDivider label="MARKET OVERVIEW" />
+          <div className="space-y-8">
+            <WidgetShell icon={Globe} title="GLOBAL MARKETS" badge="WATCHLIST" source="TradingView">
+              <TradingViewMarketOverview height={500} />
+            </WidgetShell>
+            <WidgetShell icon={BarChart} title="MARKET QUOTES" badge="OHLC DATA" source="TradingView">
+              <TradingViewMarketQuotes height={500} />
+            </WidgetShell>
           </div>
         </section>
 
-        {/* [6] Economic Calendar */}
-        <section id="calendar">
-          <SectionDivider label="ECONOMIC CALENDAR" />
-          <TradingViewEconomicCalendar height={500} />
+        {/* [NEW] Hotlists + Stock Market */}
+        <section id="hotlists">
+          <SectionDivider label="MARKET MOVERS" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <WidgetShell icon={Flame} title="HOTLISTS" badge="TOP MOVERS" source="TradingView">
+              <WidgetCarousel
+                variants={[
+                  { label: 'US', render: () => <TradingViewHotlists exchange="US" height={460} /> },
+                  { label: 'Europe', render: () => <TradingViewHotlists exchange="europe" height={460} /> },
+                  { label: 'Asia', render: () => <TradingViewHotlists exchange="asia" height={460} /> },
+                ]}
+              />
+            </WidgetShell>
+            <WidgetShell icon={LayoutGrid} title="STOCK MARKET" badge="BY EXCHANGE" source="TradingView">
+              <WidgetCarousel
+                variants={[
+                  { label: 'US', render: () => <TradingViewStockMarket exchange="US" height={460} /> },
+                  { label: 'Germany', render: () => <TradingViewStockMarket exchange="germany" height={460} /> },
+                  { label: 'UK', render: () => <TradingViewStockMarket exchange="UK" height={460} /> },
+                ]}
+              />
+            </WidgetShell>
+          </div>
+        </section>
+
+        {/* [NEW] Forex */}
+        <section id="forex">
+          <SectionDivider label="FOREX INTELLIGENCE" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <WidgetShell icon={ArrowLeftRight} title="CROSS RATES" badge="MATRIX" source="TradingView">
+              <TradingViewForexCrossRates height={400} />
+            </WidgetShell>
+            <WidgetShell icon={Globe} title="FOREX HEATMAP" badge="STRENGTH" source="TradingView">
+              <TradingViewForexHeatmap height={400} />
+            </WidgetShell>
+          </div>
         </section>
 
         {/* [7] Stock Heatmap */}
         <section id="heatmap-stocks">
           <SectionDivider label="STOCK HEATMAP" />
-          <TradingViewHeatmap height={500} />
+          <WidgetShell icon={LayoutGrid} title="SECTOR HEATMAP" badge="MARKET CAP" source="TradingView">
+            <TradingViewHeatmap height={500} />
+          </WidgetShell>
+        </section>
+
+        {/* [NEW] Commodity Screener */}
+        <section id="screener-commodities">
+          <SectionDivider label="COMMODITY SCREENER" />
+          <WidgetShell icon={BarChart} title="COMMODITIES" badge="SCREENER" source="TradingView">
+            <WidgetCarousel
+              variants={[
+                { label: 'Most Capitalized', render: () => <TradingViewScreener height={500} defaultScreen="most_capitalized" /> },
+                { label: 'Top Gainers', render: () => <TradingViewScreener height={500} defaultScreen="top_gainers" /> },
+                { label: 'Top Losers', render: () => <TradingViewScreener height={500} defaultScreen="top_losers" /> },
+              ]}
+            />
+          </WidgetShell>
+        </section>
+
+        {/* [6] Economic Calendar */}
+        <section id="calendar">
+          <SectionDivider label="ECONOMIC CALENDAR" />
+          <WidgetShell icon={CalendarDays} title="ECONOMIC EVENTS" badge="UPCOMING" source="TradingView">
+            <TradingViewEconomicCalendar height={500} />
+          </WidgetShell>
         </section>
       </div>
 
@@ -210,19 +466,16 @@ const Intelligence = () => {
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="BLOCKCHAIN LIVE" sub="DIRECT FROM NETWORKS · ZERO INTERMEDIARIES" />
 
-        {/* [8] Bitcoin */}
         <section id="bitcoin">
           <SectionDivider label="BITCOIN NETWORK" />
           <GABitcoinNetwork />
         </section>
 
-        {/* [9] Ethereum */}
         <section id="ethereum">
           <SectionDivider label="ETHEREUM NETWORK" />
           <GAEthereumNetwork />
         </section>
 
-        {/* [10] XRP + [11] TRON side by side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="xrp">
             <SectionDivider label="XRP LEDGER" />
@@ -234,13 +487,11 @@ const Intelligence = () => {
           </section>
         </div>
 
-        {/* [12] SEC EDGAR */}
         <section id="sec">
           <SectionDivider label="SEC EDGAR FILINGS" />
           <GASECFilings />
         </section>
 
-        {/* [13] Whale Watch */}
         <section id="whales">
           <SectionDivider label="WHALE WATCH" />
           <GAWhaleWatch />
@@ -253,7 +504,6 @@ const Intelligence = () => {
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="DeFi & SENTIMENT" sub="FREE PUBLIC APIs · ZERO COST" />
 
-        {/* Crypto Market + Fear & Greed */}
         <section id="crypto-market">
           <SectionDivider label="CRYPTO MARKET OVERVIEW" />
           <GACryptoMarket />
@@ -275,13 +525,11 @@ const Intelligence = () => {
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="PROPRIETARY DATA" sub="GOLD ARROW INTERNAL · LOVABLE CLOUD" />
 
-        {/* Metal Ratios */}
         <section id="ratios">
           <SectionDivider label="METAL RATIOS" />
           <GAGoldRatio />
         </section>
 
-        {/* Reserve Gauge + Timeline */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="reserves">
             <SectionDivider label="RESERVE BACKING" />
@@ -293,13 +541,11 @@ const Intelligence = () => {
           </section>
         </div>
 
-        {/* Metal Profiles */}
         <section id="profiles">
           <SectionDivider label="METAL PROFILES" />
           <GAMetalProfile />
         </section>
 
-        {/* Vault + Heatmap */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="vault">
             <SectionDivider label="VAULT INVENTORY" />
@@ -311,19 +557,16 @@ const Intelligence = () => {
           </section>
         </div>
 
-        {/* Screener */}
         <section id="screener">
           <SectionDivider label="BULLION SCREENER" />
           <GAMetalScreener />
         </section>
 
-        {/* Certificates */}
         <section id="certs">
           <SectionDivider label="CERTIFICATE REGISTRY" />
           <GACertificateFlow />
         </section>
 
-        {/* Anchors + Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="anchors">
             <SectionDivider label="BITCOIN ANCHORS" />
@@ -335,7 +578,6 @@ const Intelligence = () => {
           </section>
         </div>
 
-        {/* Partners */}
         <section id="partners">
           <SectionDivider label="PARTNER NETWORK" />
           <GAPartnerNetwork />
