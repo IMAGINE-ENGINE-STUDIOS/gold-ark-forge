@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-// Crypto logos from CoinGecko CDN
+// ─── Crypto logos from CoinGecko CDN ─────────────────────
 const CRYPTO_LOGO_IDS: Record<string, { id: number; img: string }> = {
   bitcoin: { id: 1, img: 'bitcoin' },
   ethereum: { id: 279, img: 'ethereum' },
@@ -40,7 +40,62 @@ const getCryptoLogoUrl = (key: string): string | null => {
   return `https://assets.coingecko.com/coins/images/${info.id}/small/${info.img}.png`;
 };
 
-// Category badge colors
+// ─── Stock / ETF / Company domain map for Clearbit logos ──
+const STOCK_DOMAINS: Record<string, string> = {
+  // Oil & Gas
+  xom: 'exxonmobil.com', cvx: 'chevron.com', cop: 'conocophillips.com',
+  eog: 'eogresources.com', slb: 'slb.com', hal: 'halliburton.com',
+  bp: 'bp.com', shel: 'shell.com', tte: 'totalenergies.com',
+  oxy: 'oxy.com', psx: 'phillips66.com', mpc: 'marathonpetroleum.com',
+  vlo: 'valero.com', dvn: 'devonenergy.com', fang: 'diamondbackenergy.com',
+  // Indices & Mega Cap
+  sp500: 'spglobal.com', nasdaq: 'nasdaq.com', dow: 'dowjones.com',
+  russell: 'ftserussell.com',
+  aapl: 'apple.com', msft: 'microsoft.com', nvda: 'nvidia.com',
+  googl: 'google.com', amzn: 'amazon.com', meta: 'meta.com',
+  tsla: 'tesla.com', brk: 'berkshirehathaway.com', jpm: 'jpmorganchase.com',
+  v: 'visa.com', unh: 'unitedhealthgroup.com',
+  // Tech & Growth
+  crm: 'salesforce.com', adbe: 'adobe.com', nflx: 'netflix.com',
+  amd: 'amd.com', intc: 'intel.com', avgo: 'broadcom.com',
+  csco: 'cisco.com', orcl: 'oracle.com', snow: 'snowflake.com',
+  pltr: 'palantir.com', coin: 'coinbase.com', sq: 'block.xyz',
+  shop: 'shopify.com', uber: 'uber.com', abnb: 'airbnb.com',
+  // Financials & Mining
+  gs: 'goldmansachs.com', ms: 'morganstanley.com', bac: 'bankofamerica.com',
+  c: 'citigroup.com', wfc: 'wellsfargo.com',
+  nem: 'newmont.com', gold_stock: 'barrick.com', fmg: 'franco-nevada.com',
+  rio: 'riotinto.com', bhp: 'bhp.com', vale: 'vale.com',
+  // Bonds / ETFs (provider logos)
+  tlt: 'ishares.com', ief: 'ishares.com', shy: 'ishares.com',
+  tip: 'ishares.com', lqd: 'ishares.com', hyg: 'ishares.com',
+  agg: 'ishares.com', mub: 'ishares.com', emb: 'ishares.com',
+  bnd: 'vanguard.com', govt: 'ishares.com', vcsh: 'vanguard.com',
+  // Energy commodities (use related ETF/company logos)
+  oil: 'cmegroup.com', brent: 'theice.com', natgas: 'cmegroup.com',
+  rbob: 'cmegroup.com', heating_oil: 'cmegroup.com', coal: 'cmegroup.com',
+  uranium: 'globalxetfs.com', ethanol: 'cmegroup.com',
+};
+
+// ─── Forex flag codes for flagcdn.com ─────────────────────
+const FOREX_FLAG_MAP: Record<string, [string, string]> = {
+  eurusd: ['eu', 'us'], gbpusd: ['gb', 'us'], usdjpy: ['us', 'jp'],
+  usdchf: ['us', 'ch'], audusd: ['au', 'us'], usdcad: ['us', 'ca'],
+  nzdusd: ['nz', 'us'], eurgbp: ['eu', 'gb'], eurjpy: ['eu', 'jp'],
+  gbpjpy: ['gb', 'jp'], usdmxn: ['us', 'mx'], usdzar: ['us', 'za'],
+  usdtry: ['us', 'tr'], usdinr: ['us', 'in'], usdcny: ['us', 'cn'],
+};
+
+// ─── Metal icon URLs (commodity-specific from public sources) ──
+const METAL_ICONS: Record<string, string> = {
+  gold: 'https://logo.clearbit.com/gold.org',
+  silver: 'https://logo.clearbit.com/silverinstitute.org',
+  platinum: 'https://logo.clearbit.com/platinuminvestment.com',
+  palladium: 'https://logo.clearbit.com/platinuminvestment.com',
+  copper: 'https://logo.clearbit.com/copper.org',
+};
+
+// Category badge colors (fallback)
 const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   metals: { bg: 'hsl(43,72%,50%)', text: 'hsl(213,32%,12%)' },
   crypto: { bg: 'hsl(38,92%,50%)', text: 'hsl(213,32%,12%)' },
@@ -48,18 +103,6 @@ const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   stocks: { bg: 'hsl(217,91%,60%)', text: 'hsl(0,0%,100%)' },
   bonds: { bg: 'hsl(210,6%,67%)', text: 'hsl(213,32%,12%)' },
   forex: { bg: 'hsl(170,70%,50%)', text: 'hsl(213,32%,12%)' },
-};
-
-// Metal symbols
-const METAL_EMOJIS: Record<string, string> = {
-  gold: '🥇', silver: '🥈', platinum: '💎', palladium: '⚡', copper: '🔶',
-};
-
-// Currency flags for forex
-const FOREX_FLAGS: Record<string, string> = {
-  eurusd: '🇪🇺', gbpusd: '🇬🇧', usdjpy: '🇯🇵', usdchf: '🇨🇭', audusd: '🇦🇺',
-  usdcad: '🇨🇦', nzdusd: '🇳🇿', eurgbp: '🇪🇺', eurjpy: '🇪🇺', gbpjpy: '🇬🇧',
-  usdmxn: '🇲🇽', usdzar: '🇿🇦', usdtry: '🇹🇷', usdinr: '🇮🇳', usdcny: '🇨🇳',
 };
 
 interface SymbolLogoProps {
@@ -72,20 +115,28 @@ interface SymbolLogoProps {
 
 const SymbolLogo = ({ symbolKey, category, ticker, size = 20, className = '' }: SymbolLogoProps) => {
   const content = useMemo(() => {
-    // Crypto: use CDN image
+    // Crypto: CoinGecko CDN
     if (category === 'crypto') {
       const url = getCryptoLogoUrl(symbolKey);
-      if (url) {
-        return { type: 'image' as const, url };
-      }
+      if (url) return { type: 'image' as const, url };
     }
-    // Metals: emoji
-    if (category === 'metals' && METAL_EMOJIS[symbolKey]) {
-      return { type: 'emoji' as const, emoji: METAL_EMOJIS[symbolKey] };
+    // Forex: dual flag badges from flagcdn
+    if (category === 'forex' && FOREX_FLAG_MAP[symbolKey]) {
+      const [base, quote] = FOREX_FLAG_MAP[symbolKey];
+      return {
+        type: 'forex' as const,
+        baseFlag: `https://flagcdn.com/w40/${base}.png`,
+        quoteFlag: `https://flagcdn.com/w40/${quote}.png`,
+      };
     }
-    // Forex: flag emoji
-    if (category === 'forex' && FOREX_FLAGS[symbolKey]) {
-      return { type: 'emoji' as const, emoji: FOREX_FLAGS[symbolKey] };
+    // Metals: use commodity org logos
+    if (category === 'metals' && METAL_ICONS[symbolKey]) {
+      return { type: 'image' as const, url: METAL_ICONS[symbolKey] };
+    }
+    // Stocks, bonds, energy, indices: Clearbit logo
+    const domain = STOCK_DOMAINS[symbolKey];
+    if (domain) {
+      return { type: 'image' as const, url: `https://logo.clearbit.com/${domain}` };
     }
     // Fallback: colored badge with ticker initials
     const initials = ticker.slice(0, 2).toUpperCase();
@@ -94,39 +145,69 @@ const SymbolLogo = ({ symbolKey, category, ticker, size = 20, className = '' }: 
   }, [symbolKey, category, ticker]);
 
   const s = size;
+  const fallbackBadge = useMemo(() => {
+    const initials = ticker.slice(0, 2).toUpperCase();
+    const colors = BADGE_COLORS[category] ?? BADGE_COLORS.stocks;
+    return { initials, ...colors };
+  }, [ticker, category]);
 
-  if (content.type === 'image') {
+  if (content.type === 'forex') {
     return (
-      <img
-        src={content.url}
-        alt={symbolKey}
-        width={s}
-        height={s}
-        className={`rounded-full ${className}`}
-        style={{ width: s, height: s, minWidth: s }}
-        onError={(e) => {
-          // Fallback to badge on image load error
-          const target = e.currentTarget;
-          target.style.display = 'none';
-          const next = target.nextElementSibling;
-          if (next) (next as HTMLElement).style.display = 'flex';
-        }}
-      />
-    );
-  }
-
-  if (content.type === 'emoji') {
-    return (
-      <span
-        className={`flex items-center justify-center ${className}`}
-        style={{ width: s, height: s, fontSize: s * 0.7, lineHeight: 1 }}
-      >
-        {content.emoji}
+      <span className={`relative inline-flex items-center ${className}`} style={{ width: s * 1.4, height: s }}>
+        <img
+          src={content.baseFlag}
+          alt="base"
+          className="rounded-sm absolute left-0 top-0 z-[1] border border-navy/50"
+          style={{ width: s * 0.75, height: s * 0.55, objectFit: 'cover' }}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+        <img
+          src={content.quoteFlag}
+          alt="quote"
+          className="rounded-sm absolute right-0 bottom-0 border border-navy/50"
+          style={{ width: s * 0.75, height: s * 0.55, objectFit: 'cover' }}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
       </span>
     );
   }
 
-  // Badge
+  if (content.type === 'image') {
+    return (
+      <span className={`relative inline-flex ${className}`} style={{ width: s, height: s, minWidth: s }}>
+        <img
+          src={content.url}
+          alt={symbolKey}
+          width={s}
+          height={s}
+          className="rounded-full object-contain"
+          style={{ width: s, height: s, minWidth: s }}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+            const fb = e.currentTarget.nextElementSibling;
+            if (fb) (fb as HTMLElement).style.display = 'flex';
+          }}
+        />
+        {/* Hidden fallback badge */}
+        <span
+          className="items-center justify-center rounded-full font-mono font-bold absolute inset-0"
+          style={{
+            display: 'none',
+            width: s,
+            height: s,
+            minWidth: s,
+            fontSize: s * 0.4,
+            backgroundColor: fallbackBadge.bg,
+            color: fallbackBadge.text,
+          }}
+        >
+          {fallbackBadge.initials}
+        </span>
+      </span>
+    );
+  }
+
+  // Badge fallback
   return (
     <span
       className={`flex items-center justify-center rounded-full font-mono font-bold ${className}`}

@@ -492,9 +492,12 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
                   return <OHLCLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
                 }} />
               )}
-              {/* Transparent area for hover tooltip on candle/OHLC modes */}
+              {/* Price path line + transparent area for hover tooltip on candle/OHLC modes */}
               {chartMode !== 'area' && (
-                <Area type="monotone" dataKey="value" stroke="transparent" strokeWidth={0} fill="transparent" dot={false} activeDot={{ r: 3, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+                <>
+                  <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1} strokeOpacity={0.4} dot={false} connectNulls />
+                  <Area type="monotone" dataKey="value" stroke="transparent" strokeWidth={0} fill="transparent" dot={false} activeDot={{ r: 3, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+                </>
               )}
 
               {/* Indicator overlays */}
