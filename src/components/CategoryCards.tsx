@@ -5,10 +5,11 @@ import goldBullion from '@/assets/gold-bars-rich.jpg';
 import categoryEnergy from '@/assets/category-energy.jpg';
 import categoryAgricultural from '@/assets/category-agricultural.jpg';
 import categoryBonds from '@/assets/category-bonds.jpg';
-import categorySurplus from '@/assets/category-surplus.jpg';
+import categorySurplus from '@/assets/category-gov-surplus.jpg';
 import categoryLivestock from '@/assets/category-livestock.jpg';
 import categoryCorporateBonds from '@/assets/category-corporate-bonds.jpg';
 import categoryReits from '@/assets/category-reits.jpg';
+import categoryArt from '@/assets/category-art.jpg';
 
 const categories = [
   {
@@ -82,8 +83,17 @@ const categories = [
     tagClass: 'bg-rose-400/20 text-rose-300',
   },
   {
-    name: 'Surplus',
-    description: 'Liquidation, overstock & bulk inventory',
+    name: 'Art',
+    description: 'Fine art, collectibles & cultural assets',
+    image: categoryArt,
+    href: '/marketplace',
+    accentClass: 'from-fuchsia-400/80 to-fuchsia-400/20',
+    borderClass: 'border-fuchsia-400/30 hover:border-fuchsia-400/60',
+    tagClass: 'bg-fuchsia-400/20 text-fuchsia-300',
+  },
+  {
+    name: 'Gov. Surplus',
+    description: 'Government surplus equipment, vehicles & assets',
     image: categorySurplus,
     href: '/marketplace',
     accentClass: 'from-purple-400/80 to-purple-400/20',
@@ -105,20 +115,13 @@ const CategoryCards = () => {
             EXPLORE MARKETS
           </h2>
           <p className="text-marble/50 max-w-xl mx-auto text-sm">
-            Institutional-grade access across eight core asset classes
+            Institutional-grade access across nine core asset classes
           </p>
         </div>
 
-        {/* Top row: 4 cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 max-w-6xl mx-auto mb-4 md:mb-5">
-          {categories.slice(0, 4).map((cat) => (
-            <CategoryCard key={cat.name} {...cat} />
-          ))}
-        </div>
-
-        {/* Bottom row: 4 cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 max-w-6xl mx-auto">
-          {categories.slice(4).map((cat) => (
+        {/* 3x3 grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5 max-w-5xl mx-auto">
+          {categories.map((cat) => (
             <CategoryCard key={cat.name} {...cat} />
           ))}
         </div>
