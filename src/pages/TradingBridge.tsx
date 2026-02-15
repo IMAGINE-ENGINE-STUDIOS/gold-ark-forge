@@ -21,6 +21,7 @@ import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
 import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES } from '@/data/tradingSymbols';
+import SymbolLogo from '@/components/trading/SymbolLogo';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import BrokerConnectDialog from '@/components/trading/BrokerConnectDialog';
@@ -171,8 +172,13 @@ const TradingBridge = () => {
                         activeSymbol.key === sym.key ? 'bg-gold/10 text-gold' : 'text-marble/60'
                       }`}
                     >
-                      <div className="text-[11px] font-mono">{sym.label}</div>
-                      <div className="text-[8px] text-marble/25">{sym.ticker}</div>
+                      <div className="flex items-center gap-2">
+                        <SymbolLogo symbolKey={sym.key} category={sym.cat} ticker={sym.ticker} size={18} />
+                        <div>
+                          <div className="text-[11px] font-mono">{sym.label}</div>
+                          <div className="text-[8px] text-marble/25">{sym.ticker}</div>
+                        </div>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -365,7 +371,10 @@ const TradingBridge = () => {
                       <span className="text-[7px] font-mono block text-center">{sym.key.slice(0, 4).toUpperCase()}</span>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-mono">{sym.label}</span>
+                        <div className="flex items-center gap-1.5">
+                          <SymbolLogo symbolKey={sym.key} category={sym.cat} ticker={sym.ticker} size={16} />
+                          <span className="text-[11px] font-mono">{sym.label}</span>
+                        </div>
                         <span className="text-[7px] text-marble/20">{sym.ticker}</span>
                       </div>
                     )}

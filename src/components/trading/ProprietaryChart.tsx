@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X } from 'lucide-react';
+import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2 } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -22,6 +22,8 @@ import {
   type ChartDataPoint,
 } from './IndicatorOverlay';
 import ChartDrawingTools, { useDrawings, getDrawingReferenceLines } from './ChartDrawingTools';
+import SymbolLogo from './SymbolLogo';
+import { CandlestickLayer, OHLCLayer, type ChartMode } from './CandlestickRenderer';
 
 interface Props {
   symbolKey: string;
@@ -62,11 +64,18 @@ const generateChartData = (price: number, change: number, tf: Timeframe): ChartD
     const volatility = Math.sin(i * 0.5 + progress * 3) * price * cfg.noiseScale * 0.5;
     const value = trend + noise + volatility;
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+    const openNoise = Math.sin(i * 1.7) * price * cfg.noiseScale * 0.3;
+    const open = parseFloat((value + openNoise).toFixed(2));
+    const close = parseFloat(value.toFixed(2));
+    const high = parseFloat((Math.max(open, close) + Math.abs(noise) * 0.5).toFixed(2));
+    const low = parseFloat((Math.min(open, close) - Math.abs(noise) * 0.5).toFixed(2));
     data.push({
       time: cfg.labelFn(time),
-      value: parseFloat(value.toFixed(2)),
-      high: parseFloat((value + Math.abs(noise) * 0.5).toFixed(2)),
-      low: parseFloat((value - Math.abs(noise) * 0.5).toFixed(2)),
+      value: close,
+      open,
+      close,
+      high,
+      low,
     });
   }
   return data;
@@ -76,16 +85,19 @@ const generateChartData = (price: number, change: number, tf: Timeframe): ChartD
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
   return (
     <div className="bg-navy-dark border border-gold/30 rounded px-3 py-2 shadow-lg">
       <p className="text-[10px] text-marble/50 font-mono mb-1">{label}</p>
       <p className="text-sm font-display text-gold-light font-semibold">
         ${payload[0].value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
       </p>
-      {payload[0].payload.high && (
-        <div className="flex gap-3 mt-1 text-[10px] text-marble/40">
-          <span>H: ${payload[0].payload.high}</span>
-          <span>L: ${payload[0].payload.low}</span>
+      {d && (
+        <div className="flex gap-2 mt-1 text-[10px] text-marble/40 font-mono">
+          <span>O: ${d.open?.toFixed(2)}</span>
+          <span>H: ${d.high?.toFixed(2)}</span>
+          <span>L: ${d.low?.toFixed(2)}</span>
+          <span>C: ${d.close?.toFixed(2)}</span>
         </div>
       )}
     </div>
@@ -102,6 +114,7 @@ const OIL_SYMBOL_MAP: Record<string, string> = {
 
 const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [tf, setTf] = useState<Timeframe>('1D');
+  const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -299,9 +312,10 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
                     sym.key === symbolKey ? 'bg-gold/10 text-gold' : 'text-marble/70'
                   }`}
                 >
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <SymbolLogo symbolKey={sym.key} category={sym.cat} ticker={sym.ticker} size={18} />
                     <span className="text-sm font-mono">{sym.label}</span>
-                    <span className="text-[9px] text-marble/25 ml-2">{sym.ticker}</span>
+                    <span className="text-[9px] text-marble/25 ml-1">{sym.ticker}</span>
                   </div>
                   <span className="text-[8px] font-display tracking-wider text-marble/20 uppercase">{sym.cat}</span>
                 </button>
@@ -318,12 +332,12 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gold/10 flex-shrink-0">
         <div className="flex items-center gap-2">
+          <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={22} />
           <button
             onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
             className="flex items-center gap-1.5 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group"
             title="Search symbol (press /)"
           >
-            <BarChart3 className="w-4 h-4 text-gold" />
             <span className="font-display text-sm tracking-wider text-gold-light group-hover:text-gold">{label}</span>
             <Search className="w-3 h-3 text-marble/20 group-hover:text-gold/60" />
           </button>
@@ -372,6 +386,25 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
               onToggleList={toggleList}
             />
           )}
+          {/* Chart mode toggle */}
+          <div className="flex gap-0.5 mr-1">
+            {([
+              { mode: 'area' as ChartMode, icon: LineChart, tip: 'Area' },
+              { mode: 'candlestick' as ChartMode, icon: CandlestickChart, tip: 'Candles' },
+              { mode: 'ohlc' as ChartMode, icon: BarChart2, tip: 'OHLC' },
+            ]).map(({ mode, icon: Icon, tip }) => (
+              <button
+                key={mode}
+                onClick={() => setChartMode(mode)}
+                className={`p-1 rounded transition-all ${
+                  chartMode === mode ? 'bg-gold/15 text-gold' : 'text-marble/25 hover:text-marble/50'
+                }`}
+                title={tip}
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </button>
+            ))}
+          </div>
           {/* Timeframe selector */}
           <div className="flex gap-0.5">
             {timeframes.map((t) => (
@@ -435,8 +468,34 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
               {/* Fibonacci levels */}
               {fibLines}
 
-              {/* Main area */}
-              <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+              {/* Main chart rendering based on mode */}
+              {chartMode === 'area' && (
+                <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+              )}
+              {chartMode === 'candlestick' && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  const barW = Math.max(Math.floor((xAxis.width || 600) / chartData.length * 0.6), 3);
+                  return <CandlestickLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
+                }} />
+              )}
+              {chartMode === 'ohlc' && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  const barW = Math.max(Math.floor((xAxis.width || 600) / chartData.length * 0.6), 3);
+                  return <OHLCLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
+                }} />
+              )}
+              {/* Transparent area for hover tooltip on candle/OHLC modes */}
+              {chartMode !== 'area' && (
+                <Area type="monotone" dataKey="value" stroke="transparent" strokeWidth={0} fill="transparent" dot={false} activeDot={{ r: 3, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+              )}
 
               {/* Indicator overlays */}
               {indicatorLines}
