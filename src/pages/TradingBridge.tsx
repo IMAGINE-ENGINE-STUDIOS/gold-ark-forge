@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame } from 'lucide-react';
 import { AreaChart, Area, BarChart as RechartsBar, Bar, PieChart as RechartsPie, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import TradingViewChart from '@/components/tradingview/TradingViewChart';
+import ProprietaryChart from '@/components/trading/ProprietaryChart';
+import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
@@ -107,6 +108,9 @@ const TradingBridge = () => {
         </div>
       </div>
 
+      {/* ─── Live Ticker Strip ─────────────────────────── */}
+      <GAMultiTicker />
+
       {/* ─── Main Terminal Area ────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
         {/* Watchlist Sidebar */}
@@ -161,8 +165,8 @@ const TradingBridge = () => {
             <ResizablePanel defaultSize={65} minSize={30}>
               <ResizablePanelGroup direction="horizontal">
                 <ResizablePanel defaultSize={70} minSize={40}>
-                  <div className="h-full p-1">
-                    <TradingViewChart symbol={activeSymbol.tv} height={9999} />
+                  <div className="h-full">
+                    <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} />
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />
