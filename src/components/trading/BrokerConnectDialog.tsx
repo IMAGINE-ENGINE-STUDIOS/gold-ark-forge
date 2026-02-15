@@ -11,7 +11,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const BROKERS: BrokerType[] = ['alpaca', 'coinbase', 'ibkr'];
+const BROKERS: BrokerType[] = ['alpaca', 'coinbase', 'ibkr', 'tradier', 'webull', 'kraken', 'gemini', 'oanda', 'td_ameritrade'];
 
 const BrokerConnectDialog = ({ open, onOpenChange }: Props) => {
   const [step, setStep] = useState<'pick' | 'credentials'>('pick');

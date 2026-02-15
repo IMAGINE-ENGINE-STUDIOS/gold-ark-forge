@@ -1,13 +1,13 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
-import { SYNTHETIC_PRICES, CATEGORY_COLORS } from '@/data/tradingSymbols';
+import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
   enrichChartData,
@@ -22,6 +22,7 @@ interface Props {
   symbolKey: string;
   category: string;
   label: string;
+  onSymbolChange?: (sym: WatchlistSymbol) => void;
 }
 
 const timeframes = ['1H', '4H', '1D', '1W', '1M'] as const;
@@ -103,9 +104,12 @@ const OIL_SYMBOL_MAP: Record<string, string> = {
   oil: 'WTI', brent: 'BRENT', natgas: 'NG', rbob: 'RBOB',
 };
 
-const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
+const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [tf, setTf] = useState<Timeframe>('1D');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const { drawings, activeTool, setActiveTool, addDrawing, clearAll } = useDrawings();
 
@@ -180,13 +184,102 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
   const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData), [activeIndicators, chartData]);
   const drawingRefLines = useMemo(() => getDrawingReferenceLines(drawings), [drawings]);
 
+  // Symbol search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return ALL_SYMBOLS.slice(0, 20);
+    const q = searchQuery.toLowerCase();
+    return ALL_SYMBOLS.filter(s => s.label.toLowerCase().includes(q) || s.ticker.toLowerCase().includes(q) || s.key.includes(q)).slice(0, 15);
+  }, [searchQuery]);
+
+  // Keyboard shortcut: / to open search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !searchOpen && document.activeElement?.tagName !== 'INPUT') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setSearchQuery('');
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [searchOpen]);
+
+  const selectSearchSymbol = (sym: WatchlistSymbol) => {
+    onSymbolChange?.(sym);
+    setSearchOpen(false);
+    setSearchQuery('');
+  };
+
   return (
-    <div className="h-full flex flex-col bg-navy">
+    <div className="h-full flex flex-col bg-navy relative">
+      {/* Symbol Search Overlay */}
+      {searchOpen && (
+        <div className="absolute inset-0 z-50 bg-navy/95 backdrop-blur-sm flex flex-col items-center pt-16">
+          <div className="w-full max-w-md px-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gold/50" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search any symbol… (type / to open)"
+                className="w-full bg-navy-light border border-gold/30 text-marble text-sm rounded-lg pl-10 pr-10 py-3 font-mono placeholder:text-marble/20 focus:outline-none focus:border-gold/60"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchResults.length > 0) selectSearchSymbol(searchResults[0]);
+                  if (e.key === 'Escape') setSearchOpen(false);
+                }}
+              />
+              <button onClick={() => setSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-marble/30 hover:text-marble">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="mt-2 bg-navy-light border border-gold/15 rounded-lg overflow-hidden max-h-[320px] overflow-y-auto">
+              {searchResults.map((sym) => (
+                <button
+                  key={sym.key}
+                  onClick={() => selectSearchSymbol(sym)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-gold/10 border-b border-gold/5 last:border-0 ${
+                    sym.key === symbolKey ? 'bg-gold/10 text-gold' : 'text-marble/70'
+                  }`}
+                >
+                  <div>
+                    <span className="text-sm font-mono">{sym.label}</span>
+                    <span className="text-[9px] text-marble/25 ml-2">{sym.ticker}</span>
+                  </div>
+                  <span className="text-[8px] font-display tracking-wider text-marble/20 uppercase">{sym.cat}</span>
+                </button>
+              ))}
+              {searchResults.length === 0 && (
+                <div className="p-6 text-center text-marble/20 text-xs font-display">NO SYMBOLS FOUND</div>
+              )}
+            </div>
+            <p className="text-marble/15 text-[9px] text-center mt-2 font-mono">Press <kbd className="bg-navy-light px-1.5 py-0.5 rounded text-marble/30 border border-gold/10">ESC</kbd> to close · <kbd className="bg-navy-light px-1.5 py-0.5 rounded text-marble/30 border border-gold/10">ENTER</kbd> to select</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gold/10 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-gold" />
-          <span className="font-display text-sm tracking-wider text-gold-light">{label}</span>
+          <button
+            onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
+            className="flex items-center gap-1.5 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group"
+            title="Search symbol (press /)"
+          >
+            <BarChart3 className="w-4 h-4 text-gold" />
+            <span className="font-display text-sm tracking-wider text-gold-light group-hover:text-gold">{label}</span>
+            <Search className="w-3 h-3 text-marble/20 group-hover:text-gold/60" />
+          </button>
           {isWsLive ? (
             <span className="flex items-center gap-0.5 text-[8px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20">
               <Wifi className="w-2.5 h-2.5" /> WS

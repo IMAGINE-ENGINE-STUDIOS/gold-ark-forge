@@ -171,7 +171,7 @@ const TradingBridge = () => {
           {mobileTab === 'chart' && (
             <div className="flex flex-col">
               <div className="h-[45vh] min-h-[260px]">
-                <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} />
+                <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
               </div>
               <div className="p-3 space-y-3">
                 <GAPriceCards />
@@ -345,7 +345,7 @@ const TradingBridge = () => {
               <ResizablePanelGroup direction="horizontal">
                 <ResizablePanel defaultSize={70} minSize={40}>
                   <div className="h-full">
-                    <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} />
+                    <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ───────────────────────────────────────────────
 
-export type BrokerType = 'alpaca' | 'coinbase' | 'ibkr';
+export type BrokerType = 'alpaca' | 'coinbase' | 'ibkr' | 'tradier' | 'webull' | 'kraken' | 'gemini' | 'oanda' | 'td_ameritrade';
 
 export interface BrokerConnection {
   id: string;
@@ -86,7 +86,61 @@ export const BROKER_META: Record<BrokerType, {
   },
   ibkr: {
     label: 'Interactive Brokers',
-    assets: 'Commodities · Futures · Stocks',
+    assets: 'Stocks · Options · Futures · Forex · Bonds',
+    environments: [
+      { value: 'paper', label: 'Paper' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  tradier: {
+    label: 'Tradier',
+    assets: 'Stocks · ETFs · Options',
+    environments: [
+      { value: 'sandbox', label: 'Sandbox' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  webull: {
+    label: 'Webull',
+    assets: 'Stocks · ETFs · Options · Crypto',
+    environments: [
+      { value: 'paper', label: 'Paper' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  kraken: {
+    label: 'Kraken',
+    assets: 'Crypto · Forex',
+    environments: [
+      { value: 'sandbox', label: 'Sandbox' },
+      { value: 'production', label: 'Production' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  gemini: {
+    label: 'Gemini',
+    assets: 'Crypto',
+    environments: [
+      { value: 'sandbox', label: 'Sandbox' },
+      { value: 'production', label: 'Production' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  oanda: {
+    label: 'OANDA',
+    assets: 'Forex · CFDs · Indices · Commodities',
+    environments: [
+      { value: 'practice', label: 'Practice' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  td_ameritrade: {
+    label: 'TD Ameritrade / Schwab',
+    assets: 'Stocks · ETFs · Options · Futures · Forex',
     environments: [
       { value: 'paper', label: 'Paper' },
       { value: 'live', label: 'Live' },
