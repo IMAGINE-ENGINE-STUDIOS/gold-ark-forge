@@ -38,46 +38,133 @@ type Timeframe = (typeof timeframes)[number];
 interface TFConfig {
   points: number;
   intervalMs: number;
-  noiseScale: number;
+  volatility: number; // realistic % volatility per candle
   labelFn: (d: Date) => string;
 }
 
 const tfConfigs: Record<Timeframe, TFConfig> = {
-  '1H': { points: 12, intervalMs: 5 * 60_000, noiseScale: 0.001, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '4H': { points: 48, intervalMs: 5 * 60_000, noiseScale: 0.002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '1D': { points: 96, intervalMs: 15 * 60_000, noiseScale: 0.003, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '1W': { points: 84, intervalMs: 2 * 3_600_000, noiseScale: 0.008, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
-  '1M': { points: 120, intervalMs: 6 * 3_600_000, noiseScale: 0.015, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '1H': { points: 12, intervalMs: 5 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '4H': { points: 48, intervalMs: 5 * 60_000, volatility: 0.0005, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1D': { points: 96, intervalMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1W': { points: 84, intervalMs: 2 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
+  '1M': { points: 120, intervalMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
 };
 
-// Use CATEGORY_COLORS from tradingSymbols.ts
+// Deterministic seeded PRNG — same seed always produces same sequence
+// This ensures indicators computed on chart data are CONSISTENT and REPEATABLE
+const seededRandom = (seed: number) => {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+};
 
-const generateChartData = (price: number, change: number, tf: Timeframe): ChartDataPoint[] => {
+const hashSeed = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+};
+
+// Build chart from real sparkline data (crypto) — resample to match timeframe
+const buildFromSparkline = (sparkline: number[], tf: Timeframe, livePrice: number): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
-  const data: ChartDataPoint[] = [];
-  const startPrice = price / (1 + change / 100);
+  const totalPrices = sparkline.length; // typically 168 hourly prices (7 days)
+  const step = Math.max(1, Math.floor(totalPrices / cfg.points));
   const now = Date.now();
+  const data: ChartDataPoint[] = [];
+
   for (let i = 0; i < cfg.points; i++) {
-    const progress = i / (cfg.points - 1);
-    const trend = startPrice + (price - startPrice) * progress;
-    const noise = Math.sin(i * 2.3 + progress * 5) * price * cfg.noiseScale + Math.cos(i * 1.1) * price * cfg.noiseScale * 0.7;
-    const volatility = Math.sin(i * 0.5 + progress * 3) * price * cfg.noiseScale * 0.5;
-    const value = trend + noise + volatility;
+    const srcIdx = Math.min(Math.floor(i * step), totalPrices - 1);
+    const endIdx = Math.min(srcIdx + step, totalPrices);
+    const slice = sparkline.slice(srcIdx, endIdx);
+    if (slice.length === 0) continue;
+
+    const open = slice[0];
+    const close = slice[slice.length - 1];
+    const high = Math.max(...slice);
+    const low = Math.min(...slice);
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
-    const openNoise = Math.sin(i * 1.7) * price * cfg.noiseScale * 0.3;
-    const open = parseFloat((value + openNoise).toFixed(2));
-    const close = parseFloat(value.toFixed(2));
-    const high = parseFloat((Math.max(open, close) + Math.abs(noise) * 0.5).toFixed(2));
-    const low = parseFloat((Math.min(open, close) - Math.abs(noise) * 0.5).toFixed(2));
+
     data.push({
       time: cfg.labelFn(time),
-      value: close,
-      open,
-      close,
-      high,
-      low,
+      value: parseFloat(close.toFixed(2)),
+      open: parseFloat(open.toFixed(2)),
+      close: parseFloat(close.toFixed(2)),
+      high: parseFloat(high.toFixed(2)),
+      low: parseFloat(low.toFixed(2)),
     });
   }
+
+  // Update last candle with live price
+  if (data.length > 0 && livePrice > 0) {
+    const last = data[data.length - 1];
+    last.close = parseFloat(livePrice.toFixed(2));
+    last.value = last.close;
+    last.high = Math.max(last.high, last.close);
+    last.low = Math.min(last.low, last.close);
+  }
+
+  return data;
+};
+
+// Generate deterministic chart data for non-sparkline assets
+// Uses seeded PRNG so the same symbol+timeframe ALWAYS produces the same chart
+// This means indicators (SMA, RSI, etc.) are stable and meaningful
+const generateChartData = (price: number, change: number, tf: Timeframe, symbolKey: string): ChartDataPoint[] => {
+  const cfg = tfConfigs[tf];
+  const seed = hashSeed(`${symbolKey}:${tf}:${Math.floor(Date.now() / 3_600_000)}`); // stable per hour
+  const rand = seededRandom(seed);
+  const data: ChartDataPoint[] = [];
+  const now = Date.now();
+
+  // Walk backward from current price using a realistic random walk
+  // The walk is seeded so it's deterministic
+  let walkPrice = price / (1 + change / 100); // approximate starting price
+  const drift = (price - walkPrice) / cfg.points; // trend component
+
+  for (let i = 0; i < cfg.points; i++) {
+    const r1 = rand() - 0.5; // centered random
+    const r2 = rand() - 0.5;
+    const r3 = rand();
+
+    // Random walk with drift toward current price
+    const step = drift + r1 * walkPrice * cfg.volatility * 2;
+    walkPrice += step;
+
+    // Generate OHLC from the walk price
+    const spread = Math.abs(r2) * walkPrice * cfg.volatility * 1.5;
+    const direction = r1 > 0;
+    const open = walkPrice - (direction ? spread * 0.3 : -spread * 0.3);
+    const close = walkPrice;
+    const wickUp = r3 * walkPrice * cfg.volatility * 0.8;
+    const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
+    const high = Math.max(open, close) + wickUp;
+    const low = Math.min(open, close) - wickDown;
+
+    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+
+    data.push({
+      time: cfg.labelFn(time),
+      value: parseFloat(close.toFixed(price < 10 ? 4 : 2)),
+      open: parseFloat(open.toFixed(price < 10 ? 4 : 2)),
+      close: parseFloat(close.toFixed(price < 10 ? 4 : 2)),
+      high: parseFloat(high.toFixed(price < 10 ? 4 : 2)),
+      low: parseFloat(low.toFixed(price < 10 ? 4 : 2)),
+    });
+  }
+
+  // Snap last candle to actual live price
+  if (data.length > 0 && price > 0) {
+    const last = data[data.length - 1];
+    last.close = parseFloat(price.toFixed(price < 10 ? 4 : 2));
+    last.value = last.close;
+    last.high = Math.max(last.high, last.close);
+    last.low = Math.min(last.low, last.close);
+  }
+
   return data;
 };
 
@@ -162,7 +249,20 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
   const price = isWsLive ? wsData.price : streamedPrice;
   const change = isWsLive ? wsData.change24h : streamedChange;
 
-  const rawChartData = useMemo(() => generateChartData(price, change, tf), [price, change, tf]);
+  // Get sparkline data for crypto assets (real 7-day hourly prices)
+  const sparklineData = useMemo(() => {
+    if (category !== 'crypto' || !cryptoData) return null;
+    const coin = cryptoData.find((c) => c.id === symbolKey || c.symbol === symbolKey);
+    return coin?.sparkline_in_7d?.price ?? null;
+  }, [category, cryptoData, symbolKey]);
+
+  // Use real sparkline data for crypto, deterministic seeded data for others
+  const rawChartData = useMemo(() => {
+    if (sparklineData && sparklineData.length > 10) {
+      return buildFromSparkline(sparklineData, tf, price);
+    }
+    return generateChartData(price, change, tf, symbolKey);
+  }, [sparklineData, price, change, tf, symbolKey]);
   const chartData = useMemo(() => enrichChartData(rawChartData, activeIndicators), [rawChartData, activeIndicators]);
 
   const color = CATEGORY_COLORS[category] ?? 'hsl(43, 72%, 50%)';
