@@ -1,166 +1,150 @@
 
 
-## Comprehensive Plan: Heatmap Expansion, Intelligence Tool Upgrades, and Order Confirmation Dialog
+## Widget Thesis & Instructions System
 
-This plan covers three major workstreams: expanding the GA proprietary heatmap with multi-market tabs, integrating GA/OG widgets into more powerful composite tools on the Intelligence and Oil & Gas pages, and building a professional-grade order confirmation dialog for the Trading Bridge.
+### Overview
 
----
-
-### Part 1: Multi-Market Heatmap Tabs (GA Heatmap Widget)
-
-**Current state:** The `GACryptoHeatmap` widget only shows crypto sectors. The TradingView heatmap (used on the Showroom page) supports stock markets but is an external embed.
-
-**Goal:** Build a proprietary tabbed heatmap component that covers all major markets using the same Hellenic aesthetic.
-
-**New file:** `src/components/ga-widgets/GAMarketHeatmap.tsx`
-
-A tabbed wrapper that renders different heatmap views:
-
-| Tab | Data Source | Layout |
-|-----|-----------|--------|
-| CRYPTO | CoinGecko (existing `useCryptoData`) | Treemap by market cap, colored by 24h change |
-| STOCKS | `SYNTHETIC_PRICES` from `tradingSymbols.ts` (sector-grouped) | Treemap grouped by sector (Tech, Energy, Finance, Mining) |
-| FOREX | `useForexRates` (existing hook) | Grid of currency pair strength tiles |
-| ENERGY | `useOilGasPrices` (existing hook) | Horizontal bar tiles for WTI, Brent, NatGas, etc. |
-| METALS | `useMetalPrices` (existing hook) | Weighted tiles by current price/volume |
-| BONDS | `SYNTHETIC_PRICES` bond entries | Yield-colored grid tiles |
-
-Each tab reuses the existing treemap flex-wrap layout from `GACryptoHeatmap` but with category-specific color schemes and grouping logic. The component uses internal tabs (not Radix Tabs) matching the existing gold/navy button style used throughout other widgets.
-
-**Integration:** Replace the `GACryptoHeatmap` import on the Intelligence page with `GAMarketHeatmap`. The existing `GACryptoHeatmap` component is preserved as-is (the new widget wraps it internally for the CRYPTO tab).
+Build a reusable tab wrapper component that surrounds every widget and tool on the Intelligence page with two tabs: **WIDGET** (the live widget, unchanged) and **THESIS & GUIDE** (a rich description of what the widget does, why it exists, and how to use it). No existing widget code is modified -- this is purely additive wrapping.
 
 ---
 
-### Part 2: Intelligence Page -- Composite Tool Upgrades
+### Architecture
 
-**Current state:** The Intelligence page (`/intelligence`) lists 35+ individual widgets in a linear showroom format. Each widget stands alone.
+**1. New file: `src/components/ga-widgets/WidgetDocWrapper.tsx`**
 
-**Goal:** Add new "composite tool" sections that combine multiple existing widgets into interactive, multi-pane analysis workspaces. The existing individual widget sections remain untouched.
+A generic wrapper component that accepts:
+- `children` (the widget itself)
+- `widgetId` (string key to look up content)
 
-**New composite sections to add (after existing content, before the footer):**
+Renders two styled tab buttons at the top: **WIDGET** (default active) and **THESIS & GUIDE**. When WIDGET is selected, the children render normally. When THESIS & GUIDE is selected, the widget is hidden and a rich documentation panel appears in its place.
 
-#### A. Cross-Asset Correlation Dashboard
-**New file:** `src/components/ga-widgets/GACrossAssetDashboard.tsx`
-- Side-by-side mini-charts comparing Gold vs BTC, Gold vs S&P, Oil vs Gold
-- Uses `useMetalPrices`, `useCryptoData`, `useOilGasPrices` 
-- Correlation coefficient display between pairs
-- Tabbed pair selection
+Tab styling matches the existing Hellenic gold/navy button pattern used in `GACommodityRadar` and other widgets (gold border, tracking, font-display).
 
-#### B. Market Pulse Command Center
-**New file:** `src/components/ga-widgets/GAMarketPulse.tsx`
-- Combines: Fear & Greed gauge + Top Movers + Price Cards into a single dashboard card
-- Three-column layout: Sentiment | Movers | Spot Prices
-- All data already available from existing hooks
-- Acts as a "quick glance" executive summary
-
-#### C. Blockchain Analytics Hub
-**New file:** `src/components/ga-widgets/GABlockchainHub.tsx`
-- Tabbed view combining BTC, ETH, XRP, TRON network stats in one widget
-- Tab per chain, showing key metrics in a compact card grid
-- Reuses data from existing `GABitcoinNetwork`, `GAEthereumNetwork`, `GAXRPLedger`, `GATronNetwork` hooks
-
-**Intelligence page changes:** Add a new tier section "COMPOSITE TOOLS" between the existing DeFi/Sentiment section and the Proprietary section. Add the three new widgets with nav links.
+The documentation panel layout:
+- **Thesis header**: Widget name, one-line purpose, data source badges (e.g. "CoinGecko", "mempool.space", "Internal DB")
+- **Thesis body**: 2-3 paragraph institutional description of what the widget measures, why it matters for traders/analysts, and what edge it provides
+- **Key Metrics section**: Bullet list of the specific data points the widget displays
+- **Instructions section**: Step-by-step numbered guide on how to read and interact with the widget (tabs, filters, hover tooltips, etc.)
+- **Data Source & Refresh**: Source API, refresh interval, data freshness indicator
 
 ---
 
-### Part 3: Oil & Gas Page -- Tool Upgrades
+**2. New file: `src/components/ga-widgets/widgetDocContent.ts`**
 
-**Current state:** `/oil-gas` has 12 individual energy widgets in a linear showroom.
+A single content registry (TypeScript object map) keyed by widget ID, containing thesis and instruction content for every widget on the Intelligence page. This keeps all copy in one maintainable file, separate from component logic.
 
-**Goal:** Add composite tools that combine energy data into richer views.
+Structure per entry:
 
-#### A. Energy Market Dashboard
-**New file:** `src/components/og-widgets/OGEnergyDashboard.tsx`
-- Three-panel layout: Spot Prices | Inventory Gauge | Futures Curve mini
-- Uses existing `useOilGasPrices` hook data
-- Quick-glance executive summary for energy traders
+```text
+{
+  name: string,
+  purpose: string (one line),
+  sources: string[] (e.g. ["CoinGecko", "Free API"]),
+  refreshInterval: string (e.g. "30s"),
+  thesis: string (2-3 paragraphs),
+  metrics: string[] (bullet points),
+  instructions: string[] (numbered steps),
+  tier: "MARKET DATA" | "BLOCKCHAIN" | "DeFi" | "COMPOSITE" | "PROPRIETARY"
+}
+```
 
-#### B. Risk & Spreads Analyzer
-**New file:** `src/components/og-widgets/OGRiskAnalyzer.tsx`
-- Combines: WTI-Brent spread + Crack spreads + Chokepoint risk levels
-- Side-by-side comparison view
-- Traffic-light risk indicators (green/yellow/red) for each metric
+Complete content for all widgets (35+ entries):
 
-**Oil & Gas page changes:** Add a new tier section "COMPOSITE ANALYTICS" after the Infrastructure tier. Add the two new widgets with nav links.
+| Widget ID | Name |
+|-----------|------|
+| `prices` | Spot Price Cards |
+| `crypto-prices` | Crypto Price Cards |
+| `mini-charts` | Compact Mini Charts |
+| `overview` | Multi-Asset Overview |
+| `chart` | Advanced Metal Chart |
+| `analysis` | Technical Analysis Gauge |
+| `market-summary` | Global Market Summary |
+| `quotes` | Market Quotes |
+| `movers` | Top Movers |
+| `news` | Market Intelligence Feed |
+| `forex` | Forex Intelligence Matrix |
+| `heatmap` | Multi-Market Heatmap |
+| `calendar` | Economic Calendar |
+| `bitcoin` | Bitcoin Network Monitor |
+| `ethereum` | Ethereum Network Monitor |
+| `xrp` | XRP Ledger Monitor |
+| `tron` | TRON Network Monitor |
+| `sec` | SEC EDGAR Filings |
+| `whales` | Whale Watch |
+| `crypto-market` | Crypto Market Overview |
+| `sentiment` | Fear & Greed Index |
+| `defi` | DeFi TVL Dashboard |
+| `pulse` | Market Pulse Command Center |
+| `correlation` | Cross-Asset Correlation |
+| `chain-hub` | Blockchain Analytics Hub |
+| `commodity-radar` | Commodity Radar |
+| `forex-room` | Forex War Room |
+| `volatility` | Volatility Matrix |
+| `portfolios` | Portfolio Allocator |
+| `yields` | DeFi Yield Monitor |
+| `ratios` | Metal Ratios (Gold/Silver) |
+| `reserves` | Reserve Backing Gauge |
+| `timeline` | Reserve History Timeline |
+| `profiles` | Metal Profiles |
+| `vault` | Vault Inventory Matrix |
+| `bullion-heatmap` | Bullion Heatmap |
+| `screener` | Bullion Screener |
+| `certs` | Certificate Registry Flow |
+| `anchors` | Bitcoin Anchor Status |
+| `activity` | Anchored Activity Feed |
+| `partners` | Partner Network |
 
 ---
 
-### Part 4: Order Confirmation Dialog
+**3. Modified file: `src/pages/Intelligence.tsx`**
 
-**Current state:** Both paper and live orders submit immediately on button click with only a toast notification after the fact. No pre-submission review.
+Wrap each widget render with `WidgetDocWrapper`:
 
-**Goal:** Build a comprehensive order confirmation dialog that surpasses what professional platforms offer.
+Before:
+```jsx
+<section id="prices">
+  <SectionDivider label="SPOT PRICES" />
+  <GAPriceCards />
+</section>
+```
 
-**New file:** `src/components/trading/OrderConfirmationDialog.tsx`
+After:
+```jsx
+<section id="prices">
+  <SectionDivider label="SPOT PRICES" />
+  <WidgetDocWrapper widgetId="prices">
+    <GAPriceCards />
+  </WidgetDocWrapper>
+</section>
+```
 
-The dialog shows before any order (paper or live) is executed:
+Every widget and tool section gets wrapped this way. The `SectionDivider` stays outside the wrapper (it's navigation chrome, not part of the widget). For sections with two widgets side-by-side in a grid (e.g. XRP + TRON), each widget gets its own wrapper independently.
 
-**Dialog content sections:**
+For the `prices` section which has both `GAPriceCards` and `GACryptoPriceCards`, they share one wrapper with widgetId `prices` (the thesis covers both metal and crypto spot prices together).
 
-1. **Order Summary Header**
-   - Symbol logo + name + current live price
-   - BUY/SELL badge with color coding
-   - Order type badge (MARKET / LIMIT / STOP / BRACKET)
+---
 
-2. **Cost Breakdown Table**
-   - Quantity x Fill Price = Subtotal
-   - Estimated spread cost
-   - Commission ($0 for paper, broker fee for live)
-   - **Total Order Value** (bold, large)
+### Visual Design of the Thesis & Guide Tab
 
-3. **Position Impact Preview**
-   - Current portfolio equity -> New equity after fill
-   - Current cash -> Cash remaining
-   - Number of positions before -> after
-   - Portfolio concentration % for this asset
-   - Warning badges: ">25% concentration", ">50% of cash", "Margin required"
+The documentation panel follows the Hellenic aesthetic:
 
-4. **Risk Assessment Strip**
-   - Max loss at stop (if stop order)
-   - Risk/reward ratio (if bracket)
-   - Volatility indicator for the asset (High/Medium/Low based on recent price movement)
-   - Account drawdown if max loss hit
-
-5. **Execution Details**
-   - Mode: PAPER or LIVE (with color badge)
-   - Broker name (for live) or "SIMULATED" (for paper)
-   - Time in force (GTC/DAY)
-   - Estimated fill time
-
-6. **Action Buttons**
-   - "CONFIRM [BUY/SELL]" -- large, color-coded (green/red)
-   - "MODIFY ORDER" -- returns to order form
-   - "CANCEL" -- closes dialog
-
-**Integration into TradingBridge.tsx:**
-- In `PaperTradingPanel`, the submit button opens the confirmation dialog instead of executing directly
-- The dialog receives all order parameters and the `paper.submitOrder` function
-- Same pattern for `OrderForm.tsx` (live trading) -- submit opens dialog, dialog calls `submitOrder.mutateAsync`
+- Dark navy background with subtle gold/5 gradient overlay
+- Gold ornate divider between thesis and instructions sections
+- Data source badges rendered as small pill shapes with gold/20 borders
+- Metrics displayed with small gold bullet markers
+- Instructions displayed as numbered steps with gold step numbers
+- Tier badge in the corner showing which data tier (MARKET DATA, BLOCKCHAIN, etc.)
+- Smooth fade transition between tabs (150ms opacity)
 
 ---
 
 ### Technical Details
 
-**Files to create (6 new files):**
-
-| File | Purpose |
-|------|---------|
-| `src/components/ga-widgets/GAMarketHeatmap.tsx` | Multi-market tabbed heatmap |
-| `src/components/ga-widgets/GACrossAssetDashboard.tsx` | Cross-asset correlation tool |
-| `src/components/ga-widgets/GAMarketPulse.tsx` | Market pulse command center |
-| `src/components/ga-widgets/GABlockchainHub.tsx` | Multi-chain analytics hub |
-| `src/components/og-widgets/OGEnergyDashboard.tsx` | Energy executive dashboard |
-| `src/components/og-widgets/OGRiskAnalyzer.tsx` | Spread and risk analyzer |
-| `src/components/trading/OrderConfirmationDialog.tsx` | Order confirmation dialog |
-
-**Files to modify (4 files):**
-
-| File | Changes |
-|------|---------|
-| `src/pages/Intelligence.tsx` | Add composite tools tier, replace heatmap section with `GAMarketHeatmap`, add nav entries |
-| `src/pages/OilGasIntelligence.tsx` | Add composite analytics tier, add nav entries |
-| `src/pages/TradingBridge.tsx` | Wire confirmation dialog into `PaperTradingPanel` submit flow |
-| `src/components/trading/OrderForm.tsx` | Wire confirmation dialog into live order submit flow |
-
-**No new dependencies required.** All components use existing hooks, Recharts, Tailwind, Lucide, and Radix Dialog primitives already in the project.
+| Item | Detail |
+|------|--------|
+| Files to create | `src/components/ga-widgets/WidgetDocWrapper.tsx`, `src/components/ga-widgets/widgetDocContent.ts` |
+| Files to modify | `src/pages/Intelligence.tsx` (wrap each widget) |
+| Dependencies | None new -- uses React useState, existing Tailwind classes, Lucide icons |
+| Widget modifications | Zero -- all widgets remain completely untouched |
+| Performance | Thesis content is static text, no API calls. Tab state is local per wrapper instance. Hidden tab content is not rendered (conditional rendering, not CSS hide). |
 
