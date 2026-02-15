@@ -1,88 +1,75 @@
 
 
-## Palette Editor Fixes and Enhancements
+## Palette Background Presets, Shuffle Integration, Swipe-Down Close, and Tutorial Fix
 
-### Issues Identified
+### Part 1: Background Presets in UI and Shuffle
 
-1. **Mobile bottom sheet uses `animate-slide-in-up`** which does not exist in the Tailwind config keyframes -- the animation class is undefined, causing potential rendering issues
-2. **Font preview not rendering** -- fonts are set via inline `style` but Google Fonts are not pre-loaded for the dropdown list, so the `Aa` previews all render in the fallback system font
-3. **Shuffle does not randomize ALL properties** -- missing: `bgMode`, `bgGradientDir`, `bgOpacity`, `titleSize`, `bodySize`, `letterSpacing`, `lineHeight`, `textOpacity`, `borderOpacity`, `padding`, `ornateCorners`, `saturationBoost`, `contrastBoost`, `backdropBlur`, `animationSpeed`, `gap`
-4. **No global "Apply to All" button** -- the Universal toggle exists but there is no explicit "Apply this theme to all widgets now" action button for the pre-built themes
-5. **Font list does not preload** -- all 80 fonts rely on dynamic loading triggered only on selection; the dropdown shows `Aa` in system font for every entry
-6. **Missing `animate-fade-in` keyframe** -- used in section content but not defined in Tailwind config
-7. **The glassmorphism/transparency style** the user likes needs to be applied more broadly across the app UI
+The 12 `BG_PRESETS` (Deep Space, Aurora Gradient, etc.) were added to the code but never wired into the UI or shuffle logic.
+
+**Changes to `src/components/ga-widgets/PaletteEditor.tsx`:**
+
+**A. Background Presets Grid in the BACKGROUND section (after the existing controls):**
+- Render a "BACKGROUND THEMES" label followed by a scrollable grid of preset cards
+- Each card shows a small color swatch (solid or gradient preview) plus the preset name
+- Clicking a card applies its `bgMode`, `bgGradientDir`, `bgOpacity`, `backdropBlur`, `bgHue`, `bgSat`, `bgLit` values to the state
+- Active preset gets a gold border highlight
+
+**B. Shuffle includes a random BG_PRESET:**
+- In the `randomize()` function, after generating mood colors, also pick a random `BG_PRESETS` entry
+- Override the background properties (`bgMode`, `bgGradientDir`, `bgOpacity`, `backdropBlur`) from the selected preset
+- Keep the mood-generated `bgHue/bgSat/bgLit` or blend with the preset values (50/50 chance of using mood bg vs preset bg for variety)
 
 ---
 
-### Changes
+### Part 2: Swipe-Down-to-Close for Mobile Palette
 
-#### File 1: `tailwind.config.ts`
-- Add `slide-in-up` keyframe and animation for the mobile bottom sheet
-- Add `fade-in` keyframe and animation for section expand
+Add touch gesture handling to the mobile bottom sheet so swiping down on the drag handle closes it.
 
-#### File 2: `src/components/ga-widgets/PaletteEditor.tsx` (Major Update)
+**Changes to `src/components/ga-widgets/PaletteEditor.tsx`:**
 
-**Font Preview Fix:**
-- Preload fonts in batches when the TYPOGRAPHY section opens (not all 80 at once -- load the first visible category, then lazy-load others on scroll)
-- On section open, call `loadFont()` for the currently visible category batch so the `Aa` preview renders in the actual typeface
-- Add a loading indicator per font until Google Fonts delivers it
+- Track `touchStartY` on the drag handle bar (the `w-10 h-1 rounded-full bg-gold/30` element and the header area)
+- On `touchEnd`, if vertical delta > 60px downward, call `setMobileOpen(false)`
+- Add a visual feedback: translate the sheet down slightly during the drag gesture for a natural feel
 
-**Shuffle Fix -- Randomize ALL Properties:**
-- Expand the `randomize()` function to include every property in PaletteState:
-  - `bgMode`: randomly 'solid' or 'gradient'
-  - `bgGradientDir`: random from `dirOptions`
-  - `bgOpacity`: 70-100 range
-  - `titleSize`: 12-24 range
-  - `bodySize`: 10-16 range
-  - `letterSpacing`: 0-0.15 range
-  - `lineHeight`: 1.2-1.8 range
-  - `textOpacity`: 60-100 range
-  - `borderOpacity`: 10-60 range
-  - `padding`: 2-10 range
-  - `ornateCorners`: random boolean
-  - `saturationBoost`: 80-130 range
-  - `contrastBoost`: 85-120 range
-  - `backdropBlur`: 0-8 range
-  - `animationSpeed`: 0.5-2 range
-  - `gap`: 0.5-2 range
+---
 
-**Global Preset Themes:**
-- Add an "APPLY GLOBALLY" button next to each theme card that sets the theme on `:root` (same as universal mode) and persists it
-- Add a top-level "GLOBAL PRESETS" section header above the themes grid when Universal mode is active
-- Add a prominent gold button: "APPLY TO ALL WIDGETS" that explicitly sets the current palette state onto `:root`
+### Part 3: Tutorial Approach Change
 
-**More Pre-Built Themes (expand from 8 to 12):**
-- Add: **Copper Forge** (warm copper tones, Bitter font), **Obsidian** (pure dark with white accents, Outfit font), **Emerald Trading** (emerald green + dark, Manrope font), **Champagne** (soft gold + cream, Cormorant Garamond font)
+The current tutorial system uses hardcoded percentage-based `x`/`y` coordinates that attempt to guess where widget elements are. Since widget content is dynamic (API data, responsive layout), these coordinates often miss. 
 
-**Glassmorphism UI Enhancement:**
-- Apply `backdrop-blur-md bg-navy-dark/90` styling to the control panel consistently
-- Add subtle `bg-white/5` frosted overlays to section headers
-- Ensure all borders use soft opacity (`border-gold/10` to `border-gold/15`)
+**New approach -- Replace spotlight with a sequential card-based tutorial:**
 
-#### File 3: `src/index.css`
-- Add a new `.glass-panel` utility class: `backdrop-blur-md bg-navy-dark/90 border border-gold/10 rounded-lg`
-- Add `.glass-card` utility: `backdrop-blur-sm bg-navy/80 border border-gold/8`
-- These will be available app-wide for the frosted transparency aesthetic
+Instead of trying to aim a spotlight at an element inside a live widget (which requires DOM measurement or perfect coordinate guesses), switch to a **numbered annotation card list** overlaid on the widget. This approach:
 
-#### File 4: `src/components/ga-widgets/WidgetShell.tsx`
-- Apply the glass transparency style to the widget shell background -- change from opaque `bg-gradient-to-br from-navy via-navy to-navy-light` to a softer `bg-navy/85 backdrop-blur-sm` variant
-- Keep the ornate corners and gold border behavior
+- Removes the SVG spotlight mask entirely
+- Shows a numbered step card (1, 2, 3...) anchored to the TOP of the widget area, not positioned over specific coordinates
+- Each card displays the label and description from the hotspot data
+- Auto-advances with the same timer, or user clicks next/prev
+- The widget beneath remains fully visible (dimmed slightly) -- no spotlight aiming needed
+- This eliminates the "random area highlighting" problem entirely since nothing tries to point at specific pixel positions
+
+**Changes to `src/components/ga-widgets/TutorialOverlay.tsx`:**
+
+- Remove the SVG mask, spotlight rect, gold glow div, and inactive badges
+- Replace with a floating annotation card that sits at the bottom of the widget container
+- Keep the existing navigation controls (play/pause, prev/next, dots)
+- Keep keyboard and swipe navigation
+- Add a semi-transparent overlay (no cutout) so the widget is visible but the tutorial card has contrast
+- The card shows the step number, label, and description in the same gold/navy styling
 
 ---
 
 ### Technical Details
 
-**Font batch preloading strategy:**
-When the TYPOGRAPHY section opens, immediately call `loadFont()` for the first 15 fonts (Serif category). As the user scrolls through the font list, use an IntersectionObserver on each category header to trigger loading that category's fonts. This keeps the initial load reasonable (~15 requests) while ensuring fonts are visually accurate by the time the user sees them.
+**Background preset card rendering:**
+Each card renders a 40x24px div with either a solid `hsl(bgHue, bgSat%, bgLit%)` fill, or a CSS `linear-gradient` in the preset's direction using the preset's HSL color. A `backdrop-blur` CSS property note is shown for presets with blur > 0.
 
-**Global apply mechanism:**
-The "APPLY TO ALL WIDGETS" button will:
-1. Enable universal mode (`setUniversal(true)`)
-2. Apply current `buildCSSVars(state)` to `document.documentElement`
-3. If a font is selected, set it on `:root` as well
-4. Save to `localStorage` under `palette-universal`
-5. Show a toast confirmation
+**Swipe gesture implementation:**
+```
+onTouchStart: record e.touches[0].clientY
+onTouchMove: calculate delta, apply translateY(delta) if delta > 0
+onTouchEnd: if delta > 60 close, else snap back to translateY(0)
+```
 
-**Shuffle coherence:**
-The shuffle will pick one of 6 "mood" profiles (warm, cool, dark, light, vivid, muted) to keep the random result aesthetically coherent rather than fully chaotic. Each mood constrains the hue/sat/lit ranges for accent, bg, and text to complementary zones.
-
+**Tutorial card-based approach:**
+The annotation card uses `position: absolute; bottom: 0; left: 0; right: 0` inside the container, with the same `bg-navy-dark/95 border border-gold/30 backdrop-blur-sm` styling. The widget gets a simple `opacity: 0.6` overlay instead of the complex SVG mask. This is simpler, more reliable, and works regardless of widget content or layout.
