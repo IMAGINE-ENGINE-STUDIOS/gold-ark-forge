@@ -1,117 +1,123 @@
 
 
-## Palette Tab + Tutorial Mobile Fix
+## Enhanced Palette Editor: Deep CSS Variable Override + 80 Fonts + Save/Export
 
-Two changes: (1) a new **PALETTE** customization tab for all widgets, and (2) mobile-responsive fixes for the Tutorial overlay.
+### Core Problem
 
----
+The current PaletteEditor sets CSS custom properties like `--palette-accent` and `--palette-secondary`, but no widget reads those variables. All widgets use Tailwind classes (`text-gold`, `bg-navy`, `border-gold/30`) which resolve to `hsl(var(--gold))`, `hsl(var(--navy))`, etc. The palette wrapper styles only affect the outer container div, not the widget internals.
 
-### Part 1: PALETTE Tab -- Widget Appearance Customizer
+### Solution: Override the actual CSS variables
 
-A fourth tab added to `WidgetDocWrapper` that renders the live widget alongside a floating control panel. Users can tweak visual properties in real-time using sliders, color pickers, and buttons. Changes are scoped per-widget and stored in React state (session-only, resets on reload).
-
-#### Customizable Properties
-
-| Category | Controls |
-|----------|----------|
-| **Colors** | Primary accent color (solid picker + 8 preset swatches), secondary color, background solid or gradient (6 preset gradients + direction picker) |
-| **Text** | Font family toggle (Cinzel / Source Sans / mono), title size slider (12-24px), body size slider (10-16px), text opacity slider (30-100%) |
-| **Shape** | Border radius slider (0-16px), border width slider (0-3px), border opacity slider (0-100%), padding slider (4-12 units) |
-| **Background** | Solid color vs gradient toggle, gradient direction (8 compass directions), opacity slider, blur toggle |
-| **Effects** | Ornate corners on/off, gold glow intensity slider (0-100%), shadow depth (none/sm/md/lg) |
-| **Randomizer** | "Shuffle" button that randomizes all properties within tasteful ranges, "Reset" button to restore defaults |
-
-#### Architecture
-
-```text
-WidgetDocWrapper
-  |-- tab = 'palette'
-  |-- <PaletteEditor widgetId={id}>
-  |     |-- Renders {children} (live widget) wrapped in a <div> with inline style overrides
-  |     |-- Floating control panel (right sidebar or bottom drawer on mobile)
-  |     |     |-- Collapsible sections: Colors, Text, Shape, Background, Effects
-  |     |     |-- Each section has sliders, color swatches, toggle buttons
-  |     |     |-- Randomize + Reset buttons at bottom
-  |     |-- CSS custom properties applied via style={{ }} on the wrapper div
-  |     |-- Widget re-renders live as sliders move
-  |-- </PaletteEditor>
-```
-
-The control panel uses CSS custom properties injected on the wrapper `<div>`, which cascade into the widget's existing Tailwind classes via overrides. For properties that can't be overridden via CSS variables (like border-radius on inner elements), the wrapper applies a container-level style.
-
-#### Control Panel UI
-
-- Navy-dark panel with gold/10 border, matching the Thesis panel aesthetic
-- Collapsible accordion sections (one open at a time)
-- Sliders: thin gold track with gold circle thumb
-- Color swatches: 24px circles with gold ring on selected
-- Gradient presets: small rectangular previews showing the gradient
-- Font toggles: small text-based radio buttons showing "Aa" in each font
-- Randomize button: dice icon with gold shimmer animation on click
-- Reset button: refresh icon, marble/40 color
-
-#### Mobile Layout
-
-On screens < 768px, the control panel renders as a bottom sheet (collapsible drawer) instead of a side panel, with horizontal scroll for color swatches and compact slider rows.
+Instead of inventing new CSS variables, the palette wrapper will **override the real design-system variables** (`--gold`, `--navy`, `--navy-dark`, `--marble`, etc.) on the wrapper `<div>`. Since Tailwind resolves these at runtime via `hsl(var(--gold))`, overriding them on a parent element cascades into every child widget automatically. No widget code changes needed.
 
 ---
 
-### Part 2: Tutorial Mobile Fix
+### Changes Overview
 
-Fix tooltip cards overflowing on small viewports and improve spotlight positioning.
-
-#### Changes to `TutorialOverlay.tsx`
-
-1. **Tooltip max-width**: Reduce from 280px to `min(280px, calc(100vw - 32px))` so it never exceeds viewport minus padding
-2. **Tooltip positioning clamp**: After computing tooltip position, clamp `left` to `[8px, containerWidth - tooltipWidth - 8px]` so it stays within bounds
-3. **Spotlight dimensions on mobile**: Apply `min(spotlightW, 60)` and `min(spotlightH, 40)` so spotlights don't cover the entire small screen
-4. **Navigation bar**: On mobile (`< 640px`), compact the dot indicators to show only 3 dots around the active step (with ellipsis) instead of all dots, preventing horizontal overflow
-5. **Touch support**: Add touch-swipe left/right to advance/go-back steps (using `touchstart`/`touchend` delta)
-
----
-
-### Files to Create (1 file)
-
-| File | Purpose |
-|------|---------|
-| `src/components/ga-widgets/PaletteEditor.tsx` | Full palette customization component with control panel, CSS variable injection, and randomizer logic |
-
-### Files to Modify (2 files)
-
-| File | Change |
+| File | Action |
 |------|--------|
-| `src/components/ga-widgets/WidgetDocWrapper.tsx` | Add fourth "PALETTE" tab with `Palette` icon, import and render `PaletteEditor`, add tab state value `'palette'` |
-| `src/components/ga-widgets/TutorialOverlay.tsx` | Mobile tooltip clamping, responsive spotlight sizing, compact dot navigation, touch-swipe support |
-
-### No widget code modified. No data model changes needed (palette is purely visual, no new content entries).
+| `src/components/ga-widgets/PaletteEditor.tsx` | Complete rewrite with CSS variable overrides, 80 Google Fonts, save/export, new sections, overlay layout |
+| `src/components/ga-widgets/WidgetDocWrapper.tsx` | Minor: add sticky positioning for palette to keep controls in view |
 
 ---
 
-### Technical Details: PaletteEditor State Shape
+### Part 1: CSS Variable Override Strategy
+
+The wrapper div's `style` will set:
 
 ```text
-interface PaletteState {
-  accentColor: string;        // hex, default '#C9973F' (gold)
-  secondaryColor: string;     // hex, default '#3A4A5C' (navy-light)
-  bgMode: 'solid' | 'gradient';
-  bgSolid: string;            // hex
-  bgGradientFrom: string;
-  bgGradientTo: string;
-  bgGradientDir: string;      // 'to-br', 'to-r', 'to-b', etc.
-  bgOpacity: number;          // 0-100
-  fontFamily: 'display' | 'body' | 'mono';
-  titleSize: number;          // px
-  bodySize: number;           // px
-  textOpacity: number;        // 30-100
-  borderRadius: number;       // px
-  borderWidth: number;        // px
-  borderOpacity: number;      // 0-100
-  padding: number;            // tailwind spacing units (4-12)
-  ornateCorners: boolean;
-  glowIntensity: number;      // 0-100
-  shadow: 'none' | 'sm' | 'md' | 'lg';
-}
+--gold: H S% L%          (from accent color picker)
+--gold-light: H S+4% L+12%
+--gold-dark: H-3 S-4% L-12%
+--gold-shine: H+2 85% L+22%
+--navy: H S% L%          (from background color)
+--navy-light: H S-4% L+8%
+--navy-dark: H S+3% L-6%
+--marble: H S% L%        (from text color)
 ```
 
-The `randomize()` function picks values within predefined "tasteful" ranges (e.g., accent hues between 30-50 for gold tones, or 200-220 for navy tones) to ensure randomized results still look cohesive rather than garish.
+This means every `text-gold`, `bg-navy`, `border-gold/30`, gradient, shadow, and ornate corner inside the widget will automatically respond to palette changes.
 
+### Part 2: Expanded PaletteState
+
+New properties added to the state:
+
+| Property | Control | Range |
+|----------|---------|-------|
+| `accentHue`, `accentSat`, `accentLit` | HSL sliders for accent | 0-360, 0-100, 0-100 |
+| `bgHue`, `bgSat`, `bgLit` | HSL sliders for background | 0-360, 0-100, 0-100 |
+| `textColor` | Text/marble color override | hex picker |
+| `fontFamily` | Searchable dropdown of 80 Google Fonts | string |
+| `letterSpacing` | Slider for tracking | 0-0.3em |
+| `lineHeight` | Slider | 1.0-2.0 |
+| `gap` | Internal spacing multiplier | 0.5x-2x |
+| `backdropBlur` | Blur intensity | 0-20px |
+| `saturationBoost` | Global saturation filter | 50-150% |
+| `contrastBoost` | Global contrast filter | 80-150% |
+| `animationSpeed` | CSS transition duration multiplier | 0-3x |
+
+### Part 3: 80 Font Options
+
+A curated list of 80 Google Fonts loaded dynamically (only when selected) via `@import` injected into a `<style>` tag. Categories:
+
+- **Serif** (20): Cinzel, Playfair Display, Cormorant Garamond, Merriweather, Lora, EB Garamond, Crimson Pro, Spectral, Libre Baskerville, Old Standard TT, Cardo, Sorts Mill Goudy, Vollkorn, Domine, Noto Serif, PT Serif, Bitter, Source Serif 4, Alegreya, Unna
+- **Sans-Serif** (30): Source Sans 3, Inter, Roboto, Open Sans, Lato, Poppins, Montserrat, Nunito, Raleway, Work Sans, DM Sans, Manrope, Outfit, Sora, Space Grotesk, Plus Jakarta Sans, Urbanist, Figtree, Geist Sans, Archivo, Barlow, IBM Plex Sans, Karla, Mulish, Overpass, Red Hat Display, Rubik, Lexend, Cabin, Quicksand
+- **Display** (15): Cinzel Decorative, Berkshire Swash, Poiret One, Forum, Tenor Sans, Marcellus, Josefin Sans, Italiana, Megrim, Bodoni Moda, Yeseva One, Oranienbaum, Cormorant SC, Abril Fatface, Baskervville
+- **Monospace** (15): JetBrains Mono, Fira Code, Source Code Pro, IBM Plex Mono, Space Mono, Roboto Mono, Inconsolata, Ubuntu Mono, Courier Prime, Anonymous Pro, Noto Sans Mono, Red Hat Mono, Azeret Mono, Martian Mono, Geist Mono
+
+The font selector will be a searchable scrollable list grouped by category, with a live "Aa" preview in each font.
+
+### Part 4: Save/Export Feature
+
+Three export actions in the palette header:
+
+1. **Copy CSS** -- Copies all overridden CSS variables as a `:root {}` block to clipboard
+2. **Copy JSON** -- Copies the full `PaletteState` object as JSON
+3. **Save Preset** -- Stores to `localStorage` keyed by `widgetId`, auto-loads on next visit
+
+A "Load Preset" dropdown shows saved presets with delete option.
+
+### Part 5: Overlay Layout (Controls Within Reach)
+
+The current layout places controls to the right of the widget (desktop) or below (mobile). This means you can't see changes while scrolling the control panel. The new layout:
+
+**Desktop**: The control panel becomes a **floating overlay panel** anchored to the top-right of the widget container. It uses `position: sticky; top: 16px` so it stays in view as the user scrolls. Width: 280px. Semi-transparent backdrop with blur. A collapse/expand toggle minimizes it to a small palette icon.
+
+**Mobile**: The control panel renders as a **fixed bottom sheet** (position: fixed, bottom: 0) with a drag handle. 40vh height, scrollable. The widget remains fully visible above it.
+
+### Part 6: New Control Sections
+
+Expanding from 5 to 8 collapsible sections:
+
+1. **COLORS** -- Accent HSL sliders, secondary picker, 12 preset swatches
+2. **BACKGROUND** -- Background HSL sliders, solid/gradient toggle, gradient presets + direction, opacity, backdrop blur
+3. **TYPOGRAPHY** -- Font family (80-font searchable list), title size, body size, letter spacing, line height, text opacity
+4. **SHAPE** -- Border radius, border width, border opacity, padding, ornate corners toggle
+5. **EFFECTS** -- Glow intensity, shadow depth, saturation boost, contrast boost
+6. **ANIMATION** -- Transition speed multiplier, disable animations toggle
+7. **SPACING** -- Gap multiplier, internal padding scale
+8. **PRESETS** -- Save/Load/Delete presets, Copy CSS, Copy JSON, Reset, Shuffle
+
+---
+
+### Technical Details
+
+**Font loading**: When user selects a new font, inject:
+```html
+<link href="https://fonts.googleapis.com/css2?family=Font+Name:wght@400;500;600;700&display=swap" rel="stylesheet">
+```
+into document head dynamically. Cache loaded fonts in a Set to avoid duplicate loads.
+
+**CSS variable conversion**: Convert hex/HSL input to the HSL format Tailwind expects (space-separated without `hsl()`):
+```text
+Input: #C9973F
+Output: --gold: 43 72% 50%
+```
+
+**localStorage schema**:
+```text
+palette-preset:{widgetId}:{presetName} -> JSON string of PaletteState
+palette-presets:{widgetId} -> JSON array of preset names
+```
+
+**Filter-based effects**: `saturationBoost` and `contrastBoost` apply via CSS `filter: saturate() contrast()` on the wrapper div, affecting the entire widget without touching individual elements.
