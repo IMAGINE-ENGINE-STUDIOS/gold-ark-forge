@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import ProprietaryChart from '@/components/trading/ProprietaryChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -17,6 +17,9 @@ import OrderHistory from '@/components/trading/OrderHistory';
 import BacktestPanel from '@/components/trading/BacktestPanel';
 import DepthOfMarket from '@/components/trading/DepthOfMarket';
 import RuleBuilder from '@/components/trading/RuleBuilder';
+import SchedulePanel from '@/components/trading/SchedulePanel';
+import PriceAlerts from '@/components/trading/PriceAlerts';
+import RiskLimits from '@/components/trading/RiskLimits';
 import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES } from '@/data/tradingSymbols';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
@@ -25,6 +28,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { usePriceAlerts } from '@/hooks/usePriceAlerts';
+import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -43,6 +48,8 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 const BOTTOM_TABS = [
   { key: 'positions', label: 'POSITIONS', icon: Briefcase },
   { key: 'orders', label: 'ORDERS', icon: Activity },
+  { key: 'schedule', label: 'SCHEDULE', icon: CalendarDays },
+  { key: 'alerts', label: 'ALERTS', icon: Bell },
   { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   { key: 'risk', label: 'RISK', icon: Shield },
@@ -70,6 +77,8 @@ const TradingBridge = () => {
   const { data: metalPricesData } = useMetalPrices();
   const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
+  const priceAlertsHook = usePriceAlerts();
+  const riskMonitor = useRiskMonitor();
 
   // Filter watchlist by search
   const filteredCategories = useMemo(() => {
@@ -125,6 +134,12 @@ const TradingBridge = () => {
             >
               {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
             </button>
+            {priceAlertsHook.activeCount > 0 && (
+              <button onClick={() => { setMobileTab('tools'); setBottomTab('alerts'); }} className="relative p-1 text-gold/60 hover:text-gold">
+                <Bell className="w-3.5 h-3.5" />
+                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
+              </button>
+            )}
             <ConnectWalletButton />
           </div>
         </div>
@@ -224,9 +239,11 @@ const TradingBridge = () => {
               {bottomTab === 'positions' && !activeConn && <EmptyState text="Connect a broker to view positions" />}
               {bottomTab === 'orders' && activeConn && <OrderHistory connectionId={activeConn.id} />}
               {bottomTab === 'orders' && !activeConn && <EmptyState text="Connect a broker to view orders" />}
+              {bottomTab === 'schedule' && <SchedulePanel />}
+              {bottomTab === 'alerts' && <PriceAlerts alertsHook={priceAlertsHook} />}
               {bottomTab === 'backtest' && <BacktestPanel />}
               {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
-              {bottomTab === 'risk' && <RiskPanel connectionId={activeConn?.id} />}
+              {bottomTab === 'risk' && <><RiskPanel connectionId={activeConn?.id} /><div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div></>}
               {bottomTab === 'strategies' && <StrategiesPanel />}
               {bottomTab === 'social' && <SocialPanel />}
             </div>
@@ -275,6 +292,12 @@ const TradingBridge = () => {
           <Link to="/markets" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">MARKETS</Link>
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
+          {priceAlertsHook.activeCount > 0 && (
+            <button onClick={() => setBottomTab('alerts')} className="relative p-1 text-gold/60 hover:text-gold">
+              <Bell className="w-3.5 h-3.5" />
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
+            </button>
+          )}
           <ConnectWalletButton />
         </div>
       </div>
@@ -394,9 +417,11 @@ const TradingBridge = () => {
                   {bottomTab === 'positions' && !activeConn && <EmptyState text="Connect a broker to view positions" />}
                   {bottomTab === 'orders' && activeConn && <OrderHistory connectionId={activeConn.id} />}
                   {bottomTab === 'orders' && !activeConn && <EmptyState text="Connect a broker to view orders" />}
+                  {bottomTab === 'schedule' && <SchedulePanel />}
+                  {bottomTab === 'alerts' && <PriceAlerts alertsHook={priceAlertsHook} />}
                   {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
-                  {bottomTab === 'risk' && <RiskPanel connectionId={activeConn?.id} />}
+                  {bottomTab === 'risk' && <><RiskPanel connectionId={activeConn?.id} /><div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div></>}
                   {bottomTab === 'strategies' && <StrategiesPanel />}
                   {bottomTab === 'social' && <SocialPanel />}
                 </div>

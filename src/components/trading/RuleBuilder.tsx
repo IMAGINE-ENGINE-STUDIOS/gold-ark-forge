@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 type ConditionType = 'price_above' | 'price_below' | 'rsi_above' | 'rsi_below' | 'sma_cross_up' | 'sma_cross_down';
-type ActionType = 'buy' | 'sell' | 'set_stop' | 'alert';
-type Broker = 'alpaca' | 'coinbase' | 'ibkr';
+type ActionType = 'buy' | 'sell' | 'set_stop' | 'alert' | 'schedule';
+type Broker = 'alpaca' | 'coinbase' | 'ibkr' | 'tradier' | 'webull' | 'kraken' | 'gemini' | 'oanda' | 'td_ameritrade' | 'binance' | 'bybit' | 'bitfinex' | 'etoro' | 'robinhood' | 'saxo';
 
 interface Condition {
   id: string;
@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<ActionType, string> = {
   sell: 'SELL',
   set_stop: 'Set Stop Loss',
   alert: 'Send Alert',
+  schedule: 'Schedule Order',
 };
 
 const DEFAULT_RULE: Rule = {
@@ -200,6 +201,18 @@ const RuleBuilder = () => {
                     <option value="alpaca">Alpaca</option>
                     <option value="coinbase">Coinbase</option>
                     <option value="ibkr">IBKR</option>
+                    <option value="tradier">Tradier</option>
+                    <option value="webull">Webull</option>
+                    <option value="kraken">Kraken</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="oanda">OANDA</option>
+                    <option value="td_ameritrade">TD Ameritrade</option>
+                    <option value="binance">Binance</option>
+                    <option value="bybit">Bybit</option>
+                    <option value="bitfinex">Bitfinex</option>
+                    <option value="etoro">eToro</option>
+                    <option value="robinhood">Robinhood</option>
+                    <option value="saxo">Saxo Bank</option>
                   </select>
                   <button onClick={() => removeAction(action.id)} className="text-red-400/40 hover:text-red-400">
                     <Trash2 className="w-3 h-3" />
