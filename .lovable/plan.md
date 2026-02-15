@@ -1,47 +1,70 @@
 
 
-## Live WTI-Brent Spread Tracker
+## Phase 2: Multi-Broker Trading Expansion
 
 ### Overview
-Add a dedicated widget that fetches 30 days of historical WTI and Brent spot prices from the EIA API, computes the daily spread (WTI minus Brent), and displays it as an interactive area chart with real-time updates.
+Expand the trading infrastructure beyond Alpaca to support **Coinbase** (crypto) and **Interactive Brokers** (commodities/futures), while adding a broker selector UI, multi-connection management, and a dedicated Trading page with a richer layout.
 
-### What You'll See
-- A new "WTI-BRENT SPREAD" widget placed between Futures Curve and Crack Spreads on the Oil and Gas page
-- An area chart showing 30 days of daily spread values (typically negative, since Brent trades at a premium)
-- Summary stats: current spread, 30-day high/low, average, and trend direction
-- Auto-refreshes every 30 seconds alongside existing price data
-- A nav button in the section bar to jump to it
+### What Changes
+
+**1. Broker Selector in Connect Dialog**
+- Redesign `BrokerConnectDialog` to include a broker picker step (Alpaca, Coinbase, Interactive Brokers)
+- Each broker shows its supported asset classes (Stocks/Crypto, Crypto-only, Commodities/Futures)
+- API key fields adapt per broker (Coinbase uses API Key + Secret + Passphrase; IBKR uses Client ID + Client Secret)
+- Environment toggle remains for Alpaca (paper/live); Coinbase has sandbox/production; IBKR has paper/live
+
+**2. Multi-Connection Support in TradingPanel**
+- Add a broker/connection dropdown at the top of `TradingPanel` when multiple connections exist
+- Users can switch between connected brokers without disconnecting
+- Account summary adapts to show broker-specific fields (e.g., Coinbase shows available balances per coin)
+
+**3. Expand Edge Function (`broker-proxy`)**
+- Add Coinbase Pro API support: account, place order, list orders, cancel order, positions
+  - Coinbase auth uses HMAC-SHA256 signed requests (timestamp + method + path + body)
+- Add Interactive Brokers Client Portal API support: account, orders, positions
+  - IBKR uses session-based auth with Client Portal Gateway
+- Route requests based on the `broker` field from the connection record
+- Each broker handler follows the same action pattern: account, positions, order, orders, cancel
+
+**4. Update Database**
+- Alter `broker_connections` to add an optional `api_passphrase` column (needed for Coinbase)
+- No other schema changes needed -- existing `broker` and `environment` columns already support multi-broker
+
+**5. Update Hook Layer (`useBrokerTrading`)**
+- `useAddBrokerConnection` accepts broker-specific fields (passphrase for Coinbase)
+- All query/mutation hooks remain broker-agnostic since the edge function handles routing
+
+**6. Enhanced Markets Page**
+- Add more asset tabs: Ethereum, Oil (WTI), S&P 500
+- Symbol mapping per broker so the correct ticker is sent (e.g., "BTC-USD" for Coinbase vs "BTC/USD" for Alpaca)
+- Show which broker will execute the trade based on the selected asset
+
+**7. Portfolio Overview Widget**
+- New `PortfolioSummary` component showing aggregated holdings across all connected brokers
+- Pie chart breakdown by asset class
+- Total portfolio value with combined P&L
 
 ### Technical Details
 
-**1. Update Edge Function** (`supabase/functions/fetch-commodity-prices/index.ts`)
-- Add a new route/parameter `?history=30` that fetches the last 30 daily data points for both WTI (`EPCWTI`) and Brent (`EPCBRENT`) from EIA's `petroleum/pri/spt/data` endpoint using `length=35` (buffer for weekends/holidays)
-- Return an array of `{ date, wti, brent, spread }` objects
-- Keep the existing default behavior unchanged for the ticker/price cards
+| File | Action | Details |
+|------|--------|---------|
+| `supabase/migrations/...` | Create | Add `api_passphrase` column to `broker_connections` |
+| `supabase/functions/broker-proxy/index.ts` | Edit | Add Coinbase HMAC auth + IBKR session auth handlers |
+| `src/hooks/useBrokerTrading.ts` | Edit | Support passphrase param, keep hooks broker-agnostic |
+| `src/components/trading/BrokerConnectDialog.tsx` | Edit | Multi-step: pick broker then enter credentials |
+| `src/components/trading/TradingPanel.tsx` | Edit | Connection selector dropdown, broker-aware account display |
+| `src/components/trading/OrderForm.tsx` | Edit | Broker-specific symbol format hints |
+| `src/components/trading/PortfolioSummary.tsx` | Create | Aggregated cross-broker portfolio view |
+| `src/pages/Markets.tsx` | Edit | More asset tabs, broker-asset mapping |
 
-**2. Add Hook** (`src/hooks/useOilGasData.ts`)
-- Add a new `useWtiBrentSpreadHistory` hook that calls the edge function with `?history=30`
-- 30-second refetch interval matching existing price polling
-- Fallback: generate 30 days of synthetic spread data from the existing fallback WTI/Brent prices if the live call fails
+### Implementation Order
+1. Database migration (add `api_passphrase`)
+2. Edge function expansion (Coinbase + IBKR handlers)
+3. Hook updates (passphrase support)
+4. BrokerConnectDialog redesign (broker picker)
+5. TradingPanel multi-connection selector
+6. Markets page expanded tabs
+7. PortfolioSummary widget
 
-**3. Create Widget** (`src/components/og-widgets/OGWtiBrentSpread.tsx`)
-- Uses `WidgetShell` with `ArrowLeftRight` icon and "LIVE" badge
-- Stats row: Current Spread, 30D High, 30D Low, 30D Avg (all with `AnimatedNumber`)
-- Interactive area chart (Recharts `AreaChart`) with gradient fill, color-coded: blue when spread is near average, red when widening significantly
-- Tooltip showing date, WTI price, Brent price, and computed spread
-- Range selector: 7D / 14D / 30D to zoom the chart
-- Hover crosshair with snap-to-nearest data point
-
-**4. Integrate into Page** (`src/pages/OilGasIntelligence.tsx`)
-- Import `OGWtiBrentSpread`
-- Add `{ id: 'wti-brent', label: 'WTI-BRENT', icon: GitCompareArrows }` to the sections nav array
-- Place the widget between Futures Curve and Spreads sections with a `SectionDivider` labeled "WTI-BRENT SPREAD TRACKER"
-
-### File Changes
-| File | Action |
-|------|--------|
-| `supabase/functions/fetch-commodity-prices/index.ts` | Edit -- add historical spread endpoint |
-| `src/hooks/useOilGasData.ts` | Edit -- add `useWtiBrentSpreadHistory` hook |
-| `src/components/og-widgets/OGWtiBrentSpread.tsx` | Create -- new spread tracker widget |
-| `src/pages/OilGasIntelligence.tsx` | Edit -- import and place widget + nav entry |
-
+### Compliance Note
+All three brokers are licensed entities. Gold Arrow continues to act purely as a UI relay layer -- no funds, securities, or crypto are custodied. Order instructions flow from the user's browser through the proxy to the broker's API, and the user's own broker account holds all assets.
