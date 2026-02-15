@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useWallet } from '@/contexts/WalletContext';
 
 // ─── Types ───────────────────────────────────────────────
+
+export type BrokerType = 'alpaca' | 'coinbase' | 'ibkr';
 
 export interface BrokerConnection {
   id: string;
@@ -14,21 +14,22 @@ export interface BrokerConnection {
   created_at: string;
 }
 
-export interface AlpacaAccount {
+export interface BrokerAccount {
   id: string;
-  account_number: string;
+  account_number?: string;
   status: string;
   buying_power: string;
   cash: string;
   portfolio_value: string;
   equity: string;
   currency: string;
-  pattern_day_trader: boolean;
-  trading_blocked: boolean;
+  pattern_day_trader?: boolean;
+  trading_blocked?: boolean;
+  balances?: Array<{ currency: string; available: string; balance: string }>;
 }
 
 export interface Position {
-  asset_id: string;
+  asset_id?: string;
   symbol: string;
   qty: string;
   avg_entry_price: string;
@@ -39,7 +40,7 @@ export interface Position {
   side: string;
 }
 
-export interface AlpacaOrder {
+export interface BrokerOrder {
   id: string;
   symbol: string;
   qty: string;
@@ -52,6 +53,47 @@ export interface AlpacaOrder {
   filled_avg_price: string | null;
   limit_price: string | null;
 }
+
+// Keep backward compat alias
+export type AlpacaAccount = BrokerAccount;
+export type AlpacaOrder = BrokerOrder;
+
+// ─── Broker metadata ────────────────────────────────────
+
+export const BROKER_META: Record<BrokerType, {
+  label: string;
+  assets: string;
+  environments: { value: string; label: string }[];
+  fields: string[];
+}> = {
+  alpaca: {
+    label: 'Alpaca',
+    assets: 'Stocks · ETFs · Crypto',
+    environments: [
+      { value: 'paper', label: 'Paper' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  coinbase: {
+    label: 'Coinbase',
+    assets: 'Crypto',
+    environments: [
+      { value: 'sandbox', label: 'Sandbox' },
+      { value: 'production', label: 'Production' },
+    ],
+    fields: ['apiKey', 'apiSecret', 'apiPassphrase'],
+  },
+  ibkr: {
+    label: 'Interactive Brokers',
+    assets: 'Commodities · Futures · Stocks',
+    environments: [
+      { value: 'paper', label: 'Paper' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+};
 
 // ─── Broker Connection CRUD ──────────────────────────────
 
@@ -79,22 +121,28 @@ export function useAddBrokerConnection() {
       environment: string;
       apiKey: string;
       apiSecret: string;
+      apiPassphrase?: string;
       label?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      const row: Record<string, unknown> = {
+        user_id: user.id,
+        broker: params.broker,
+        environment: params.environment,
+        api_key: params.apiKey,
+        api_secret: params.apiSecret,
+        label: params.label || `${params.broker} ${params.environment}`,
+        is_active: true,
+      };
+      if (params.apiPassphrase) {
+        row.api_passphrase = params.apiPassphrase;
+      }
+
       const { data, error } = await supabase
         .from('broker_connections')
-        .upsert({
-          user_id: user.id,
-          broker: params.broker,
-          environment: params.environment,
-          api_key: params.apiKey,
-          api_secret: params.apiSecret,
-          label: params.label || `${params.broker} ${params.environment}`,
-          is_active: true,
-        }, { onConflict: 'user_id,broker,environment' })
+        .upsert(row as any, { onConflict: 'user_id,broker,environment' })
         .select()
         .single();
 
@@ -132,10 +180,10 @@ async function brokerCall(action: string, params: Record<string, unknown> = {}) 
 
 export function useAlpacaAccount(connectionId?: string) {
   return useQuery({
-    queryKey: ['alpaca-account', connectionId],
+    queryKey: ['broker-account', connectionId],
     queryFn: async () => {
       const res = await brokerCall('account', { connectionId });
-      return res.account as AlpacaAccount;
+      return res.account as BrokerAccount;
     },
     enabled: !!connectionId,
     refetchInterval: 30_000,
@@ -144,7 +192,7 @@ export function useAlpacaAccount(connectionId?: string) {
 
 export function usePositions(connectionId?: string) {
   return useQuery({
-    queryKey: ['alpaca-positions', connectionId],
+    queryKey: ['broker-positions', connectionId],
     queryFn: async () => {
       const res = await brokerCall('positions', { connectionId });
       return (res.positions || []) as Position[];
@@ -156,10 +204,10 @@ export function usePositions(connectionId?: string) {
 
 export function useOrders(connectionId?: string) {
   return useQuery({
-    queryKey: ['alpaca-orders', connectionId],
+    queryKey: ['broker-orders', connectionId],
     queryFn: async () => {
       const res = await brokerCall('orders', { connectionId });
-      return (res.orders || []) as AlpacaOrder[];
+      return (res.orders || []) as BrokerOrder[];
     },
     enabled: !!connectionId,
     refetchInterval: 10_000,
@@ -183,9 +231,9 @@ export function useSubmitOrder() {
       return res.order;
     },
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['alpaca-orders', vars.connectionId] });
-      qc.invalidateQueries({ queryKey: ['alpaca-positions', vars.connectionId] });
-      qc.invalidateQueries({ queryKey: ['alpaca-account', vars.connectionId] });
+      qc.invalidateQueries({ queryKey: ['broker-orders', vars.connectionId] });
+      qc.invalidateQueries({ queryKey: ['broker-positions', vars.connectionId] });
+      qc.invalidateQueries({ queryKey: ['broker-account', vars.connectionId] });
     },
   });
 }
@@ -197,7 +245,7 @@ export function useCancelOrder() {
       await brokerCall('cancel', params);
     },
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['alpaca-orders', vars.connectionId] });
+      qc.invalidateQueries({ queryKey: ['broker-orders', vars.connectionId] });
     },
   });
 }

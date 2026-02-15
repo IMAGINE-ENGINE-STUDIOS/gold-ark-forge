@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link2, Link2Off, DollarSign, Wallet, Loader2 } from 'lucide-react';
+import { Link2, Link2Off, DollarSign, Wallet, Loader2, ChevronDown } from 'lucide-react';
 import WidgetShell from '@/components/ga-widgets/WidgetShell';
-import { useBrokerConnections, useAlpacaAccount, useDeleteBrokerConnection } from '@/hooks/useBrokerTrading';
+import { useBrokerConnections, useAlpacaAccount, useDeleteBrokerConnection, BROKER_META, BrokerType } from '@/hooks/useBrokerTrading';
 import BrokerConnectDialog from '@/components/trading/BrokerConnectDialog';
 import OrderForm from '@/components/trading/OrderForm';
 import PositionsPanel from '@/components/trading/PositionsPanel';
@@ -17,16 +17,22 @@ interface Props {
 const TradingPanel = ({ activeSymbol }: Props) => {
   const [connectOpen, setConnectOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'order' | 'positions' | 'history'>('order');
+  const [selectedConnIdx, setSelectedConnIdx] = useState(0);
+  const [showConnDropdown, setShowConnDropdown] = useState(false);
   const { isAuthenticated } = useWallet();
   const { data: connections, isLoading: loadingConns } = useBrokerConnections();
-  const activeConn = connections?.[0];
+  const activeConn = connections?.[selectedConnIdx] || connections?.[0];
   const { data: account, isLoading: loadingAcct } = useAlpacaAccount(activeConn?.id);
   const deleteConn = useDeleteBrokerConnection();
   const { toast } = useToast();
 
+  const brokerLabel = activeConn
+    ? BROKER_META[activeConn.broker as BrokerType]?.label || activeConn.broker
+    : '';
+
   if (!isAuthenticated) {
     return (
-      <WidgetShell icon={Wallet} title="TRADING" badge="ALPACA">
+      <WidgetShell icon={Wallet} title="TRADING" badge="MULTI-BROKER">
         <div className="text-center py-8">
           <Wallet className="w-10 h-10 text-gold/30 mx-auto mb-3" />
           <p className="text-marble/50 text-sm mb-1">Connect your wallet to start trading</p>
@@ -38,7 +44,7 @@ const TradingPanel = ({ activeSymbol }: Props) => {
 
   if (loadingConns) {
     return (
-      <WidgetShell icon={Wallet} title="TRADING" badge="ALPACA">
+      <WidgetShell icon={Wallet} title="TRADING" badge="MULTI-BROKER">
         <div className="flex items-center justify-center py-8 text-marble/40">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
           <span className="text-xs font-display tracking-wider">LOADING...</span>
@@ -47,21 +53,20 @@ const TradingPanel = ({ activeSymbol }: Props) => {
     );
   }
 
-  // No connection yet
   if (!activeConn) {
     return (
-      <WidgetShell icon={Link2} title="CONNECT BROKER" badge="PHASE 1">
+      <WidgetShell icon={Link2} title="CONNECT BROKER" badge="PHASE 2">
         <div className="text-center py-6">
           <Link2 className="w-10 h-10 text-gold/30 mx-auto mb-3" />
-          <p className="text-marble/60 text-sm mb-2">Connect your Alpaca account to trade</p>
+          <p className="text-marble/60 text-sm mb-2">Connect a broker to trade</p>
           <p className="text-marble/30 text-[10px] mb-4">
-            Stocks & crypto via Alpaca — Gold Arrow never touches your funds.
+            Alpaca · Coinbase · Interactive Brokers — Gold Arrow never touches your funds.
           </p>
           <Button
             onClick={() => setConnectOpen(true)}
             className="bg-gold text-navy font-display tracking-wider hover:bg-gold-light"
           >
-            CONNECT ALPACA
+            CONNECT BROKER
           </Button>
         </div>
         <BrokerConnectDialog open={connectOpen} onOpenChange={setConnectOpen} />
@@ -69,21 +74,60 @@ const TradingPanel = ({ activeSymbol }: Props) => {
     );
   }
 
-  // Connected — show trading interface
+  const envBadge = activeConn.environment === 'live' || activeConn.environment === 'production' ? 'LIVE' : 'PAPER';
+
   return (
-    <WidgetShell icon={DollarSign} title="TRADING" badge={activeConn.environment === 'paper' ? 'PAPER' : 'LIVE'}>
-      {/* Account summary */}
+    <WidgetShell icon={DollarSign} title="TRADING" badge={envBadge}>
+      {/* Connection selector + disconnect */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-gold/10">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${activeConn.environment === 'live' ? 'bg-red-500' : 'bg-emerald-500'} animate-pulse`} />
-          <span className="text-marble/60 text-xs font-display tracking-wider">
-            {activeConn.label || `ALPACA ${activeConn.environment.toUpperCase()}`}
-          </span>
+        <div className="relative flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${envBadge === 'LIVE' ? 'bg-red-500' : 'bg-emerald-500'} animate-pulse`} />
+          {connections && connections.length > 1 ? (
+            <button
+              onClick={() => setShowConnDropdown(!showConnDropdown)}
+              className="text-marble/60 text-xs font-display tracking-wider flex items-center gap-1 hover:text-gold transition-colors"
+            >
+              {activeConn.label || `${brokerLabel} ${activeConn.environment.toUpperCase()}`}
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          ) : (
+            <span className="text-marble/60 text-xs font-display tracking-wider">
+              {activeConn.label || `${brokerLabel} ${activeConn.environment.toUpperCase()}`}
+            </span>
+          )}
+
+          {showConnDropdown && connections && connections.length > 1 && (
+            <div className="absolute top-full left-0 mt-1 bg-navy-light border border-gold/20 rounded-lg shadow-lg z-50 min-w-[200px]">
+              {connections.map((conn, idx) => {
+                const bl = BROKER_META[conn.broker as BrokerType]?.label || conn.broker;
+                return (
+                  <button
+                    key={conn.id}
+                    onClick={() => { setSelectedConnIdx(idx); setShowConnDropdown(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs font-display tracking-wider transition-colors ${
+                      idx === selectedConnIdx ? 'text-gold bg-gold/10' : 'text-marble/50 hover:text-marble hover:bg-navy-light/80'
+                    }`}
+                  >
+                    {conn.label || `${bl} ${conn.environment.toUpperCase()}`}
+                  </button>
+                );
+              })}
+              <div className="border-t border-gold/10">
+                <button
+                  onClick={() => { setConnectOpen(true); setShowConnDropdown(false); }}
+                  className="w-full text-left px-3 py-2 text-xs font-display tracking-wider text-gold/60 hover:text-gold transition-colors"
+                >
+                  + ADD BROKER
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <button
           onClick={async () => {
             await deleteConn.mutateAsync(activeConn.id);
             toast({ title: 'Broker Disconnected' });
+            setSelectedConnIdx(0);
           }}
           className="text-marble/25 hover:text-red-400 transition-colors"
           title="Disconnect"
@@ -126,7 +170,7 @@ const TradingPanel = ({ activeSymbol }: Props) => {
         ))}
       </div>
 
-      {activeTab === 'order' && <OrderForm connectionId={activeConn.id} defaultSymbol={activeSymbol} />}
+      {activeTab === 'order' && <OrderForm connectionId={activeConn.id} defaultSymbol={activeSymbol} broker={activeConn.broker as BrokerType} />}
       {activeTab === 'positions' && <PositionsPanel connectionId={activeConn.id} />}
       {activeTab === 'history' && <OrderHistory connectionId={activeConn.id} />}
 
