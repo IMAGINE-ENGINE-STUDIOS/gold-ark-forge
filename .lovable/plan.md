@@ -1,83 +1,98 @@
 
 
-## Trading Bridge Enhancement Plan
+## Trading Bridge Premium UX Overhaul
 
-### Problem Summary
-Three issues need fixing:
-1. **Candlestick/OHLC modes lack the price path line** - switching away from Area mode loses the visible price trajectory
-2. **Symbol logos are fake** (emojis and colored letter badges) - need real logos from internet CDNs
-3. **11 new MT5 indicators have compute functions but are never rendered** - they're missing from both `enrichChartData` and `getIndicatorLines`
+### Problem Analysis
+
+From the screenshot and code review, there are several critical issues:
+
+1. **Chart loads at $0**: The Y-axis shows $0-$2,400 with price data crammed at the top. This happens because `generateChartData` receives `basePrice=0` before API data loads, producing a flat line at zero. The live candle engine then inherits these zero-value candles.
+
+2. **Order form lacks total cost**: The paper trading panel only shows "Qty" and price, but doesn't calculate or display the total order value, margin impact, or position sizing assistance.
+
+3. **Overall UX is too basic** compared to professional platforms like TradingView, MetaTrader, Thinkorswim, or cTrader.
 
 ---
 
-### 1. Add Price Line to Candlestick and OHLC Modes
+### Fix 1: Eliminate $0 Chart on Load
 
 **File:** `src/components/trading/ProprietaryChart.tsx`
 
-In candlestick and OHLC modes, add a thin semi-transparent `Line` component for the close price alongside the candle/bar SVG layer. This gives users the continuous price path that the area chart provides, overlaid on the candle bodies.
-
-- Add a `<Line dataKey="value" stroke={color} strokeWidth={1} strokeOpacity={0.4} dot={false} />` inside both the candlestick and OHLC render blocks
-- Keep the existing transparent Area for hover tooltip functionality
+- Add a loading gate: if `price === 0`, show a "LOADING MARKET DATA..." skeleton instead of rendering an empty chart
+- In `historicalData` memo, skip generation when `basePrice` is 0 -- return empty array
+- In `useLiveCandleEngine`, don't initialize candles until `historicalData` has non-zero values
+- Set YAxis domain to `['dataMin', 'dataMax']` with padding so the chart auto-zooms to the actual price range instead of starting from $0
 
 ---
 
-### 2. Replace Fake Logos With Real CDN Logos
+### Fix 2: Enhanced Paper Trading Order Panel
+
+**File:** `src/pages/TradingBridge.tsx` (PaperTradingPanel)
+
+Add professional order ticket features:
+
+- **Estimated Total Cost**: Auto-calculate `qty x price` and display prominently before the submit button
+- **Quick-size Buttons**: "25% / 50% / 75% / MAX" buttons that auto-fill quantity based on available cash
+- **Position Impact Preview**: Show what the new equity, cash, and position count will be after the trade
+- **Percentage of Portfolio**: Show what % of portfolio this trade represents
+- **Spread indicator**: Show simulated bid/ask spread
+- **Market/Limit/Stop/StopLimit** order types for paper mode too (currently only market and limit)
+- **Fees estimate line**: Show estimated commission (even if $0 for paper, shows professional UX)
+
+---
+
+### Fix 3: Professional Trading UX Enhancements
+
+**File:** `src/pages/TradingBridge.tsx` + `src/components/trading/ProprietaryChart.tsx`
+
+#### A. Chart Header Improvements
+- Add **Bid/Ask** display next to the price
+- Add **Day High/Low** range bar (visual horizontal bar showing where current price sits between day's high and low)
+- Add **Volume** indicator in the header
+- Add **Spread** display
+
+#### B. Watchlist Enhancements  
+- Add **live mini-sparkline** next to each symbol in the watchlist (tiny 40px wide line chart)
+- Add **live price + change%** next to each symbol name
+- Color the **entire row** based on positive/negative change (subtle green/red tint)
+- Themed scrollbar already uses `watchlist-scroll` class -- ensure consistent gold accent colors
+
+#### C. Order Ticket Improvements (both Paper and Live)
+- Add **total value calculation** displayed prominently: `10 shares x $2,350.00 = $23,500.00`
+- Add **buying power remaining** after order preview
+- Add **quick quantity buttons**: 1, 5, 10, 25, 50, 100, MAX
+- Add **price ladder**: +/- buttons to increment limit price by tick size
+- Add **order confirmation dialog** before submission (with full cost breakdown)
+
+#### D. Bottom Panel Polish
+- Book tab: Show **paper positions** when in paper mode (currently only shows broker positions)
+- Add paper order history to the Book tab when in paper mode
+- Analytics tab: Show paper trading analytics when in paper mode
+
+#### E. Status Bar Enhancement
+- Show **current spread** in the status bar
+- Show **data source** (WS for crypto, Simulated for others)
+- Show **connection latency** indicator
+
+---
+
+### Fix 4: Symbol Logos for All Company Stocks
 
 **File:** `src/components/trading/SymbolLogo.tsx`
 
-Replace emojis and colored badges with real logos sourced from public CDNs:
-
-- **Crypto (30 coins):** Already uses CoinGecko CDN -- keep as-is, these are real logos
-- **Stocks (40+ tickers):** Use logo.clearbit.com or logo.dev for company logos (e.g., `https://logo.clearbit.com/apple.com`). Build a domain map for each stock ticker (AAPL -> apple.com, MSFT -> microsoft.com, etc.)
-- **Forex (15 pairs):** Use flagcdn.com for country flag SVGs (e.g., `https://flagcdn.com/w40/eu.png` for EUR)
-- **Energy commodities:** Use sector-specific icons or the ETF company logos where applicable
-- **Bonds/ETFs:** Use the ETF provider logos (e.g., iShares/BlackRock, Vanguard)
-- **Metals:** Use commodity-specific icons or small gold/silver/platinum bar images from a public source
-- **Indices (SPY, QQQ, etc.):** Use the exchange or ETF provider logos
-
-Implementation approach:
-- Create a comprehensive `LOGO_URLS` map covering all 200+ symbols
-- Primary source: `logo.clearbit.com` for companies, `flagcdn.com` for forex flags, CoinGecko for crypto
-- Keep the colored badge as a graceful fallback (onError handler) when a CDN image fails to load
+Ensure every stock ticker in the `STOCK_DOMAINS` map resolves to a real company logo via Clearbit. Verify the full domain mapping covers all symbols in the watchlist. Add missing mappings for any stocks that don't have entries.
 
 ---
 
-### 3. Complete All 11 Missing MT5 Indicators
+### Technical Implementation Details
 
-**File:** `src/components/trading/IndicatorOverlay.tsx`
+**Files to modify:**
 
-The compute functions exist but `enrichChartData` and `getIndicatorLines` don't process them. Add full support for:
+| File | Changes |
+|------|---------|
+| `src/components/trading/ProprietaryChart.tsx` | Fix $0 loading, add bid/ask/spread/high-low to header, YAxis domain fix |
+| `src/pages/TradingBridge.tsx` | Enhanced PaperTradingPanel with cost calc, quick-size buttons, position impact preview. Watchlist with live prices/sparklines. Bottom panel paper mode integration. |
+| `src/components/trading/SymbolLogo.tsx` | Verify and complete stock domain mappings |
 
-**Oscillators needing enrichment + rendering:**
-
-| Indicator | Data Key(s) | Rendering |
-|-----------|-------------|-----------|
-| CCI | `cci` | Dashed line, oscillator scale |
-| Momentum | `momentum` | Solid line |
-| OBV | `obv` | Solid line (separate scale) |
-| MFI | `mfi` | Dashed line, 0-100 scale |
-| Awesome Oscillator | `ao` | Solid line |
-| Std Dev | `stddev` | Dashed line |
-| DeMarker | `demarker` | Dashed line, 0-1 scale |
-| Force Index | `force` | Solid line |
-| Bulls Power | `bulls` | Solid line, green |
-| Bears Power | `bears` | Solid line, red |
-| OsMA | `osma` | Solid line |
-
-For each indicator:
-1. **`enrichChartData`:** Call the existing compute function and inject values into chart data points
-2. **`getIndicatorLines`:** Add corresponding `<Line>` components with proper styling (color, dash pattern, width)
-
-Since these are oscillators operating on different scales (CCI: +/-200, RSI: 0-100, OBV: cumulative volume), they'll be rendered as overlay lines on the price chart using their computed values -- matching how the existing MACD/StochRSI/Williams%R/ADX/ATR indicators work.
-
----
-
-### Technical Details
-
-**Files modified:**
-- `src/components/trading/ProprietaryChart.tsx` -- add price path line in candle/OHLC modes
-- `src/components/trading/SymbolLogo.tsx` -- replace emojis/badges with real CDN logos + domain map
-- `src/components/trading/IndicatorOverlay.tsx` -- add enrichment and rendering for 11 missing indicators
-
-**No new dependencies required.** All logos come from public CDNs via `<img>` tags. All indicator math already exists in the codebase.
+**No new dependencies required.** All enhancements use existing Recharts, Tailwind, and Lucide components.
 
