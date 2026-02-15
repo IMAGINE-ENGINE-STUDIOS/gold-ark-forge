@@ -1,155 +1,83 @@
 
 
-# Calendar Scheduler, Risk Limits & Price Alert Notifications
+## Trading Bridge Enhancement Plan
 
-## Overview
-Add three major features to the Trading Bridge: (1) a calendar-based order scheduler for automated recurring buys/sells with goal tracking, (2) configurable risk limits with auto-sell protection, and (3) a real-time price alert system with desktop notifications and sound.
-
----
-
-## 1. Calendar Order Scheduler
-
-A new "SCHEDULE" tab in the bottom panel for programming future and recurring orders.
-
-### Features
-- **One-time scheduled orders**: Pick a date/time from a calendar, set symbol, side (buy/sell), quantity, and order type
-- **Recurring orders (DCA+)**: Daily, weekly, bi-weekly, monthly frequency with start/end dates
-- **Goal tracking**: Set a target portfolio value or accumulation goal (e.g., "Accumulate 1 BTC by Q3") with progress bar
-- **Pre-authorized auto-sells**: Set a floor price -- if symbol drops below it, automatically submit a sell order via the connected broker
-- **Schedule list view**: See all upcoming and past scheduled orders in a timeline/calendar grid
-
-### New File: `src/components/trading/SchedulePanel.tsx`
-- Calendar date picker using existing `react-day-picker` (already installed)
-- Recurring frequency selector (daily/weekly/bi-weekly/monthly)
-- Symbol + quantity + side inputs (reuse patterns from OrderForm)
-- Goal section: target value input, current progress bar, estimated completion date
-- Schedule list with activate/pause/delete controls
-- All schedules stored in localStorage (no database needed for v1)
-
-### New File: `src/hooks/useScheduledOrders.ts`
-- Custom hook managing scheduled orders in localStorage
-- `useEffect` timer that checks every 30 seconds if any order is due
-- When triggered: calls `useSubmitOrder` to execute via the connected broker
-- Tracks execution history (success/fail/skipped)
-- Auto-sell monitor: continuously checks price against floor thresholds using WebSocket/simulated stream data
+### Problem Summary
+Three issues need fixing:
+1. **Candlestick/OHLC modes lack the price path line** - switching away from Area mode loses the visible price trajectory
+2. **Symbol logos are fake** (emojis and colored letter badges) - need real logos from internet CDNs
+3. **11 new MT5 indicators have compute functions but are never rendered** - they're missing from both `enrichChartData` and `getIndicatorLines`
 
 ---
 
-## 2. Risk Limits & Auto-Sell Protection
+### 1. Add Price Line to Candlestick and OHLC Modes
 
-Enhance the existing Risk panel with configurable stop-loss automation.
+**File:** `src/components/trading/ProprietaryChart.tsx`
 
-### Features
-- **Per-symbol floor price**: Set minimum price thresholds -- if price drops below, auto-submit a market sell order
-- **Portfolio-wide drawdown limit**: If total portfolio drops X% from peak, pause all automated orders and alert
-- **Daily loss limit**: Max dollar loss per day before all auto-trading halts
-- **Position size limits**: Max percentage of portfolio in any single asset
+In candlestick and OHLC modes, add a thin semi-transparent `Line` component for the close price alongside the candle/bar SVG layer. This gives users the continuous price path that the area chart provides, overlaid on the candle bodies.
 
-### New File: `src/components/trading/RiskLimits.tsx`
-- UI for setting floor prices per symbol (table with symbol, current price, floor price, status)
-- Portfolio drawdown % input with visual gauge
-- Daily loss limit input
-- Active/paused toggle for each limit
-- Warning indicators when limits are approaching (yellow at 80%, red at 95%)
-
-### New File: `src/hooks/useRiskMonitor.ts`
-- Monitors live prices against configured floor prices
-- When floor is breached: auto-submits sell order via broker-proxy, fires alert notification, logs event
-- Tracks peak portfolio value for drawdown calculation
-- Persists limits in localStorage
+- Add a `<Line dataKey="value" stroke={color} strokeWidth={1} strokeOpacity={0.4} dot={false} />` inside both the candlestick and OHLC render blocks
+- Keep the existing transparent Area for hover tooltip functionality
 
 ---
 
-## 3. Price Alert Notifications
+### 2. Replace Fake Logos With Real CDN Logos
 
-Real-time alert system that triggers when symbols cross user-defined thresholds.
+**File:** `src/components/trading/SymbolLogo.tsx`
 
-### Features
-- **Create alerts**: Symbol + condition (above/below/crosses) + price threshold
-- **Desktop notifications**: Browser Notification API with permission request
-- **Sound alerts**: Short audio chime using Web Audio API (no external files needed)
-- **In-app toast**: Sonner toast notification with alert details
-- **Alert history**: Log of all triggered alerts with timestamps
-- **Persistent**: Alerts survive page refresh (localStorage)
+Replace emojis and colored badges with real logos sourced from public CDNs:
 
-### New File: `src/components/trading/PriceAlerts.tsx`
-- Alert creation form: symbol picker, condition (above/below/crosses), price input
-- Active alerts list with delete/mute controls
-- Alert history log
-- Sound toggle + volume control
-- Desktop notification permission button
-- Bell icon badge in the top bar showing active alert count
+- **Crypto (30 coins):** Already uses CoinGecko CDN -- keep as-is, these are real logos
+- **Stocks (40+ tickers):** Use logo.clearbit.com or logo.dev for company logos (e.g., `https://logo.clearbit.com/apple.com`). Build a domain map for each stock ticker (AAPL -> apple.com, MSFT -> microsoft.com, etc.)
+- **Forex (15 pairs):** Use flagcdn.com for country flag SVGs (e.g., `https://flagcdn.com/w40/eu.png` for EUR)
+- **Energy commodities:** Use sector-specific icons or the ETF company logos where applicable
+- **Bonds/ETFs:** Use the ETF provider logos (e.g., iShares/BlackRock, Vanguard)
+- **Metals:** Use commodity-specific icons or small gold/silver/platinum bar images from a public source
+- **Indices (SPY, QQQ, etc.):** Use the exchange or ETF provider logos
 
-### New File: `src/hooks/usePriceAlerts.ts`
-- Stores alerts in localStorage
-- Monitors prices from `useWebSocketPrices` (crypto) and `useSimulatedStream` (non-crypto)
-- When threshold crossed:
-  1. Play notification sound via Web Audio API (synthesized beep, no file needed)
-  2. Show browser desktop notification (if permitted)
-  3. Show sonner toast
-  4. Log to alert history
-- Cooldown period (60s) to prevent alert spam for the same symbol
-
-### New File: `src/lib/notificationSound.ts`
-- `playAlertSound()`: Uses Web Audio API to generate a short ascending tone
-- `requestNotificationPermission()`: Wrapper for `Notification.requestPermission()`
-- `sendDesktopNotification(title, body)`: Creates browser notification with Gold Arrow branding
+Implementation approach:
+- Create a comprehensive `LOGO_URLS` map covering all 200+ symbols
+- Primary source: `logo.clearbit.com` for companies, `flagcdn.com` for forex flags, CoinGecko for crypto
+- Keep the colored badge as a graceful fallback (onError handler) when a CDN image fails to load
 
 ---
 
-## Integration into TradingBridge
+### 3. Complete All 11 Missing MT5 Indicators
 
-### Modified File: `src/pages/TradingBridge.tsx`
-- Add "SCHEDULE" tab to `BOTTOM_TABS` array (with Calendar icon)
-- Add "ALERTS" tab to `BOTTOM_TABS` array (with Bell icon)
-- Render `SchedulePanel` when schedule tab is active
-- Render `PriceAlerts` when alerts tab is active
-- Add alert bell icon with badge count to the top bar (desktop + mobile)
-- Integrate `useRiskMonitor` at the TradingBridge level so it runs while terminal is open
-- Add `RiskLimits` component inside the existing Risk tab alongside the current position sizer and exposure limits
-- Wire price data (from existing hooks) into the alert and risk monitoring systems
-- Add schedule tab to mobile TOOLS section
+**File:** `src/components/trading/IndicatorOverlay.tsx`
 
-### Modified File: `src/components/trading/RuleBuilder.tsx`
-- Add `'schedule'` as a new ActionType so rules can schedule future orders
-- Expand the broker dropdown to include all 15 brokers
+The compute functions exist but `enrichChartData` and `getIndicatorLines` don't process them. Add full support for:
+
+**Oscillators needing enrichment + rendering:**
+
+| Indicator | Data Key(s) | Rendering |
+|-----------|-------------|-----------|
+| CCI | `cci` | Dashed line, oscillator scale |
+| Momentum | `momentum` | Solid line |
+| OBV | `obv` | Solid line (separate scale) |
+| MFI | `mfi` | Dashed line, 0-100 scale |
+| Awesome Oscillator | `ao` | Solid line |
+| Std Dev | `stddev` | Dashed line |
+| DeMarker | `demarker` | Dashed line, 0-1 scale |
+| Force Index | `force` | Solid line |
+| Bulls Power | `bulls` | Solid line, green |
+| Bears Power | `bears` | Solid line, red |
+| OsMA | `osma` | Solid line |
+
+For each indicator:
+1. **`enrichChartData`:** Call the existing compute function and inject values into chart data points
+2. **`getIndicatorLines`:** Add corresponding `<Line>` components with proper styling (color, dash pattern, width)
+
+Since these are oscillators operating on different scales (CCI: +/-200, RSI: 0-100, OBV: cumulative volume), they'll be rendered as overlay lines on the price chart using their computed values -- matching how the existing MACD/StochRSI/Williams%R/ADX/ATR indicators work.
 
 ---
 
-## Technical Details
+### Technical Details
 
-### Data Flow for Auto-Execution
-1. `useScheduledOrders` checks timer every 30s
-2. If order is due AND connected broker exists -> calls `useSubmitOrder`
-3. `useRiskMonitor` checks prices every tick (WebSocket update or 1s interval)
-4. If floor breached -> calls `useSubmitOrder` for emergency sell + fires alert
-5. `usePriceAlerts` checks prices on every WebSocket/stream update
-6. If threshold crossed -> plays sound + desktop notification + toast
+**Files modified:**
+- `src/components/trading/ProprietaryChart.tsx` -- add price path line in candle/OHLC modes
+- `src/components/trading/SymbolLogo.tsx` -- replace emojis/badges with real CDN logos + domain map
+- `src/components/trading/IndicatorOverlay.tsx` -- add enrichment and rendering for 11 missing indicators
 
-### localStorage Schema
-```text
-ga_scheduled_orders: [{ id, symbol, side, qty, orderType, scheduledAt, recurrence, goalTarget, floorPrice, status, history[] }]
-ga_price_alerts: [{ id, symbol, condition, threshold, active, muted, createdAt, triggeredAt[] }]
-ga_risk_limits: { floors: { [symbol]: price }, drawdownLimit: %, dailyLossLimit: $, peakValue: $ }
-```
-
-### Mobile Responsiveness
-- Schedule panel: single-column form, calendar inline
-- Price alerts: stacked card layout
-- Risk limits: vertical sections
-- Alert bell badge visible in mobile top bar
-
-### Files Summary
-
-**New files (6):**
-- `src/components/trading/SchedulePanel.tsx`
-- `src/components/trading/PriceAlerts.tsx`
-- `src/components/trading/RiskLimits.tsx`
-- `src/hooks/useScheduledOrders.ts`
-- `src/hooks/usePriceAlerts.ts`
-- `src/lib/notificationSound.ts`
-
-**Modified files (2):**
-- `src/pages/TradingBridge.tsx` -- Add SCHEDULE + ALERTS tabs, alert bell badge, integrate risk monitor
-- `src/components/trading/RuleBuilder.tsx` -- Add schedule action type, expand broker list
+**No new dependencies required.** All logos come from public CDNs via `<img>` tags. All indicator math already exists in the codebase.
 
