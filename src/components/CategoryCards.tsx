@@ -108,8 +108,8 @@ const CategoryCards = () => {
       {/* Subtle background pattern */}
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, hsl(var(--gold)) 1px, transparent 0)', backgroundSize: '40px 40px' }} />
 
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="text-center mb-12">
+      <div className="w-full px-0 relative z-10">
+        <div className="text-center mb-12 px-4">
           <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-6" />
           <h2 className="font-display text-3xl md:text-4xl text-gold-light mb-3 tracking-[0.08em]">
             EXPLORE MARKETS
@@ -119,8 +119,8 @@ const CategoryCards = () => {
           </p>
         </div>
 
-        {/* 3x3 grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5 max-w-5xl mx-auto">
+        {/* Edge-to-edge grid */}
+        <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-9 gap-0">
           {categories.map((cat) => (
             <CategoryCard key={cat.name} {...cat} />
           ))}
@@ -150,40 +150,34 @@ const CategoryCard = ({ name, description, image, href, accentClass, borderClass
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="relative">
-      <Link to={href} className="group relative block">
-        <div className={`relative rounded-sm border ${borderClass} overflow-hidden transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl`}>
-          {/* Image */}
-          <div className="aspect-[16/10] overflow-hidden relative">
-            <img
-              src={image}
-              alt={name}
-              className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-navy via-navy/60 to-transparent" />
-            <div className={`absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r ${accentClass}`} />
-          </div>
+    <div className="relative group">
+      <Link to={href} className="block relative overflow-hidden">
+        {/* Full image with overlay */}
+        <div className="aspect-[3/4] overflow-hidden relative">
+          <img
+            src={image}
+            alt={name}
+            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+          />
+          {/* Dark overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-navy via-navy/70 to-navy/30 group-hover:from-navy/90 group-hover:via-navy/50 group-hover:to-navy/20 transition-all duration-500" />
+          {/* Accent line */}
+          <div className={`absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r ${accentClass} opacity-60 group-hover:opacity-100 transition-opacity`} />
+          {/* Side borders on hover */}
+          <div className={`absolute inset-0 border-x-0 border-y-0 group-hover:border-x border-transparent group-hover:${borderClass.split(' ')[0]} transition-all duration-300`} />
 
-          {/* Content */}
-          <div className="bg-navy-light/50 backdrop-blur-sm p-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <h3 className="font-display text-sm md:text-base tracking-[0.1em] text-marble group-hover:text-gold-light transition-colors">
-                {name.toUpperCase()}
-              </h3>
-              <span className={`text-[8px] font-display tracking-[0.2em] px-1.5 py-0.5 rounded-full ${tagClass}`}>
-                LIVE
-              </span>
-            </div>
-            <p className="text-marble/40 text-[11px] leading-relaxed">
+          {/* Content overlay at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4">
+            <span className={`text-[7px] font-display tracking-[0.25em] px-1.5 py-0.5 rounded-full ${tagClass} inline-block mb-2`}>
+              LIVE
+            </span>
+            <h3 className="font-display text-xs md:text-sm tracking-[0.12em] text-marble group-hover:text-gold-light transition-colors mb-1">
+              {name.toUpperCase()}
+            </h3>
+            <p className="text-marble/35 text-[9px] md:text-[10px] leading-relaxed hidden md:block">
               {description}
             </p>
           </div>
-
-          {/* Ornate corners */}
-          <div className="ornate-corner ornate-corner-tl" />
-          <div className="ornate-corner ornate-corner-tr" />
-          <div className="ornate-corner ornate-corner-bl" />
-          <div className="ornate-corner ornate-corner-br" />
         </div>
       </Link>
 
