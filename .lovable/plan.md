@@ -1,146 +1,125 @@
 
 
-## Interactive Tutorial Tab for All Widgets
+## Redesigned Tutorial Overlay -- In-Widget Interactive Guide
 
-### Overview
+### Problem with Current Design
 
-Add a third tab -- **TUTORIAL** -- to the existing `WidgetDocWrapper`. When active, it renders the live widget with an animated overlay of numbered callout hotspots. Each hotspot pulses, highlights a region of the widget, and displays a legend describing that element. A step-by-step animation auto-advances through all hotspots with a progress indicator.
+The current tutorial places the legend panel **below** the widget, forcing users to scroll down to read descriptions while the hotspots are up on the widget. The hotspots are passive -- they just pulse but never actually interact with or highlight the widget areas. The text is disconnected from the visual context.
 
-No existing widget code is modified. The tutorial content is purely data-driven from `widgetDocContent.ts`.
+### New Design: Tooltip-Style Overlay with Spotlight Dimming
+
+The tutorial will feel like a guided product tour (similar to tools like Shepherd.js or Intro.js). Each step:
+
+1. **Dims the entire widget** with a semi-transparent dark overlay
+2. **Cuts out a spotlight** around the active hotspot area, leaving that region fully visible and bright
+3. **Shows a floating tooltip card** anchored near the spotlighted area (not below the widget) with the label, description, step counter, and next/prev controls
+4. **Draws a connecting line** from the tooltip to the spotlight center
+5. The non-active hotspot badges remain visible but dimmed
+
+The legend is no longer a separate panel below -- the description **is** the tooltip overlaying the widget itself.
 
 ---
 
-### How It Works
+### Data Model Changes
 
-When the user clicks the TUTORIAL tab:
-1. The actual widget renders normally (live, interactive, with real data)
-2. A semi-transparent overlay sits on top of it (`pointer-events-none`)
-3. Animated numbered callout badges appear at predefined positions, each with a gold pulsing ring
-4. A legend panel sits below the widget listing all annotated elements
-5. The current "active" hotspot has a brighter pulse and its legend entry is highlighted
-6. Auto-advance cycles through hotspots every 4 seconds (with play/pause control)
-7. Users can also click any legend entry to jump to that hotspot
+Extend `TutorialHotspot` with a spotlight radius and preferred tooltip placement:
+
+```text
+interface TutorialHotspot {
+  label: string;
+  description: string;
+  x: number;            // hotspot center (%)
+  y: number;            // hotspot center (%)
+  spotlightW?: number;  // spotlight width in % (default 20)
+  spotlightH?: number;  // spotlight height in % (default 15)
+  tooltipSide?: 'top' | 'bottom' | 'left' | 'right';  // preferred tooltip position
+}
+```
+
+The spotlight dimensions let each hotspot highlight a region (e.g., a whole row of tabs, or a single card) rather than just a point. `tooltipSide` controls where the floating description appears relative to the spotlight so it never obscures the highlighted element.
+
+---
+
+### New TutorialOverlay Component Behavior
 
 ```text
 +-----------------------------------------------+
-| [WIDGET]  [THESIS & GUIDE]  [TUTORIAL]        |
+| [1/5] ---- progress bar ---- [<] [>] [||]     |
 +-----------------------------------------------+
 |                                                |
-|   +-- Live Widget (rendered normally) ------+  |
-|   |                                         |  |
-|   |   (1) <-- pulsing gold circle           |  |
-|   |          at 15%, 10% position           |  |
-|   |                                         |  |
-|   |              (2) <-- another hotspot    |  |
-|   |                                         |  |
-|   |   (3)                        (4)        |  |
+|   +-- Widget (dimmed with dark overlay) ----+  |
+|   |  :::::::::::::::::::::::::::::::::::    |  |
+|   |  :::  +--SPOTLIGHT--+  :::::::::::::    |  |
+|   |  :::  | (bright     |  :::::::::::::    |  |
+|   |  :::  |  region)    |  :::::::::::::    |  |
+|   |  :::  +-------------+  :::::::::::::    |  |
+|   |  ::::::::|::::::::::::::::::::::::::    |  |
+|   |  ::::::::v::::::::::::::::::::::::::    |  |
+|   |  ::: +-TOOLTIP CARD-----------+ :::    |  |
+|   |  ::: | (1) Category Tabs      | :::    |  |
+|   |  ::: | Switch between ALL,    | :::    |  |
+|   |  ::: | METALS, ENERGY filters | :::    |  |
+|   |  ::: +------------------------+ :::    |  |
+|   |  :::::::::::::::::::::::::::::::::::    |  |
 |   +-----------------------------------------+  |
 |                                                |
-|   LEGEND:                                      |
-|   > 1. Category Tabs -- Switch between ALL,    |
-|        METALS, ENERGY, CRYPTO filters           |
-|     2. Performance Chart -- 24h ranked bars     |
-|     3. Leaders & Laggards -- Best/worst movers  |
-|     4. Price Grid -- Scrollable asset list      |
 +-----------------------------------------------+
 ```
 
----
+Key behaviors:
 
-### Data Model
-
-Add a `tutorial` field to the `WidgetDocEntry` interface:
-
-```text
-tutorial?: {
-  label: string;           // e.g. "Category Tabs"
-  description: string;     // e.g. "Click ALL, METALS, ENERGY, or CRYPTO to filter the radar"
-  x: number;               // percentage position (0-100) from left
-  y: number;               // percentage position (0-100) from top
-}[]
-```
-
-Each widget gets 3-6 hotspots describing its key interactive elements: tabs, charts, legends, buttons, data panels, sparklines, filters, scrollable areas, links, etc.
+- **Spotlight mask**: An SVG or CSS clip-path overlay that covers the widget in dark (navy at 70% opacity) with a rounded-rect cutout at the active hotspot position. The cutout has a soft gold border glow.
+- **Tooltip card**: A compact floating panel (max-width ~280px) positioned adjacent to the spotlight. Contains the step number badge, label (bold gold), description (marble text), and navigation arrows. It uses smart positioning -- if the hotspot is near the top, tooltip goes below; if near the right edge, tooltip goes left. The `tooltipSide` field from data can override this.
+- **Navigation**: Previous/Next arrow buttons on the tooltip card, plus a play/pause auto-advance. Keyboard support (left/right arrows, space for play/pause).
+- **Step dots**: Small dot indicators at the top showing total steps and current position (replacing the full legend list).
+- **Transition**: When advancing steps, the spotlight smoothly animates (300ms ease) to the new position. The tooltip fades out and back in (150ms).
+- **Exit**: An X button or clicking outside the overlay exits the tutorial and switches back to the WIDGET tab.
 
 ---
 
-### New Component: `TutorialOverlay.tsx`
+### Interaction with the Widget
 
-**File**: `src/components/ga-widgets/TutorialOverlay.tsx`
-
-A component that wraps `children` (the widget) inside a `position: relative` container, then renders:
-
-- **Hotspot badges**: Absolutely positioned gold circles with the step number, a CSS pulsing ring animation (`@keyframes tutorial-pulse`), and a subtle connecting line to the legend below
-- **Active hotspot**: The currently highlighted step has a brighter gold glow and slightly larger ring
-- **Legend panel**: Below the widget, a styled list of all hotspots with number, label, and description. The active entry has a gold left-border highlight
-- **Progress bar**: A thin gold bar at the top that fills as the auto-advance cycles through steps
-- **Play/Pause button**: Small control to pause/resume the auto-cycle
-- **Step counter**: "2 / 5" indicator
-
-Animation details:
-- Hotspot rings use a CSS pulse animation (gold ring expanding and fading, 2s loop)
-- Active hotspot has a brighter pulse and a subtle spotlight gradient behind it
-- Legend entries fade in sequentially on mount (staggered 100ms)
-- When active step changes, previous entry slides out, next slides in (150ms transition)
-- Auto-advance timer: 4 seconds per step, loops continuously
+The overlay is `pointer-events-none` **except** for the spotlighted region. This means:
+- The user can actually **click/interact** with the highlighted element (e.g., click a tab, hover a chart point) while the tutorial explains it
+- All other widget areas stay dimmed and non-interactive, focusing attention
+- After interaction, the tutorial stays in place -- the user manually advances with Next or waits for auto-advance
 
 ---
 
-### Files to Create (1 file)
-
-| File | Purpose |
-|------|---------|
-| `src/components/ga-widgets/TutorialOverlay.tsx` | Overlay component with hotspots, legend, and auto-advance logic |
-
-### Files to Modify (2 files)
+### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/ga-widgets/widgetDocContent.ts` | Add `tutorial` array to the `WidgetDocEntry` interface and populate for all 42+ widgets (Intelligence + Oil & Gas) |
-| `src/components/ga-widgets/WidgetDocWrapper.tsx` | Add third "TUTORIAL" tab, import and render `TutorialOverlay` when active |
+| `src/components/ga-widgets/TutorialOverlay.tsx` | Complete rewrite: replace legend-below design with spotlight mask + floating tooltip + smart positioning + keyboard nav |
+| `src/components/ga-widgets/widgetDocContent.ts` | Update `TutorialHotspot` interface to add `spotlightW`, `spotlightH`, `tooltipSide`. Update all 42+ widget tutorial entries with spotlight dimensions and tooltip sides |
+| `src/components/ga-widgets/WidgetDocWrapper.tsx` | Minor: pass a callback so TutorialOverlay can exit back to widget tab when user clicks X or clicks outside |
+
+No new files needed. No widget code modified.
 
 ---
 
-### Tutorial Content Per Widget (All 42+ Entries)
+### Visual Design Details
 
-Every widget gets 3-6 positioned hotspots. Examples:
+- **Dimming overlay**: `background: hsla(220, 40%, 8%, 0.75)` -- navy-dark at 75% opacity
+- **Spotlight cutout**: Rounded rectangle with 8px radius, `box-shadow: 0 0 0 3px hsla(43, 72%, 50%, 0.4), 0 0 30px hsla(43, 72%, 50%, 0.15)` gold glow
+- **Tooltip card**: `bg-navy-dark/95 border border-gold/30 backdrop-blur-sm rounded-lg shadow-2xl` with padding 16px. Max-width 280px.
+- **Tooltip arrow**: A small CSS triangle pointing toward the spotlight
+- **Step badge in tooltip**: Gold circle with step number, same as current but inline with the label
+- **Navigation arrows**: Chevron left/right icons, gold/40 default, gold on hover
+- **Progress dots**: Row of small circles (6px), gold for visited, gold/30 for upcoming, gold with ring for active
+- **Auto-advance bar**: Thin 2px gold bar animating inside the tooltip card footer (shows time remaining for current step)
 
-**Spot Price Cards (`prices`)** -- 4 hotspots:
-- Symbol badge (top-left) -- "Asset identifier showing the trading pair"
-- Price display (center) -- "Live spot price in USD, updated every 30s"
-- Change badge (top-right) -- "24h percentage change with color coding"
-- Sparkline (bottom) -- "Intraday price trend visualization"
+### Tooltip Smart Positioning Logic
 
-**Commodity Radar (`commodity-radar`)** -- 5 hotspots:
-- Category tabs -- "Filter by ALL, METALS, ENERGY, or CRYPTO"
-- Bar chart -- "24h performance ranking sorted by magnitude"
-- Leaders panel -- "Strongest performer with percentage gain"
-- Laggards panel -- "Weakest performer with percentage loss"
-- Price grid -- "Scrollable list of all assets with live prices"
+```text
+if hotspot.tooltipSide is set -> use it
+else:
+  if y < 30%  -> tooltip below spotlight
+  if y > 70%  -> tooltip above spotlight  
+  if x < 30%  -> tooltip to the right
+  if x > 70%  -> tooltip to the left
+  else        -> tooltip below (default)
+```
 
-**Bitcoin Network (`bitcoin`)** -- 5 hotspots:
-- Block height card -- "Current Bitcoin blockchain height"
-- Last block timer -- "Minutes since the last mined block"
-- Hashrate gauge -- "Network security measured in exahashes"
-- Fee estimate bars -- "Priority, Standard, Economy fee tiers"
-- Mempool counter -- "Unconfirmed transactions awaiting inclusion"
-
-**EIA Crude Inventory (`og-inventory`)** -- 4 hotspots:
-- Gauge dial -- "Current inventory level relative to 5-year range"
-- Weekly change -- "Barrels added or drawn from storage"
-- Historical chart -- "52-week inventory trend line"
-- API vs EIA -- "Compare API estimate with official EIA release"
-
-All 42+ widgets will receive similar treatment with position-calibrated hotspots targeting their specific interactive and informational elements.
-
----
-
-### Visual Design
-
-- Hotspot badge: 24px gold circle with white number, CSS `box-shadow: 0 0 0 4px hsla(43, 72%, 50%, 0.3)` pulsing outward
-- Active hotspot: `box-shadow: 0 0 0 8px hsla(43, 72%, 50%, 0.5)` with brighter gold fill
-- Legend panel: Navy background with gold/10 border, matching the Thesis panel aesthetic
-- Legend active entry: Left gold border (3px), text brightens from marble/40 to marble
-- Progress bar: 2px height, gold fill, smooth width transition
-- Tab button: Uses `GraduationCap` icon from Lucide with "TUTORIAL" label, same styling as existing tabs
+This ensures the tooltip never goes off-screen or covers the highlighted element.
 
