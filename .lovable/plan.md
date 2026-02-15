@@ -1,123 +1,87 @@
 
 
-## Enhanced Palette Editor: Deep CSS Variable Override + 80 Fonts + Save/Export
+## Universal Palette with Gradient Picker, Hex Code Search, and Pre-Built Themes
 
-### Core Problem
+### What Changes
 
-The current PaletteEditor sets CSS custom properties like `--palette-accent` and `--palette-secondary`, but no widget reads those variables. All widgets use Tailwind classes (`text-gold`, `bg-navy`, `border-gold/30`) which resolve to `hsl(var(--gold))`, `hsl(var(--navy))`, etc. The palette wrapper styles only affect the outer container div, not the widget internals.
+The PaletteEditor will be enhanced with three major additions:
 
-### Solution: Override the actual CSS variables
-
-Instead of inventing new CSS variables, the palette wrapper will **override the real design-system variables** (`--gold`, `--navy`, `--navy-dark`, `--marble`, etc.) on the wrapper `<div>`. Since Tailwind resolves these at runtime via `hsl(var(--gold))`, overriding them on a parent element cascades into every child widget automatically. No widget code changes needed.
+1. **Universal Palette Mode** -- A single palette that applies to ALL widgets on the Intelligence page simultaneously, not just the one widget you opened it from
+2. **Full Gradient Color Picker** -- A visual gradient strip with hex code input/search, replacing the basic HSL sliders
+3. **8 Pre-Built Themes** -- Professionally designed color/font combinations users can apply instantly
 
 ---
 
-### Changes Overview
+### File Changes
 
 | File | Action |
 |------|--------|
-| `src/components/ga-widgets/PaletteEditor.tsx` | Complete rewrite with CSS variable overrides, 80 Google Fonts, save/export, new sections, overlay layout |
-| `src/components/ga-widgets/WidgetDocWrapper.tsx` | Minor: add sticky positioning for palette to keep controls in view |
+| `src/components/ga-widgets/PaletteEditor.tsx` | Major update: add gradient color picker with hex input, universal mode toggle, 8 pre-built themes section, color code identifier |
+| `src/components/ga-widgets/WidgetDocWrapper.tsx` | Add universal palette state via CSS class on document root when universal mode is active |
 
 ---
 
-### Part 1: CSS Variable Override Strategy
+### Part 1: Gradient Color Picker with Hex Code Search
 
-The wrapper div's `style` will set:
+Replace the plain HSL sliders in the COLORS section with a visual color interaction system:
 
-```text
---gold: H S% L%          (from accent color picker)
---gold-light: H S+4% L+12%
---gold-dark: H-3 S-4% L-12%
---gold-shine: H+2 85% L+22%
---navy: H S% L%          (from background color)
---navy-light: H S-4% L+8%
---navy-dark: H S+3% L-6%
---marble: H S% L%        (from text color)
+- **Gradient Spectrum Bar**: A horizontal 360-degree hue gradient strip. Click or drag to select hue. Below it, a saturation/lightness 2D square (like Photoshop's color picker) lets users pick exact shades.
+- **Hex Code Input**: A text field where users can type or paste any hex code (e.g., `#C9973F`). It auto-converts to HSL and applies immediately. Shows the current color's hex code in real-time.
+- **Color Code Identifier**: Displays the current color in multiple formats simultaneously: HEX, HSL, and RGB. Users can click any format to copy it.
+- **Eyedropper-style swatches**: The 12 preset circles remain, but now each shows its hex code on hover as a tooltip.
+
+The accent, background, and text color sections all get this treatment -- each with its own gradient picker + hex input.
+
+### Part 2: Universal Palette Mode
+
+A toggle at the top of the palette panel: **"APPLY TO ALL WIDGETS"**
+
+When enabled:
+- Instead of setting CSS variables on the wrapper `div`, it sets them on the `document.documentElement` (`:root`), which cascades to every widget on the page
+- The palette state is saved to `localStorage` under `palette-universal` (not per-widget)
+- A small gold badge appears on the PALETTE tab button indicating universal mode is active
+- When disabled, it reverts to per-widget scoping (the current behavior)
+
+### Part 3: Pre-Built Themes
+
+Eight curated themes added to the PRESETS section, each with a visual preview card showing accent/bg/text colors and the font name:
+
+| Theme | Accent | Background | Text | Font |
+|-------|--------|------------|------|------|
+| **Hellenic Gold** (default) | Gold #C9973F | Navy #1a2332 | Marble #f0ede6 | Cinzel |
+| **Ocean Depths** | Teal #2dd4bf | Dark Slate #0f172a | Ice White #e2e8f0 | Inter |
+| **Ruby Vault** | Ruby #dc2626 | Charcoal #1c1917 | Rose White #fef2f2 | Playfair Display |
+| **Forest Reserve** | Emerald #059669 | Deep Forest #022c22 | Sage #d1fae5 | Cormorant Garamond |
+| **Midnight Chrome** | Silver #94a3b8 | Pure Black #020617 | Cool Gray #e2e8f0 | Space Grotesk |
+| **Desert Sand** | Amber #d97706 | Dark Sand #292524 | Warm Ivory #fef3c7 | Lora |
+| **Arctic Frost** | Ice Blue #38bdf8 | Deep Blue #0c1929 | Frost #f0f9ff | DM Sans |
+| **Royal Purple** | Violet #8b5cf6 | Dark Plum #1e1033 | Lavender #ede9fe | Bodoni Moda |
+
+Each theme card is a small rectangular preview (~60px wide) showing a mini gradient of the three colors with the theme name below. Clicking applies all values (hue/sat/lit for accent, bg, text + font family) instantly.
+
+### Part 4: Color Code Identifier Component
+
+A new inline component (`ColorCodeDisplay`) renders below each color picker showing:
+
+```
+HEX: #C9973F  [copy icon]
+HSL: 43, 72%, 50%  [copy icon]
+RGB: 201, 151, 63  [copy icon]
 ```
 
-This means every `text-gold`, `bg-navy`, `border-gold/30`, gradient, shadow, and ornate corner inside the widget will automatically respond to palette changes.
-
-### Part 2: Expanded PaletteState
-
-New properties added to the state:
-
-| Property | Control | Range |
-|----------|---------|-------|
-| `accentHue`, `accentSat`, `accentLit` | HSL sliders for accent | 0-360, 0-100, 0-100 |
-| `bgHue`, `bgSat`, `bgLit` | HSL sliders for background | 0-360, 0-100, 0-100 |
-| `textColor` | Text/marble color override | hex picker |
-| `fontFamily` | Searchable dropdown of 80 Google Fonts | string |
-| `letterSpacing` | Slider for tracking | 0-0.3em |
-| `lineHeight` | Slider | 1.0-2.0 |
-| `gap` | Internal spacing multiplier | 0.5x-2x |
-| `backdropBlur` | Blur intensity | 0-20px |
-| `saturationBoost` | Global saturation filter | 50-150% |
-| `contrastBoost` | Global contrast filter | 80-150% |
-| `animationSpeed` | CSS transition duration multiplier | 0-3x |
-
-### Part 3: 80 Font Options
-
-A curated list of 80 Google Fonts loaded dynamically (only when selected) via `@import` injected into a `<style>` tag. Categories:
-
-- **Serif** (20): Cinzel, Playfair Display, Cormorant Garamond, Merriweather, Lora, EB Garamond, Crimson Pro, Spectral, Libre Baskerville, Old Standard TT, Cardo, Sorts Mill Goudy, Vollkorn, Domine, Noto Serif, PT Serif, Bitter, Source Serif 4, Alegreya, Unna
-- **Sans-Serif** (30): Source Sans 3, Inter, Roboto, Open Sans, Lato, Poppins, Montserrat, Nunito, Raleway, Work Sans, DM Sans, Manrope, Outfit, Sora, Space Grotesk, Plus Jakarta Sans, Urbanist, Figtree, Geist Sans, Archivo, Barlow, IBM Plex Sans, Karla, Mulish, Overpass, Red Hat Display, Rubik, Lexend, Cabin, Quicksand
-- **Display** (15): Cinzel Decorative, Berkshire Swash, Poiret One, Forum, Tenor Sans, Marcellus, Josefin Sans, Italiana, Megrim, Bodoni Moda, Yeseva One, Oranienbaum, Cormorant SC, Abril Fatface, Baskervville
-- **Monospace** (15): JetBrains Mono, Fira Code, Source Code Pro, IBM Plex Mono, Space Mono, Roboto Mono, Inconsolata, Ubuntu Mono, Courier Prime, Anonymous Pro, Noto Sans Mono, Red Hat Mono, Azeret Mono, Martian Mono, Geist Mono
-
-The font selector will be a searchable scrollable list grouped by category, with a live "Aa" preview in each font.
-
-### Part 4: Save/Export Feature
-
-Three export actions in the palette header:
-
-1. **Copy CSS** -- Copies all overridden CSS variables as a `:root {}` block to clipboard
-2. **Copy JSON** -- Copies the full `PaletteState` object as JSON
-3. **Save Preset** -- Stores to `localStorage` keyed by `widgetId`, auto-loads on next visit
-
-A "Load Preset" dropdown shows saved presets with delete option.
-
-### Part 5: Overlay Layout (Controls Within Reach)
-
-The current layout places controls to the right of the widget (desktop) or below (mobile). This means you can't see changes while scrolling the control panel. The new layout:
-
-**Desktop**: The control panel becomes a **floating overlay panel** anchored to the top-right of the widget container. It uses `position: sticky; top: 16px` so it stays in view as the user scrolls. Width: 280px. Semi-transparent backdrop with blur. A collapse/expand toggle minimizes it to a small palette icon.
-
-**Mobile**: The control panel renders as a **fixed bottom sheet** (position: fixed, bottom: 0) with a drag handle. 40vh height, scrollable. The widget remains fully visible above it.
-
-### Part 6: New Control Sections
-
-Expanding from 5 to 8 collapsible sections:
-
-1. **COLORS** -- Accent HSL sliders, secondary picker, 12 preset swatches
-2. **BACKGROUND** -- Background HSL sliders, solid/gradient toggle, gradient presets + direction, opacity, backdrop blur
-3. **TYPOGRAPHY** -- Font family (80-font searchable list), title size, body size, letter spacing, line height, text opacity
-4. **SHAPE** -- Border radius, border width, border opacity, padding, ornate corners toggle
-5. **EFFECTS** -- Glow intensity, shadow depth, saturation boost, contrast boost
-6. **ANIMATION** -- Transition speed multiplier, disable animations toggle
-7. **SPACING** -- Gap multiplier, internal padding scale
-8. **PRESETS** -- Save/Load/Delete presets, Copy CSS, Copy JSON, Reset, Shuffle
-
----
+Clicking any row copies that format to clipboard. The hex input field also acts as a search -- type a hex code and it instantly updates the color.
 
 ### Technical Details
 
-**Font loading**: When user selects a new font, inject:
-```html
-<link href="https://fonts.googleapis.com/css2?family=Font+Name:wght@400;500;600;700&display=swap" rel="stylesheet">
+**Hex to HSL conversion**: A utility function converts hex input to the H/S/L values the palette state uses:
 ```
-into document head dynamically. Cache loaded fonts in a Set to avoid duplicate loads.
-
-**CSS variable conversion**: Convert hex/HSL input to the HSL format Tailwind expects (space-separated without `hsl()`):
-```text
-Input: #C9973F
-Output: --gold: 43 72% 50%
+hexToHsl("#C9973F") -> { h: 43, s: 72, l: 50 }
+hslToHex(43, 72, 50) -> "#C9973F"
 ```
 
-**localStorage schema**:
-```text
-palette-preset:{widgetId}:{presetName} -> JSON string of PaletteState
-palette-presets:{widgetId} -> JSON array of preset names
-```
+**Universal mode implementation**: When toggled on, the component calls `document.documentElement.style.setProperty('--gold', ...)` for each variable. On unmount or toggle off, it removes those properties to restore defaults.
 
-**Filter-based effects**: `saturationBoost` and `contrastBoost` apply via CSS `filter: saturate() contrast()` on the wrapper div, affecting the entire widget without touching individual elements.
+**Theme application**: Each theme is a partial `PaletteState` object. Applying a theme calls `setState(prev => ({ ...prev, ...theme }))` to merge theme values while preserving user's shape/spacing/animation settings.
+
+**Gradient bar rendering**: A canvas or CSS `linear-gradient(to right, hsl(0,100%,50%), hsl(60,100%,50%), ..., hsl(360,100%,50%))` for the hue strip. The saturation/lightness picker is a 2D div with overlapping gradients (white-to-transparent left-right, black-to-transparent bottom-top).
+
