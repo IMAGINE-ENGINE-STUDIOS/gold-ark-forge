@@ -401,6 +401,75 @@ function buildCSSVars(state: PaletteState): Record<string, string> {
 
 const CSS_VAR_KEYS = ['--gold', '--gold-light', '--gold-dark', '--gold-shine', '--navy', '--navy-light', '--navy-dark', '--marble', '--marble-warm'];
 
+/* ─── Mobile Sheet with Swipe-Down-to-Close ─── */
+const MobileSheet = ({ mobileOpen, setMobileOpen, universal, randomize, reset, children }: {
+  mobileOpen: boolean; setMobileOpen: (v: boolean) => void; universal: boolean;
+  randomize: () => void; reset: () => void; children: ReactNode;
+}) => {
+  const touchStartY = useRef<number | null>(null);
+  const [dragDelta, setDragDelta] = useState(0);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const delta = e.touches[0].clientY - touchStartY.current;
+    if (delta > 0) setDragDelta(delta);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (dragDelta > 60) {
+      setMobileOpen(false);
+    }
+    setDragDelta(0);
+    touchStartY.current = null;
+  }, [dragDelta, setMobileOpen]);
+
+  return (
+    <>
+      <button onClick={() => setMobileOpen(!mobileOpen)}
+        className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full glass-panel border-gold/30 flex items-center justify-center text-gold shadow-lg">
+        <Palette className="w-5 h-5" />
+        {universal && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-gold border-2 border-navy-dark" />}
+      </button>
+      {mobileOpen && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-50 h-[50vh] glass-panel border-t border-gold/20 rounded-t-2xl flex flex-col animate-slide-in-up"
+          style={{ transform: dragDelta > 0 ? `translateY(${dragDelta}px)` : undefined, transition: dragDelta > 0 ? 'none' : 'transform 0.3s ease' }}
+        >
+          <div className="flex justify-center pt-2 pb-1 shrink-0 cursor-grab"
+            onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+            <div className="w-10 h-1 rounded-full bg-gold/30" />
+          </div>
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gold/10 shrink-0 bg-white/[0.02]"
+            onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-display tracking-[0.25em] text-gold/70">PALETTE</span>
+              {universal && <span className="text-[7px] font-display tracking-wider px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30">UNI</span>}
+            </div>
+            <div className="flex gap-1.5">
+              <button onClick={randomize} className="flex items-center gap-1 px-2 py-1 rounded border border-gold/20 text-[9px] text-gold/60 hover:text-gold transition-all">
+                <Dices className="w-3 h-3" /> SHUFFLE
+              </button>
+              <button onClick={reset} className="px-2 py-1 rounded border border-marble/10 text-[9px] text-marble/40 hover:text-marble/70 transition-all">
+                <RotateCcw className="w-3 h-3" />
+              </button>
+              <button onClick={() => setMobileOpen(false)} className="text-marble/30 hover:text-marble/60">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="overflow-y-auto flex-1 px-4 py-2 watchlist-scroll">
+            {children}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 /* ─── Main Component ─── */
 interface PaletteEditorProps { children: ReactNode; widgetId: string; }
 
@@ -528,19 +597,26 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
     toast.success('Current palette applied to all widgets');
   }, [state]);
 
-  // Comprehensive shuffle using mood profiles
+  // Comprehensive shuffle using mood profiles + random BG preset
   const randomize = useCallback(() => {
     const mood = MOODS[Math.floor(Math.random() * MOODS.length)];
     const colors = getMoodColors(mood);
     const font = FONTS[Math.floor(Math.random() * FONTS.length)];
     loadFont(font.name);
 
+    // Pick a random BG preset -- 50/50 chance of using preset bg vs mood bg
+    const bgPreset = BG_PRESETS[Math.floor(Math.random() * BG_PRESETS.length)];
+    const usePresetBg = Math.random() > 0.5;
+
     setState(prev => ({
       ...prev,
       ...colors,
-      bgMode: Math.random() > 0.6 ? 'gradient' : 'solid',
-      bgGradientDir: dirOptions[Math.floor(Math.random() * dirOptions.length)],
-      bgOpacity: rand(75, 100),
+      // Override bg properties from preset or keep mood colors
+      bgMode: usePresetBg ? bgPreset.bgMode : (Math.random() > 0.6 ? 'gradient' : 'solid'),
+      bgGradientDir: usePresetBg ? bgPreset.bgGradientDir : dirOptions[Math.floor(Math.random() * dirOptions.length)],
+      bgOpacity: usePresetBg ? bgPreset.bgOpacity : rand(75, 100),
+      backdropBlur: usePresetBg ? bgPreset.backdropBlur : rand(0, 8),
+      ...(usePresetBg ? { bgHue: bgPreset.bgHue, bgSat: bgPreset.bgSat, bgLit: bgPreset.bgLit } : {}),
       fontFamily: font.name,
       titleSize: rand(12, 22),
       bodySize: rand(10, 15),
@@ -556,12 +632,11 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
       shadow: (['none', 'sm', 'md', 'lg'] as const)[Math.floor(Math.random() * 4)],
       saturationBoost: rand(80, 130),
       contrastBoost: rand(85, 120),
-      backdropBlur: rand(0, 8),
       animationSpeed: randF(0.5, 2),
       disableAnimations: false,
       gap: randF(0.5, 2),
     }));
-    toast.success(`Shuffled — ${mood} mood`);
+    toast.success(`Shuffled — ${mood} mood${usePresetBg ? ` · ${bgPreset.name}` : ''}`);
   }, []);
 
   const reset = useCallback(() => { setState({ ...defaults }); toast.success('Palette reset'); }, []);
@@ -761,6 +836,38 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
                   )}
                   <SliderRow label="OPACITY" value={state.bgOpacity} min={50} max={100} step={5} onChange={v => set('bgOpacity', v)} suffix="%" />
                   <SliderRow label="BACKDROP BLUR" value={state.backdropBlur} min={0} max={20} step={1} onChange={v => set('backdropBlur', v)} suffix="px" />
+                  {/* Background Theme Presets */}
+                  <div className="divider-ornate"><span className="text-[8px] text-gold/30 font-display tracking-[0.3em]">BACKGROUND THEMES</span></div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {BG_PRESETS.map(preset => {
+                      const isActive = state.bgMode === preset.bgMode && state.bgHue === preset.bgHue && state.bgSat === preset.bgSat && state.bgLit === preset.bgLit && state.bgOpacity === preset.bgOpacity;
+                      const bgColor = `hsl(${preset.bgHue}, ${preset.bgSat}%, ${preset.bgLit}%)`;
+                      const previewBg = preset.bgMode === 'gradient'
+                        ? `linear-gradient(${preset.bgGradientDir}, ${bgColor}, hsl(${preset.bgHue}, ${Math.max(0, preset.bgSat - 10)}%, ${Math.max(0, preset.bgLit - 4)}%))`
+                        : bgColor;
+                      return (
+                        <button key={preset.name}
+                          onClick={() => setState(prev => ({
+                            ...prev,
+                            bgMode: preset.bgMode, bgGradientDir: preset.bgGradientDir,
+                            bgOpacity: preset.bgOpacity, backdropBlur: preset.backdropBlur,
+                            bgHue: preset.bgHue, bgSat: preset.bgSat, bgLit: preset.bgLit,
+                          }))}
+                          className={`flex flex-col items-center gap-1 p-1.5 rounded border transition-all ${
+                            isActive ? 'border-gold/50 bg-gold/10 ring-1 ring-gold/30' : 'border-gold/10 hover:border-gold/25 bg-white/[0.03]'
+                          }`}>
+                          <div className="w-full h-5 rounded-sm relative overflow-hidden" style={{ background: previewBg, opacity: preset.bgOpacity / 100 }}>
+                            {preset.backdropBlur > 0 && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-[6px] text-white/50 font-mono">blur</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[7px] font-display tracking-wider text-marble/40 leading-none text-center">{preset.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </>
               )}
               {key === 'typography' && (
@@ -900,42 +1007,11 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
         </>
       )}
 
-      {/* Mobile: Fixed bottom sheet */}
+      {/* Mobile: Fixed bottom sheet with swipe-down-to-close */}
       {isMobile && (
-        <>
-          <button onClick={() => setMobileOpen(!mobileOpen)}
-            className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full glass-panel border-gold/30 flex items-center justify-center text-gold shadow-lg">
-            <Palette className="w-5 h-5" />
-            {universal && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-gold border-2 border-navy-dark" />}
-          </button>
-          {mobileOpen && (
-            <div className="fixed inset-x-0 bottom-0 z-50 h-[50vh] glass-panel border-t border-gold/20 rounded-t-2xl flex flex-col animate-slide-in-up">
-              <div className="flex justify-center pt-2 pb-1 shrink-0">
-                <div className="w-10 h-1 rounded-full bg-gold/30" />
-              </div>
-              <div className="flex items-center justify-between px-4 py-2 border-b border-gold/10 shrink-0 bg-white/[0.02]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-display tracking-[0.25em] text-gold/70">PALETTE</span>
-                  {universal && <span className="text-[7px] font-display tracking-wider px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30">UNI</span>}
-                </div>
-                <div className="flex gap-1.5">
-                  <button onClick={randomize} className="flex items-center gap-1 px-2 py-1 rounded border border-gold/20 text-[9px] text-gold/60 hover:text-gold transition-all">
-                    <Dices className="w-3 h-3" /> SHUFFLE
-                  </button>
-                  <button onClick={reset} className="px-2 py-1 rounded border border-marble/10 text-[9px] text-marble/40 hover:text-marble/70 transition-all">
-                    <RotateCcw className="w-3 h-3" />
-                  </button>
-                  <button onClick={() => setMobileOpen(false)} className="text-marble/30 hover:text-marble/60">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-y-auto flex-1 px-4 py-2 watchlist-scroll">
-                {controlPanel}
-              </div>
-            </div>
-          )}
-        </>
+        <MobileSheet mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} universal={universal} randomize={randomize} reset={reset}>
+          {controlPanel}
+        </MobileSheet>
       )}
     </div>
   );

@@ -18,21 +18,11 @@ interface TutorialOverlayProps {
   onExit?: () => void;
 }
 
-const getTooltipSide = (spot: TutorialHotspot): 'top' | 'bottom' | 'left' | 'right' => {
-  if (spot.tooltipSide) return spot.tooltipSide;
-  if (spot.y < 30) return 'bottom';
-  if (spot.y > 70) return 'top';
-  if (spot.x < 30) return 'right';
-  if (spot.x > 70) return 'left';
-  return 'bottom';
-};
-
 const TutorialOverlay = ({ children, hotspots, onExit }: TutorialOverlayProps) => {
   const [activeStep, setActiveStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
-  const [tooltipVisible, setTooltipVisible] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [cardVisible, setCardVisible] = useState(true);
   const touchStartRef = useRef<number | null>(null);
   const isMobile = useIsMobile();
 
@@ -41,17 +31,18 @@ const TutorialOverlay = ({ children, hotspots, onExit }: TutorialOverlayProps) =
   const TICK = 50;
 
   const goTo = useCallback((index: number) => {
-    setTooltipVisible(false);
+    setCardVisible(false);
     setTimeout(() => {
       setActiveStep(index);
       setProgress(0);
-      setTooltipVisible(true);
+      setCardVisible(true);
     }, 150);
   }, []);
 
   const advance = useCallback(() => goTo((activeStep + 1) % stepCount), [activeStep, stepCount, goTo]);
   const goBack = useCallback(() => goTo((activeStep - 1 + stepCount) % stepCount), [activeStep, stepCount, goTo]);
 
+  // Auto-advance timer
   useEffect(() => {
     if (!isPlaying || stepCount === 0) return;
     const id = setInterval(() => {
@@ -97,45 +88,8 @@ const TutorialOverlay = ({ children, hotspots, onExit }: TutorialOverlayProps) =
   if (stepCount === 0) return <>{children}</>;
 
   const spot = hotspots[activeStep];
-  // Clamp spotlight dimensions on mobile
-  const sw = isMobile ? Math.min(spot.spotlightW ?? 22, 55) : (spot.spotlightW ?? 22);
-  const sh = isMobile ? Math.min(spot.spotlightH ?? 16, 35) : (spot.spotlightH ?? 16);
-  const side = getTooltipSide(spot);
 
-  const sleft = spot.x - sw / 2;
-  const stop = spot.y - sh / 2;
-
-  // Tooltip positioning
-  const tooltipMaxW = isMobile ? 'min(260px, calc(100vw - 32px))' : '280px';
-  const tooltipStyle: React.CSSProperties = {
-    position: 'absolute',
-    maxWidth: tooltipMaxW,
-    zIndex: 30,
-    transition: 'opacity 150ms ease, transform 300ms ease',
-    opacity: tooltipVisible ? 1 : 0,
-    transform: tooltipVisible ? 'scale(1)' : 'scale(0.95)',
-  };
-
-  const GAP = 2;
-  if (side === 'bottom') {
-    tooltipStyle.left = isMobile ? 'clamp(8px, calc(' + spot.x + '% - 130px), calc(100% - 268px))' : `${spot.x}%`;
-    tooltipStyle.top = `${spot.y + sh / 2 + GAP}%`;
-    if (!isMobile) tooltipStyle.transform = `translateX(-50%) ${tooltipVisible ? '' : 'translateY(8px)'}`;
-  } else if (side === 'top') {
-    tooltipStyle.left = isMobile ? 'clamp(8px, calc(' + spot.x + '% - 130px), calc(100% - 268px))' : `${spot.x}%`;
-    tooltipStyle.bottom = `${100 - spot.y + sh / 2 + GAP}%`;
-    if (!isMobile) tooltipStyle.transform = `translateX(-50%) ${tooltipVisible ? '' : 'translateY(-8px)'}`;
-  } else if (side === 'right') {
-    tooltipStyle.left = `${spot.x + sw / 2 + GAP}%`;
-    tooltipStyle.top = `${spot.y}%`;
-    tooltipStyle.transform = `translateY(-50%) ${tooltipVisible ? '' : 'translateX(8px)'}`;
-  } else {
-    tooltipStyle.right = `${100 - spot.x + sw / 2 + GAP}%`;
-    tooltipStyle.top = `${spot.y}%`;
-    tooltipStyle.transform = `translateY(-50%) ${tooltipVisible ? '' : 'translateX(-8px)'}`;
-  }
-
-  // Compact dot navigation for mobile: show max 5 dots around active
+  // Compact dot navigation for mobile
   const renderDots = () => {
     if (!isMobile || stepCount <= 5) {
       return hotspots.map((_, i) => (
@@ -152,7 +106,6 @@ const TutorialOverlay = ({ children, hotspots, onExit }: TutorialOverlayProps) =
         />
       ));
     }
-    // Show ellipsis pattern on mobile
     const dots: React.ReactNode[] = [];
     const start = Math.max(0, activeStep - 1);
     const end = Math.min(stepCount - 1, activeStep + 1);
@@ -204,114 +157,56 @@ const TutorialOverlay = ({ children, hotspots, onExit }: TutorialOverlayProps) =
         </div>
       </div>
 
-      {/* Widget with spotlight */}
-      <div ref={containerRef} className="relative overflow-hidden rounded-lg">
+      {/* Widget with dimmed overlay + annotation card */}
+      <div className="relative overflow-hidden rounded-lg">
+        {/* The widget content */}
         {children}
 
-        {/* SVG mask overlay */}
-        <div className="absolute inset-0 z-20" style={{ pointerEvents: 'none' }}>
-          <svg width="100%" height="100%" className="absolute inset-0">
-            <defs>
-              <mask id={`spotlight-mask-${activeStep}`}>
-                <rect width="100%" height="100%" fill="white" />
-                <rect
-                  x={`${sleft}%`} y={`${stop}%`}
-                  width={`${sw}%`} height={`${sh}%`}
-                  rx="8" fill="black"
-                  style={{ transition: 'all 300ms ease' }}
-                />
-              </mask>
-            </defs>
-            <rect
-              width="100%" height="100%"
-              fill="hsla(220, 40%, 8%, 0.75)"
-              mask={`url(#spotlight-mask-${activeStep})`}
-            />
-          </svg>
+        {/* Semi-transparent overlay (no cutout) */}
+        <div className="absolute inset-0 z-20 bg-navy-dark/60 pointer-events-none" />
 
-          {/* Gold glow */}
-          <div
-            className="absolute rounded-lg transition-all duration-300 ease-out"
-            style={{
-              left: `${sleft}%`, top: `${stop}%`,
-              width: `${sw}%`, height: `${sh}%`,
-              boxShadow: '0 0 0 2px hsla(43, 72%, 50%, 0.35), 0 0 24px hsla(43, 72%, 50%, 0.12)',
-            }}
-          />
-
-          {/* Inactive badges */}
-          {hotspots.map((h, i) => {
-            if (i === activeStep) return null;
-            return (
-              <div
-                key={i}
-                className="absolute w-5 h-5 rounded-full bg-gold/30 flex items-center justify-center text-[9px] font-display font-bold text-navy-dark/60 transition-all duration-300"
-                style={{
-                  left: `${h.x}%`, top: `${h.y}%`,
-                  transform: 'translate(-50%, -50%)',
-                  pointerEvents: 'auto', cursor: 'pointer',
-                }}
-                onClick={() => goTo(i)}
-              >
-                {i + 1}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Interactive spotlight pass-through */}
-        <div
-          className="absolute z-10 transition-all duration-300 ease-out"
-          style={{
-            left: `${sleft}%`, top: `${stop}%`,
-            width: `${sw}%`, height: `${sh}%`,
-            pointerEvents: 'auto',
-          }}
-        />
-
-        {/* Click-outside exit */}
+        {/* Click overlay to exit */}
         {onExit && (
-          <div
-            className="absolute inset-0 z-[15]"
-            style={{ pointerEvents: 'auto' }}
-            onClick={(e) => {
-              const rect = containerRef.current?.getBoundingClientRect();
-              if (!rect) return;
-              const px = ((e.clientX - rect.left) / rect.width) * 100;
-              const py = ((e.clientY - rect.top) / rect.height) * 100;
-              const inSpotlight = px >= sleft && px <= sleft + sw && py >= stop && py <= stop + sh;
-              if (!inSpotlight) onExit();
-            }}
-          />
+          <div className="absolute inset-0 z-25" style={{ pointerEvents: 'auto' }} onClick={onExit} />
         )}
 
-        {/* Tooltip card */}
-        <div style={{ ...tooltipStyle, pointerEvents: 'auto' }} className="z-30">
-          <div className="bg-navy-dark/95 border border-gold/30 backdrop-blur-sm rounded-lg shadow-2xl p-3 sm:p-4 relative">
+        {/* Annotation card at the bottom */}
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30"
+          style={{
+            pointerEvents: 'auto',
+            opacity: cardVisible ? 1 : 0,
+            transform: cardVisible ? 'translateY(0)' : 'translateY(8px)',
+            transition: 'opacity 150ms ease, transform 300ms ease',
+          }}
+        >
+          <div className="bg-navy-dark/95 border-t border-gold/30 backdrop-blur-sm p-3 sm:p-4 relative">
+            {/* Progress bar */}
             {isPlaying && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gold/10 rounded-b-lg overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gold/10 overflow-hidden">
                 <div className="h-full bg-gold/50 transition-all duration-75 ease-linear" style={{ width: `${progress}%` }} />
               </div>
             )}
 
-            {/* Arrow */}
-            <div
-              className="absolute w-3 h-3 bg-navy-dark/95 border-gold/30 rotate-45"
-              style={{
-                ...(side === 'bottom' && { top: -6, left: '50%', marginLeft: -6, borderTop: '1px solid', borderLeft: '1px solid' }),
-                ...(side === 'top' && { bottom: -6, left: '50%', marginLeft: -6, borderBottom: '1px solid', borderRight: '1px solid' }),
-                ...(side === 'right' && { left: -6, top: '50%', marginTop: -6, borderBottom: '1px solid', borderLeft: '1px solid' }),
-                ...(side === 'left' && { right: -6, top: '50%', marginTop: -6, borderTop: '1px solid', borderRight: '1px solid' }),
-              }}
-            />
-
-            <div className="flex items-start gap-2.5 sm:gap-3">
-              <span className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gold flex items-center justify-center text-[9px] sm:text-[10px] font-display font-bold text-navy-dark shadow-[0_0_10px_hsla(43,72%,50%,0.4)]">
+            <div className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gold flex items-center justify-center text-[11px] font-display font-bold text-navy-dark shadow-[0_0_10px_hsla(43,72%,50%,0.4)]">
                 {activeStep + 1}
               </span>
-              <div className="min-w-0">
-                <span className="text-[10px] sm:text-xs font-display tracking-[0.1em] text-gold block">{spot.label}</span>
-                <span className="text-[10px] sm:text-[11px] font-body leading-relaxed text-marble/65 block mt-0.5 sm:mt-1">{spot.description}</span>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-display tracking-[0.1em] text-gold block">{spot.label}</span>
+                <span className="text-[11px] font-body leading-relaxed text-marble/65 block mt-1">{spot.description}</span>
+              </div>
+              {/* Step indicators */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                {hotspots.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); goTo(i); }}
+                    className={`rounded-full transition-all duration-200 ${
+                      i === activeStep ? 'w-2 h-2 bg-gold' : 'w-1.5 h-1.5 bg-gold/25 hover:bg-gold/50'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
           </div>
