@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { BookOpen, Monitor, Database, Clock, ChevronRight, GraduationCap } from 'lucide-react';
+import { BookOpen, Monitor, Database, Clock, ChevronRight, GraduationCap, Palette } from 'lucide-react';
 import { widgetDocContent, type WidgetDocEntry } from './widgetDocContent';
 import TutorialOverlay from './TutorialOverlay';
+import PaletteEditor from './PaletteEditor';
 
 interface WidgetDocWrapperProps {
   children: ReactNode;
@@ -85,8 +86,22 @@ const ThesisPanel = ({ doc }: { doc: WidgetDocEntry }) => (
   </div>
 );
 
+const TabButton = ({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: React.ElementType; label: string }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-2 px-4 py-2 rounded border text-[10px] font-display tracking-[0.25em] transition-all ${
+      active
+        ? 'border-gold/60 text-gold bg-gold/10'
+        : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
+    }`}
+  >
+    <Icon className="w-3.5 h-3.5" />
+    {label}
+  </button>
+);
+
 const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
-  const [tab, setTab] = useState<'widget' | 'thesis' | 'tutorial'>('widget');
+  const [tab, setTab] = useState<'widget' | 'thesis' | 'tutorial' | 'palette'>('widget');
   const doc = widgetDocContent[widgetId];
 
   if (!doc) return <>{children}</>;
@@ -98,42 +113,13 @@ const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
   return (
     <div>
       {/* Tab buttons */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setTab('widget')}
-          className={`flex items-center gap-2 px-4 py-2 rounded border text-[10px] font-display tracking-[0.25em] transition-all ${
-            tab === 'widget'
-              ? 'border-gold/60 text-gold bg-gold/10'
-              : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
-          }`}
-        >
-          <Monitor className="w-3.5 h-3.5" />
-          WIDGET
-        </button>
-        <button
-          onClick={() => setTab('thesis')}
-          className={`flex items-center gap-2 px-4 py-2 rounded border text-[10px] font-display tracking-[0.25em] transition-all ${
-            tab === 'thesis'
-              ? 'border-gold/60 text-gold bg-gold/10'
-              : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
-          }`}
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          THESIS & GUIDE
-        </button>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <TabButton active={tab === 'widget'} onClick={() => setTab('widget')} icon={Monitor} label="WIDGET" />
+        <TabButton active={tab === 'thesis'} onClick={() => setTab('thesis')} icon={BookOpen} label="THESIS & GUIDE" />
         {hasTutorial && (
-          <button
-            onClick={() => setTab('tutorial')}
-            className={`flex items-center gap-2 px-4 py-2 rounded border text-[10px] font-display tracking-[0.25em] transition-all ${
-              tab === 'tutorial'
-                ? 'border-gold/60 text-gold bg-gold/10'
-                : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
-            }`}
-          >
-            <GraduationCap className="w-3.5 h-3.5" />
-            TUTORIAL
-          </button>
+          <TabButton active={tab === 'tutorial'} onClick={() => setTab('tutorial')} icon={GraduationCap} label="TUTORIAL" />
         )}
+        <TabButton active={tab === 'palette'} onClick={() => setTab('palette')} icon={Palette} label="PALETTE" />
       </div>
 
       {/* Content */}
@@ -141,6 +127,9 @@ const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
       {tab === 'thesis' && <ThesisPanel doc={doc} />}
       {tab === 'tutorial' && hasTutorial && (
         <TutorialOverlay hotspots={doc.tutorial!} onExit={handleTutorialExit}>{children}</TutorialOverlay>
+      )}
+      {tab === 'palette' && (
+        <PaletteEditor widgetId={widgetId}>{children}</PaletteEditor>
       )}
     </div>
   );
