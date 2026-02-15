@@ -13,15 +13,17 @@ import OGSupplyDemand from '@/components/og-widgets/OGSupplyDemand';
 import OGPipelineFlow from '@/components/og-widgets/OGPipelineFlow';
 import OGProductionMap from '@/components/og-widgets/OGProductionMap';
 import OGChokepoints from '@/components/og-widgets/OGChokepoints';
+import OGWtiBrentSpread from '@/components/og-widgets/OGWtiBrentSpread';
 
 import {
   Fuel, BarChart3, Database, Drill, ArrowLeftRight, TrendingUp,
-  Globe, Newspaper, Network, MapPin, ShieldAlert,
+  Globe, Newspaper, Network, MapPin, ShieldAlert, GitCompareArrows,
 } from 'lucide-react';
 
 const sections = [
   { id: 'prices', label: 'PRICES', icon: Fuel },
   { id: 'futures', label: 'FUTURES', icon: TrendingUp },
+  { id: 'wti-brent', label: 'WTI-BRENT', icon: GitCompareArrows },
   { id: 'spreads', label: 'SPREADS', icon: ArrowLeftRight },
   { id: 'inventory', label: 'INVENTORY', icon: Database },
   { id: 'rigs', label: 'RIG COUNT', icon: Drill },
@@ -114,6 +116,11 @@ const OilGasIntelligence = () => {
         <section id="futures">
           <SectionDivider label="FUTURES CURVE" />
           <OGFuturesCurve />
+        </section>
+
+        <section id="wti-brent">
+          <SectionDivider label="WTI-BRENT SPREAD TRACKER" />
+          <OGWtiBrentSpread />
         </section>
 
         <section id="spreads">
