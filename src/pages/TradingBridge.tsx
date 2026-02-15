@@ -68,9 +68,23 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 }) {
   const [qty, setQty] = useState('');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop' | 'stop_limit'>('market');
   const [limitPrice, setLimitPrice] = useState('');
+  const [stopPrice, setStopPrice] = useState('');
   const { toast } = useToast();
+
+  const parsedQty = parseFloat(qty) || 0;
+  const fillPrice = orderType === 'market' ? activePrice : (parseFloat(limitPrice) || activePrice);
+  const totalCost = parsedQty * fillPrice;
+  const portfolioPct = paper.account.equity > 0 ? (totalCost / paper.account.equity) * 100 : 0;
+  const remainingCash = side === 'buy' ? paper.account.cash - totalCost : paper.account.cash + totalCost;
+  const spread = activePrice * 0.0002;
+
+  const setQtyPercent = (pct: number) => {
+    if (activePrice <= 0) return;
+    const maxQty = (paper.account.cash * pct) / activePrice;
+    setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,9 +94,9 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         symbol: activeSymbol.ticker,
         side,
         qty: parseFloat(qty),
-        type: orderType,
+        type: orderType === 'stop_limit' ? 'limit' : (orderType === 'stop' ? 'stop' : orderType),
         price: activePrice,
-        limitPrice: orderType === 'limit' ? parseFloat(limitPrice) : undefined,
+        limitPrice: orderType === 'limit' || orderType === 'stop_limit' ? parseFloat(limitPrice) : undefined,
       });
       toast({
         title: `Paper ${side.toUpperCase()} Filled`,
@@ -114,6 +128,15 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         </div>
       </div>
 
+      {/* Bid/Ask Spread Indicator */}
+      {activePrice > 0 && (
+        <div className="flex items-center justify-between bg-navy-light/20 rounded px-2 py-1 border border-gold/5">
+          <span className="text-[8px] font-mono text-emerald-400/70">BID: ${(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[7px] font-mono text-marble/20">SPREAD: ${spread.toFixed(activePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[8px] font-mono text-red-400/70">ASK: ${(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
+        </div>
+      )}
+
       {/* Order Form */}
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="flex gap-2">
@@ -130,41 +153,92 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
             <TrendingDown className="w-3 h-3" /> SELL
           </button>
         </div>
-        <div className="flex gap-2">
-          <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Qty" min="0.001" step="any"
-            className="bg-navy-light border-gold/20 text-marble font-mono text-sm flex-1" required />
-          <select value={orderType} onChange={(e) => setOrderType(e.target.value as any)}
-            className="bg-navy-light border border-gold/20 text-marble text-xs rounded px-2 font-display tracking-wider">
-            <option value="market">MARKET</option>
-            <option value="limit">LIMIT</option>
-          </select>
+
+        {/* Order Type */}
+        <div className="flex gap-1">
+          {(['market', 'limit', 'stop', 'stop_limit'] as const).map(t => (
+            <button key={t} type="button" onClick={() => setOrderType(t)}
+              className={`flex-1 py-1 rounded text-[8px] font-display tracking-wider transition-all ${
+                orderType === t ? 'bg-gold/15 text-gold border border-gold/30' : 'bg-navy-light/30 text-marble/30 border border-gold/5'
+              }`}>
+              {t === 'stop_limit' ? 'STP-LMT' : t.toUpperCase()}
+            </button>
+          ))}
         </div>
-        {orderType === 'limit' && (
-          <Input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="Limit Price" step="0.01"
+
+        {/* Quantity + Quick Size */}
+        <div>
+          <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Quantity" min="0.001" step="any"
+            className="bg-navy-light border-gold/20 text-marble font-mono text-sm" required />
+          <div className="flex gap-1 mt-1">
+            {[0.25, 0.5, 0.75, 1].map(pct => (
+              <button key={pct} type="button" onClick={() => setQtyPercent(pct)}
+                className="flex-1 py-0.5 rounded text-[7px] font-mono text-marble/30 bg-navy-light/30 border border-gold/5 hover:text-gold hover:border-gold/20 transition-colors">
+                {pct === 1 ? 'MAX' : `${pct * 100}%`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Limit/Stop Price */}
+        {(orderType === 'limit' || orderType === 'stop_limit') && (
+          <div className="relative">
+            <Input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="Limit Price" step="0.01"
+              className="bg-navy-light border-gold/20 text-marble font-mono text-sm pr-14" required />
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
+              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) - (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
+                className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">−</button>
+              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) + (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
+                className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">+</button>
+            </div>
+          </div>
+        )}
+        {(orderType === 'stop' || orderType === 'stop_limit') && (
+          <Input type="number" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="Stop Price" step="0.01"
             className="bg-navy-light border-gold/20 text-marble font-mono text-sm" required />
         )}
-        <div className="text-[9px] font-mono text-marble/30 text-center">
-          {activeSymbol.ticker} @ ${activePrice < 10 ? activePrice.toFixed(4) : activePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-        </div>
-        <Button type="submit" disabled={!qty}
+
+        {/* Order Cost Breakdown */}
+        {parsedQty > 0 && activePrice > 0 && (
+          <div className="bg-navy-dark/50 rounded-lg p-2 space-y-1 border border-gold/5">
+            <div className="flex justify-between text-[9px] font-mono">
+              <span className="text-marble/40">{parsedQty} × ${fillPrice < 10 ? fillPrice.toFixed(4) : fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="text-marble font-semibold">${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex justify-between text-[8px] font-mono">
+              <span className="text-marble/25">Commission</span>
+              <span className="text-marble/30">$0.00</span>
+            </div>
+            <div className="flex justify-between text-[8px] font-mono">
+              <span className="text-marble/25">Portfolio %</span>
+              <span className={`${portfolioPct > 25 ? 'text-amber-400' : 'text-marble/30'}`}>{portfolioPct.toFixed(1)}%</span>
+            </div>
+            <div className="border-t border-gold/5 pt-1 flex justify-between text-[8px] font-mono">
+              <span className="text-marble/25">Cash After</span>
+              <span className={`${remainingCash < 0 ? 'text-red-400' : 'text-marble/40'}`}>${remainingCash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+        )}
+
+        <Button type="submit" disabled={!qty || (side === 'buy' && totalCost > paper.account.cash)}
           className={`w-full font-display tracking-wider ${side === 'buy' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
-          {side.toUpperCase()} {activeSymbol.ticker}
+          {side.toUpperCase()} {parsedQty > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : activeSymbol.ticker}
         </Button>
       </form>
 
       {/* Paper Positions */}
       {paper.positions.length > 0 && (
         <div className="space-y-1">
-          <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS</div>
+          <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
           {paper.positions.map(pos => (
             <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
               <div>
                 <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
-                <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</div>
+                <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)} · MV: ${(pos.currentPrice * pos.qty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
               </div>
               <div className="text-right">
                 <div className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)}
+                  {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
                 </div>
                 <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[7px] text-marble/25 hover:text-red-400 transition-colors">CLOSE</button>
               </div>
@@ -186,6 +260,24 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
           ))}
         </div>
       )}
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-3 gap-1 mt-1">
+        <div className="text-center bg-navy-light/15 rounded p-1 border border-gold/5">
+          <div className="text-[7px] text-marble/20 font-display tracking-wider">TRADES</div>
+          <div className="text-[10px] font-mono text-marble/50">{paper.account.totalTrades}</div>
+        </div>
+        <div className="text-center bg-navy-light/15 rounded p-1 border border-gold/5">
+          <div className="text-[7px] text-marble/20 font-display tracking-wider">WIN RATE</div>
+          <div className="text-[10px] font-mono text-marble/50">{paper.account.winRate.toFixed(0)}%</div>
+        </div>
+        <div className="text-center bg-navy-light/15 rounded p-1 border border-gold/5">
+          <div className="text-[7px] text-marble/20 font-display tracking-wider">ROI</div>
+          <div className={`text-[10px] font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {((paper.account.totalPnl / paper.account.startingBalance) * 100).toFixed(1)}%
+          </div>
+        </div>
+      </div>
 
       {/* Reset */}
       <button onClick={paper.resetAccount} className="flex items-center gap-1 mx-auto text-[8px] text-marble/20 hover:text-red-400 transition-colors mt-2">
@@ -620,7 +712,49 @@ const TradingBridge = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 watchlist-scroll">
-                  {bottomTab === 'book' && activeConn && (
+                  {bottomTab === 'book' && tradingMode === 'paper' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS & ORDERS</span>
+                      </div>
+                      {paper.positions.length > 0 ? (
+                        <div className="space-y-1">
+                          {paper.positions.map(pos => (
+                            <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
+                                <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
+                                <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[9px] font-mono text-marble/30">MV: ${(pos.currentPrice * pos.qty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                                <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+                                </span>
+                                <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] text-marble/25 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded border border-gold/10">CLOSE</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <EmptyState text="No open paper positions" />}
+                      {paper.orders.length > 0 && (
+                        <div className="border-t border-gold/10 pt-3 space-y-1">
+                          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
+                          {paper.orders.slice(0, 20).map(o => (
+                            <div key={o.id} className="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono text-marble/30 border-b border-gold/5">
+                              <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
+                              <span>{o.type.toUpperCase()}</span>
+                              <span>{o.qty} {o.symbol}</span>
+                              <span>${o.price.toFixed(2)}</span>
+                              <span className="text-marble/15">{new Date(o.filledAt).toLocaleTimeString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
                     <div className="space-y-4">
                       <PositionsPanel connectionId={activeConn.id} />
                       <div className="border-t border-gold/10 pt-4">
@@ -628,7 +762,7 @@ const TradingBridge = () => {
                       </div>
                     </div>
                   )}
-                  {bottomTab === 'book' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+                  {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
                   {bottomTab === 'automate' && (
                     <div className="space-y-4">
                       <SchedulePanel />
@@ -660,11 +794,15 @@ const TradingBridge = () => {
           </div>
           <span className="text-[9px] font-mono text-marble/20">{activeSymbol.label}</span>
           <span className="text-[9px] font-mono text-marble/15 uppercase">{activeSymbol.cat}</span>
+          {activePrice > 0 && (
+            <span className="text-[9px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
+          )}
+          <span className="text-[9px] font-mono text-marble/15">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
         </div>
         <div className="flex items-center gap-4">
           {tradingMode === 'paper' && (
             <span className="text-[9px] font-mono text-emerald-400/30">
-              PAPER: ${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              PAPER: ${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })} · {paper.positions.length} pos
             </span>
           )}
           <span className="text-[9px] font-mono text-marble/20">NON-CUSTODIAL</span>
