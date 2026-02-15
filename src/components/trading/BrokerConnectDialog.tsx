@@ -11,7 +11,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const BROKERS: BrokerType[] = ['alpaca', 'coinbase', 'ibkr', 'tradier', 'webull', 'kraken', 'gemini', 'oanda', 'td_ameritrade'];
+const BROKERS: BrokerType[] = ['alpaca', 'coinbase', 'ibkr', 'tradier', 'webull', 'kraken', 'gemini', 'oanda', 'td_ameritrade', 'binance', 'bybit', 'bitfinex', 'etoro', 'robinhood', 'saxo'];
 
 const BrokerConnectDialog = ({ open, onOpenChange }: Props) => {
   const [step, setStep] = useState<'pick' | 'credentials'>('pick');
@@ -86,10 +86,11 @@ const BrokerConnectDialog = ({ open, onOpenChange }: Props) => {
             <KeyRound className="w-5 h-5 text-gold" />
             {step === 'pick' ? 'SELECT BROKER' : `CONNECT ${meta.label.toUpperCase()}`}
           </DialogTitle>
+          <p className="text-marble/40 text-xs">Connect your brokerage account for non-custodial order routing</p>
         </DialogHeader>
 
         {step === 'pick' ? (
-          <div className="space-y-3 mt-2">
+          <div className="space-y-2 mt-2 max-h-[60vh] overflow-y-auto pr-1">
             {BROKERS.map((b) => {
               const m = BROKER_META[b];
               return (

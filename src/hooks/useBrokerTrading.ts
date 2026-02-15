@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ───────────────────────────────────────────────
 
-export type BrokerType = 'alpaca' | 'coinbase' | 'ibkr' | 'tradier' | 'webull' | 'kraken' | 'gemini' | 'oanda' | 'td_ameritrade';
+export type BrokerType = 'alpaca' | 'coinbase' | 'ibkr' | 'tradier' | 'webull' | 'kraken' | 'gemini' | 'oanda' | 'td_ameritrade' | 'binance' | 'bybit' | 'bitfinex' | 'etoro' | 'robinhood' | 'saxo';
 
 export interface BrokerConnection {
   id: string;
@@ -143,6 +143,60 @@ export const BROKER_META: Record<BrokerType, {
     assets: 'Stocks · ETFs · Options · Futures · Forex',
     environments: [
       { value: 'paper', label: 'Paper' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  binance: {
+    label: 'Binance',
+    assets: 'Crypto · Futures · Options',
+    environments: [
+      { value: 'testnet', label: 'Testnet' },
+      { value: 'production', label: 'Production' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  bybit: {
+    label: 'Bybit',
+    assets: 'Crypto · Derivatives · Spot',
+    environments: [
+      { value: 'testnet', label: 'Testnet' },
+      { value: 'production', label: 'Production' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  bitfinex: {
+    label: 'Bitfinex',
+    assets: 'Crypto · Margin · Derivatives',
+    environments: [
+      { value: 'paper', label: 'Paper' },
+      { value: 'production', label: 'Production' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  etoro: {
+    label: 'eToro',
+    assets: 'Stocks · Crypto · Forex · CFDs',
+    environments: [
+      { value: 'virtual', label: 'Virtual' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  robinhood: {
+    label: 'Robinhood',
+    assets: 'Stocks · ETFs · Crypto · Options',
+    environments: [
+      { value: 'paper', label: 'Paper' },
+      { value: 'live', label: 'Live' },
+    ],
+    fields: ['apiKey', 'apiSecret'],
+  },
+  saxo: {
+    label: 'Saxo Bank',
+    assets: 'Stocks · Forex · Bonds · Options · Futures',
+    environments: [
+      { value: 'simulation', label: 'Simulation' },
       { value: 'live', label: 'Live' },
     ],
     fields: ['apiKey', 'apiSecret'],
