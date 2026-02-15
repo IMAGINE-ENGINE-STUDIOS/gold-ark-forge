@@ -450,6 +450,51 @@ export const enrichChartData = (data: ChartDataPoint[], activeIndicators: Set<In
       enriched.forEach(d => { d[`fib${l * 1000}`] = val; });
     });
   }
+  // ─── NEW MT5 oscillator enrichment ─────────────────────
+  if (activeIndicators.has('cci')) {
+    const vals = computeCCI(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].cci = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('momentum')) {
+    const vals = computeMomentum(closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].momentum = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('obv')) {
+    const vals = computeOBV(closes);
+    vals.forEach((v, i) => { enriched[i].obv = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('mfi')) {
+    const vals = computeMFI(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].mfi = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('awesomeOsc')) {
+    const vals = computeAwesomeOscillator(highs, lows);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].ao = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('stdDev')) {
+    const vals = computeStdDev(closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].stddev = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('demarker')) {
+    const vals = computeDeMarker(highs, lows);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].demarker = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('forceIndex')) {
+    const vals = computeForceIndex(closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].force = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('bullsPower')) {
+    const vals = computeBullsPower(highs, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].bulls = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('bearsPower')) {
+    const vals = computeBearsPower(lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].bears = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('osma')) {
+    const vals = computeOsMA(closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].osma = parseFloat(v.toFixed(2)); });
+  }
   return enriched;
 };
 
@@ -490,6 +535,40 @@ export const getIndicatorLines = (activeIndicators: Set<IndicatorKey>) => {
     lines.push(<Line key="envU" type="monotone" dataKey="envUpper" stroke="hsl(300,50%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 3" connectNulls />);
     lines.push(<Line key="envM" type="monotone" dataKey="envMiddle" stroke="hsl(300,50%,55%)" strokeWidth={0.5} dot={false} strokeDasharray="2 4" connectNulls />);
     lines.push(<Line key="envL" type="monotone" dataKey="envLower" stroke="hsl(300,50%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 3" connectNulls />);
+  }
+  // ─── NEW MT5 oscillator lines ──────────────────────────
+  if (activeIndicators.has('cci')) {
+    lines.push(<Line key="cci" type="monotone" dataKey="cci" stroke="hsl(190,80%,50%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
+  }
+  if (activeIndicators.has('momentum')) {
+    lines.push(<Line key="momentum" type="monotone" dataKey="momentum" stroke="hsl(30,90%,55%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('obv')) {
+    lines.push(<Line key="obv" type="monotone" dataKey="obv" stroke="hsl(120,50%,50%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('mfi')) {
+    lines.push(<Line key="mfi" type="monotone" dataKey="mfi" stroke="hsl(55,70%,50%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
+  }
+  if (activeIndicators.has('awesomeOsc')) {
+    lines.push(<Line key="ao" type="monotone" dataKey="ao" stroke="hsl(145,70%,45%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('stdDev')) {
+    lines.push(<Line key="stddev" type="monotone" dataKey="stddev" stroke="hsl(200,60%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
+  }
+  if (activeIndicators.has('demarker')) {
+    lines.push(<Line key="demarker" type="monotone" dataKey="demarker" stroke="hsl(350,65%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
+  }
+  if (activeIndicators.has('forceIndex')) {
+    lines.push(<Line key="force" type="monotone" dataKey="force" stroke="hsl(280,70%,55%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('bullsPower')) {
+    lines.push(<Line key="bulls" type="monotone" dataKey="bulls" stroke="hsl(145,70%,50%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('bearsPower')) {
+    lines.push(<Line key="bears" type="monotone" dataKey="bears" stroke="hsl(0,70%,55%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('osma')) {
+    lines.push(<Line key="osma" type="monotone" dataKey="osma" stroke="hsl(40,80%,50%)" strokeWidth={1} dot={false} connectNulls />);
   }
 
   return lines;
