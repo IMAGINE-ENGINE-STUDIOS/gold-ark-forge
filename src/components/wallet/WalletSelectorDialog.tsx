@@ -4,7 +4,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Wallet, ExternalLink, Bitcoin, CheckCircle, ArrowRight, KeyRound, ShieldCheck, Download, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Wallet, ExternalLink, Bitcoin, CheckCircle, ArrowRight, KeyRound, ShieldCheck, Download, Eye, EyeOff, AlertTriangle, Trash2 } from 'lucide-react';
+import { clearWallet } from '@/lib/localWallet';
 
 type View = 'select' | 'btc' | 'local-create' | 'local-import' | 'local-unlock' | 'backup';
 
@@ -151,8 +152,8 @@ const WalletSelectorDialog = () => {
               )}
             </button>
 
-            {/* Local Wallet — unlock or create */}
-            {hasLocalWallet ? (
+            {/* Local Wallet — Unlock */}
+            {hasLocalWallet && (
               <button
                 onClick={() => setView('local-unlock')}
                 disabled={isConnecting}
@@ -165,21 +166,33 @@ const WalletSelectorDialog = () => {
                   <div className="font-display text-gold tracking-wider text-sm">Unlock Vault Wallet</div>
                   <div className="text-marble/50 text-xs mt-0.5">In-browser · Password-protected</div>
                 </div>
-                <span className="text-xs text-gold/60 bg-gold/10 px-2 py-1 rounded">Stored</span>
+                <span className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">Stored</span>
               </button>
-            ) : (
+            )}
+
+            {/* Create New Wallet — always visible */}
+            <button
+              onClick={() => setView('local-create')}
+              disabled={isConnecting}
+              className="w-full flex items-center gap-4 p-4 border border-gold/20 hover:border-gold/60 hover:bg-gold/5 transition-all group disabled:opacity-50"
+            >
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-gold/80 to-gold-dark flex items-center justify-center flex-shrink-0">
+                <KeyRound className="text-navy" size={24} />
+              </div>
+              <div className="text-left flex-1">
+                <div className="font-display text-gold tracking-wider text-sm">Create New Wallet</div>
+                <div className="text-marble/50 text-xs mt-0.5">No extension needed · Non-custodial</div>
+              </div>
+            </button>
+
+            {/* Disconnect / Remove stored wallet */}
+            {hasLocalWallet && (
               <button
-                onClick={() => setView('local-create')}
-                disabled={isConnecting}
-                className="w-full flex items-center gap-4 p-4 border border-gold/20 hover:border-gold/60 hover:bg-gold/5 transition-all group disabled:opacity-50"
+                onClick={() => { clearWallet(); window.location.reload(); }}
+                className="w-full flex items-center gap-3 p-3 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 transition-all text-red-400/70 hover:text-red-400"
               >
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-gold/80 to-gold-dark flex items-center justify-center flex-shrink-0">
-                  <KeyRound className="text-navy" size={24} />
-                </div>
-                <div className="text-left flex-1">
-                  <div className="font-display text-gold tracking-wider text-sm">Create Vault Wallet</div>
-                  <div className="text-marble/50 text-xs mt-0.5">No extension needed · Non-custodial</div>
-                </div>
+                <Trash2 size={16} />
+                <span className="text-xs font-display tracking-wider">Remove Stored Wallet</span>
               </button>
             )}
 
