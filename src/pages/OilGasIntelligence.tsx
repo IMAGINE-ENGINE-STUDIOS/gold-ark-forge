@@ -16,6 +16,7 @@ import OGChokepoints from '@/components/og-widgets/OGChokepoints';
 import OGWtiBrentSpread from '@/components/og-widgets/OGWtiBrentSpread';
 import OGEnergyDashboard from '@/components/og-widgets/OGEnergyDashboard';
 import OGRiskAnalyzer from '@/components/og-widgets/OGRiskAnalyzer';
+import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 
 import {
   Fuel, BarChart3, Database, Drill, ArrowLeftRight, TrendingUp,
@@ -112,22 +113,30 @@ const OilGasIntelligence = () => {
 
         <section id="prices">
           <SectionDivider label="SPOT & FUTURES PRICES" />
-          <OGPriceCards />
+          <WidgetDocWrapper widgetId="og-prices">
+            <OGPriceCards />
+          </WidgetDocWrapper>
         </section>
 
         <section id="futures">
           <SectionDivider label="FUTURES CURVE" />
-          <OGFuturesCurve />
+          <WidgetDocWrapper widgetId="og-futures">
+            <OGFuturesCurve />
+          </WidgetDocWrapper>
         </section>
 
         <section id="wti-brent">
           <SectionDivider label="WTI-BRENT SPREAD TRACKER" />
-          <OGWtiBrentSpread />
+          <WidgetDocWrapper widgetId="og-wti-brent">
+            <OGWtiBrentSpread />
+          </WidgetDocWrapper>
         </section>
 
         <section id="spreads">
           <SectionDivider label="SPREADS & MARGINS" />
-          <OGCrackSpreads />
+          <WidgetDocWrapper widgetId="og-spreads">
+            <OGCrackSpreads />
+          </WidgetDocWrapper>
         </section>
       </div>
 
@@ -139,27 +148,37 @@ const OilGasIntelligence = () => {
 
         <section id="inventory">
           <SectionDivider label="EIA CRUDE OIL INVENTORY" />
-          <OGInventoryGauge />
+          <WidgetDocWrapper widgetId="og-inventory">
+            <OGInventoryGauge />
+          </WidgetDocWrapper>
         </section>
 
         <section id="rigs">
           <SectionDivider label="BAKER HUGHES RIG COUNT" />
-          <OGRigCount />
+          <WidgetDocWrapper widgetId="og-rigs">
+            <OGRigCount />
+          </WidgetDocWrapper>
         </section>
 
         <section id="supply-demand">
           <SectionDivider label="GLOBAL SUPPLY / DEMAND BALANCE" />
-          <OGSupplyDemand />
+          <WidgetDocWrapper widgetId="og-supply-demand">
+            <OGSupplyDemand />
+          </WidgetDocWrapper>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="opec">
             <SectionDivider label="OPEC+ COMPLIANCE" />
-            <OGOPECTracker />
+            <WidgetDocWrapper widgetId="og-opec">
+              <OGOPECTracker />
+            </WidgetDocWrapper>
           </section>
           <section id="production">
             <SectionDivider label="TOP PRODUCERS" />
-            <OGProductionMap />
+            <WidgetDocWrapper widgetId="og-production">
+              <OGProductionMap />
+            </WidgetDocWrapper>
           </section>
         </div>
       </div>
@@ -172,17 +191,23 @@ const OilGasIntelligence = () => {
 
         <section id="pipelines">
           <SectionDivider label="GLOBAL PIPELINE FLOW" />
-          <OGPipelineFlow />
+          <WidgetDocWrapper widgetId="og-pipelines">
+            <OGPipelineFlow />
+          </WidgetDocWrapper>
         </section>
 
         <section id="chokepoints">
           <SectionDivider label="GEOPOLITICAL CHOKEPOINT RISK" />
-          <OGChokepoints />
+          <WidgetDocWrapper widgetId="og-chokepoints">
+            <OGChokepoints />
+          </WidgetDocWrapper>
         </section>
 
         <section id="news">
           <SectionDivider label="ENERGY INTELLIGENCE FEED" />
-          <OGNewsFeed />
+          <WidgetDocWrapper widgetId="og-news">
+            <OGNewsFeed />
+          </WidgetDocWrapper>
         </section>
       </div>
 
@@ -194,12 +219,16 @@ const OilGasIntelligence = () => {
 
         <section id="energy-dashboard">
           <SectionDivider label="ENERGY EXECUTIVE DASHBOARD" />
-          <OGEnergyDashboard />
+          <WidgetDocWrapper widgetId="og-energy-dashboard">
+            <OGEnergyDashboard />
+          </WidgetDocWrapper>
         </section>
 
         <section id="risk-analyzer">
           <SectionDivider label="RISK & SPREADS ANALYZER" />
-          <OGRiskAnalyzer />
+          <WidgetDocWrapper widgetId="og-risk-analyzer">
+            <OGRiskAnalyzer />
+          </WidgetDocWrapper>
         </section>
       </div>
 

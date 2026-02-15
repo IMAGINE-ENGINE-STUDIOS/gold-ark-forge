@@ -13,6 +13,7 @@ const tierColors: Record<string, string> = {
   'DeFi': 'text-purple-400 border-purple-400/30 bg-purple-400/5',
   'COMPOSITE': 'text-cyan-400 border-cyan-400/30 bg-cyan-400/5',
   'PROPRIETARY': 'text-gold border-gold/30 bg-gold/5',
+  'ENERGY': 'text-amber-400 border-amber-400/30 bg-amber-400/5',
 };
 
 const ThesisPanel = ({ doc }: { doc: WidgetDocEntry }) => (
