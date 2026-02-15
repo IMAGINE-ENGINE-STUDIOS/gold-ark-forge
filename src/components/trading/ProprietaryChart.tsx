@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { SYNTHETIC_PRICES, CATEGORY_COLORS } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
   enrichChartData,
@@ -40,13 +42,7 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   '1M': { points: 120, intervalMs: 6 * 3_600_000, noiseScale: 0.015, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  metals: 'hsl(43, 72%, 50%)',
-  crypto: 'hsl(38, 92%, 50%)',
-  energy: 'hsl(25, 95%, 53%)',
-  stocks: 'hsl(217, 91%, 60%)',
-  bonds: 'hsl(210, 6%, 67%)',
-};
+// Use CATEGORY_COLORS from tradingSymbols.ts
 
 const generateChartData = (price: number, change: number, tf: Timeframe): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
@@ -114,35 +110,43 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
   const { drawings, activeTool, setActiveTool, addDrawing, clearAll } = useDrawings();
 
   const { data: metalPrices } = useMetalPrices();
-  const { data: cryptoData } = useCryptoData(10);
+  const { data: cryptoData } = useCryptoData(50);
   const { data: oilPrices } = useOilGasPrices();
 
-  const { price, change } = useMemo(() => {
+  // WebSocket real-time prices for crypto
+  const wsPrices = useWebSocketPrices([symbolKey]);
+  const wsData = wsPrices[symbolKey];
+
+  // Resolve base price from APIs
+  const { basePrice, baseChange } = useMemo(() => {
+    // Check WebSocket first (sub-second updates for crypto)
+    if (wsData && wsData.price > 0) {
+      return { basePrice: wsData.price, baseChange: wsData.change24h };
+    }
     if (category === 'metals') {
       const key = METAL_MAP[symbolKey];
       const feed = key ? metalPrices?.[key] : undefined;
-      return { price: feed?.price_usd ?? 0, change: feed?.change_24h ?? 0 };
+      return { basePrice: feed?.price_usd ?? 0, baseChange: feed?.change_24h ?? 0 };
     }
     if (category === 'crypto') {
-      const cryptoMap: Record<string, string> = { bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana' };
-      const id = cryptoMap[symbolKey];
-      const coin = cryptoData?.find((c) => c.id === id);
-      return { price: coin?.current_price ?? 0, change: coin?.price_change_percentage_24h ?? 0 };
+      const coin = cryptoData?.find((c) => c.id === symbolKey || c.symbol === symbolKey);
+      return { basePrice: coin?.current_price ?? 0, baseChange: coin?.price_change_percentage_24h ?? 0 };
     }
     if (category === 'energy') {
       const sym = OIL_SYMBOL_MAP[symbolKey];
       const feed = oilPrices?.find((p) => p.symbol === sym);
-      return { price: feed?.price ?? 0, change: feed?.change ?? 0 };
+      return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    const stockPrices: Record<string, { p: number; c: number }> = {
-      sp500: { p: 5940, c: 0.35 }, nasdaq: { p: 520, c: 0.48 }, aapl: { p: 235, c: 0.22 },
-      msft: { p: 445, c: 0.31 }, xom: { p: 115, c: -0.18 }, cvx: { p: 162, c: -0.12 },
-      tlt: { p: 92, c: 0.08 }, ief: { p: 96, c: 0.05 }, shy: { p: 82, c: 0.02 },
-      lqd: { p: 110, c: 0.06 }, hyg: { p: 78, c: -0.04 },
-    };
-    const sp = stockPrices[symbolKey] ?? { p: 100, c: 0 };
-    return { price: sp.p, change: sp.c };
-  }, [symbolKey, category, metalPrices, cryptoData, oilPrices]);
+    // Use expanded synthetic prices for stocks, bonds, forex
+    const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
+    return { basePrice: sp.p, baseChange: sp.c };
+  }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
+
+  // Simulated sub-second streaming for non-WebSocket assets
+  const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
+  const isWsLive = !!wsData && wsData.price > 0;
+  const price = isWsLive ? wsData.price : streamedPrice;
+  const change = isWsLive ? wsData.change24h : streamedChange;
 
   const rawChartData = useMemo(() => generateChartData(price, change, tf), [price, change, tf]);
   const chartData = useMemo(() => enrichChartData(rawChartData, activeIndicators), [rawChartData, activeIndicators]);
@@ -183,7 +187,13 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-gold" />
           <span className="font-display text-sm tracking-wider text-gold-light">{label}</span>
-          <LivePulse label="LIVE" />
+          {isWsLive ? (
+            <span className="flex items-center gap-0.5 text-[8px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20">
+              <Wifi className="w-2.5 h-2.5" /> WS
+            </span>
+          ) : (
+            <LivePulse label="LIVE" />
+          )}
           <span className="font-display text-lg text-marble ml-2">
             ${price < 10 ? price.toFixed(3) : price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </span>

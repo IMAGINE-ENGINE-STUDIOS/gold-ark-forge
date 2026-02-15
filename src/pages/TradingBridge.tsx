@@ -1,11 +1,15 @@
 import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import ProprietaryChart from '@/components/trading/ProprietaryChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
+import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
+import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
+import GATopMovers from '@/components/ga-widgets/GATopMovers';
+import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
 import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
@@ -13,6 +17,7 @@ import OrderHistory from '@/components/trading/OrderHistory';
 import BacktestPanel from '@/components/trading/BacktestPanel';
 import DepthOfMarket from '@/components/trading/DepthOfMarket';
 import RuleBuilder from '@/components/trading/RuleBuilder';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES } from '@/data/tradingSymbols';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -22,59 +27,6 @@ import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-
-// ─── Watchlist ───────────────────────────────────────────
-const WATCHLIST_CATEGORIES = [
-  {
-    label: 'METALS',
-    items: [
-      { key: 'gold', label: 'XAU/USD', tv: 'OANDA:XAUUSD', ticker: 'GLD', cat: 'metals' },
-      { key: 'silver', label: 'XAG/USD', tv: 'OANDA:XAGUSD', ticker: 'SLV', cat: 'metals' },
-      { key: 'platinum', label: 'XPT/USD', tv: 'OANDA:XPTUSD', ticker: 'PPLT', cat: 'metals' },
-      { key: 'copper', label: 'Copper', tv: 'COMEX:HG1!', ticker: 'HG', cat: 'metals' },
-    ],
-  },
-  {
-    label: 'CRYPTO',
-    items: [
-      { key: 'bitcoin', label: 'BTC/USD', tv: 'BITSTAMP:BTCUSD', ticker: 'BTC-USD', cat: 'crypto' },
-      { key: 'ethereum', label: 'ETH/USD', tv: 'BITSTAMP:ETHUSD', ticker: 'ETH-USD', cat: 'crypto' },
-      { key: 'solana', label: 'SOL/USD', tv: 'BINANCE:SOLUSD', ticker: 'SOL-USD', cat: 'crypto' },
-    ],
-  },
-  {
-    label: 'ENERGY',
-    items: [
-      { key: 'oil', label: 'WTI Crude', tv: 'NYMEX:CL1!', ticker: 'CL', cat: 'energy' },
-      { key: 'brent', label: 'Brent', tv: 'NYMEX:BB1!', ticker: 'BZ', cat: 'energy' },
-      { key: 'natgas', label: 'Nat Gas', tv: 'NYMEX:NG1!', ticker: 'NG', cat: 'energy' },
-      { key: 'rbob', label: 'Gasoline', tv: 'NYMEX:RB1!', ticker: 'RB', cat: 'energy' },
-    ],
-  },
-  {
-    label: 'STOCKS',
-    items: [
-      { key: 'sp500', label: 'S&P 500', tv: 'FOREXCOM:SPXUSD', ticker: 'SPY', cat: 'stocks' },
-      { key: 'nasdaq', label: 'Nasdaq', tv: 'NASDAQ:QQQ', ticker: 'QQQ', cat: 'stocks' },
-      { key: 'aapl', label: 'Apple', tv: 'NASDAQ:AAPL', ticker: 'AAPL', cat: 'stocks' },
-      { key: 'msft', label: 'Microsoft', tv: 'NASDAQ:MSFT', ticker: 'MSFT', cat: 'stocks' },
-      { key: 'xom', label: 'Exxon', tv: 'NYSE:XOM', ticker: 'XOM', cat: 'stocks' },
-      { key: 'cvx', label: 'Chevron', tv: 'NYSE:CVX', ticker: 'CVX', cat: 'stocks' },
-    ],
-  },
-  {
-    label: 'BONDS',
-    items: [
-      { key: 'tlt', label: '20Y Treasury', tv: 'NASDAQ:TLT', ticker: 'TLT', cat: 'bonds' },
-      { key: 'ief', label: '10Y Treasury', tv: 'NASDAQ:IEF', ticker: 'IEF', cat: 'bonds' },
-      { key: 'shy', label: '1-3Y Treasury', tv: 'NASDAQ:SHY', ticker: 'SHY', cat: 'bonds' },
-      { key: 'lqd', label: 'IG Corp Bond', tv: 'NYSE:LQD', ticker: 'LQD', cat: 'bonds' },
-      { key: 'hyg', label: 'HY Corp Bond', tv: 'NYSE:HYG', ticker: 'HYG', cat: 'bonds' },
-    ],
-  },
-];
-
-const ALL_SYMBOLS = WATCHLIST_CATEGORIES.flatMap((c) => c.items);
 
 // ─── Mobile section tabs ─────────────────────────────────
 const MOBILE_TABS = [
@@ -109,12 +61,23 @@ const TradingBridge = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [symbolSearch, setSymbolSearch] = useState('');
   const { data: connections } = useBrokerConnections();
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
   const { data: metalPricesData } = useMetalPrices();
-  const { data: cryptoDataAll } = useCryptoData(10);
+  const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
+
+  // Filter watchlist by search
+  const filteredCategories = useMemo(() => {
+    if (!symbolSearch.trim()) return WATCHLIST_CATEGORIES;
+    const q = symbolSearch.toLowerCase();
+    return WATCHLIST_CATEGORIES.map(cat => ({
+      ...cat,
+      items: cat.items.filter(s => s.label.toLowerCase().includes(q) || s.ticker.toLowerCase().includes(q) || s.key.includes(q)),
+    })).filter(cat => cat.items.length > 0);
+  }, [symbolSearch]);
 
   // Resolve current price for DOM widget
   const activePrice = useMemo(() => {
@@ -125,8 +88,7 @@ const TradingBridge = () => {
       return key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
     }
     if (sym.cat === 'crypto') {
-      const cryptoMap: Record<string, string> = { bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana' };
-      const coin = cryptoDataAll?.find(c => c.id === cryptoMap[sym.key]);
+      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
       return coin?.current_price ?? 0;
     }
     if (sym.cat === 'energy') {
@@ -134,8 +96,8 @@ const TradingBridge = () => {
       const feed = oilPricesData?.find(p => p.symbol === oilMap[sym.key]);
       return feed?.price ?? 0;
     }
-    const stockPrices: Record<string, number> = { sp500: 5940, nasdaq: 520, aapl: 235, msft: 445, xom: 115, cvx: 162, tlt: 92, ief: 96, shy: 82, lqd: 110, hyg: 78 };
-    return stockPrices[sym.key] ?? 100;
+    const sp = SYNTHETIC_PRICES[sym.key];
+    return sp?.p ?? 100;
   }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
   // ─── MOBILE LAYOUT ──────────────────────────────────
   if (isMobile) {
@@ -165,16 +127,28 @@ const TradingBridge = () => {
         {/* Mobile Watchlist Overlay */}
         {watchlistOpen && (
           <div className="absolute top-11 left-0 right-0 z-50 bg-navy-dark/98 border-b border-gold/20 max-h-[60vh] overflow-y-auto backdrop-blur-sm">
-            {WATCHLIST_CATEGORIES.map((cat) => (
+            <div className="sticky top-0 z-10 p-2 bg-navy-dark border-b border-gold/10">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-marble/30" />
+                <input
+                  type="text"
+                  value={symbolSearch}
+                  onChange={(e) => setSymbolSearch(e.target.value)}
+                  placeholder="Search symbols..."
+                  className="w-full bg-navy-light border border-gold/15 text-marble text-[11px] rounded pl-7 pr-2 py-1.5 font-mono placeholder:text-marble/20"
+                />
+              </div>
+            </div>
+            {filteredCategories.map((cat) => (
               <div key={cat.label}>
-                <div className="px-3 py-1.5 text-[8px] font-display tracking-[0.2em] text-gold/30 border-b border-gold/5 bg-navy-dark/50 sticky top-0">
-                  {cat.label}
+                <div className="px-3 py-1.5 text-[8px] font-display tracking-[0.2em] text-gold/30 border-b border-gold/5 bg-navy-dark/50 sticky top-[40px]">
+                  {cat.label} <span className="text-marble/15">({cat.items.length})</span>
                 </div>
                 <div className="grid grid-cols-2 gap-px bg-gold/5">
                   {cat.items.map((sym) => (
                     <button
                       key={sym.key}
-                      onClick={() => { setActiveSymbol(sym); setWatchlistOpen(false); }}
+                      onClick={() => { setActiveSymbol(sym); setWatchlistOpen(false); setSymbolSearch(''); }}
                       className={`px-3 py-2.5 text-left bg-navy transition-colors ${
                         activeSymbol.key === sym.key ? 'bg-gold/10 text-gold' : 'text-marble/60'
                       }`}
@@ -186,18 +160,23 @@ const TradingBridge = () => {
                 </div>
               </div>
             ))}
+            {filteredCategories.length === 0 && (
+              <div className="p-6 text-center text-marble/20 text-xs font-display">NO SYMBOLS FOUND</div>
+            )}
           </div>
         )}
 
         {/* Mobile Content */}
         <div className="flex-1 overflow-y-auto">
           {mobileTab === 'chart' && (
-            <div className="flex flex-col h-full">
-              <div className="h-[50vh] min-h-[280px]">
+            <div className="flex flex-col">
+              <div className="h-[45vh] min-h-[260px]">
                 <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} />
               </div>
               <div className="p-3 space-y-3">
                 <GAPriceCards />
+                <GAFearGreed />
+                <GATopMovers />
               </div>
             </div>
           )}
@@ -304,12 +283,26 @@ const TradingBridge = () => {
               {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
             </button>
           </div>
-          <div className="overflow-y-auto" style={{ height: 'calc(100% - 33px)' }}>
-            {WATCHLIST_CATEGORIES.map((cat) => (
+          {!sidebarCollapsed && (
+            <div className="px-2 py-1.5 border-b border-gold/10">
+              <div className="relative">
+                <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-marble/20" />
+                <input
+                  type="text"
+                  value={symbolSearch}
+                  onChange={(e) => setSymbolSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full bg-navy-light border border-gold/10 text-marble text-[10px] rounded pl-6 pr-2 py-1 font-mono placeholder:text-marble/15"
+                />
+              </div>
+            </div>
+          )}
+          <div className="overflow-y-auto" style={{ height: `calc(100% - ${sidebarCollapsed ? '33px' : '66px'})` }}>
+            {filteredCategories.map((cat) => (
               <div key={cat.label}>
                 {!sidebarCollapsed && (
                   <div className="px-2 py-1.5 text-[8px] font-display tracking-[0.2em] text-gold/30 border-b border-gold/5 bg-navy-dark/30">
-                    {cat.label}
+                    {cat.label} <span className="text-marble/10">({cat.items.length})</span>
                   </div>
                 )}
                 {sidebarCollapsed && (
@@ -339,6 +332,9 @@ const TradingBridge = () => {
                 ))}
               </div>
             ))}
+            {filteredCategories.length === 0 && !sidebarCollapsed && (
+              <div className="p-4 text-center text-marble/15 text-[9px] font-display">NO MATCHES</div>
+            )}
           </div>
         </div>
 
