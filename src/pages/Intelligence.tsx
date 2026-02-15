@@ -15,7 +15,10 @@ import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
-import GACryptoHeatmap from '@/components/ga-widgets/GACryptoHeatmap';
+import GAMarketHeatmap from '@/components/ga-widgets/GAMarketHeatmap';
+import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
+import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
+import GABlockchainHub from '@/components/ga-widgets/GABlockchainHub';
 import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 
 // Blockchain live widgets (free APIs)
@@ -225,10 +228,10 @@ const Intelligence = () => {
           <GAForexMatrix />
         </section>
 
-        {/* Crypto Sector Heatmap */}
+        {/* Multi-Market Heatmap */}
         <section id="heatmap">
-          <SectionDivider label="CRYPTO SECTOR HEATMAP" />
-          <GACryptoHeatmap />
+          <SectionDivider label="MULTI-MARKET HEATMAP" />
+          <GAMarketHeatmap />
         </section>
 
         {/* Economic Calendar */}
@@ -298,6 +301,28 @@ const Intelligence = () => {
           </section>
         </div>
       </div>
+
+      {/* ═══════════════ TIER 2.75: COMPOSITE TOOLS ═══════════════ */}
+      <div className="container mx-auto px-6 py-12 space-y-12">
+        <TierBanner label="COMPOSITE TOOLS" sub="MULTI-SOURCE · CROSS-ASSET ANALYSIS" />
+
+        <section id="pulse">
+          <SectionDivider label="MARKET PULSE COMMAND CENTER" />
+          <GAMarketPulse />
+        </section>
+
+        <section id="correlation">
+          <SectionDivider label="CROSS-ASSET CORRELATION" />
+          <GACrossAssetDashboard />
+        </section>
+
+        <section id="chain-hub">
+          <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
+          <GABlockchainHub />
+        </section>
+      </div>
+
+      <div className="greek-key-border-rich h-2" />
 
       {/* ═══════════════ TIER 3: PROPRIETARY ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
