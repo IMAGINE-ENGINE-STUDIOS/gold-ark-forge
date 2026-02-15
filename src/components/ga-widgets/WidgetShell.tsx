@@ -20,7 +20,7 @@ const WidgetShell = ({ children, icon: Icon, title, badge, source, onRefresh, or
       ref={ref}
       className={`
         relative rounded-sm overflow-hidden
-        bg-gradient-to-br from-navy via-navy to-navy-light
+        bg-navy/85 backdrop-blur-sm
         border border-gold/20
         transition-all duration-700 ease-out
         hover:border-gold/40 hover:shadow-[0_0_30px_-10px_hsla(43,72%,50%,0.15)]

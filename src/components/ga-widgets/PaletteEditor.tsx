@@ -35,6 +35,8 @@ const defaults: PaletteState = {
 /* ─── Color conversion utils ─── */
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 const hslStr = (h: number, s: number, l: number) => `${h} ${s}% ${l}%`;
+const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randF = (min: number, max: number, decimals = 2) => parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
 
 function hslToHex(h: number, s: number, l: number): string {
   s /= 100; l /= 100;
@@ -131,7 +133,19 @@ function loadFont(name: string) {
   document.head.appendChild(link);
 }
 
-/* ─── Pre-Built Themes ─── */
+function loadFontBatch(fonts: FontEntry[]) {
+  const toLoad = fonts.filter(f => !loadedFonts.has(f.name));
+  if (toLoad.length === 0) return;
+  // Batch into a single request for efficiency
+  const families = toLoad.map(f => f.name.replace(/ /g, '+') + ':wght@400;600').join('&family=');
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${families}&display=swap`;
+  document.head.appendChild(link);
+  toLoad.forEach(f => loadedFonts.add(f.name));
+}
+
+/* ─── Pre-Built Themes (12 total) ─── */
 interface ThemePreset {
   name: string;
   accent: { h: number; s: number; l: number };
@@ -149,7 +163,26 @@ const THEMES: ThemePreset[] = [
   { name: 'Desert Sand', accent: { h: 38, s: 92, l: 50 }, bg: { h: 20, s: 6, l: 15 }, text: { h: 45, s: 95, l: 89 }, font: 'Lora' },
   { name: 'Arctic Frost', accent: { h: 199, s: 89, l: 60 }, bg: { h: 214, s: 50, l: 11 }, text: { h: 204, s: 100, l: 97 }, font: 'DM Sans' },
   { name: 'Royal Purple', accent: { h: 263, s: 90, l: 66 }, bg: { h: 268, s: 52, l: 13 }, text: { h: 250, s: 90, l: 95 }, font: 'Bodoni Moda' },
+  { name: 'Copper Forge', accent: { h: 25, s: 75, l: 48 }, bg: { h: 15, s: 18, l: 12 }, text: { h: 30, s: 40, l: 92 }, font: 'Bitter' },
+  { name: 'Obsidian', accent: { h: 0, s: 0, l: 85 }, bg: { h: 0, s: 0, l: 6 }, text: { h: 0, s: 0, l: 95 }, font: 'Outfit' },
+  { name: 'Emerald Trading', accent: { h: 145, s: 65, l: 42 }, bg: { h: 160, s: 30, l: 10 }, text: { h: 140, s: 15, l: 90 }, font: 'Manrope' },
+  { name: 'Champagne', accent: { h: 42, s: 55, l: 65 }, bg: { h: 35, s: 15, l: 14 }, text: { h: 40, s: 50, l: 94 }, font: 'Cormorant Garamond' },
 ];
+
+/* ─── Mood profiles for coherent shuffle ─── */
+type Mood = 'warm' | 'cool' | 'dark' | 'light' | 'vivid' | 'muted';
+const MOODS: Mood[] = ['warm', 'cool', 'dark', 'light', 'vivid', 'muted'];
+
+function getMoodColors(mood: Mood) {
+  switch (mood) {
+    case 'warm': return { accentHue: rand(20, 55), accentSat: rand(60, 85), accentLit: rand(45, 60), bgHue: rand(15, 35), bgSat: rand(10, 25), bgLit: rand(8, 16), textHue: rand(30, 50), textSat: rand(15, 35), textLit: rand(88, 97) };
+    case 'cool': return { accentHue: rand(170, 230), accentSat: rand(50, 80), accentLit: rand(50, 65), bgHue: rand(200, 230), bgSat: rand(30, 55), bgLit: rand(8, 14), textHue: rand(200, 220), textSat: rand(10, 30), textLit: rand(85, 96) };
+    case 'dark': return { accentHue: rand(0, 360), accentSat: rand(15, 40), accentLit: rand(55, 72), bgHue: rand(0, 360), bgSat: rand(5, 15), bgLit: rand(4, 10), textHue: rand(0, 40), textSat: rand(5, 15), textLit: rand(80, 92) };
+    case 'light': return { accentHue: rand(0, 360), accentSat: rand(50, 75), accentLit: rand(40, 55), bgHue: rand(200, 230), bgSat: rand(20, 40), bgLit: rand(14, 22), textHue: rand(30, 50), textSat: rand(20, 40), textLit: rand(92, 98) };
+    case 'vivid': return { accentHue: rand(0, 360), accentSat: rand(80, 100), accentLit: rand(50, 65), bgHue: rand(0, 360), bgSat: rand(40, 70), bgLit: rand(6, 14), textHue: rand(0, 360), textSat: rand(50, 80), textLit: rand(90, 98) };
+    case 'muted': return { accentHue: rand(0, 360), accentSat: rand(20, 45), accentLit: rand(50, 65), bgHue: rand(200, 230), bgSat: rand(8, 20), bgLit: rand(12, 20), textHue: rand(30, 50), textSat: rand(10, 25), textLit: rand(85, 94) };
+  }
+}
 
 /* ─── Accent presets ─── */
 const accentPresets = [
@@ -170,7 +203,7 @@ const SECTIONS: { key: Section; label: string }[] = [
 
 /* ─── Sub-components ─── */
 const SectionHeader = ({ label, open, onClick }: { label: string; open: boolean; onClick: () => void }) => (
-  <button onClick={onClick} className="flex items-center justify-between w-full py-2 text-[10px] font-display tracking-[0.25em] text-marble/60 hover:text-gold/80 transition-colors">
+  <button onClick={onClick} className="flex items-center justify-between w-full py-2 text-[10px] font-display tracking-[0.25em] text-marble/60 hover:text-gold/80 transition-colors bg-white/[0.02] -mx-1 px-1 rounded">
     {label}
     {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
   </button>
@@ -199,7 +232,6 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
   const currentHex = hslToHex(hue, sat, lit);
   const rgb = hslToRgb(hue, sat, lit);
 
-  // Update hex input when HSL changes externally
   useEffect(() => {
     if (!document.activeElement?.closest('[data-hex-input]')) {
       setHexInput(currentHex);
@@ -250,8 +282,6 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
   return (
     <div className="space-y-2">
       <label className="text-[9px] text-marble/40 font-display tracking-wider">{label}</label>
-
-      {/* Saturation/Lightness 2D picker */}
       <div
         ref={satLitRef}
         className="relative w-full h-28 rounded cursor-crosshair border border-gold/10 select-none"
@@ -265,21 +295,13 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
       >
         <div
           className="absolute w-3 h-3 rounded-full border-2 border-white shadow-md pointer-events-none -translate-x-1/2 -translate-y-1/2"
-          style={{
-            left: `${sat}%`,
-            top: `${100 - lit}%`,
-            backgroundColor: `hsl(${hue}, ${sat}%, ${lit}%)`,
-          }}
+          style={{ left: `${sat}%`, top: `${100 - lit}%`, backgroundColor: `hsl(${hue}, ${sat}%, ${lit}%)` }}
         />
       </div>
-
-      {/* Hue gradient strip */}
       <div
         ref={hueRef}
         className="relative w-full h-4 rounded cursor-pointer border border-gold/10 select-none"
-        style={{
-          background: 'linear-gradient(to right, hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%), hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%))'
-        }}
+        style={{ background: 'linear-gradient(to right, hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%), hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%))' }}
         onMouseDown={(e) => { setDraggingHue(true); handleHueInteraction(e); }}
       >
         <div
@@ -287,8 +309,6 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
           style={{ left: `${(hue / 360) * 100}%`, backgroundColor: `hsl(${hue}, 100%, 50%)` }}
         />
       </div>
-
-      {/* Hex input */}
       <div className="flex items-center gap-2" data-hex-input>
         <div className="w-6 h-6 rounded border border-gold/20 shrink-0" style={{ backgroundColor: currentHex }} />
         <input
@@ -298,8 +318,6 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
           className="flex-1 px-2 py-1 text-[10px] bg-navy-light/50 border border-gold/10 rounded text-marble/60 placeholder:text-marble/25 focus:outline-none focus:border-gold/30 font-mono"
         />
       </div>
-
-      {/* Color Code Identifier */}
       <div className="space-y-0.5">
         <button onClick={() => copyToClipboard(currentHex, 'HEX')} className="flex items-center gap-2 w-full text-left px-1.5 py-0.5 rounded hover:bg-gold/5 transition-colors group">
           <span className="text-[8px] font-display tracking-wider text-marble/30 w-7">HEX</span>
@@ -322,20 +340,23 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
 };
 
 /* ─── Theme Preview Card ─── */
-const ThemeCard = ({ theme, onClick, isActive }: { theme: ThemePreset; onClick: () => void; isActive: boolean }) => (
-  <button
-    onClick={onClick}
-    className={`flex flex-col items-center gap-1.5 p-2 rounded-lg border transition-all hover:scale-105 ${
-      isActive ? 'border-gold/50 bg-gold/10 ring-1 ring-gold/30' : 'border-gold/10 hover:border-gold/25 bg-navy-light/30'
-    }`}
-  >
-    <div className="flex gap-0.5 w-full h-6 rounded overflow-hidden">
-      <div className="flex-1" style={{ backgroundColor: `hsl(${theme.bg.h}, ${theme.bg.s}%, ${theme.bg.l}%)` }} />
-      <div className="flex-1" style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }} />
-      <div className="flex-1" style={{ backgroundColor: `hsl(${theme.text.h}, ${theme.text.s}%, ${theme.text.l}%)` }} />
-    </div>
-    <span className="text-[8px] font-display tracking-wider text-marble/50 leading-none text-center">{theme.name}</span>
-  </button>
+const ThemeCard = ({ theme, onClick, onApplyGlobal, isActive }: { theme: ThemePreset; onClick: () => void; onApplyGlobal: () => void; isActive: boolean }) => (
+  <div className={`flex flex-col gap-1.5 p-2 rounded-lg border transition-all ${
+    isActive ? 'border-gold/50 bg-gold/10 ring-1 ring-gold/30' : 'border-gold/10 hover:border-gold/25 bg-white/[0.03]'
+  }`}>
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 hover:scale-105 transition-transform">
+      <div className="flex gap-0.5 w-full h-6 rounded overflow-hidden">
+        <div className="flex-1" style={{ backgroundColor: `hsl(${theme.bg.h}, ${theme.bg.s}%, ${theme.bg.l}%)` }} />
+        <div className="flex-1" style={{ backgroundColor: `hsl(${theme.accent.h}, ${theme.accent.s}%, ${theme.accent.l}%)` }} />
+        <div className="flex-1" style={{ backgroundColor: `hsl(${theme.text.h}, ${theme.text.s}%, ${theme.text.l}%)` }} />
+      </div>
+      <span className="text-[8px] font-display tracking-wider text-marble/50 leading-none text-center">{theme.name}</span>
+    </button>
+    <button onClick={onApplyGlobal}
+      className="text-[7px] font-display tracking-[0.15em] text-gold/40 hover:text-gold hover:bg-gold/10 rounded px-1 py-0.5 border border-gold/10 hover:border-gold/30 transition-all">
+      APPLY GLOBALLY
+    </button>
+  </div>
 );
 
 /* ─── CSS variables builder ─── */
@@ -381,10 +402,26 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
   });
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(true);
+  const [fontsPreloaded, setFontsPreloaded] = useState(false);
 
   const set = useCallback(<K extends keyof PaletteState>(key: K, val: PaletteState[K]) => {
     setState(prev => ({ ...prev, [key]: val }));
   }, []);
+
+  // Preload fonts when TYPOGRAPHY section opens
+  useEffect(() => {
+    if (openSection === 'typography' && !fontsPreloaded) {
+      // Load first batch (Serif) immediately
+      const serifFonts = FONTS.filter(f => f.category === 'Serif');
+      loadFontBatch(serifFonts);
+      // Load remaining categories after a short delay
+      const timer1 = setTimeout(() => loadFontBatch(FONTS.filter(f => f.category === 'Sans')), 300);
+      const timer2 = setTimeout(() => loadFontBatch(FONTS.filter(f => f.category === 'Display')), 600);
+      const timer3 = setTimeout(() => loadFontBatch(FONTS.filter(f => f.category === 'Mono')), 900);
+      setFontsPreloaded(true);
+      return () => { clearTimeout(timer1); clearTimeout(timer2); clearTimeout(timer3); };
+    }
+  }, [openSection, fontsPreloaded]);
 
   // Persist state
   useEffect(() => {
@@ -434,18 +471,72 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
     toast.success(`Applied "${theme.name}"`);
   }, []);
 
+  const applyThemeGlobally = useCallback((theme: ThemePreset) => {
+    loadFont(theme.font);
+    const newState: PaletteState = {
+      ...state,
+      accentHue: theme.accent.h, accentSat: theme.accent.s, accentLit: theme.accent.l,
+      bgHue: theme.bg.h, bgSat: theme.bg.s, bgLit: theme.bg.l,
+      textHue: theme.text.h, textSat: theme.text.s, textLit: theme.text.l,
+      fontFamily: theme.font,
+    };
+    setState(newState);
+    setUniversal(true);
+    // Apply to :root immediately
+    const vars = buildCSSVars(newState);
+    Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+    document.documentElement.style.setProperty('font-family', `'${theme.font}', sans-serif`);
+    localStorage.setItem('palette-universal', JSON.stringify(newState));
+    localStorage.setItem('palette-universal-active', 'true');
+    toast.success(`"${theme.name}" applied globally to all widgets`);
+  }, [state]);
+
+  const applyCurrentGlobally = useCallback(() => {
+    setUniversal(true);
+    const vars = buildCSSVars(state);
+    Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+    if (state.fontFamily) {
+      document.documentElement.style.setProperty('font-family', `'${state.fontFamily}', sans-serif`);
+    }
+    localStorage.setItem('palette-universal', JSON.stringify(state));
+    localStorage.setItem('palette-universal-active', 'true');
+    toast.success('Current palette applied to all widgets');
+  }, [state]);
+
+  // Comprehensive shuffle using mood profiles
   const randomize = useCallback(() => {
-    const hue = Math.floor(Math.random() * 360);
+    const mood = MOODS[Math.floor(Math.random() * MOODS.length)];
+    const colors = getMoodColors(mood);
+    const font = FONTS[Math.floor(Math.random() * FONTS.length)];
+    loadFont(font.name);
+
     setState(prev => ({
       ...prev,
-      accentHue: hue, accentSat: 50 + Math.floor(Math.random() * 30), accentLit: 40 + Math.floor(Math.random() * 20),
-      bgHue: 200 + Math.floor(Math.random() * 30), bgSat: 25 + Math.floor(Math.random() * 15), bgLit: 8 + Math.floor(Math.random() * 12),
-      textHue: 30 + Math.floor(Math.random() * 20), textSat: 15 + Math.floor(Math.random() * 20), textLit: 88 + Math.floor(Math.random() * 10),
-      borderRadius: Math.floor(Math.random() * 16), borderWidth: Math.floor(Math.random() * 3),
-      glowIntensity: Math.floor(Math.random() * 80),
+      ...colors,
+      bgMode: Math.random() > 0.6 ? 'gradient' : 'solid',
+      bgGradientDir: dirOptions[Math.floor(Math.random() * dirOptions.length)],
+      bgOpacity: rand(75, 100),
+      fontFamily: font.name,
+      titleSize: rand(12, 22),
+      bodySize: rand(10, 15),
+      letterSpacing: randF(0.01, 0.12),
+      lineHeight: randF(1.2, 1.8),
+      textOpacity: rand(60, 100),
+      borderRadius: rand(0, 16),
+      borderWidth: rand(0, 3),
+      borderOpacity: rand(10, 50),
+      padding: rand(3, 10),
+      ornateCorners: Math.random() > 0.5,
+      glowIntensity: rand(0, 60),
       shadow: (['none', 'sm', 'md', 'lg'] as const)[Math.floor(Math.random() * 4)],
-      fontFamily: FONTS[Math.floor(Math.random() * FONTS.length)].name,
+      saturationBoost: rand(80, 130),
+      contrastBoost: rand(85, 120),
+      backdropBlur: rand(0, 8),
+      animationSpeed: randF(0.5, 2),
+      disableAnimations: false,
+      gap: randF(0.5, 2),
     }));
+    toast.success(`Shuffled — ${mood} mood`);
   }, []);
 
   const reset = useCallback(() => { setState({ ...defaults }); toast.success('Palette reset'); }, []);
@@ -485,7 +576,7 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
     toast.success(`Deleted "${name}"`);
   }, [savedPresets, widgetId]);
 
-  // Build wrapper CSS overrides (for per-widget mode)
+  // Build wrapper CSS overrides
   const cssVars = buildCSSVars(state);
   const wrapperStyle: React.CSSProperties & Record<string, string> = universal ? {} : { ...cssVars };
   Object.assign(wrapperStyle, {
@@ -533,24 +624,33 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
       <div className="flex items-center justify-between py-2">
         <div className="flex items-center gap-2">
           <Globe className="w-3.5 h-3.5 text-gold/60" />
-          <span className="text-[9px] font-display tracking-[0.2em] text-marble/50">APPLY TO ALL WIDGETS</span>
+          <span className="text-[9px] font-display tracking-[0.2em] text-marble/50">UNIVERSAL MODE</span>
         </div>
         <Switch checked={universal} onCheckedChange={toggleUniversal} className="scale-75 origin-right" />
       </div>
       {universal && (
         <div className="py-1.5 px-2 rounded bg-gold/5 border border-gold/15 mb-1">
-          <span className="text-[8px] font-display tracking-wider text-gold/60">⚡ UNIVERSAL MODE — changes affect every widget</span>
+          <span className="text-[8px] font-display tracking-wider text-gold/60">⚡ Changes affect every widget on the page</span>
         </div>
       )}
 
+      {/* Apply to All Widgets button */}
+      <div className="py-2">
+        <button onClick={applyCurrentGlobally}
+          className="w-full py-2 rounded border border-gold/30 bg-gold/10 hover:bg-gold/20 text-[9px] font-display tracking-[0.2em] text-gold hover:text-gold-light transition-all flex items-center justify-center gap-2">
+          <Globe className="w-3.5 h-3.5" />
+          APPLY TO ALL WIDGETS
+        </button>
+      </div>
+
       {/* Pre-Built Themes */}
       <div>
-        <SectionHeader label="THEMES" open={openSection === 'presets'} onClick={() => toggleSection('presets')} />
+        <SectionHeader label="GLOBAL PRESETS" open={openSection === 'presets'} onClick={() => toggleSection('presets')} />
         {openSection === 'presets' && (
           <div className="pb-3 space-y-2.5 animate-fade-in">
             <div className="grid grid-cols-2 gap-2">
               {THEMES.map(theme => (
-                <ThemeCard key={theme.name} theme={theme} onClick={() => applyTheme(theme)} isActive={activeTheme?.name === theme.name} />
+                <ThemeCard key={theme.name} theme={theme} onClick={() => applyTheme(theme)} onApplyGlobal={() => applyThemeGlobally(theme)} isActive={activeTheme?.name === theme.name} />
               ))}
             </div>
             <div className="divider-ornate"><span className="text-[8px] text-gold/30 font-display tracking-[0.3em]">SAVE / EXPORT</span></div>
@@ -564,7 +664,7 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
             {savedPresets.length > 0 && (
               <div className="space-y-1 mt-1">
                 {savedPresets.map(name => (
-                  <div key={name} className="flex items-center justify-between px-2 py-1 rounded border border-gold/10 bg-gold/5">
+                  <div key={name} className="flex items-center justify-between px-2 py-1 rounded border border-gold/10 bg-white/[0.03]">
                     <button onClick={() => loadPreset(name)} className="text-[10px] text-marble/60 hover:text-gold transition-colors">{name}</button>
                     <button onClick={() => deletePreset(name)} className="text-marble/30 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
                   </div>
@@ -647,15 +747,15 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
                       <input value={fontSearch} onChange={e => setFontSearch(e.target.value)} placeholder="Search 80 fonts…"
                         className="w-full pl-6 pr-2 py-1 text-[10px] bg-navy-light/50 border border-gold/10 rounded text-marble/60 placeholder:text-marble/25 focus:outline-none focus:border-gold/30" />
                     </div>
-                    <div className="mt-1.5 max-h-40 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-gold/20">
+                    <div className="mt-1.5 max-h-48 overflow-y-auto space-y-1 watchlist-scroll">
                       {Object.entries(fontsByCategory).map(([cat, fonts]) => (
                         <div key={cat}>
-                          <div className="text-[8px] text-gold/40 font-display tracking-[0.3em] py-0.5 sticky top-0 bg-navy-dark/95 z-10">{cat.toUpperCase()}</div>
+                          <div className="text-[8px] text-gold/40 font-display tracking-[0.3em] py-0.5 sticky top-0 bg-navy-dark/95 z-10 backdrop-blur-sm">{cat.toUpperCase()}</div>
                           {fonts.map(f => (
                             <button key={f.name} onClick={() => { loadFont(f.name); set('fontFamily', f.name); }}
-                              className={`w-full text-left px-2 py-1 text-[10px] rounded transition-all flex items-center justify-between ${state.fontFamily === f.name ? 'bg-gold/10 text-gold border border-gold/20' : 'text-marble/50 hover:bg-gold/5 hover:text-marble/70 border border-transparent'}`}>
-                              <span style={{ fontFamily: `'${f.name}', sans-serif` }}>Aa — {f.name}</span>
-                              {state.fontFamily === f.name && <Check className="w-3 h-3 text-gold" />}
+                              className={`w-full text-left px-2 py-1.5 text-[11px] rounded transition-all flex items-center justify-between ${state.fontFamily === f.name ? 'bg-gold/10 text-gold border border-gold/20' : 'text-marble/50 hover:bg-gold/5 hover:text-marble/70 border border-transparent'}`}>
+                              <span style={{ fontFamily: `'${f.name}', sans-serif` }} className="truncate">Aa — {f.name}</span>
+                              {state.fontFamily === f.name && <Check className="w-3 h-3 text-gold shrink-0" />}
                             </button>
                           ))}
                         </div>
@@ -738,13 +838,13 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
         <>
           {collapsed ? (
             <button onClick={() => setCollapsed(false)}
-              className="fixed right-4 top-24 z-50 w-10 h-10 rounded-full bg-navy-dark/95 border border-gold/20 flex items-center justify-center text-gold/60 hover:text-gold hover:border-gold/40 transition-all shadow-lg backdrop-blur-sm">
+              className="fixed right-4 top-24 z-50 w-10 h-10 rounded-full glass-panel flex items-center justify-center text-gold/60 hover:text-gold hover:border-gold/40 transition-all shadow-lg">
               <Palette className="w-4 h-4" />
               {universal && <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-gold border border-navy-dark" />}
             </button>
           ) : (
-            <div className="fixed right-4 top-24 z-50 w-72 max-h-[calc(100vh-120px)] bg-navy-dark/95 border border-gold/15 rounded-lg overflow-hidden backdrop-blur-md shadow-2xl flex flex-col">
-              <div className="flex items-center justify-between p-3 border-b border-gold/10 shrink-0">
+            <div className="fixed right-4 top-24 z-50 w-72 max-h-[calc(100vh-120px)] glass-panel overflow-hidden shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between p-3 border-b border-gold/10 shrink-0 bg-white/[0.02]">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-display tracking-[0.25em] text-gold/70">PALETTE</span>
                   {universal && <span className="text-[7px] font-display tracking-wider px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30">UNIVERSAL</span>}
@@ -761,14 +861,14 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
                   </button>
                 </div>
               </div>
-              <div className="overflow-y-auto flex-1 p-3 scrollbar-thin scrollbar-thumb-gold/20">
+              <div className="overflow-y-auto flex-1 p-3 watchlist-scroll">
                 {controlPanel}
               </div>
-              <div className="p-2 border-t border-gold/10 shrink-0 flex gap-2 items-center">
+              <div className="p-2 border-t border-gold/10 shrink-0 flex gap-2 items-center bg-white/[0.02]">
                 <div className="w-5 h-5 rounded-full" style={{ background: `hsl(${state.accentHue}, ${state.accentSat}%, ${state.accentLit}%)` }} />
                 <div className="w-5 h-5 rounded" style={{ background: `hsl(${state.bgHue}, ${state.bgSat}%, ${state.bgLit}%)` }} />
                 <div className="w-5 h-5 rounded" style={{ background: `hsl(${state.textHue}, ${state.textSat}%, ${state.textLit}%)` }} />
-                <span className="text-[8px] text-marble/30 ml-auto font-mono">{state.fontFamily || 'Default'}</span>
+                <span className="text-[8px] text-marble/30 ml-auto font-mono truncate max-w-[80px]">{state.fontFamily || 'Default'}</span>
               </div>
             </div>
           )}
@@ -779,16 +879,16 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
       {isMobile && (
         <>
           <button onClick={() => setMobileOpen(!mobileOpen)}
-            className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full bg-navy-dark/95 border border-gold/30 flex items-center justify-center text-gold shadow-lg backdrop-blur-sm">
+            className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full glass-panel border-gold/30 flex items-center justify-center text-gold shadow-lg">
             <Palette className="w-5 h-5" />
             {universal && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-gold border-2 border-navy-dark" />}
           </button>
           {mobileOpen && (
-            <div className="fixed inset-x-0 bottom-0 z-50 h-[45vh] bg-navy-dark/98 border-t border-gold/20 rounded-t-2xl backdrop-blur-md flex flex-col animate-slide-in-up">
+            <div className="fixed inset-x-0 bottom-0 z-50 h-[50vh] glass-panel border-t border-gold/20 rounded-t-2xl flex flex-col animate-slide-in-up">
               <div className="flex justify-center pt-2 pb-1 shrink-0">
                 <div className="w-10 h-1 rounded-full bg-gold/30" />
               </div>
-              <div className="flex items-center justify-between px-4 py-2 border-b border-gold/10 shrink-0">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-gold/10 shrink-0 bg-white/[0.02]">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-display tracking-[0.25em] text-gold/70">PALETTE</span>
                   {universal && <span className="text-[7px] font-display tracking-wider px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30">UNI</span>}
@@ -805,7 +905,7 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
                   </button>
                 </div>
               </div>
-              <div className="overflow-y-auto flex-1 px-4 py-2">
+              <div className="overflow-y-auto flex-1 px-4 py-2 watchlist-scroll">
                 {controlPanel}
               </div>
             </div>

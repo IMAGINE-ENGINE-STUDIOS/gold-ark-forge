@@ -571,6 +571,23 @@
     scrollbar-width: thin;
     scrollbar-color: hsla(43, 72%, 50%, 0.2) hsl(213, 35%, 10%);
   }
+
+  /* Glass UI Panels */
+  .glass-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: hsla(213, 35%, 10%, 0.88);
+    border: 1px solid hsla(43, 72%, 50%, 0.1);
+    border-radius: 0.5rem;
+  }
+
+  .glass-card {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    background: hsla(213, 32%, 16%, 0.82);
+    border: 1px solid hsla(43, 72%, 50%, 0.08);
+    border-radius: 0.25rem;
+  }
 }
 
 @keyframes tutorial-pulse {
