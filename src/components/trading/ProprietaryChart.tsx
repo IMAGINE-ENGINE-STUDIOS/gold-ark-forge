@@ -1,10 +1,20 @@
-import { useState, useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useMemo, useCallback } from 'react';
+import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  IndicatorToggleBar,
+  enrichChartData,
+  getIndicatorLines,
+  getFibonacciLines,
+  type IndicatorKey,
+  type ChartDataPoint,
+} from './IndicatorOverlay';
+import ChartDrawingTools, { useDrawings, getDrawingReferenceLines } from './ChartDrawingTools';
 
 interface Props {
   symbolKey: string;
@@ -38,9 +48,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   bonds: 'hsl(210, 6%, 67%)',
 };
 
-const generateChartData = (price: number, change: number, tf: Timeframe) => {
+const generateChartData = (price: number, change: number, tf: Timeframe): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
-  const data = [];
+  const data: ChartDataPoint[] = [];
   const startPrice = price / (1 + change / 100);
   const now = Date.now();
   for (let i = 0; i < cfg.points; i++) {
@@ -60,7 +70,6 @@ const generateChartData = (price: number, change: number, tf: Timeframe) => {
   return data;
 };
 
-// Simple RSI / SMA indicators
 const computeRSI = (prices: number[], period = 14): number => {
   if (prices.length < period + 1) return 50;
   const changes = prices.slice(-period - 1).map((p, i, a) => (i > 0 ? p - a[i - 1] : 0)).slice(1);
@@ -100,6 +109,9 @@ const OIL_SYMBOL_MAP: Record<string, string> = {
 
 const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
   const [tf, setTf] = useState<Timeframe>('1D');
+  const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
+  const isMobile = useIsMobile();
+  const { drawings, activeTool, setActiveTool, addDrawing, clearAll } = useDrawings();
 
   const { data: metalPrices } = useMetalPrices();
   const { data: cryptoData } = useCryptoData(10);
@@ -122,7 +134,6 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { price: feed?.price ?? 0, change: feed?.change ?? 0 };
     }
-    // stocks / bonds – use synthetic placeholder based on well-known ETFs
     const stockPrices: Record<string, { p: number; c: number }> = {
       sp500: { p: 5940, c: 0.35 }, nasdaq: { p: 520, c: 0.48 }, aapl: { p: 235, c: 0.22 },
       msft: { p: 445, c: 0.31 }, xom: { p: 115, c: -0.18 }, cvx: { p: 162, c: -0.12 },
@@ -133,15 +144,37 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
     return { price: sp.p, change: sp.c };
   }, [symbolKey, category, metalPrices, cryptoData, oilPrices]);
 
-  const chartData = useMemo(() => generateChartData(price, change, tf), [price, change, tf]);
+  const rawChartData = useMemo(() => generateChartData(price, change, tf), [price, change, tf]);
+  const chartData = useMemo(() => enrichChartData(rawChartData, activeIndicators), [rawChartData, activeIndicators]);
+
   const color = CATEGORY_COLORS[category] ?? 'hsl(43, 72%, 50%)';
   const gradientId = `prop-grad-${symbolKey}`;
 
-  // Derived indicators
-  const chartValues = chartData.map((d) => d.value);
+  const chartValues = rawChartData.map((d) => d.value);
   const rsi = computeRSI(chartValues);
   const sma20 = chartValues.length >= 20 ? chartValues.slice(-20).reduce((a, b) => a + b, 0) / 20 : price;
   const sma50 = chartValues.length >= 50 ? chartValues.slice(-50).reduce((a, b) => a + b, 0) / 50 : price;
+
+  const toggleIndicator = useCallback((key: IndicatorKey) => {
+    setActiveIndicators(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const handleChartClick = useCallback((e: any) => {
+    if (!activeTool || !e?.activePayload?.[0]) return;
+    const clickedPrice = e.activePayload[0].value;
+    if (activeTool === 'hline') {
+      addDrawing({ type: 'hline', y1: clickedPrice, color: 'hsl(43,72%,50%)', label: `$${clickedPrice.toFixed(2)}` });
+      setActiveTool(null);
+    }
+  }, [activeTool, addDrawing, setActiveTool]);
+
+  const indicatorLines = useMemo(() => getIndicatorLines(activeIndicators), [activeIndicators]);
+  const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData), [activeIndicators, chartData]);
+  const drawingRefLines = useMemo(() => getDrawingReferenceLines(drawings), [drawings]);
 
   return (
     <div className="h-full flex flex-col bg-navy">
@@ -166,6 +199,16 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
             <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > sma20 ? 'text-emerald-400' : 'text-red-400'}>${sma20.toFixed(2)}</span></span>
             <span className="text-[9px] font-mono text-marble/30">SMA50 <span className={price > sma50 ? 'text-emerald-400' : 'text-red-400'}>${sma50.toFixed(2)}</span></span>
           </div>
+          {/* Drawing tools (desktop only) */}
+          {!isMobile && (
+            <ChartDrawingTools
+              activeTool={activeTool}
+              onSelectTool={setActiveTool}
+              drawings={drawings}
+              onClearAll={clearAll}
+              drawingCount={drawings.length}
+            />
+          )}
           {/* Timeframe selector */}
           <div className="flex gap-0.5">
             {timeframes.map((t) => (
@@ -183,15 +226,20 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
         </div>
       </div>
 
+      {/* Indicator toggle bar */}
+      <div className="border-b border-gold/5 flex-shrink-0">
+        <IndicatorToggleBar active={activeIndicators} onToggle={toggleIndicator} />
+      </div>
+
       {/* Chart */}
-      <div className="flex-1 px-1 py-1">
+      <div className="flex-1 px-1 py-1" style={{ cursor: activeTool ? 'crosshair' : 'default' }}>
         {price === 0 ? (
           <div className="h-full flex items-center justify-center text-marble/20 text-xs font-display tracking-wider">
             LOADING MARKET DATA...
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 10, bottom: 5 }}>
+            <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 10, bottom: 5 }} onClick={handleChartClick}>
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={color} stopOpacity={0.25} />
@@ -215,8 +263,21 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
                 width={65}
               />
               <Tooltip content={<CustomTooltip />} />
+
+              {/* Drawing reference lines */}
+              {drawingRefLines.map((rl, i) => (
+                <ReferenceLine key={`dr-${i}`} y={rl.y} stroke={rl.stroke} strokeDasharray={rl.strokeDasharray} strokeWidth={rl.strokeWidth} label={rl.label} />
+              ))}
+
+              {/* Fibonacci levels */}
+              {fibLines}
+
+              {/* Main area */}
               <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
-            </AreaChart>
+
+              {/* Indicator overlays */}
+              {indicatorLines}
+            </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
@@ -224,7 +285,12 @@ const ProprietaryChart = ({ symbolKey, category, label }: Props) => {
       {/* Bottom info bar */}
       <div className="flex items-center justify-between px-3 py-1 border-t border-gold/10 flex-shrink-0">
         <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">{category} · {tf}</span>
-        <span className="text-[9px] font-mono text-marble/15">GOLD ARROW PROPRIETARY</span>
+        <div className="flex items-center gap-3">
+          {activeIndicators.size > 0 && (
+            <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
+          )}
+          <span className="text-[9px] font-mono text-marble/15">GOLD ARROW PROPRIETARY</span>
+        </div>
       </div>
     </div>
   );
