@@ -14,6 +14,8 @@ import OGPipelineFlow from '@/components/og-widgets/OGPipelineFlow';
 import OGProductionMap from '@/components/og-widgets/OGProductionMap';
 import OGChokepoints from '@/components/og-widgets/OGChokepoints';
 import OGWtiBrentSpread from '@/components/og-widgets/OGWtiBrentSpread';
+import OGEnergyDashboard from '@/components/og-widgets/OGEnergyDashboard';
+import OGRiskAnalyzer from '@/components/og-widgets/OGRiskAnalyzer';
 
 import {
   Fuel, BarChart3, Database, Drill, ArrowLeftRight, TrendingUp,
@@ -181,6 +183,23 @@ const OilGasIntelligence = () => {
         <section id="news">
           <SectionDivider label="ENERGY INTELLIGENCE FEED" />
           <OGNewsFeed />
+        </section>
+      </div>
+
+      <div className="greek-key-border-rich h-2" />
+
+      {/* ═══════════════ TIER 4: COMPOSITE ANALYTICS ═══════════════ */}
+      <div className="container mx-auto px-6 py-12 space-y-12">
+        <TierBanner label="COMPOSITE ANALYTICS" sub="MULTI-SOURCE · EXECUTIVE DASHBOARDS" />
+
+        <section id="energy-dashboard">
+          <SectionDivider label="ENERGY EXECUTIVE DASHBOARD" />
+          <OGEnergyDashboard />
+        </section>
+
+        <section id="risk-analyzer">
+          <SectionDivider label="RISK & SPREADS ANALYZER" />
+          <OGRiskAnalyzer />
         </section>
       </div>
 

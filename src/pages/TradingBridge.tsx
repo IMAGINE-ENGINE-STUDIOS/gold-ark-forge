@@ -36,6 +36,7 @@ import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import OrderConfirmationDialog, { OrderConfirmationData } from '@/components/trading/OrderConfirmationDialog';
 
 // ─── Mobile section tabs ─────────────────────────────────
 const MOBILE_TABS = [
@@ -71,6 +72,8 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop' | 'stop_limit'>('market');
   const [limitPrice, setLimitPrice] = useState('');
   const [stopPrice, setStopPrice] = useState('');
+  const [confirmData, setConfirmData] = useState<OrderConfirmationData | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { toast } = useToast();
 
   const parsedQty = parseFloat(qty) || 0;
@@ -86,9 +89,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
     setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!qty || !activePrice) return;
+  const executeOrder = () => {
     try {
       paper.submitOrder({
         symbol: activeSymbol.ticker,
@@ -106,6 +107,30 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
     } catch (err) {
       toast({ title: 'Order Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qty || !activePrice) return;
+    setConfirmData({
+      symbol: activeSymbol.ticker,
+      symbolKey: activeSymbol.key,
+      symbolLabel: activeSymbol.label,
+      category: activeSymbol.cat,
+      side,
+      qty: parsedQty,
+      orderType,
+      fillPrice,
+      limitPrice: orderType === 'limit' ? parseFloat(limitPrice) : undefined,
+      stopPrice: orderType === 'stop' ? parseFloat(stopPrice) : undefined,
+      mode: 'paper',
+      currentEquity: paper.account.equity,
+      currentCash: paper.account.cash,
+      positionCount: paper.positions.length,
+      onConfirm: executeOrder,
+      onModify: () => {},
+    });
+    setConfirmOpen(true);
   };
 
   return (
@@ -283,6 +308,8 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
       <button onClick={paper.resetAccount} className="flex items-center gap-1 mx-auto text-[8px] text-marble/20 hover:text-red-400 transition-colors mt-2">
         <RotateCcw className="w-2.5 h-2.5" /> RESET PAPER ACCOUNT
       </button>
+
+      <OrderConfirmationDialog open={confirmOpen} onOpenChange={setConfirmOpen} data={confirmData} />
     </div>
   );
 }
