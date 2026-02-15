@@ -1,101 +1,155 @@
 
 
-# Add More Brokers, Built-in Wallet, and UI Testing
+# Calendar Scheduler, Risk Limits & Price Alert Notifications
 
 ## Overview
-This plan adds 6 new brokers (for a total of 15), integrates a built-in Web3 wallet system that removes the MetaMask dependency, and ensures the broker dialog + chart searcher work correctly from the Trading Bridge UI.
+Add three major features to the Trading Bridge: (1) a calendar-based order scheduler for automated recurring buys/sells with goal tracking, (2) configurable risk limits with auto-sell protection, and (3) a real-time price alert system with desktop notifications and sound.
 
 ---
 
-## 1. Add 6 New Brokers
+## 1. Calendar Order Scheduler
 
-Expand `BrokerType` and `BROKER_META` in `src/hooks/useBrokerTrading.ts` with these free/popular brokers:
+A new "SCHEDULE" tab in the bottom panel for programming future and recurring orders.
 
-| Broker | Assets | Why |
-|--------|--------|-----|
-| **Binance** | Crypto, Futures | Largest crypto exchange, free API |
-| **Bybit** | Crypto, Derivatives | Popular derivatives platform |
-| **Bitfinex** | Crypto | Advanced trading, free API |
-| **eToro** | Stocks, Crypto, Forex, CFDs | Multi-asset, popular retail |
-| **Robinhood** | Stocks, ETFs, Crypto, Options | Commission-free, widely used |
-| **Saxo Bank** | Stocks, Forex, Bonds, Options, Futures | Institutional-grade, multi-asset |
+### Features
+- **One-time scheduled orders**: Pick a date/time from a calendar, set symbol, side (buy/sell), quantity, and order type
+- **Recurring orders (DCA+)**: Daily, weekly, bi-weekly, monthly frequency with start/end dates
+- **Goal tracking**: Set a target portfolio value or accumulation goal (e.g., "Accumulate 1 BTC by Q3") with progress bar
+- **Pre-authorized auto-sells**: Set a floor price -- if symbol drops below it, automatically submit a sell order via the connected broker
+- **Schedule list view**: See all upcoming and past scheduled orders in a timeline/calendar grid
 
-Update `BrokerConnectDialog.tsx` to include all 15 brokers in the picker list with a scrollable layout.
+### New File: `src/components/trading/SchedulePanel.tsx`
+- Calendar date picker using existing `react-day-picker` (already installed)
+- Recurring frequency selector (daily/weekly/bi-weekly/monthly)
+- Symbol + quantity + side inputs (reuse patterns from OrderForm)
+- Goal section: target value input, current progress bar, estimated completion date
+- Schedule list with activate/pause/delete controls
+- All schedules stored in localStorage (no database needed for v1)
 
----
-
-## 2. Built-in Web Wallet (No Extension Required)
-
-Currently the platform requires MetaMask browser extension. This adds an **in-app wallet** option so users can authenticate and manage keys without downloading anything.
-
-### Approach
-- Add a **"Create Vault Wallet"** option alongside MetaMask in `WalletSelectorDialog.tsx`
-- Generate a local keypair using the Web Crypto API (non-custodial -- private key stays in browser localStorage, encrypted with a user-set password)
-- Use the same SIWE flow but sign locally instead of via MetaMask
-- Add key export/backup functionality (show seed phrase or private key behind password confirmation)
-- Keep MetaMask as the recommended option but offer the built-in wallet as a lightweight alternative
-
-### New Files
-- `src/lib/localWallet.ts` -- Key generation, encryption/decryption, local storage, SIWE message signing
-
-### Modified Files
-- `src/contexts/WalletContext.tsx` -- Add `walletType: 'local'` support, `createLocalWallet()`, `importWallet()` methods
-- `src/components/wallet/WalletSelectorDialog.tsx` -- Add "Create Vault Wallet" and "Import Wallet" options with password setup UI
+### New File: `src/hooks/useScheduledOrders.ts`
+- Custom hook managing scheduled orders in localStorage
+- `useEffect` timer that checks every 30 seconds if any order is due
+- When triggered: calls `useSubmitOrder` to execute via the connected broker
+- Tracks execution history (success/fail/skipped)
+- Auto-sell monitor: continuously checks price against floor thresholds using WebSocket/simulated stream data
 
 ---
 
-## 3. Make Broker Button Clickable from Top Bar
+## 2. Risk Limits & Auto-Sell Protection
 
-Currently the "0 BROKERS" badge in the TradingBridge top bar is a static `span`. Make it a clickable button that opens the `BrokerConnectDialog` directly.
+Enhance the existing Risk panel with configurable stop-loss automation.
 
-### Modified File
-- `src/pages/TradingBridge.tsx` -- Add `BrokerConnectDialog` state + import, wire the badge as a button
+### Features
+- **Per-symbol floor price**: Set minimum price thresholds -- if price drops below, auto-submit a market sell order
+- **Portfolio-wide drawdown limit**: If total portfolio drops X% from peak, pause all automated orders and alert
+- **Daily loss limit**: Max dollar loss per day before all auto-trading halts
+- **Position size limits**: Max percentage of portfolio in any single asset
+
+### New File: `src/components/trading/RiskLimits.tsx`
+- UI for setting floor prices per symbol (table with symbol, current price, floor price, status)
+- Portfolio drawdown % input with visual gauge
+- Daily loss limit input
+- Active/paused toggle for each limit
+- Warning indicators when limits are approaching (yellow at 80%, red at 95%)
+
+### New File: `src/hooks/useRiskMonitor.ts`
+- Monitors live prices against configured floor prices
+- When floor is breached: auto-submits sell order via broker-proxy, fires alert notification, logs event
+- Tracks peak portfolio value for drawdown calculation
+- Persists limits in localStorage
 
 ---
 
-## 4. Verify Chart Symbol Searcher (`/` key)
+## 3. Price Alert Notifications
 
-The `/` keyboard shortcut for symbol search is already implemented in `ProprietaryChart.tsx`. This plan verifies it works and ensures the search overlay is properly wired to update the active symbol in the parent `TradingBridge`.
+Real-time alert system that triggers when symbols cross user-defined thresholds.
+
+### Features
+- **Create alerts**: Symbol + condition (above/below/crosses) + price threshold
+- **Desktop notifications**: Browser Notification API with permission request
+- **Sound alerts**: Short audio chime using Web Audio API (no external files needed)
+- **In-app toast**: Sonner toast notification with alert details
+- **Alert history**: Log of all triggered alerts with timestamps
+- **Persistent**: Alerts survive page refresh (localStorage)
+
+### New File: `src/components/trading/PriceAlerts.tsx`
+- Alert creation form: symbol picker, condition (above/below/crosses), price input
+- Active alerts list with delete/mute controls
+- Alert history log
+- Sound toggle + volume control
+- Desktop notification permission button
+- Bell icon badge in the top bar showing active alert count
+
+### New File: `src/hooks/usePriceAlerts.ts`
+- Stores alerts in localStorage
+- Monitors prices from `useWebSocketPrices` (crypto) and `useSimulatedStream` (non-crypto)
+- When threshold crossed:
+  1. Play notification sound via Web Audio API (synthesized beep, no file needed)
+  2. Show browser desktop notification (if permitted)
+  3. Show sonner toast
+  4. Log to alert history
+- Cooldown period (60s) to prevent alert spam for the same symbol
+
+### New File: `src/lib/notificationSound.ts`
+- `playAlertSound()`: Uses Web Audio API to generate a short ascending tone
+- `requestNotificationPermission()`: Wrapper for `Notification.requestPermission()`
+- `sendDesktopNotification(title, body)`: Creates browser notification with Gold Arrow branding
+
+---
+
+## Integration into TradingBridge
+
+### Modified File: `src/pages/TradingBridge.tsx`
+- Add "SCHEDULE" tab to `BOTTOM_TABS` array (with Calendar icon)
+- Add "ALERTS" tab to `BOTTOM_TABS` array (with Bell icon)
+- Render `SchedulePanel` when schedule tab is active
+- Render `PriceAlerts` when alerts tab is active
+- Add alert bell icon with badge count to the top bar (desktop + mobile)
+- Integrate `useRiskMonitor` at the TradingBridge level so it runs while terminal is open
+- Add `RiskLimits` component inside the existing Risk tab alongside the current position sizer and exposure limits
+- Wire price data (from existing hooks) into the alert and risk monitoring systems
+- Add schedule tab to mobile TOOLS section
+
+### Modified File: `src/components/trading/RuleBuilder.tsx`
+- Add `'schedule'` as a new ActionType so rules can schedule future orders
+- Expand the broker dropdown to include all 15 brokers
 
 ---
 
 ## Technical Details
 
-### `src/hooks/useBrokerTrading.ts` Changes
-- Add to `BrokerType`: `'binance' | 'bybit' | 'bitfinex' | 'etoro' | 'robinhood' | 'saxo'`
-- Add corresponding entries to `BROKER_META` with environments, fields, and asset descriptions
+### Data Flow for Auto-Execution
+1. `useScheduledOrders` checks timer every 30s
+2. If order is due AND connected broker exists -> calls `useSubmitOrder`
+3. `useRiskMonitor` checks prices every tick (WebSocket update or 1s interval)
+4. If floor breached -> calls `useSubmitOrder` for emergency sell + fires alert
+5. `usePriceAlerts` checks prices on every WebSocket/stream update
+6. If threshold crossed -> plays sound + desktop notification + toast
 
-### `src/components/trading/BrokerConnectDialog.tsx` Changes
-- Update `BROKERS` array to include all 15 brokers
-- Add `max-h-[60vh] overflow-y-auto` to the broker picker list for scrollability
-- Add `DialogDescription` for accessibility
+### localStorage Schema
+```text
+ga_scheduled_orders: [{ id, symbol, side, qty, orderType, scheduledAt, recurrence, goalTarget, floorPrice, status, history[] }]
+ga_price_alerts: [{ id, symbol, condition, threshold, active, muted, createdAt, triggeredAt[] }]
+ga_risk_limits: { floors: { [symbol]: price }, drawdownLimit: %, dailyLossLimit: $, peakValue: $ }
+```
 
-### `src/lib/localWallet.ts` (New)
-- `generateWallet()`: Create Ethereum keypair using Web Crypto / ethers-compatible logic
-- `encryptKey(privateKey, password)`: AES-256-GCM encryption
-- `decryptKey(encrypted, password)`: Decryption
-- `signMessage(message, privateKey)`: EIP-191 personal_sign equivalent
-- `storeWallet(encrypted)` / `loadWallet()`: localStorage operations
+### Mobile Responsiveness
+- Schedule panel: single-column form, calendar inline
+- Price alerts: stacked card layout
+- Risk limits: vertical sections
+- Alert bell badge visible in mobile top bar
 
-### `src/contexts/WalletContext.tsx` Changes
-- Add `WalletType = 'metamask' | 'local'`
-- Add `createLocalWallet(password)` and `importWallet(privateKey, password)` to context
-- Local wallet sign-in follows same SIWE flow but uses local signing instead of `window.ethereum.request`
+### Files Summary
 
-### `src/components/wallet/WalletSelectorDialog.tsx` Changes
-- Add second option card: "Create Vault Wallet" with password setup
-- Add third option: "Import Existing Wallet" with private key input
-- Show wallet backup/export option after creation
+**New files (6):**
+- `src/components/trading/SchedulePanel.tsx`
+- `src/components/trading/PriceAlerts.tsx`
+- `src/components/trading/RiskLimits.tsx`
+- `src/hooks/useScheduledOrders.ts`
+- `src/hooks/usePriceAlerts.ts`
+- `src/lib/notificationSound.ts`
 
-### `src/pages/TradingBridge.tsx` Changes
-- Import `BrokerConnectDialog`, add `brokerDialogOpen` state
-- Convert the "0 BROKERS" badge to a clickable button that sets `brokerDialogOpen(true)`
-- Render `<BrokerConnectDialog>` in the desktop and mobile layouts
-
-### Security Considerations
-- Private keys are encrypted at rest in localStorage with user password
-- Keys never leave the browser -- non-custodial mandate maintained
-- Password is never stored -- used only for encryption/decryption
-- Export flow requires password re-entry
-- Clear warning that losing password = losing access (no recovery)
+**Modified files (2):**
+- `src/pages/TradingBridge.tsx` -- Add SCHEDULE + ALERTS tabs, alert bell badge, integrate risk monitor
+- `src/components/trading/RuleBuilder.tsx` -- Add schedule action type, expand broker list
 
