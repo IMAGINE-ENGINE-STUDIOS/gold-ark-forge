@@ -380,7 +380,7 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
     try { return JSON.parse(localStorage.getItem(`palette-presets:${widgetId}`) || '[]'); } catch { return []; }
   });
   const isMobile = useIsMobile();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(true);
 
   const set = useCallback(<K extends keyof PaletteState>(key: K, val: PaletteState[K]) => {
     setState(prev => ({ ...prev, [key]: val }));
