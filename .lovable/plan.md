@@ -1,70 +1,91 @@
 
 
-## Phase 2: Multi-Broker Trading Expansion
+# Phase 6: Pro Trading Tools — Filling the MT5 Gap
 
-### Overview
-Expand the trading infrastructure beyond Alpaca to support **Coinbase** (crypto) and **Interactive Brokers** (commodities/futures), while adding a broker selector UI, multi-connection management, and a dedicated Trading page with a richer layout.
+## Overview
+Instead of integrating MetaTrader 5 (which would add licensing costs, infrastructure complexity, and single-broker dependency), this phase adds the 5 missing MT5-equivalent features as native Gold Arrow widgets within the Trading Bridge.
 
-### What Changes
+## What This Adds
 
-**1. Broker Selector in Connect Dialog**
-- Redesign `BrokerConnectDialog` to include a broker picker step (Alpaca, Coinbase, Interactive Brokers)
-- Each broker shows its supported asset classes (Stocks/Crypto, Crypto-only, Commodities/Futures)
-- API key fields adapt per broker (Coinbase uses API Key + Secret + Passphrase; IBKR uses Client ID + Client Secret)
-- Environment toggle remains for Alpaca (paper/live); Coinbase has sandbox/production; IBKR has paper/live
+### 1. Extended Technical Indicators Widget
+Add 10+ institutional-grade indicators to the proprietary chart and Technical Gauge:
+- **Bollinger Bands** (20-period, 2 std dev)
+- **MACD Histogram** (12/26/9)
+- **ATR (Average True Range)**
+- **Parabolic SAR**
+- **Ichimoku Cloud** (Tenkan/Kijun/Senkou)
+- **Fibonacci Retracement** (auto-detected swing highs/lows)
+- **Volume Profile** (price-at-volume distribution)
+- **Stochastic RSI**
+- **Williams %R** (already in gauge, add to chart)
+- **ADX with +DI/-DI**
 
-**2. Multi-Connection Support in TradingPanel**
-- Add a broker/connection dropdown at the top of `TradingPanel` when multiple connections exist
-- Users can switch between connected brokers without disconnecting
-- Account summary adapts to show broker-specific fields (e.g., Coinbase shows available balances per coin)
+These will be toggleable overlays on the existing ProprietaryChart component.
 
-**3. Expand Edge Function (`broker-proxy`)**
-- Add Coinbase Pro API support: account, place order, list orders, cancel order, positions
-  - Coinbase auth uses HMAC-SHA256 signed requests (timestamp + method + path + body)
-- Add Interactive Brokers Client Portal API support: account, orders, positions
-  - IBKR uses session-based auth with Client Portal Gateway
-- Route requests based on the `broker` field from the connection record
-- Each broker handler follows the same action pattern: account, positions, order, orders, cancel
+### 2. Backtesting Engine
+A new "BACKTEST" tab in the Trading Bridge bottom panel:
+- Select any asset from the watchlist
+- Choose a strategy template (SMA crossover, RSI mean reversion, Bollinger bounce, custom rule)
+- Set date range and initial capital
+- Run simulation against historical price data (from CoinGecko sparklines for crypto, generated synthetic for metals/stocks)
+- Display results: total return, max drawdown, Sharpe ratio, win rate, equity curve
+- Compare multiple strategies side-by-side
 
-**4. Update Database**
-- Alter `broker_connections` to add an optional `api_passphrase` column (needed for Coinbase)
-- No other schema changes needed -- existing `broker` and `environment` columns already support multi-broker
+### 3. Order Book / Depth of Market (DOM)
+A new GA widget showing simulated market depth:
+- Bid/ask ladder with volume at each price level
+- Visual depth chart (cumulative volume)
+- Spread indicator
+- Integrates with broker data when available (Alpaca Level 2 for stocks)
 
-**5. Update Hook Layer (`useBrokerTrading`)**
-- `useAddBrokerConnection` accepts broker-specific fields (passphrase for Coinbase)
-- All query/mutation hooks remain broker-agnostic since the edge function handles routing
+### 4. Chart Drawing Tools
+Interactive overlay system on ProprietaryChart:
+- Horizontal lines (support/resistance)
+- Trendlines (click two points)
+- Fibonacci retracement (auto or manual)
+- Price range measurement tool
+- All drawings stored in local state (persist across symbol switches)
 
-**6. Enhanced Markets Page**
-- Add more asset tabs: Ethereum, Oil (WTI), S&P 500
-- Symbol mapping per broker so the correct ticker is sent (e.g., "BTC-USD" for Coinbase vs "BTC/USD" for Alpaca)
-- Show which broker will execute the trade based on the selected asset
+### 5. Strategy Scripting (Visual Rule Builder)
+Upgrade the existing IF-THEN rule engine from static examples to a functional builder:
+- Drag-and-drop condition blocks (Price above/below, RSI crosses, SMA crossover)
+- Action blocks (Buy/Sell, Set stop, Alert)
+- Broker routing selector
+- Save/load strategy templates
+- Dry-run mode (paper test against live data without execution)
 
-**7. Portfolio Overview Widget**
-- New `PortfolioSummary` component showing aggregated holdings across all connected brokers
-- Pie chart breakdown by asset class
-- Total portfolio value with combined P&L
+## Technical Plan
 
-### Technical Details
+### Files to Create
+- `src/components/trading/IndicatorOverlay.tsx` — Bollinger, Ichimoku, MACD overlay calculations and rendering on the chart
+- `src/components/trading/BacktestPanel.tsx` — Backtesting engine UI and simulation logic
+- `src/components/trading/DepthOfMarket.tsx` — Order book ladder and depth chart widget
+- `src/components/trading/ChartDrawingTools.tsx` — SVG-based drawing tool overlay for ProprietaryChart
+- `src/components/trading/RuleBuilder.tsx` — Visual strategy builder with condition/action blocks
 
-| File | Action | Details |
-|------|--------|---------|
-| `supabase/migrations/...` | Create | Add `api_passphrase` column to `broker_connections` |
-| `supabase/functions/broker-proxy/index.ts` | Edit | Add Coinbase HMAC auth + IBKR session auth handlers |
-| `src/hooks/useBrokerTrading.ts` | Edit | Support passphrase param, keep hooks broker-agnostic |
-| `src/components/trading/BrokerConnectDialog.tsx` | Edit | Multi-step: pick broker then enter credentials |
-| `src/components/trading/TradingPanel.tsx` | Edit | Connection selector dropdown, broker-aware account display |
-| `src/components/trading/OrderForm.tsx` | Edit | Broker-specific symbol format hints |
-| `src/components/trading/PortfolioSummary.tsx` | Create | Aggregated cross-broker portfolio view |
-| `src/pages/Markets.tsx` | Edit | More asset tabs, broker-asset mapping |
+### Files to Modify
+- `src/components/trading/ProprietaryChart.tsx` — Add indicator toggle panel, integrate IndicatorOverlay and ChartDrawingTools as layers
+- `src/pages/TradingBridge.tsx` — Add "BACKTEST" tab to bottom panel, integrate DepthOfMarket into the right sidebar, wire RuleBuilder into the Strategies tab
+- `src/components/ga-widgets/GATechnicalGauge.tsx` — Extend with Bollinger, MACD, ATR, Ichimoku signal computations
 
-### Implementation Order
-1. Database migration (add `api_passphrase`)
-2. Edge function expansion (Coinbase + IBKR handlers)
-3. Hook updates (passphrase support)
-4. BrokerConnectDialog redesign (broker picker)
-5. TradingPanel multi-connection selector
-6. Markets page expanded tabs
-7. PortfolioSummary widget
+### Data Strategy
+- **Crypto indicators**: Computed from CoinGecko 7-day sparkline data (already available via `useCryptoData`)
+- **Metals indicators**: Derived from `useMetalPrices` feed with synthetic historical extension
+- **Backtesting data**: Use existing sparkline arrays for crypto; generate synthetic OHLC from known price + volatility for metals/energy/stocks
+- **Order book**: Simulated from current price with realistic spread modeling; real Level 2 data from Alpaca when connected
 
-### Compliance Note
-All three brokers are licensed entities. Gold Arrow continues to act purely as a UI relay layer -- no funds, securities, or crypto are custodied. Order instructions flow from the user's browser through the proxy to the broker's API, and the user's own broker account holds all assets.
+### Mobile Responsiveness
+- All new panels will follow the existing mobile-first pattern
+- Indicator toggles: horizontal scrollable chip bar
+- Backtest results: single-column stacked cards
+- DOM: simplified vertical ladder (no depth chart on mobile)
+- Drawing tools: hidden on mobile (touch conflicts with scroll)
+- Rule builder: vertical block stacking with tap-to-configure
+
+## Sequencing
+1. Extended indicators (most impactful, enhances existing chart)
+2. Backtesting engine (high value, leverages existing data hooks)
+3. Depth of Market widget (moderate complexity)
+4. Chart drawing tools (SVG overlay engineering)
+5. Visual rule builder (most complex, builds on strategies tab)
+
