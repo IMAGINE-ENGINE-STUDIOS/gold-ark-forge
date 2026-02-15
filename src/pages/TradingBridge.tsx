@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import ProprietaryChart from '@/components/trading/ProprietaryChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -10,9 +10,15 @@ import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
+import BacktestPanel from '@/components/trading/BacktestPanel';
+import DepthOfMarket from '@/components/trading/DepthOfMarket';
+import RuleBuilder from '@/components/trading/RuleBuilder';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useCryptoData } from '@/hooks/useCryptoData';
+import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -84,6 +90,7 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 const BOTTOM_TABS = [
   { key: 'positions', label: 'POSITIONS', icon: Briefcase },
   { key: 'orders', label: 'ORDERS', icon: Activity },
+  { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   { key: 'risk', label: 'RISK', icon: Shield },
   { key: 'strategies', label: 'STRATEGIES', icon: Bot },
@@ -105,7 +112,31 @@ const TradingBridge = () => {
   const { data: connections } = useBrokerConnections();
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
+  const { data: metalPricesData } = useMetalPrices();
+  const { data: cryptoDataAll } = useCryptoData(10);
+  const { data: oilPricesData } = useOilGasPrices();
 
+  // Resolve current price for DOM widget
+  const activePrice = useMemo(() => {
+    const sym = activeSymbol;
+    if (sym.cat === 'metals') {
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', copper: 'gold' };
+      const key = metalMap[sym.key];
+      return key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
+    }
+    if (sym.cat === 'crypto') {
+      const cryptoMap: Record<string, string> = { bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana' };
+      const coin = cryptoDataAll?.find(c => c.id === cryptoMap[sym.key]);
+      return coin?.current_price ?? 0;
+    }
+    if (sym.cat === 'energy') {
+      const oilMap: Record<string, string> = { oil: 'WTI', brent: 'BRENT', natgas: 'NG', rbob: 'RBOB' };
+      const feed = oilPricesData?.find(p => p.symbol === oilMap[sym.key]);
+      return feed?.price ?? 0;
+    }
+    const stockPrices: Record<string, number> = { sp500: 5940, nasdaq: 520, aapl: 235, msft: 445, xom: 115, cvx: 162, tlt: 92, ief: 96, shy: 82, lqd: 110, hyg: 78 };
+    return stockPrices[sym.key] ?? 100;
+  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
   // ─── MOBILE LAYOUT ──────────────────────────────────
   if (isMobile) {
     return (
@@ -174,6 +205,7 @@ const TradingBridge = () => {
           {mobileTab === 'trade' && (
             <div className="p-3 space-y-4">
               <TradingPanel activeSymbol={activeSymbol.ticker} />
+              <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
             </div>
           )}
 
@@ -208,6 +240,7 @@ const TradingBridge = () => {
               {bottomTab === 'positions' && !activeConn && <EmptyState text="Connect a broker to view positions" />}
               {bottomTab === 'orders' && activeConn && <OrderHistory connectionId={activeConn.id} />}
               {bottomTab === 'orders' && !activeConn && <EmptyState text="Connect a broker to view orders" />}
+              {bottomTab === 'backtest' && <BacktestPanel />}
               {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
               {bottomTab === 'risk' && <RiskPanel connectionId={activeConn?.id} />}
               {bottomTab === 'strategies' && <StrategiesPanel />}
@@ -323,6 +356,7 @@ const TradingBridge = () => {
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={45}>
                   <div className="h-full overflow-y-auto p-2 space-y-4">
                     <TradingPanel activeSymbol={activeSymbol.ticker} />
+                    <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
                     <PortfolioSummary />
                   </div>
                 </ResizablePanel>
@@ -355,6 +389,7 @@ const TradingBridge = () => {
                   {bottomTab === 'positions' && !activeConn && <EmptyState text="Connect a broker to view positions" />}
                   {bottomTab === 'orders' && activeConn && <OrderHistory connectionId={activeConn.id} />}
                   {bottomTab === 'orders' && !activeConn && <EmptyState text="Connect a broker to view orders" />}
+                  {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
                   {bottomTab === 'risk' && <RiskPanel connectionId={activeConn?.id} />}
                   {bottomTab === 'strategies' && <StrategiesPanel />}
@@ -760,6 +795,11 @@ function StrategiesPanel() {
             <p className="text-[8px] text-marble/20 text-center">IF-THEN rules based on price, indicators, or portfolio triggers</p>
           </div>
         </div>
+      </div>
+
+      {/* Visual Rule Builder */}
+      <div className="mt-4 pt-4 border-t border-gold/10">
+        <RuleBuilder />
       </div>
     </div>
   );
