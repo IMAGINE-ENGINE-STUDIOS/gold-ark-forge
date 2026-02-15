@@ -112,6 +112,7 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const { drawings, activeTool, setActiveTool, addDrawing, clearAll } = useDrawings();
+  const [pendingClick, setPendingClick] = useState<number | null>(null);
 
   const { data: metalPrices } = useMetalPrices();
   const { data: cryptoData } = useCryptoData(50);
@@ -177,8 +178,32 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
     if (activeTool === 'hline') {
       addDrawing({ type: 'hline', y1: clickedPrice, color: 'hsl(43,72%,50%)', label: `$${clickedPrice.toFixed(2)}` });
       setActiveTool(null);
+    } else if (activeTool === 'trendline' || activeTool === 'fib' || activeTool === 'measure') {
+      if (pendingClick === null) {
+        setPendingClick(clickedPrice);
+      } else {
+        const y1 = pendingClick;
+        const y2 = clickedPrice;
+        if (activeTool === 'trendline') {
+          addDrawing({ type: 'trendline', y1, y2, color: 'hsl(170,70%,50%)', label: `Trend $${y1.toFixed(2)}→$${y2.toFixed(2)}` });
+        } else if (activeTool === 'fib') {
+          const diff = Math.abs(y1 - y2);
+          const high = Math.max(y1, y2);
+          const low = Math.min(y1, y2);
+          [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].forEach(level => {
+            addDrawing({ type: 'hline', y1: high - diff * level, color: 'hsl(43,72%,50%)', label: `Fib ${(level * 100).toFixed(1)}% $${(high - diff * level).toFixed(2)}` });
+          });
+        } else if (activeTool === 'measure') {
+          const diff = y2 - y1;
+          const pct = ((diff / y1) * 100).toFixed(2);
+          addDrawing({ type: 'hline', y1, color: 'hsl(210,80%,60%)', label: `Start $${y1.toFixed(2)}` });
+          addDrawing({ type: 'hline', y1: y2, color: 'hsl(210,80%,60%)', label: `End $${y2.toFixed(2)} (${diff >= 0 ? '+' : ''}${pct}%)` });
+        }
+        setPendingClick(null);
+        setActiveTool(null);
+      }
     }
-  }, [activeTool, addDrawing, setActiveTool]);
+  }, [activeTool, addDrawing, setActiveTool, pendingClick]);
 
   const indicatorLines = useMemo(() => getIndicatorLines(activeIndicators), [activeIndicators]);
   const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData), [activeIndicators, chartData]);
@@ -186,9 +211,14 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
 
   // Symbol search results
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return ALL_SYMBOLS.slice(0, 20);
+    if (!searchQuery.trim()) return ALL_SYMBOLS;
     const q = searchQuery.toLowerCase();
-    return ALL_SYMBOLS.filter(s => s.label.toLowerCase().includes(q) || s.ticker.toLowerCase().includes(q) || s.key.includes(q)).slice(0, 15);
+    return ALL_SYMBOLS.filter(s =>
+      s.label.toLowerCase().includes(q) ||
+      s.ticker.toLowerCase().includes(q) ||
+      s.key.includes(q) ||
+      s.cat.toLowerCase().includes(q)
+    );
   }, [searchQuery]);
 
   // Keyboard shortcut: / to open search
@@ -243,7 +273,10 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="mt-2 bg-navy-light border border-gold/15 rounded-lg overflow-hidden max-h-[320px] overflow-y-auto">
+            <div className="mt-2 bg-navy-light border border-gold/15 rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
+              <div className="px-3 py-1.5 text-[9px] font-display tracking-wider text-marble/30 bg-navy-dark/50 sticky top-0">
+                {searchQuery.trim() ? `${searchResults.length} RESULTS` : `ALL SYMBOLS (${ALL_SYMBOLS.length})`}
+              </div>
               {searchResults.map((sym) => (
                 <button
                   key={sym.key}
@@ -302,6 +335,12 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
             <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > sma20 ? 'text-emerald-400' : 'text-red-400'}>${sma20.toFixed(2)}</span></span>
             <span className="text-[9px] font-mono text-marble/30">SMA50 <span className={price > sma50 ? 'text-emerald-400' : 'text-red-400'}>${sma50.toFixed(2)}</span></span>
           </div>
+          {/* Pending click indicator */}
+          {pendingClick !== null && activeTool && (
+            <span className="text-[8px] font-mono text-gold animate-pulse bg-gold/10 px-2 py-0.5 rounded border border-gold/20">
+              Click 2nd point · ${ pendingClick.toFixed(2)}
+            </span>
+          )}
           {/* Drawing tools (desktop only) */}
           {!isMobile && (
             <ChartDrawingTools
