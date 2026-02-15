@@ -13,6 +13,7 @@ const Header = () => {
     { label: 'The Vault', href: '/vault' },
     { label: 'Verify', href: '/verify' },
     { label: 'About Us', href: '/about' },
+    { label: 'Oil & Gas', href: '/oil-gas' },
     { label: 'Insights', href: '/certification' },
   ];
 
