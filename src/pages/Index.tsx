@@ -1,6 +1,6 @@
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
-import MetalCards from '@/components/MetalCards';
+import CategoryCards from '@/components/CategoryCards';
 import SymbolOverview from '@/components/tradingview/SymbolOverview';
 import Features from '@/components/Features';
 import VaultPreview from '@/components/VaultPreview';
@@ -13,7 +13,7 @@ const Index = () => {
       <Header />
       <main>
         <Hero />
-        <MetalCards />
+        <CategoryCards />
         {/* Market Overview — TradingView Symbol Overview */}
         <section className="bg-navy py-16">
           <div className="container mx-auto px-4">
