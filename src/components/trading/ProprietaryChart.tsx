@@ -195,9 +195,13 @@ const useLiveCandleEngine = (
 
   const cfg = tfConfigs[tf];
 
-  // Reset candles when symbol or timeframe changes
+  // Reset candles when symbol, timeframe, or historicalData changes
   useEffect(() => {
-    if (symbolKey !== lastSymbolRef.current || tf !== lastTfRef.current) {
+    const symbolChanged = symbolKey !== lastSymbolRef.current;
+    const tfChanged = tf !== lastTfRef.current;
+    const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
+    
+    if (symbolChanged || tfChanged || dataArrived) {
       lastSymbolRef.current = symbolKey;
       lastTfRef.current = tf;
       candlesRef.current = [...historicalData];
@@ -312,10 +316,12 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
 
   // Historical data (seed data for the candle engine)
   const historicalData = useMemo(() => {
+    const effectivePrice = basePrice || price;
+    if (effectivePrice <= 0) return []; // Don't generate data with zero price
     if (sparklineData && sparklineData.length > 10) {
-      return buildFromSparkline(sparklineData, tf, price);
+      return buildFromSparkline(sparklineData, tf, effectivePrice);
     }
-    return generateChartData(basePrice || price, change, tf, symbolKey);
+    return generateChartData(effectivePrice, change, tf, symbolKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sparklineData, tf, symbolKey, basePrice]);
 
@@ -518,6 +524,37 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
             {change >= 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : <TrendingDown className="w-3 h-3 inline mr-0.5" />}
             {change >= 0 ? '+' : ''}{change.toFixed(2)}%
           </span>
+          {/* Bid/Ask Spread */}
+          {price > 0 && (() => {
+            const spread = price * 0.0002;
+            const bid = price - spread / 2;
+            const ask = price + spread / 2;
+            return (
+              <span className="hidden lg:flex items-center gap-1 text-[9px] font-mono ml-1">
+                <span className="text-emerald-400/60">B:{bid < 10 ? bid.toFixed(4) : bid.toFixed(2)}</span>
+                <span className="text-marble/20">·</span>
+                <span className="text-red-400/60">A:{ask < 10 ? ask.toFixed(4) : ask.toFixed(2)}</span>
+                <span className="text-marble/15 ml-0.5">({(spread < 0.01 ? spread.toFixed(4) : spread.toFixed(2))})</span>
+              </span>
+            );
+          })()}
+          {/* Day High/Low */}
+          {liveCandles.length > 0 && (() => {
+            const dayHigh = Math.max(...chartHighs);
+            const dayLow = Math.min(...chartLows);
+            const range = dayHigh - dayLow;
+            const pct = range > 0 ? ((price - dayLow) / range) * 100 : 50;
+            return (
+              <span className="hidden xl:flex items-center gap-1.5 ml-2">
+                <span className="text-[8px] font-mono text-red-400/40">L:{dayLow < 10 ? dayLow.toFixed(4) : dayLow.toFixed(2)}</span>
+                <div className="w-16 h-1.5 bg-navy-light/50 rounded-full overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-marble/20 to-emerald-500/30 rounded-full" />
+                  <div className="absolute top-0 h-full w-1 bg-gold rounded-full" style={{ left: `${Math.min(Math.max(pct, 0), 100)}%` }} />
+                </div>
+                <span className="text-[8px] font-mono text-emerald-400/40">H:{dayHigh < 10 ? dayHigh.toFixed(4) : dayHigh.toFixed(2)}</span>
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-3">
           {/* Indicators */}
@@ -594,9 +631,11 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
 
       {/* Chart */}
       <div className="flex-1 px-1 py-1" style={{ cursor: activeTool ? 'crosshair' : 'default' }}>
-        {price === 0 ? (
-          <div className="h-full flex items-center justify-center text-marble/20 text-xs font-display tracking-wider">
-            LOADING MARKET DATA...
+        {price === 0 || liveCandles.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            <span className="text-marble/30 text-xs font-display tracking-[0.2em]">LOADING MARKET DATA</span>
+            <span className="text-marble/15 text-[9px] font-mono">Connecting to price feed...</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -616,7 +655,7 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
                 interval="preserveStartEnd"
               />
               <YAxis
-                domain={['auto', 'auto']}
+                domain={[(dataMin: number) => dataMin * 0.999, (dataMax: number) => dataMax * 1.001]}
                 tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.2)' }}
                 axisLine={false}
                 tickLine={false}
@@ -679,6 +718,14 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
           {tf === 'RT' && <span className="ml-1 text-emerald-400 animate-pulse">●</span>}
         </span>
         <div className="flex items-center gap-3">
+          {price > 0 && (
+            <span className="text-[8px] font-mono text-marble/15">
+              SPREAD: {(price * 0.0002).toFixed(price < 10 ? 4 : 2)}
+            </span>
+          )}
+          <span className="text-[8px] font-mono text-marble/15">
+            {isWsLive ? 'WS' : 'SIM'} · {liveCandles.length} bars
+          </span>
           {activeIndicators.size > 0 && (
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
           )}
