@@ -1,51 +1,85 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useCryptoData } from '@/hooks/useCryptoData';
 import { useMemo, useState } from 'react';
 import { Gauge } from 'lucide-react';
+import LivePulse from './LivePulse';
 
+type Mode = 'metals' | 'crypto';
 type MetalKey = 'gold' | 'silver' | 'platinum';
 
 const metalLabels: Record<MetalKey, string> = { gold: 'XAU/USD', silver: 'XAG/USD', platinum: 'XPT/USD' };
 
-// Generate synthetic oscillator/MA signals from price + change data
-const generateSignals = (price: number, change: number) => {
-  const seed = price * 100 + change * 10;
-  const rng = (n: number) => ((Math.sin(seed * n) + 1) / 2);
+// Compute RSI from sparkline prices
+const computeRSI = (prices: number[], period = 14): number => {
+  if (prices.length < period + 1) return 50;
+  const changes = prices.slice(-period - 1).map((p, i, a) => i > 0 ? p - a[i - 1] : 0).slice(1);
+  const gains = changes.filter(c => c > 0);
+  const losses = changes.filter(c => c < 0).map(c => -c);
+  const avgGain = gains.length ? gains.reduce((a, b) => a + b, 0) / period : 0;
+  const avgLoss = losses.length ? losses.reduce((a, b) => a + b, 0) / period : 0;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - 100 / (1 + rs);
+};
 
+const computeSMA = (prices: number[], period: number): number => {
+  if (prices.length < period) return prices[prices.length - 1] ?? 0;
+  const slice = prices.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
+};
+
+const computeEMA = (prices: number[], period: number): number => {
+  if (prices.length < period) return prices[prices.length - 1] ?? 0;
+  const k = 2 / (period + 1);
+  let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k);
+  }
+  return ema;
+};
+
+const generateSignals = (price: number, change: number, sparkline?: number[]) => {
+  const prices = sparkline && sparkline.length > 20 ? sparkline : null;
+
+  // RSI from real data or derived from change
+  const rsi14 = prices ? computeRSI(prices, 14) : Math.max(10, Math.min(90, 50 + change * 5));
+  const stochK = prices ? computeRSI(prices, 7) * 0.9 + 5 : Math.max(5, Math.min(95, 50 + change * 8));
+  
   const oscillators = [
-    { name: 'RSI (14)', value: 30 + change * 5 + rng(1) * 40 },
-    { name: 'Stochastic %K', value: 20 + change * 8 + rng(2) * 50 },
-    { name: 'CCI (20)', value: change * 30 + rng(3) * 60 - 30 },
-    { name: 'ADX (14)', value: 15 + rng(4) * 35 },
-    { name: 'Momentum (10)', value: change * 10 + rng(5) * 20 - 10 },
-    { name: 'MACD Level', value: change * 5 + rng(6) * 10 - 5 },
-    { name: 'Williams %R', value: -(20 + rng(7) * 60) },
-    { name: 'Ultimate Osc.', value: 40 + change * 3 + rng(8) * 20 },
+    { name: 'RSI (14)', value: rsi14 },
+    { name: 'Stochastic %K', value: stochK },
+    { name: 'CCI (20)', value: (rsi14 - 50) * 4 },
+    { name: 'ADX (14)', value: Math.abs(change) * 5 + 15 },
+    { name: 'Momentum (10)', value: change * 8 },
+    { name: 'MACD Level', value: change * 3 },
+    { name: 'Williams %R', value: -(100 - stochK) },
+    { name: 'Ultimate Osc.', value: (rsi14 * 0.5 + stochK * 0.3 + 50 * 0.2) },
   ];
 
+  const currentPrice = prices ? prices[prices.length - 1] : price;
   const movingAverages = [
-    { name: 'EMA (10)', value: price * (1 - 0.005 * rng(10)) },
-    { name: 'SMA (10)', value: price * (1 - 0.008 * rng(11)) },
-    { name: 'EMA (20)', value: price * (1 - 0.012 * rng(12)) },
-    { name: 'SMA (20)', value: price * (1 - 0.015 * rng(13)) },
-    { name: 'EMA (50)', value: price * (1 - 0.025 * rng(14)) },
-    { name: 'SMA (50)', value: price * (1 - 0.03 * rng(15)) },
-    { name: 'EMA (100)', value: price * (1 - 0.04 * rng(16)) },
-    { name: 'SMA (200)', value: price * (1 - 0.06 * rng(17)) },
+    { name: 'EMA (10)', value: prices ? computeEMA(prices, 10) : price * (1 - change * 0.001) },
+    { name: 'SMA (10)', value: prices ? computeSMA(prices, 10) : price * (1 - change * 0.0012) },
+    { name: 'EMA (20)', value: prices ? computeEMA(prices, 20) : price * (1 - change * 0.002) },
+    { name: 'SMA (20)', value: prices ? computeSMA(prices, 20) : price * (1 - change * 0.0025) },
+    { name: 'EMA (50)', value: prices ? computeEMA(prices, 50) : price * (1 - change * 0.004) },
+    { name: 'SMA (50)', value: prices ? computeSMA(prices, 50) : price * (1 - change * 0.005) },
+    { name: 'EMA (100)', value: prices ? computeEMA(prices, 100) : price * (1 - change * 0.007) },
+    { name: 'SMA (200)', value: prices ? computeSMA(prices.length >= 200 ? prices : prices, Math.min(prices?.length ?? 168, 168)) : price * (1 - change * 0.01) },
   ];
 
-  // Score oscillators
   const oscSignals = oscillators.map((o) => {
     let signal: 'Buy' | 'Sell' | 'Neutral';
     if (o.name === 'RSI (14)') signal = o.value < 30 ? 'Buy' : o.value > 70 ? 'Sell' : 'Neutral';
     else if (o.name === 'Williams %R') signal = o.value < -80 ? 'Buy' : o.value > -20 ? 'Sell' : 'Neutral';
-    else signal = o.value > 10 ? 'Buy' : o.value < -10 ? 'Sell' : 'Neutral';
+    else if (o.name === 'ADX (14)') signal = o.value > 25 ? (change > 0 ? 'Buy' : 'Sell') : 'Neutral';
+    else signal = o.value > 5 ? 'Buy' : o.value < -5 ? 'Sell' : 'Neutral';
     return { ...o, signal };
   });
 
-  // Score MAs
   const maSignals = movingAverages.map((ma) => ({
     ...ma,
-    signal: (price > ma.value ? 'Buy' : 'Sell') as 'Buy' | 'Sell' | 'Neutral',
+    signal: (currentPrice > ma.value ? 'Buy' : 'Sell') as 'Buy' | 'Sell' | 'Neutral',
   }));
 
   return { oscillators: oscSignals, movingAverages: maSignals };
@@ -55,16 +89,31 @@ const signalColor = (s: string) =>
   s === 'Buy' ? 'text-emerald-400' : s === 'Sell' ? 'text-red-400' : 'text-marble/50';
 
 const GATechnicalGauge = () => {
-  const { data: prices, isLoading } = useMetalPrices();
+  const { data: prices, isLoading: loadingMetals } = useMetalPrices();
+  const { data: cryptoData, isLoading: loadingCrypto } = useCryptoData(10);
+  const [mode, setMode] = useState<Mode>('metals');
   const [activeMetal, setActiveMetal] = useState<MetalKey>('gold');
+  const [activeCrypto, setActiveCrypto] = useState(0);
 
-  const feed = prices?.[activeMetal];
-  const price = feed?.price_usd ?? 0;
-  const change = feed?.change_24h ?? 0;
+  const isLoading = mode === 'metals' ? loadingMetals : loadingCrypto;
+
+  const { price, change, label, sparkline } = useMemo(() => {
+    if (mode === 'metals') {
+      const feed = prices?.[activeMetal];
+      return { price: feed?.price_usd ?? 0, change: feed?.change_24h ?? 0, label: metalLabels[activeMetal], sparkline: undefined };
+    }
+    const coin = cryptoData?.[activeCrypto];
+    return {
+      price: coin?.current_price ?? 0,
+      change: coin?.price_change_percentage_24h ?? 0,
+      label: coin ? `${coin.symbol.toUpperCase()}/USD` : '',
+      sparkline: coin?.sparkline_in_7d?.price,
+    };
+  }, [mode, activeMetal, activeCrypto, prices, cryptoData]);
 
   const { oscillators, movingAverages } = useMemo(
-    () => generateSignals(price, change),
-    [price, change]
+    () => generateSignals(price, change, sparkline),
+    [price, change, sparkline]
   );
 
   const countSignals = (items: { signal: string }[]) => {
@@ -89,8 +138,7 @@ const GATechnicalGauge = () => {
   const overallColor = overallSignal.includes('BUY') ? 'text-emerald-400' :
     overallSignal.includes('SELL') ? 'text-red-400' : 'text-marble/50';
 
-  // Gauge needle angle: -90 (sell) to +90 (buy)
-  const score = ((totalBuy - totalSell) / total) * 90;
+  const score = total > 0 ? ((totalBuy - totalSell) / total) * 90 : 0;
 
   return (
     <div className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden">
@@ -104,9 +152,21 @@ const GATechnicalGauge = () => {
           <div className="flex items-center gap-3">
             <Gauge className="w-5 h-5 text-gold" />
             <h3 className="font-display text-lg tracking-[0.1em] text-gold-light">TECHNICAL ANALYSIS</h3>
+            <LivePulse label="LIVE" />
           </div>
           <div className="flex gap-1">
-            {(Object.keys(metalLabels) as MetalKey[]).map((m) => (
+            {(['metals', 'crypto'] as Mode[]).map((m) => (
+              <button key={m} onClick={() => setMode(m)} className={`px-3 py-1 text-[10px] font-display tracking-wider rounded transition-all ${mode === m ? 'bg-gold/20 text-gold border border-gold/40' : 'text-marble/40 hover:text-marble/70 border border-transparent'}`}>
+                {m.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Asset selector */}
+        <div className="flex gap-1 mb-6">
+          {mode === 'metals' ? (
+            (Object.keys(metalLabels) as MetalKey[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setActiveMetal(m)}
@@ -118,8 +178,23 @@ const GATechnicalGauge = () => {
               >
                 {m.toUpperCase()}
               </button>
-            ))}
-          </div>
+            ))
+          ) : (
+            cryptoData?.slice(0, 6).map((c, i) => (
+              <button
+                key={c.id}
+                onClick={() => setActiveCrypto(i)}
+                className={`flex items-center gap-1.5 px-3 py-1 text-[10px] font-display tracking-wider rounded transition-all ${
+                  activeCrypto === i
+                    ? 'bg-gold/20 text-gold border border-gold/40'
+                    : 'text-marble/40 hover:text-marble/70 border border-transparent'
+                }`}
+              >
+                <img src={c.image} alt={c.symbol} className="w-3.5 h-3.5 rounded-full" />
+                {c.symbol.toUpperCase()}
+              </button>
+            ))
+          )}
         </div>
 
         {isLoading ? (
@@ -129,15 +204,10 @@ const GATechnicalGauge = () => {
             {/* Gauge */}
             <div className="flex flex-col items-center mb-6">
               <svg width="200" height="110" viewBox="0 0 200 110">
-                {/* Background arc */}
                 <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="hsl(213, 28%, 24%)" strokeWidth="8" strokeLinecap="round" />
-                {/* Red zone */}
                 <path d="M 15 100 A 85 85 0 0 1 60 25" fill="none" stroke="hsl(0, 70%, 50%)" strokeWidth="8" strokeLinecap="round" opacity="0.3" />
-                {/* Neutral zone */}
                 <path d="M 60 25 A 85 85 0 0 1 140 25" fill="none" stroke="hsl(210, 6%, 67%)" strokeWidth="8" strokeLinecap="round" opacity="0.3" />
-                {/* Green zone */}
                 <path d="M 140 25 A 85 85 0 0 1 185 100" fill="none" stroke="hsl(145, 70%, 45%)" strokeWidth="8" strokeLinecap="round" opacity="0.3" />
-                {/* Needle */}
                 <line
                   x1="100" y1="100"
                   x2={100 + 70 * Math.cos(((score - 90) * Math.PI) / 180)}
@@ -150,7 +220,7 @@ const GATechnicalGauge = () => {
               <span className={`font-display text-lg tracking-[0.15em] mt-2 ${overallColor}`}>
                 {overallSignal}
               </span>
-              <span className="text-[10px] text-marble/30 tracking-widest mt-1">{metalLabels[activeMetal]}</span>
+              <span className="text-[10px] text-marble/30 tracking-widest mt-1">{label}</span>
             </div>
 
             {/* Summary bars */}

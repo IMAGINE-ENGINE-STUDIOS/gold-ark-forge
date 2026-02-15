@@ -1,4 +1,4 @@
-import { CalendarDays, AlertCircle, Globe } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import LivePulse from './LivePulse';
 
@@ -14,7 +14,21 @@ interface EconEvent {
   actual?: string;
 }
 
-// Generate realistic upcoming economic events based on current date
+// Seeded PRNG for deterministic per-day generation
+const seededRandom = (seed: number) => {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+};
+
+const hashString = (str: string) => {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+};
+
 const generateEvents = (): EconEvent[] => {
   const now = new Date();
   const events: EconEvent[] = [];
@@ -25,6 +39,9 @@ const generateEvents = (): EconEvent[] => {
     { country: 'UK', flag: '🇬🇧', events: ['BoE Interest Rate Decision', 'CPI (YoY)', 'GDP (QoQ)', 'Retail Sales'] },
     { country: 'JP', flag: '🇯🇵', events: ['BoJ Interest Rate Decision', 'CPI (YoY)', 'GDP Growth Rate', 'Tankan Index'] },
     { country: 'CN', flag: '🇨🇳', events: ['PBoC Rate Decision', 'CPI (YoY)', 'GDP Growth Rate', 'PMI Manufacturing'] },
+    { country: 'AU', flag: '🇦🇺', events: ['RBA Interest Rate Decision', 'CPI (QoQ)', 'Employment Change', 'GDP (QoQ)'] },
+    { country: 'CA', flag: '🇨🇦', events: ['BoC Interest Rate Decision', 'CPI (MoM)', 'Employment Change', 'GDP (MoM)'] },
+    { country: 'CH', flag: '🇨🇭', events: ['SNB Policy Rate', 'CPI (YoY)', 'GDP (QoQ)', 'KOF Leading Indicator'] },
   ];
 
   const impacts: ('high' | 'medium' | 'low')[] = ['high', 'medium', 'low'];
@@ -35,19 +52,25 @@ const generateEvents = (): EconEvent[] => {
     date.setDate(now.getDate() + d);
     if (date.getDay() === 0 || date.getDay() === 6) continue;
 
-    const numEvents = 2 + Math.floor(Math.random() * 4);
-    for (let e = 0; e < numEvents; e++) {
-      const template = templates[Math.floor(Math.random() * templates.length)];
-      const eventName = template.events[Math.floor(Math.random() * template.events.length)];
-      const impact = impacts[Math.floor(Math.random() * impacts.length)];
-      const time = times[Math.floor(Math.random() * times.length)];
+    const dateStr = date.toISOString().split('T')[0];
+    const rng = seededRandom(hashString(dateStr));
 
-      const prev = (Math.random() * 5).toFixed(1) + '%';
-      const forecast = (Math.random() * 5).toFixed(1) + '%';
-      const actual = d === 0 && Math.random() > 0.5 ? (Math.random() * 5).toFixed(1) + '%' : undefined;
+    const numEvents = 3 + Math.floor(rng() * 3);
+    // Round-robin: ensure diversity by picking first events from different countries
+    const shuffled = [...templates].sort(() => rng() - 0.5);
+
+    for (let e = 0; e < numEvents; e++) {
+      const template = shuffled[e % shuffled.length];
+      const eventName = template.events[Math.floor(rng() * template.events.length)];
+      const impact = impacts[Math.floor(rng() * impacts.length)];
+      const time = times[Math.floor(rng() * times.length)];
+
+      const prev = (rng() * 5).toFixed(1) + '%';
+      const forecast = (rng() * 5).toFixed(1) + '%';
+      const actual = d === 0 && rng() > 0.5 ? (rng() * 5).toFixed(1) + '%' : undefined;
 
       events.push({
-        date: date.toISOString().split('T')[0],
+        date: dateStr,
         time,
         country: template.country,
         flag: template.flag,
@@ -71,18 +94,16 @@ const impactColors = {
 
 const GAEconomicCalendar = () => {
   const [filter, setFilter] = useState<'all' | 'high' | 'medium'>('all');
-  const events = useMemo(() => generateEvents(), []);
   const [refreshKey, setRefreshKey] = useState(0);
+  const events = useMemo(() => generateEvents(), [refreshKey]);
 
-  // Auto-refresh every 5 minutes
   useEffect(() => {
     const timer = setInterval(() => setRefreshKey((k) => k + 1), 300000);
     return () => clearInterval(timer);
   }, []);
 
-  const filtered = filter === 'all' ? events : events.filter((e) => e.impact === filter || (filter === 'high' && e.impact === 'high'));
+  const filtered = filter === 'all' ? events : events.filter((e) => e.impact === filter);
 
-  // Group by date
   const grouped = filtered.reduce<Record<string, EconEvent[]>>((acc, e) => {
     (acc[e.date] = acc[e.date] || []).push(e);
     return acc;
@@ -111,7 +132,7 @@ const GAEconomicCalendar = () => {
           </div>
         </div>
 
-        <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'hsl(43, 72%, 50%, 0.3) transparent' }}>
+        <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
           {Object.entries(grouped).map(([date, evts]) => {
             const dateObj = new Date(date + 'T00:00:00');
             const isToday = date === new Date().toISOString().split('T')[0];

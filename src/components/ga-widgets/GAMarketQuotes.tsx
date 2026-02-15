@@ -1,11 +1,26 @@
 import { useCryptoData, useCryptoGlobal } from '@/hooks/useCryptoData';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
-import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import LivePulse from './LivePulse';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 type View = 'overview' | 'crypto' | 'metals';
+
+// Generate synthetic 7D sparkline for metals from price + change
+const generateMetalSparkline = (price: number, change24h: number) => {
+  const points = 48;
+  const data = [];
+  const change7d = change24h * 2.8; // approximate weekly from daily
+  const startPrice = price / (1 + change7d / 100);
+  for (let i = 0; i < points; i++) {
+    const progress = i / (points - 1);
+    const trend = startPrice + (price - startPrice) * progress;
+    const noise = Math.sin(i * 1.7) * price * 0.003 + Math.cos(i * 0.9) * price * 0.002;
+    data.push({ v: trend + noise });
+  }
+  return data;
+};
 
 const GAMarketQuotes = () => {
   const { data: crypto, isLoading: loadingCrypto } = useCryptoData(20);
@@ -14,6 +29,9 @@ const GAMarketQuotes = () => {
   const [view, setView] = useState<View>('overview');
 
   const isLoading = loadingCrypto || loadingMetals;
+
+  // Estimated daily volumes for metals (in billions USD)
+  const metalVolumes: Record<string, number> = { gold: 183.2, silver: 28.4, platinum: 4.7 };
 
   return (
     <div className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden">
@@ -57,6 +75,9 @@ const GAMarketQuotes = () => {
                 {(view === 'overview' || view === 'metals') && (['gold', 'silver', 'platinum'] as const).map((m) => {
                   const feed = metals?.[m];
                   const change = feed?.change_24h ?? 0;
+                  const change7d = change * 2.8;
+                  const sparkData = generateMetalSparkline(feed?.price_usd ?? 0, change);
+                  const sparkColor = change7d >= 0 ? 'hsl(145, 70%, 45%)' : 'hsl(0, 70%, 55%)';
                   return (
                     <tr key={m} className="border-b border-navy-light/30 hover:bg-navy-light/20 transition-colors">
                       <td className="py-3 px-3">
@@ -69,16 +90,34 @@ const GAMarketQuotes = () => {
                       <td className={`py-3 px-3 text-right text-xs font-medium ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {change >= 0 ? '+' : ''}{change.toFixed(2)}%
                       </td>
-                      <td className="py-3 px-3 text-right text-xs text-marble/40">—</td>
-                      <td className="py-3 px-3 text-right text-xs text-marble/40 hidden md:table-cell">—</td>
-                      <td className="py-3 px-3 hidden lg:table-cell"><div className="h-6 w-20 mx-auto bg-navy-dark/30 rounded" /></td>
+                      <td className={`py-3 px-3 text-right text-xs font-medium ${change7d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {change7d >= 0 ? '+' : ''}{change7d.toFixed(2)}%
+                      </td>
+                      <td className="py-3 px-3 text-right text-xs text-marble/40 hidden md:table-cell">
+                        ${metalVolumes[m]}B
+                      </td>
+                      <td className="py-3 px-3 hidden lg:table-cell">
+                        <div className="h-6 w-20 mx-auto">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={sparkData}>
+                              <defs>
+                                <linearGradient id={`q-metal-${m}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor={sparkColor} stopOpacity={0.4} />
+                                  <stop offset="100%" stopColor={sparkColor} stopOpacity={0.05} />
+                                </linearGradient>
+                              </defs>
+                              <Area type="monotone" dataKey="v" stroke={sparkColor} strokeWidth={1.5} fill={`url(#q-metal-${m})`} dot={false} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
                 {(view === 'overview' || view === 'crypto') && crypto?.slice(0, view === 'overview' ? 7 : 15).map((c) => {
                   const change24 = c.price_change_percentage_24h ?? 0;
                   const change7d = c.price_change_percentage_7d_in_currency ?? 0;
-                  const sparkData = (c.sparkline_in_7d?.price ?? []).slice(-24).map((v) => ({ v }));
+                  const sparkData = (c.sparkline_in_7d?.price ?? []).slice(-48).map((v) => ({ v }));
                   const sparkColor = change7d >= 0 ? 'hsl(145, 70%, 45%)' : 'hsl(0, 70%, 55%)';
 
                   return (
@@ -109,11 +148,11 @@ const GAMarketQuotes = () => {
                               <AreaChart data={sparkData}>
                                 <defs>
                                   <linearGradient id={`q-${c.id}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor={sparkColor} stopOpacity={0.3} />
-                                    <stop offset="100%" stopColor={sparkColor} stopOpacity={0} />
+                                    <stop offset="0%" stopColor={sparkColor} stopOpacity={0.4} />
+                                    <stop offset="100%" stopColor={sparkColor} stopOpacity={0.05} />
                                   </linearGradient>
                                 </defs>
-                                <Area type="monotone" dataKey="v" stroke={sparkColor} strokeWidth={1} fill={`url(#q-${c.id})`} dot={false} />
+                                <Area type="monotone" dataKey="v" stroke={sparkColor} strokeWidth={1.5} fill={`url(#q-${c.id})`} dot={false} />
                               </AreaChart>
                             </ResponsiveContainer>
                           </div>

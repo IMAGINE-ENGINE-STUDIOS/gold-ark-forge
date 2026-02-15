@@ -14,12 +14,10 @@ const GAForexMatrix = () => {
     return rates?.[from]?.rates[to] ?? 0;
   };
 
-  // Calculate "strength" as avg performance vs other currencies
   const getStrength = (currency: string) => {
     if (!rates) return 0;
     const others = currencies.filter((c) => c !== currency);
     const rates_from = others.map((c) => getRate(currency, c));
-    // Normalize: higher = stronger
     return rates_from.reduce((s, r) => s + r, 0) / others.length;
   };
 
@@ -53,8 +51,8 @@ const GAForexMatrix = () => {
         {isLoading ? (
           <div className="h-64 bg-navy-light/30 rounded animate-pulse" />
         ) : view === 'matrix' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-2 px-2 scrollbar-thin">
+            <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr>
                   <th className="p-2 text-[10px] text-marble/40 font-display tracking-widest" />

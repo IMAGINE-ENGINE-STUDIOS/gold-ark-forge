@@ -5,6 +5,8 @@ import { useState } from 'react';
 
 type View = 'trending' | 'volume' | 'market_cap';
 
+const STABLECOINS = ['usdt', 'usdc', 'dai', 'busd', 'tusd', 'fdusd'];
+
 const GATopMovers = () => {
   const { data: trending, isLoading: loadingTrending } = useCryptoTrending();
   const { data: crypto, isLoading: loadingCrypto } = useCryptoData(30);
@@ -12,8 +14,9 @@ const GATopMovers = () => {
 
   const isLoading = loadingTrending || loadingCrypto;
 
-  const byVolume = [...(crypto ?? [])].sort((a, b) => b.total_volume - a.total_volume).slice(0, 10);
-  const byMarketCap = [...(crypto ?? [])].sort((a, b) => b.market_cap - a.market_cap).slice(0, 10);
+  const qualified = (crypto ?? []).filter(c => c.market_cap > 1e9 && !STABLECOINS.includes(c.symbol));
+  const byVolume = [...qualified].sort((a, b) => b.total_volume - a.total_volume).slice(0, 10);
+  const byMarketCap = [...qualified].sort((a, b) => b.market_cap - a.market_cap).slice(0, 10);
 
   return (
     <div className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden">
@@ -69,7 +72,8 @@ const GATopMovers = () => {
                   <span className="text-[10px] text-marble/30 w-5 text-right font-mono">{i + 1}</span>
                   <img src={c.image} alt={c.name} className="w-6 h-6 rounded-full" />
                   <div className="flex-1 min-w-0">
-                    <span className="font-display text-xs text-marble/80 tracking-wider">{c.symbol.toUpperCase()}</span>
+                    <span className="font-display text-xs text-marble/80 tracking-wider">{c.name}</span>
+                    <span className="text-[10px] text-marble/30 ml-2">{c.symbol.toUpperCase()}</span>
                   </div>
                   <span className="text-sm text-marble font-medium">${c.current_price < 1 ? c.current_price.toFixed(4) : c.current_price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
                   <span className={`text-[10px] font-medium w-14 text-right ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
