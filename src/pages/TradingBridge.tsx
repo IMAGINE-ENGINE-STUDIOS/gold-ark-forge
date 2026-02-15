@@ -20,6 +20,7 @@ import RuleBuilder from '@/components/trading/RuleBuilder';
 import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES } from '@/data/tradingSymbols';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
+import BrokerConnectDialog from '@/components/trading/BrokerConnectDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -62,6 +63,7 @@ const TradingBridge = () => {
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
+  const [brokerDialogOpen, setBrokerDialogOpen] = useState(false);
   const { data: connections } = useBrokerConnections();
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
@@ -117,9 +119,12 @@ const TradingBridge = () => {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[8px] font-mono bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded border border-emerald-500/30">
+            <button
+              onClick={() => setBrokerDialogOpen(true)}
+              className="text-[8px] font-mono bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+            >
               {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
-            </span>
+            </button>
             <ConnectWalletButton />
           </div>
         </div>
@@ -243,6 +248,7 @@ const TradingBridge = () => {
             </button>
           ))}
         </div>
+        <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
       </div>
     );
   }
@@ -258,9 +264,12 @@ const TradingBridge = () => {
           </Link>
           <span className="text-gold/20">|</span>
           <span className="font-display text-xs tracking-[0.2em] text-marble/40">TRADING BRIDGE</span>
-          <span className="text-[9px] font-mono bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">
+          <button
+            onClick={() => setBrokerDialogOpen(true)}
+            className="text-[9px] font-mono bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+          >
             {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
-          </span>
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <Link to="/markets" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">MARKETS</Link>
@@ -412,6 +421,7 @@ const TradingBridge = () => {
           <span className="text-[9px] font-mono text-marble/20">GOLD ARROW v3.0</span>
         </div>
       </div>
+      <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
     </div>
   );
 };
