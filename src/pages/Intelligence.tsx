@@ -1,31 +1,22 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-// TradingView free widgets
-import TradingViewTicker from '@/components/tradingview/TradingViewTicker';
-import TradingViewChart from '@/components/tradingview/TradingViewChart';
-import TradingViewTechnicalAnalysis from '@/components/tradingview/TradingViewTechnicalAnalysis';
-import TradingViewTopStories from '@/components/tradingview/TradingViewTopStories';
-import TradingViewHeatmap from '@/components/tradingview/TradingViewHeatmap';
-import TradingViewCryptoMarket from '@/components/tradingview/TradingViewCryptoMarket';
-import TradingViewEconomicCalendar from '@/components/tradingview/TradingViewEconomicCalendar';
-import TradingViewSingleTicker from '@/components/tradingview/TradingViewSingleTicker';
-// NEW: Missing showroom widgets
-import TradingViewTickers from '@/components/tradingview/TradingViewTickers';
-import TradingViewSymbolInfo from '@/components/tradingview/TradingViewSymbolInfo';
-import TradingViewSnaps from '@/components/tradingview/TradingViewSnaps';
-import TradingViewMiniChart from '@/components/tradingview/TradingViewMiniChart';
-import SymbolOverview from '@/components/tradingview/SymbolOverview';
-import TradingViewFundamentalData from '@/components/tradingview/TradingViewFundamentalData';
-import TradingViewCompanyProfile from '@/components/tradingview/TradingViewCompanyProfile';
-import TradingViewMarketOverview from '@/components/tradingview/TradingViewMarketOverview';
-import TradingViewMarketQuotes from '@/components/tradingview/TradingViewMarketQuotes';
-import TradingViewHotlists from '@/components/tradingview/TradingViewHotlists';
-import TradingViewStockMarket from '@/components/tradingview/TradingViewStockMarket';
-import TradingViewForexCrossRates from '@/components/tradingview/TradingViewForexCrossRates';
-import TradingViewForexHeatmap from '@/components/tradingview/TradingViewForexHeatmap';
-import TradingViewScreener from '@/components/tradingview/TradingViewScreener';
-import WidgetCarousel from '@/components/tradingview/WidgetCarousel';
+// GA Custom Widgets — NO TradingView
+import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
+import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
+import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
+import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
+import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
+import GAMetalChart from '@/components/ga-widgets/GAMetalChart';
+import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
+import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
+import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
+import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
+import GATopMovers from '@/components/ga-widgets/GATopMovers';
+import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
+import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
+import GACryptoHeatmap from '@/components/ga-widgets/GACryptoHeatmap';
+import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 
 // Blockchain live widgets (free APIs)
 import GABitcoinNetwork from '@/components/ga-widgets/GABitcoinNetwork';
@@ -35,7 +26,6 @@ import GATronNetwork from '@/components/ga-widgets/GATronNetwork';
 import GASECFilings from '@/components/ga-widgets/GASECFilings';
 
 // Proprietary widgets (Lovable Cloud DB)
-import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GAReserveGauge from '@/components/ga-widgets/GAReserveGauge';
 import GAVaultMatrix from '@/components/ga-widgets/GAVaultMatrix';
 import GACertificateFlow from '@/components/ga-widgets/GACertificateFlow';
@@ -44,56 +34,51 @@ import GABullionHeatmap from '@/components/ga-widgets/GABullionHeatmap';
 import GAPartnerNetwork from '@/components/ga-widgets/GAPartnerNetwork';
 import GAActivityFeed from '@/components/ga-widgets/GAActivityFeed';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
-import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
 import GAAnchorStatus from '@/components/ga-widgets/GAAnchorStatus';
 import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
 import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
-import WidgetShell from '@/components/ga-widgets/WidgetShell';
 
 import {
   Shield, BarChart3, Vault, FileCheck2, History, Grid3X3, TrendingUp,
   Gauge, Building2, Network, SlidersHorizontal, Layers,
   Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText, Fish,
-  DollarSign, LineChart, Info, Eye, Briefcase, Globe, Flame, BarChart, ArrowLeftRight,
+  DollarSign, LineChart, Eye, Globe, Flame, BarChart, ArrowLeftRight,
 } from 'lucide-react';
 
 const sections = [
-  // Market Data (free)
+  // Market Data
   { id: 'prices', label: 'PRICES', icon: TrendingUp },
-  { id: 'tickers-strip', label: 'TICKERS', icon: DollarSign },
-  { id: 'mini-charts', label: 'MINI', icon: LineChart },
-  { id: 'symbol-overview', label: 'OVERVIEW', icon: Eye },
-  { id: 'chart', label: 'CHART', icon: BarChart3 },
+  { id: 'mini-charts', label: 'CHARTS', icon: LineChart },
+  { id: 'overview', label: 'OVERVIEW', icon: Eye },
+  { id: 'chart', label: 'ADV CHART', icon: BarChart3 },
   { id: 'analysis', label: 'ANALYSIS', icon: Gauge },
-  { id: 'fundamentals', label: 'FUNDMNTL', icon: Briefcase },
-  { id: 'crypto', label: 'CRYPTO', icon: Layers },
+  { id: 'market-summary', label: 'MARKETS', icon: Globe },
+  { id: 'quotes', label: 'QUOTES', icon: BarChart },
+  { id: 'movers', label: 'MOVERS', icon: Flame },
   { id: 'news', label: 'NEWS', icon: Newspaper },
-  { id: 'market-overview', label: 'MARKETS', icon: Globe },
-  { id: 'hotlists', label: 'HOT', icon: Flame },
   { id: 'forex', label: 'FOREX', icon: ArrowLeftRight },
-  { id: 'heatmap-stocks', label: 'STOCKS', icon: LayoutGrid },
-  { id: 'screener-commodities', label: 'COMMODS', icon: BarChart },
+  { id: 'heatmap', label: 'HEATMAP', icon: LayoutGrid },
   { id: 'calendar', label: 'CALENDAR', icon: CalendarDays },
-  // Blockchain Live (free)
+  // Blockchain Live
   { id: 'bitcoin', label: 'BITCOIN', icon: Bitcoin },
   { id: 'ethereum', label: 'ETHEREUM', icon: Network },
   { id: 'xrp', label: 'XRP', icon: Layers },
   { id: 'tron', label: 'TRON', icon: Layers },
   { id: 'whales', label: 'WHALES', icon: Fish },
   { id: 'sec', label: 'SEC', icon: FileText },
-  // DeFi & Sentiment (free)
-  { id: 'defi', label: 'DeFi TVL', icon: Layers },
-  { id: 'sentiment', label: 'SENTIMENT', icon: Gauge },
+  // DeFi & Sentiment
   { id: 'crypto-market', label: 'COINS', icon: Layers },
+  { id: 'sentiment', label: 'SENTIMENT', icon: Gauge },
+  { id: 'defi', label: 'DeFi TVL', icon: Layers },
   // Proprietary
   { id: 'ratios', label: 'RATIOS', icon: BarChart3 },
   { id: 'reserves', label: 'RESERVES', icon: Shield },
   { id: 'profiles', label: 'PROFILES', icon: Layers },
   { id: 'vault', label: 'VAULT', icon: Vault },
-  { id: 'heatmap', label: 'BULLION', icon: Grid3X3 },
+  { id: 'bullion-heatmap', label: 'BULLION', icon: Grid3X3 },
   { id: 'screener', label: 'SCREENER', icon: SlidersHorizontal },
   { id: 'certs', label: 'CERTS', icon: FileCheck2 },
   { id: 'anchors', label: 'ANCHORS', icon: Network },
@@ -127,8 +112,8 @@ const Intelligence = () => {
     <div className="min-h-screen bg-navy">
       <Header />
 
-      {/* Live Ticker - TradingView free widget */}
-      <TradingViewTicker />
+      {/* Live Ticker — GA Custom */}
+      <GAMultiTicker />
 
       {/* Hero Banner */}
       <div className="relative py-16 md:py-24 overflow-hidden">
@@ -170,299 +155,89 @@ const Intelligence = () => {
 
       <div className="greek-key-border-rich h-2" />
 
-      {/* ═══════════════════ TIER 1: MARKET DATA (FREE) ═══════════════════ */}
+      {/* ═══════════════ TIER 1: MARKET DATA ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="MARKET DATA" sub="POWERED BY TRADINGVIEW · FREE · NO API KEYS" />
+        <TierBanner label="MARKET DATA" sub="LIVE AUTO-REFRESH · FREE PUBLIC APIs · ZERO INTERMEDIARIES" />
 
-        {/* [1] Spot Prices */}
+        {/* Spot Prices */}
         <section id="prices">
           <SectionDivider label="SPOT PRICES" />
           <GAPriceCards />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            <TradingViewSingleTicker symbol="BITSTAMP:BTCUSD" />
-            <TradingViewSingleTicker symbol="BITSTAMP:ETHUSD" />
-            <TradingViewSingleTicker symbol="BITSTAMP:XRPUSD" />
-            <TradingViewSingleTicker symbol="BINANCE:TRXUSDT" />
+          <div className="mt-6">
+            <GACryptoPriceCards />
           </div>
         </section>
 
-        {/* [NEW] Tickers Strip */}
-        <section id="tickers-strip">
-          <SectionDivider label="TICKERS STRIP" />
-          <WidgetShell icon={DollarSign} title="LIVE TICKERS" badge="MULTI-ASSET" source="TradingView">
-            <WidgetCarousel
-              variants={[
-                {
-                  label: 'Metals & Crypto',
-                  render: () => <TradingViewTickers />,
-                },
-                {
-                  label: 'Indices',
-                  render: () => (
-                    <TradingViewTickers symbols={[
-                      { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
-                      { proName: 'FOREXCOM:DJI', title: 'Dow Jones' },
-                      { proName: 'FOREXCOM:NSXUSD', title: 'Nasdaq' },
-                      { proName: 'TVC:UKX', title: 'FTSE 100' },
-                    ]} />
-                  ),
-                },
-                {
-                  label: 'Forex',
-                  render: () => (
-                    <TradingViewTickers symbols={[
-                      { proName: 'FX:EURUSD', title: 'EUR/USD' },
-                      { proName: 'FX:GBPUSD', title: 'GBP/USD' },
-                      { proName: 'FX:USDJPY', title: 'USD/JPY' },
-                      { proName: 'FX:AUDUSD', title: 'AUD/USD' },
-                    ]} />
-                  ),
-                },
-              ]}
-            />
-          </WidgetShell>
-        </section>
-
-        {/* [NEW] Mini Charts */}
+        {/* Mini Charts */}
         <section id="mini-charts">
-          <SectionDivider label="MINI CHARTS" />
-          <WidgetShell icon={LineChart} title="COMPACT CHARTS" badge="QUICK VIEW" source="TradingView">
-            <WidgetCarousel
-              variants={[
-                {
-                  label: 'Metals',
-                  render: () => (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <TradingViewMiniChart symbol="OANDA:XAUUSD" height={220} />
-                      <TradingViewMiniChart symbol="OANDA:XAGUSD" height={220} />
-                      <TradingViewMiniChart symbol="OANDA:XPTUSD" height={220} />
-                    </div>
-                  ),
-                },
-                {
-                  label: 'Crypto',
-                  render: () => (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <TradingViewMiniChart symbol="BITSTAMP:BTCUSD" height={220} />
-                      <TradingViewMiniChart symbol="BITSTAMP:ETHUSD" height={220} />
-                      <TradingViewMiniChart symbol="BINANCE:SOLUSD" height={220} />
-                    </div>
-                  ),
-                },
-                {
-                  label: 'Stocks',
-                  render: () => (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <TradingViewMiniChart symbol="NASDAQ:AAPL" height={220} />
-                      <TradingViewMiniChart symbol="NASDAQ:GOOGL" height={220} />
-                      <TradingViewMiniChart symbol="NASDAQ:TSLA" height={220} />
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </WidgetShell>
+          <SectionDivider label="COMPACT CHARTS" />
+          <GAMiniCharts />
         </section>
 
-        {/* [NEW] Multi-Asset Symbol Overview */}
-        <section id="symbol-overview">
+        {/* Multi-Asset Overview */}
+        <section id="overview">
           <SectionDivider label="MULTI-ASSET OVERVIEW" />
-          <WidgetShell icon={Eye} title="ASSET OVERVIEW" badge="MULTI-SYMBOL" source="TradingView">
-            <SymbolOverview />
-          </WidgetShell>
+          <GAAssetOverview />
         </section>
 
-        {/* [2] Advanced Chart */}
+        {/* Advanced Chart */}
         <section id="chart">
           <SectionDivider label="ADVANCED CHART" />
-          <WidgetShell icon={BarChart3} title="INTERACTIVE CHART" badge="FULL-FEATURED" source="TradingView">
-            <WidgetCarousel
-              variants={[
-                { label: 'Gold', render: () => <TradingViewChart symbol="OANDA:XAUUSD" height={500} /> },
-                { label: 'Silver', render: () => <TradingViewChart symbol="OANDA:XAGUSD" height={500} /> },
-                { label: 'Bitcoin', render: () => <TradingViewChart symbol="BITSTAMP:BTCUSD" height={500} /> },
-                { label: 'S&P 500', render: () => <TradingViewChart symbol="FOREXCOM:SPXUSD" height={500} /> },
-              ]}
-            />
-          </WidgetShell>
+          <GAMetalChart />
         </section>
 
-        {/* [3] Technical Analysis */}
+        {/* Technical Analysis */}
         <section id="analysis">
           <SectionDivider label="TECHNICAL ANALYSIS" />
-          <WidgetShell icon={Gauge} title="TECHNICAL SIGNALS" badge="BUY · SELL · NEUTRAL" source="TradingView">
-            <WidgetCarousel
-              variants={[
-                {
-                  label: 'Metals',
-                  render: () => (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <TradingViewTechnicalAnalysis symbol="OANDA:XAUUSD" height={400} />
-                      <TradingViewTechnicalAnalysis symbol="OANDA:XAGUSD" height={400} />
-                    </div>
-                  ),
-                },
-                {
-                  label: 'Crypto',
-                  render: () => (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <TradingViewTechnicalAnalysis symbol="BITSTAMP:BTCUSD" height={400} />
-                      <TradingViewTechnicalAnalysis symbol="BITSTAMP:ETHUSD" height={400} />
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </WidgetShell>
+          <GATechnicalGauge />
         </section>
 
-        {/* [NEW] Fundamental Data + Company Profile */}
-        <section id="fundamentals">
-          <SectionDivider label="FUNDAMENTALS & PROFILES" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <WidgetShell icon={Briefcase} title="FUNDAMENTAL DATA" badge="FINANCIALS" source="TradingView">
-              <WidgetCarousel
-                variants={[
-                  { label: 'Apple', render: () => <TradingViewFundamentalData symbol="NASDAQ:AAPL" height={460} /> },
-                  { label: 'Google', render: () => <TradingViewFundamentalData symbol="NASDAQ:GOOGL" height={460} /> },
-                  { label: 'Tesla', render: () => <TradingViewFundamentalData symbol="NASDAQ:TSLA" height={460} /> },
-                ]}
-              />
-            </WidgetShell>
-            <WidgetShell icon={Info} title="COMPANY PROFILE" badge="OVERVIEW" source="TradingView">
-              <WidgetCarousel
-                variants={[
-                  { label: 'Apple', render: () => <TradingViewCompanyProfile symbol="NASDAQ:AAPL" height={460} /> },
-                  { label: 'Google', render: () => <TradingViewCompanyProfile symbol="NASDAQ:GOOGL" height={460} /> },
-                  { label: 'Microsoft', render: () => <TradingViewCompanyProfile symbol="NASDAQ:MSFT" height={460} /> },
-                ]}
-              />
-            </WidgetShell>
-          </div>
+        {/* Global Market Summary */}
+        <section id="market-summary">
+          <SectionDivider label="GLOBAL MARKET OVERVIEW" />
+          <GAMarketSummary />
         </section>
 
-        {/* [4] Crypto Market */}
-        <section id="crypto">
-          <SectionDivider label="CRYPTO MARKET" />
-          <WidgetShell icon={Layers} title="CRYPTOCURRENCY SCREENER" badge="LIVE" source="TradingView">
-            <TradingViewCryptoMarket height={500} />
-          </WidgetShell>
+        {/* Market Quotes */}
+        <section id="quotes">
+          <SectionDivider label="MARKET QUOTES" />
+          <GAMarketQuotes />
         </section>
 
-        {/* [5] Market News */}
+        {/* Top Movers */}
+        <section id="movers">
+          <SectionDivider label="TOP MOVERS" />
+          <GATopMovers />
+        </section>
+
+        {/* News Feed */}
         <section id="news">
-          <SectionDivider label="MARKET NEWS" />
-          <WidgetShell icon={Newspaper} title="TOP STORIES" badge="REAL-TIME" source="TradingView">
-            <WidgetCarousel
-              variants={[
-                {
-                  label: 'Metals & Crypto',
-                  render: () => (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <TradingViewTopStories symbol="OANDA:XAUUSD" height={450} />
-                      <TradingViewTopStories symbol="BITSTAMP:BTCUSD" height={450} />
-                    </div>
-                  ),
-                },
-                {
-                  label: 'Tech Stocks',
-                  render: () => (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <TradingViewTopStories symbol="NASDAQ:AAPL" height={450} />
-                      <TradingViewTopStories symbol="NASDAQ:TSLA" height={450} />
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </WidgetShell>
+          <SectionDivider label="MARKET INTELLIGENCE FEED" />
+          <GANewsFeed />
         </section>
 
-        {/* [NEW] Market Overview + Market Quotes */}
-        <section id="market-overview">
-          <SectionDivider label="MARKET OVERVIEW" />
-          <div className="space-y-8">
-            <WidgetShell icon={Globe} title="GLOBAL MARKETS" badge="WATCHLIST" source="TradingView">
-              <TradingViewMarketOverview height={500} />
-            </WidgetShell>
-            <WidgetShell icon={BarChart} title="MARKET QUOTES" badge="OHLC DATA" source="TradingView">
-              <TradingViewMarketQuotes height={500} />
-            </WidgetShell>
-          </div>
-        </section>
-
-        {/* [NEW] Hotlists + Stock Market */}
-        <section id="hotlists">
-          <SectionDivider label="MARKET MOVERS" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <WidgetShell icon={Flame} title="HOTLISTS" badge="TOP MOVERS" source="TradingView">
-              <WidgetCarousel
-                variants={[
-                  { label: 'US', render: () => <TradingViewHotlists exchange="US" height={460} /> },
-                  { label: 'Europe', render: () => <TradingViewHotlists exchange="europe" height={460} /> },
-                  { label: 'Asia', render: () => <TradingViewHotlists exchange="asia" height={460} /> },
-                ]}
-              />
-            </WidgetShell>
-            <WidgetShell icon={LayoutGrid} title="STOCK MARKET" badge="BY EXCHANGE" source="TradingView">
-              <WidgetCarousel
-                variants={[
-                  { label: 'US', render: () => <TradingViewStockMarket exchange="US" height={460} /> },
-                  { label: 'Germany', render: () => <TradingViewStockMarket exchange="germany" height={460} /> },
-                  { label: 'UK', render: () => <TradingViewStockMarket exchange="UK" height={460} /> },
-                ]}
-              />
-            </WidgetShell>
-          </div>
-        </section>
-
-        {/* [NEW] Forex */}
+        {/* Forex */}
         <section id="forex">
           <SectionDivider label="FOREX INTELLIGENCE" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <WidgetShell icon={ArrowLeftRight} title="CROSS RATES" badge="MATRIX" source="TradingView">
-              <TradingViewForexCrossRates height={400} />
-            </WidgetShell>
-            <WidgetShell icon={Globe} title="FOREX HEATMAP" badge="STRENGTH" source="TradingView">
-              <TradingViewForexHeatmap height={400} />
-            </WidgetShell>
-          </div>
+          <GAForexMatrix />
         </section>
 
-        {/* [7] Stock Heatmap */}
-        <section id="heatmap-stocks">
-          <SectionDivider label="STOCK HEATMAP" />
-          <WidgetShell icon={LayoutGrid} title="SECTOR HEATMAP" badge="MARKET CAP" source="TradingView">
-            <TradingViewHeatmap height={500} />
-          </WidgetShell>
+        {/* Crypto Sector Heatmap */}
+        <section id="heatmap">
+          <SectionDivider label="CRYPTO SECTOR HEATMAP" />
+          <GACryptoHeatmap />
         </section>
 
-        {/* [NEW] Commodity Screener */}
-        <section id="screener-commodities">
-          <SectionDivider label="COMMODITY SCREENER" />
-          <WidgetShell icon={BarChart} title="COMMODITIES" badge="SCREENER" source="TradingView">
-            <WidgetCarousel
-              variants={[
-                { label: 'Most Capitalized', render: () => <TradingViewScreener height={500} defaultScreen="most_capitalized" /> },
-                { label: 'Top Gainers', render: () => <TradingViewScreener height={500} defaultScreen="top_gainers" /> },
-                { label: 'Top Losers', render: () => <TradingViewScreener height={500} defaultScreen="top_losers" /> },
-              ]}
-            />
-          </WidgetShell>
-        </section>
-
-        {/* [6] Economic Calendar */}
+        {/* Economic Calendar */}
         <section id="calendar">
           <SectionDivider label="ECONOMIC CALENDAR" />
-          <WidgetShell icon={CalendarDays} title="ECONOMIC EVENTS" badge="UPCOMING" source="TradingView">
-            <TradingViewEconomicCalendar height={500} />
-          </WidgetShell>
+          <GAEconomicCalendar />
         </section>
       </div>
 
       <div className="greek-key-border-rich h-2" />
 
-      {/* ═══════════════ TIER 2: BLOCKCHAIN LIVE (FREE) ═══════════════ */}
+      {/* ═══════════════ TIER 2: BLOCKCHAIN LIVE ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="BLOCKCHAIN LIVE" sub="DIRECT FROM NETWORKS · ZERO INTERMEDIARIES" />
 
@@ -500,9 +275,9 @@ const Intelligence = () => {
 
       <div className="greek-key-border-rich h-2" />
 
-      {/* ═══════════════ TIER 2.5: DeFi & SENTIMENT (FREE) ═══════════════ */}
+      {/* ═══════════════ TIER 2.5: DeFi & SENTIMENT ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="DeFi & SENTIMENT" sub="FREE PUBLIC APIs · ZERO COST" />
+        <TierBanner label="DeFi & SENTIMENT" sub="FREE PUBLIC APIs · AUTO-REFRESH" />
 
         <section id="crypto-market">
           <SectionDivider label="CRYPTO MARKET OVERVIEW" />
@@ -521,7 +296,7 @@ const Intelligence = () => {
         </div>
       </div>
 
-      {/* ═══════════════ TIER 3: PROPRIETARY (CLOUD DB) ═══════════════ */}
+      {/* ═══════════════ TIER 3: PROPRIETARY ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="PROPRIETARY DATA" sub="GOLD ARROW INTERNAL · LOVABLE CLOUD" />
 
@@ -551,7 +326,7 @@ const Intelligence = () => {
             <SectionDivider label="VAULT INVENTORY" />
             <GAVaultMatrix />
           </section>
-          <section id="heatmap">
+          <section id="bullion-heatmap">
             <SectionDivider label="BULLION HEATMAP" />
             <GABullionHeatmap />
           </section>
