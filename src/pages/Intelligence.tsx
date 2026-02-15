@@ -47,6 +47,7 @@ import {
   Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText, Fish,
   DollarSign, LineChart, Eye, Globe, Flame, BarChart, ArrowLeftRight,
 } from 'lucide-react';
+import { useRef } from 'react';
 
 const sections = [
   // Market Data
@@ -134,21 +135,23 @@ const Intelligence = () => {
             and Gold Arrow's internal data streams — all in one view, zero intermediaries.
           </p>
 
-          {/* Section Nav */}
-          <div className="flex flex-wrap justify-center gap-2 mt-10">
-            {sections.map((s) => {
-              const Icon = s.icon;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => scrollTo(s.id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded border border-gold/20 text-marble/50 hover:text-gold hover:border-gold/50 transition-all text-[10px] font-display tracking-[0.2em]"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {s.label}
-                </button>
-              );
-            })}
+          {/* Section Nav — horizontal scroll on mobile */}
+          <div className="mt-10 -mx-6 px-6 overflow-x-auto scrollbar-thin">
+            <div className="flex flex-nowrap md:flex-wrap md:justify-center gap-2 min-w-max md:min-w-0">
+              {sections.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => scrollTo(s.id)}
+                    className="flex items-center gap-2 px-4 py-2 rounded border border-gold/20 text-marble/50 hover:text-gold hover:border-gold/50 transition-all text-[10px] font-display tracking-[0.2em] whitespace-nowrap shrink-0 md:shrink"
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3 } from 'lucide-react';
+import LivePulse from './LivePulse';
 
 type MetalKey = 'gold' | 'silver' | 'platinum';
 
@@ -12,24 +13,39 @@ const metalConfig: Record<MetalKey, { label: string; symbol: string; color: stri
 };
 
 const timeframes = ['1H', '4H', '1D', '1W', '1M'] as const;
+type Timeframe = typeof timeframes[number];
 
-// Generate synthetic OHLC-like data for the chart
-const generateChartData = (price: number, change: number, points: number) => {
+interface TFConfig {
+  points: number;
+  intervalMs: number;
+  noiseScale: number;
+  labelFn: (d: Date) => string;
+}
+
+const tfConfigs: Record<Timeframe, TFConfig> = {
+  '1H': { points: 12, intervalMs: 5 * 60 * 1000, noiseScale: 0.001, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '4H': { points: 48, intervalMs: 5 * 60 * 1000, noiseScale: 0.002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1D': { points: 96, intervalMs: 15 * 60 * 1000, noiseScale: 0.003, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1W': { points: 84, intervalMs: 2 * 60 * 60 * 1000, noiseScale: 0.008, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
+  '1M': { points: 120, intervalMs: 6 * 60 * 60 * 1000, noiseScale: 0.015, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+};
+
+const generateChartData = (price: number, change: number, tf: Timeframe) => {
+  const cfg = tfConfigs[tf];
   const data = [];
   const startPrice = price / (1 + change / 100);
   const now = Date.now();
-  const interval = (24 * 60 * 60 * 1000) / points;
 
-  for (let i = 0; i < points; i++) {
-    const progress = i / (points - 1);
+  for (let i = 0; i < cfg.points; i++) {
+    const progress = i / (cfg.points - 1);
     const trend = startPrice + (price - startPrice) * progress;
-    const noise = Math.sin(i * 2.3) * price * 0.004 + Math.cos(i * 1.1) * price * 0.003;
-    const volatility = Math.sin(i * 0.5) * price * 0.002;
+    const noise = Math.sin(i * 2.3 + progress * 5) * price * cfg.noiseScale + Math.cos(i * 1.1) * price * cfg.noiseScale * 0.7;
+    const volatility = Math.sin(i * 0.5 + progress * 3) * price * cfg.noiseScale * 0.5;
     const value = trend + noise + volatility;
-    const time = new Date(now - (points - i) * interval);
+    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
 
     data.push({
-      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      time: cfg.labelFn(time),
       value: parseFloat(value.toFixed(2)),
       high: parseFloat((value + Math.abs(noise) * 0.5).toFixed(2)),
       low: parseFloat((value - Math.abs(noise) * 0.5).toFixed(2)),
@@ -59,16 +75,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const GAMetalChart = () => {
   const { data: prices, isLoading } = useMetalPrices();
   const [activeMetal, setActiveMetal] = useState<MetalKey>('gold');
-  const [activeTimeframe, setActiveTimeframe] = useState<typeof timeframes[number]>('1D');
+  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('1D');
 
   const feed = prices?.[activeMetal];
   const price = feed?.price_usd ?? 0;
   const change = feed?.change_24h ?? 0;
   const config = metalConfig[activeMetal];
 
-  const pointsMap: Record<string, number> = { '1H': 12, '4H': 48, '1D': 96, '1W': 168, '1M': 120 };
   const chartData = useMemo(
-    () => generateChartData(price, change, pointsMap[activeTimeframe]),
+    () => generateChartData(price, change, activeTimeframe),
     [price, change, activeTimeframe]
   );
 
@@ -80,11 +95,11 @@ const GAMetalChart = () => {
       <div className="ornate-corner ornate-corner-br" />
 
       <div className="p-6 md:p-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <BarChart3 className="w-5 h-5 text-gold" />
             <h3 className="font-display text-lg tracking-[0.1em] text-gold-light">PRICE CHART</h3>
+            <LivePulse label="LIVE" />
           </div>
           <div className="flex items-center gap-4">
             <span className="font-display text-2xl text-marble font-semibold">
@@ -98,7 +113,6 @@ const GAMetalChart = () => {
           </div>
         </div>
 
-        {/* Metal & Timeframe selectors */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex gap-1">
             {(Object.keys(metalConfig) as MetalKey[]).map((m) => (
@@ -132,7 +146,6 @@ const GAMetalChart = () => {
           </div>
         </div>
 
-        {/* Chart */}
         <div className="h-80">
           {isLoading ? (
             <div className="h-full bg-navy-light/30 rounded animate-pulse" />
@@ -176,9 +189,8 @@ const GAMetalChart = () => {
           )}
         </div>
 
-        {/* Footer info */}
         <div className="mt-4 flex items-center justify-between text-[10px] text-marble/30">
-          <span className="font-display tracking-[0.15em]">{config.symbol}</span>
+          <span className="font-display tracking-[0.15em]">{config.symbol} · {activeTimeframe}</span>
           <span className="font-mono">
             Updated {feed?.updated_at ? new Date(feed.updated_at).toLocaleTimeString() : '--:--'}
           </span>
