@@ -169,6 +169,7 @@ export type Database = {
       broker_connections: {
         Row: {
           api_key: string
+          api_passphrase: string | null
           api_secret: string
           broker: string
           created_at: string
@@ -181,6 +182,7 @@ export type Database = {
         }
         Insert: {
           api_key: string
+          api_passphrase?: string | null
           api_secret: string
           broker?: string
           created_at?: string
@@ -193,6 +195,7 @@ export type Database = {
         }
         Update: {
           api_key?: string
+          api_passphrase?: string | null
           api_secret?: string
           broker?: string
           created_at?: string

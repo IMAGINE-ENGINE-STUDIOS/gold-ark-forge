@@ -1,0 +1,1 @@
+ALTER TABLE public.broker_connections ADD COLUMN IF NOT EXISTS api_passphrase text;

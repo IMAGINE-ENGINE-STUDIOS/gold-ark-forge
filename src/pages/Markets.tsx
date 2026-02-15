@@ -4,20 +4,21 @@ import Footer from '@/components/Footer';
 import TradingViewChart from '@/components/tradingview/TradingViewChart';
 import TradingViewTicker from '@/components/tradingview/TradingViewTicker';
 import TradingPanel from '@/components/trading/TradingPanel';
+import PortfolioSummary from '@/components/trading/PortfolioSummary';
 
 const symbols = [
-  { key: 'gold', label: 'Gold', symbol: 'OANDA:XAUUSD' },
-  { key: 'silver', label: 'Silver', symbol: 'OANDA:XAGUSD' },
-  { key: 'platinum', label: 'Platinum', symbol: 'OANDA:XPTUSD' },
-  { key: 'bitcoin', label: 'Bitcoin', symbol: 'BITSTAMP:BTCUSD' },
+  { key: 'gold', label: 'Gold', symbol: 'OANDA:XAUUSD', ticker: 'GLD', broker: 'alpaca' },
+  { key: 'silver', label: 'Silver', symbol: 'OANDA:XAGUSD', ticker: 'SLV', broker: 'alpaca' },
+  { key: 'platinum', label: 'Platinum', symbol: 'OANDA:XPTUSD', ticker: 'PPLT', broker: 'alpaca' },
+  { key: 'bitcoin', label: 'Bitcoin', symbol: 'BITSTAMP:BTCUSD', ticker: 'BTC-USD', broker: 'coinbase' },
+  { key: 'ethereum', label: 'Ethereum', symbol: 'BITSTAMP:ETHUSD', ticker: 'ETH-USD', broker: 'coinbase' },
+  { key: 'oil', label: 'Oil (WTI)', symbol: 'NYMEX:CL1!', ticker: 'CL', broker: 'ibkr' },
+  { key: 'sp500', label: 'S&P 500', symbol: 'FOREXCOM:SPXUSD', ticker: 'SPY', broker: 'alpaca' },
 ];
 
 const Markets = () => {
   const [activeTab, setActiveTab] = useState('gold');
   const activeSymbol = symbols.find((s) => s.key === activeTab)!;
-
-  // Derive a simple ticker from the active chart symbol for the order form
-  const tradingSymbol = activeTab === 'bitcoin' ? 'BTC/USD' : activeTab === 'gold' ? 'GLD' : activeTab === 'silver' ? 'SLV' : 'PPLT';
 
   return (
     <div className="min-h-screen bg-navy">
@@ -30,13 +31,13 @@ const Markets = () => {
             MARKET OVERVIEW
           </h1>
           <p className="text-marble/70 max-w-2xl mx-auto">
-            Real-time precious metals and Bitcoin market visualization with integrated trading via Alpaca. Gold Arrow does not custody funds.
+            Real-time multi-asset market visualization with integrated trading via Alpaca, Coinbase, and Interactive Brokers. Gold Arrow does not custody funds.
           </p>
         </div>
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-3 mb-8 justify-center">
-          {symbols.map(({ key, label }) => (
+          {symbols.map(({ key, label, broker }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -47,6 +48,7 @@ const Markets = () => {
               }`}
             >
               {label}
+              <span className="text-[8px] ml-1.5 opacity-60">{broker === 'coinbase' ? 'CB' : broker === 'ibkr' ? 'IBKR' : 'ALP'}</span>
             </button>
           ))}
         </div>
@@ -56,13 +58,14 @@ const Markets = () => {
           <div className="lg:col-span-2">
             <TradingViewChart symbol={activeSymbol.symbol} height={600} />
           </div>
-          <div>
-            <TradingPanel activeSymbol={tradingSymbol} />
+          <div className="space-y-6">
+            <TradingPanel activeSymbol={activeSymbol.ticker} />
+            <PortfolioSummary />
           </div>
         </div>
 
         <p className="text-marble/40 text-xs text-center mt-4">
-          Charts are visualization-only and provided by TradingView. Trading is executed by Alpaca — Gold Arrow does not execute trades, custody funds, or provide financial advice.
+          Charts provided by TradingView. Trading executed by your connected broker — Gold Arrow does not execute trades, custody funds, or provide financial advice.
         </p>
       </main>
       <Footer />

@@ -2,15 +2,22 @@ import { useState } from 'react';
 import { ArrowUpDown, TrendingUp, TrendingDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useSubmitOrder } from '@/hooks/useBrokerTrading';
+import { useSubmitOrder, BrokerType, BROKER_META } from '@/hooks/useBrokerTrading';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
   connectionId: string;
   defaultSymbol?: string;
+  broker?: BrokerType;
 }
 
-const OrderForm = ({ connectionId, defaultSymbol = '' }: Props) => {
+const SYMBOL_HINTS: Record<string, string> = {
+  alpaca: 'AAPL, BTC/USD',
+  coinbase: 'BTC-USD, ETH-USD',
+  ibkr: 'ES, GC, CL',
+};
+
+const OrderForm = ({ connectionId, defaultSymbol = '', broker = 'alpaca' }: Props) => {
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [qty, setQty] = useState('');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
@@ -47,11 +54,14 @@ const OrderForm = ({ connectionId, defaultSymbol = '' }: Props) => {
     }
   };
 
+  const brokerLabel = BROKER_META[broker]?.label || broker;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="flex items-center gap-2 mb-2">
         <ArrowUpDown className="w-4 h-4 text-gold" />
         <span className="font-display text-sm tracking-wider text-gold-light">PLACE ORDER</span>
+        <span className="text-[9px] text-marble/30 font-display tracking-wider ml-auto">VIA {brokerLabel.toUpperCase()}</span>
       </div>
 
       {/* Side toggle */}
@@ -83,7 +93,7 @@ const OrderForm = ({ connectionId, defaultSymbol = '' }: Props) => {
       <Input
         value={symbol}
         onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-        placeholder="AAPL"
+        placeholder={SYMBOL_HINTS[broker] || 'Symbol'}
         className="bg-navy-light border-gold/20 text-marble font-mono text-sm uppercase"
         required
       />
@@ -106,7 +116,7 @@ const OrderForm = ({ connectionId, defaultSymbol = '' }: Props) => {
         >
           <option value="market">MARKET</option>
           <option value="limit">LIMIT</option>
-          <option value="stop">STOP</option>
+          {broker !== 'coinbase' && <option value="stop">STOP</option>}
         </select>
       </div>
 
@@ -135,7 +145,7 @@ const OrderForm = ({ connectionId, defaultSymbol = '' }: Props) => {
       </Button>
 
       <p className="text-marble/25 text-[10px] text-center">
-        Orders execute on your Alpaca account. Gold Arrow does not custody funds.
+        Orders execute on your {brokerLabel} account. Gold Arrow does not custody funds.
       </p>
     </form>
   );
