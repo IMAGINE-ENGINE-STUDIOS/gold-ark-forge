@@ -93,6 +93,8 @@ const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
 
   const hasTutorial = doc.tutorial && doc.tutorial.length > 0;
 
+  const handleTutorialExit = () => setTab('widget');
+
   return (
     <div>
       {/* Tab buttons */}
@@ -138,7 +140,7 @@ const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
       {tab === 'widget' && children}
       {tab === 'thesis' && <ThesisPanel doc={doc} />}
       {tab === 'tutorial' && hasTutorial && (
-        <TutorialOverlay hotspots={doc.tutorial!}>{children}</TutorialOverlay>
+        <TutorialOverlay hotspots={doc.tutorial!} onExit={handleTutorialExit}>{children}</TutorialOverlay>
       )}
     </div>
   );
