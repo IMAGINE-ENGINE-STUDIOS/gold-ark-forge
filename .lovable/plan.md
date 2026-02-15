@@ -1,98 +1,166 @@
 
 
-## Trading Bridge Premium UX Overhaul
+## Comprehensive Plan: Heatmap Expansion, Intelligence Tool Upgrades, and Order Confirmation Dialog
 
-### Problem Analysis
-
-From the screenshot and code review, there are several critical issues:
-
-1. **Chart loads at $0**: The Y-axis shows $0-$2,400 with price data crammed at the top. This happens because `generateChartData` receives `basePrice=0` before API data loads, producing a flat line at zero. The live candle engine then inherits these zero-value candles.
-
-2. **Order form lacks total cost**: The paper trading panel only shows "Qty" and price, but doesn't calculate or display the total order value, margin impact, or position sizing assistance.
-
-3. **Overall UX is too basic** compared to professional platforms like TradingView, MetaTrader, Thinkorswim, or cTrader.
+This plan covers three major workstreams: expanding the GA proprietary heatmap with multi-market tabs, integrating GA/OG widgets into more powerful composite tools on the Intelligence and Oil & Gas pages, and building a professional-grade order confirmation dialog for the Trading Bridge.
 
 ---
 
-### Fix 1: Eliminate $0 Chart on Load
+### Part 1: Multi-Market Heatmap Tabs (GA Heatmap Widget)
 
-**File:** `src/components/trading/ProprietaryChart.tsx`
+**Current state:** The `GACryptoHeatmap` widget only shows crypto sectors. The TradingView heatmap (used on the Showroom page) supports stock markets but is an external embed.
 
-- Add a loading gate: if `price === 0`, show a "LOADING MARKET DATA..." skeleton instead of rendering an empty chart
-- In `historicalData` memo, skip generation when `basePrice` is 0 -- return empty array
-- In `useLiveCandleEngine`, don't initialize candles until `historicalData` has non-zero values
-- Set YAxis domain to `['dataMin', 'dataMax']` with padding so the chart auto-zooms to the actual price range instead of starting from $0
+**Goal:** Build a proprietary tabbed heatmap component that covers all major markets using the same Hellenic aesthetic.
 
----
+**New file:** `src/components/ga-widgets/GAMarketHeatmap.tsx`
 
-### Fix 2: Enhanced Paper Trading Order Panel
+A tabbed wrapper that renders different heatmap views:
 
-**File:** `src/pages/TradingBridge.tsx` (PaperTradingPanel)
+| Tab | Data Source | Layout |
+|-----|-----------|--------|
+| CRYPTO | CoinGecko (existing `useCryptoData`) | Treemap by market cap, colored by 24h change |
+| STOCKS | `SYNTHETIC_PRICES` from `tradingSymbols.ts` (sector-grouped) | Treemap grouped by sector (Tech, Energy, Finance, Mining) |
+| FOREX | `useForexRates` (existing hook) | Grid of currency pair strength tiles |
+| ENERGY | `useOilGasPrices` (existing hook) | Horizontal bar tiles for WTI, Brent, NatGas, etc. |
+| METALS | `useMetalPrices` (existing hook) | Weighted tiles by current price/volume |
+| BONDS | `SYNTHETIC_PRICES` bond entries | Yield-colored grid tiles |
 
-Add professional order ticket features:
+Each tab reuses the existing treemap flex-wrap layout from `GACryptoHeatmap` but with category-specific color schemes and grouping logic. The component uses internal tabs (not Radix Tabs) matching the existing gold/navy button style used throughout other widgets.
 
-- **Estimated Total Cost**: Auto-calculate `qty x price` and display prominently before the submit button
-- **Quick-size Buttons**: "25% / 50% / 75% / MAX" buttons that auto-fill quantity based on available cash
-- **Position Impact Preview**: Show what the new equity, cash, and position count will be after the trade
-- **Percentage of Portfolio**: Show what % of portfolio this trade represents
-- **Spread indicator**: Show simulated bid/ask spread
-- **Market/Limit/Stop/StopLimit** order types for paper mode too (currently only market and limit)
-- **Fees estimate line**: Show estimated commission (even if $0 for paper, shows professional UX)
+**Integration:** Replace the `GACryptoHeatmap` import on the Intelligence page with `GAMarketHeatmap`. The existing `GACryptoHeatmap` component is preserved as-is (the new widget wraps it internally for the CRYPTO tab).
 
 ---
 
-### Fix 3: Professional Trading UX Enhancements
+### Part 2: Intelligence Page -- Composite Tool Upgrades
 
-**File:** `src/pages/TradingBridge.tsx` + `src/components/trading/ProprietaryChart.tsx`
+**Current state:** The Intelligence page (`/intelligence`) lists 35+ individual widgets in a linear showroom format. Each widget stands alone.
 
-#### A. Chart Header Improvements
-- Add **Bid/Ask** display next to the price
-- Add **Day High/Low** range bar (visual horizontal bar showing where current price sits between day's high and low)
-- Add **Volume** indicator in the header
-- Add **Spread** display
+**Goal:** Add new "composite tool" sections that combine multiple existing widgets into interactive, multi-pane analysis workspaces. The existing individual widget sections remain untouched.
 
-#### B. Watchlist Enhancements  
-- Add **live mini-sparkline** next to each symbol in the watchlist (tiny 40px wide line chart)
-- Add **live price + change%** next to each symbol name
-- Color the **entire row** based on positive/negative change (subtle green/red tint)
-- Themed scrollbar already uses `watchlist-scroll` class -- ensure consistent gold accent colors
+**New composite sections to add (after existing content, before the footer):**
 
-#### C. Order Ticket Improvements (both Paper and Live)
-- Add **total value calculation** displayed prominently: `10 shares x $2,350.00 = $23,500.00`
-- Add **buying power remaining** after order preview
-- Add **quick quantity buttons**: 1, 5, 10, 25, 50, 100, MAX
-- Add **price ladder**: +/- buttons to increment limit price by tick size
-- Add **order confirmation dialog** before submission (with full cost breakdown)
+#### A. Cross-Asset Correlation Dashboard
+**New file:** `src/components/ga-widgets/GACrossAssetDashboard.tsx`
+- Side-by-side mini-charts comparing Gold vs BTC, Gold vs S&P, Oil vs Gold
+- Uses `useMetalPrices`, `useCryptoData`, `useOilGasPrices` 
+- Correlation coefficient display between pairs
+- Tabbed pair selection
 
-#### D. Bottom Panel Polish
-- Book tab: Show **paper positions** when in paper mode (currently only shows broker positions)
-- Add paper order history to the Book tab when in paper mode
-- Analytics tab: Show paper trading analytics when in paper mode
+#### B. Market Pulse Command Center
+**New file:** `src/components/ga-widgets/GAMarketPulse.tsx`
+- Combines: Fear & Greed gauge + Top Movers + Price Cards into a single dashboard card
+- Three-column layout: Sentiment | Movers | Spot Prices
+- All data already available from existing hooks
+- Acts as a "quick glance" executive summary
 
-#### E. Status Bar Enhancement
-- Show **current spread** in the status bar
-- Show **data source** (WS for crypto, Simulated for others)
-- Show **connection latency** indicator
+#### C. Blockchain Analytics Hub
+**New file:** `src/components/ga-widgets/GABlockchainHub.tsx`
+- Tabbed view combining BTC, ETH, XRP, TRON network stats in one widget
+- Tab per chain, showing key metrics in a compact card grid
+- Reuses data from existing `GABitcoinNetwork`, `GAEthereumNetwork`, `GAXRPLedger`, `GATronNetwork` hooks
+
+**Intelligence page changes:** Add a new tier section "COMPOSITE TOOLS" between the existing DeFi/Sentiment section and the Proprietary section. Add the three new widgets with nav links.
 
 ---
 
-### Fix 4: Symbol Logos for All Company Stocks
+### Part 3: Oil & Gas Page -- Tool Upgrades
 
-**File:** `src/components/trading/SymbolLogo.tsx`
+**Current state:** `/oil-gas` has 12 individual energy widgets in a linear showroom.
 
-Ensure every stock ticker in the `STOCK_DOMAINS` map resolves to a real company logo via Clearbit. Verify the full domain mapping covers all symbols in the watchlist. Add missing mappings for any stocks that don't have entries.
+**Goal:** Add composite tools that combine energy data into richer views.
+
+#### A. Energy Market Dashboard
+**New file:** `src/components/og-widgets/OGEnergyDashboard.tsx`
+- Three-panel layout: Spot Prices | Inventory Gauge | Futures Curve mini
+- Uses existing `useOilGasPrices` hook data
+- Quick-glance executive summary for energy traders
+
+#### B. Risk & Spreads Analyzer
+**New file:** `src/components/og-widgets/OGRiskAnalyzer.tsx`
+- Combines: WTI-Brent spread + Crack spreads + Chokepoint risk levels
+- Side-by-side comparison view
+- Traffic-light risk indicators (green/yellow/red) for each metric
+
+**Oil & Gas page changes:** Add a new tier section "COMPOSITE ANALYTICS" after the Infrastructure tier. Add the two new widgets with nav links.
 
 ---
 
-### Technical Implementation Details
+### Part 4: Order Confirmation Dialog
 
-**Files to modify:**
+**Current state:** Both paper and live orders submit immediately on button click with only a toast notification after the fact. No pre-submission review.
+
+**Goal:** Build a comprehensive order confirmation dialog that surpasses what professional platforms offer.
+
+**New file:** `src/components/trading/OrderConfirmationDialog.tsx`
+
+The dialog shows before any order (paper or live) is executed:
+
+**Dialog content sections:**
+
+1. **Order Summary Header**
+   - Symbol logo + name + current live price
+   - BUY/SELL badge with color coding
+   - Order type badge (MARKET / LIMIT / STOP / BRACKET)
+
+2. **Cost Breakdown Table**
+   - Quantity x Fill Price = Subtotal
+   - Estimated spread cost
+   - Commission ($0 for paper, broker fee for live)
+   - **Total Order Value** (bold, large)
+
+3. **Position Impact Preview**
+   - Current portfolio equity -> New equity after fill
+   - Current cash -> Cash remaining
+   - Number of positions before -> after
+   - Portfolio concentration % for this asset
+   - Warning badges: ">25% concentration", ">50% of cash", "Margin required"
+
+4. **Risk Assessment Strip**
+   - Max loss at stop (if stop order)
+   - Risk/reward ratio (if bracket)
+   - Volatility indicator for the asset (High/Medium/Low based on recent price movement)
+   - Account drawdown if max loss hit
+
+5. **Execution Details**
+   - Mode: PAPER or LIVE (with color badge)
+   - Broker name (for live) or "SIMULATED" (for paper)
+   - Time in force (GTC/DAY)
+   - Estimated fill time
+
+6. **Action Buttons**
+   - "CONFIRM [BUY/SELL]" -- large, color-coded (green/red)
+   - "MODIFY ORDER" -- returns to order form
+   - "CANCEL" -- closes dialog
+
+**Integration into TradingBridge.tsx:**
+- In `PaperTradingPanel`, the submit button opens the confirmation dialog instead of executing directly
+- The dialog receives all order parameters and the `paper.submitOrder` function
+- Same pattern for `OrderForm.tsx` (live trading) -- submit opens dialog, dialog calls `submitOrder.mutateAsync`
+
+---
+
+### Technical Details
+
+**Files to create (6 new files):**
+
+| File | Purpose |
+|------|---------|
+| `src/components/ga-widgets/GAMarketHeatmap.tsx` | Multi-market tabbed heatmap |
+| `src/components/ga-widgets/GACrossAssetDashboard.tsx` | Cross-asset correlation tool |
+| `src/components/ga-widgets/GAMarketPulse.tsx` | Market pulse command center |
+| `src/components/ga-widgets/GABlockchainHub.tsx` | Multi-chain analytics hub |
+| `src/components/og-widgets/OGEnergyDashboard.tsx` | Energy executive dashboard |
+| `src/components/og-widgets/OGRiskAnalyzer.tsx` | Spread and risk analyzer |
+| `src/components/trading/OrderConfirmationDialog.tsx` | Order confirmation dialog |
+
+**Files to modify (4 files):**
 
 | File | Changes |
 |------|---------|
-| `src/components/trading/ProprietaryChart.tsx` | Fix $0 loading, add bid/ask/spread/high-low to header, YAxis domain fix |
-| `src/pages/TradingBridge.tsx` | Enhanced PaperTradingPanel with cost calc, quick-size buttons, position impact preview. Watchlist with live prices/sparklines. Bottom panel paper mode integration. |
-| `src/components/trading/SymbolLogo.tsx` | Verify and complete stock domain mappings |
+| `src/pages/Intelligence.tsx` | Add composite tools tier, replace heatmap section with `GAMarketHeatmap`, add nav entries |
+| `src/pages/OilGasIntelligence.tsx` | Add composite analytics tier, add nav entries |
+| `src/pages/TradingBridge.tsx` | Wire confirmation dialog into `PaperTradingPanel` submit flow |
+| `src/components/trading/OrderForm.tsx` | Wire confirmation dialog into live order submit flow |
 
-**No new dependencies required.** All enhancements use existing Recharts, Tailwind, and Lucide components.
+**No new dependencies required.** All components use existing hooks, Recharts, Tailwind, Lucide, and Radix Dialog primitives already in the project.
 
