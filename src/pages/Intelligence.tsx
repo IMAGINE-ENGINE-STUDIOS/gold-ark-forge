@@ -48,6 +48,7 @@ import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
+import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 
 import {
   Shield, BarChart3, Vault, FileCheck2, History, Grid3X3, TrendingUp,
@@ -170,79 +171,91 @@ const Intelligence = () => {
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="MARKET DATA" sub="LIVE AUTO-REFRESH · FREE PUBLIC APIs · ZERO INTERMEDIARIES" />
 
-        {/* Spot Prices */}
         <section id="prices">
           <SectionDivider label="SPOT PRICES" />
-          <GAPriceCards />
-          <div className="mt-6">
-            <GACryptoPriceCards />
-          </div>
+          <WidgetDocWrapper widgetId="prices">
+            <GAPriceCards />
+            <div className="mt-6">
+              <GACryptoPriceCards />
+            </div>
+          </WidgetDocWrapper>
         </section>
 
-        {/* Mini Charts */}
         <section id="mini-charts">
           <SectionDivider label="COMPACT CHARTS" />
-          <GAMiniCharts />
+          <WidgetDocWrapper widgetId="mini-charts">
+            <GAMiniCharts />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Multi-Asset Overview */}
         <section id="overview">
           <SectionDivider label="MULTI-ASSET OVERVIEW" />
-          <GAAssetOverview />
+          <WidgetDocWrapper widgetId="overview">
+            <GAAssetOverview />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Advanced Chart */}
         <section id="chart">
           <SectionDivider label="ADVANCED CHART" />
-          <GAMetalChart />
+          <WidgetDocWrapper widgetId="chart">
+            <GAMetalChart />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Technical Analysis */}
         <section id="analysis">
           <SectionDivider label="TECHNICAL ANALYSIS" />
-          <GATechnicalGauge />
+          <WidgetDocWrapper widgetId="analysis">
+            <GATechnicalGauge />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Global Market Summary */}
         <section id="market-summary">
           <SectionDivider label="GLOBAL MARKET OVERVIEW" />
-          <GAMarketSummary />
+          <WidgetDocWrapper widgetId="market-summary">
+            <GAMarketSummary />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Market Quotes */}
         <section id="quotes">
           <SectionDivider label="MARKET QUOTES" />
-          <GAMarketQuotes />
+          <WidgetDocWrapper widgetId="quotes">
+            <GAMarketQuotes />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Top Movers */}
         <section id="movers">
           <SectionDivider label="TOP MOVERS" />
-          <GATopMovers />
+          <WidgetDocWrapper widgetId="movers">
+            <GATopMovers />
+          </WidgetDocWrapper>
         </section>
 
-        {/* News Feed */}
         <section id="news">
           <SectionDivider label="MARKET INTELLIGENCE FEED" />
-          <GANewsFeed />
+          <WidgetDocWrapper widgetId="news">
+            <GANewsFeed />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Forex */}
         <section id="forex">
           <SectionDivider label="FOREX INTELLIGENCE" />
-          <GAForexMatrix />
+          <WidgetDocWrapper widgetId="forex">
+            <GAForexMatrix />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Multi-Market Heatmap */}
         <section id="heatmap">
           <SectionDivider label="MULTI-MARKET HEATMAP" />
-          <GAMarketHeatmap />
+          <WidgetDocWrapper widgetId="heatmap">
+            <GAMarketHeatmap />
+          </WidgetDocWrapper>
         </section>
 
-        {/* Economic Calendar */}
         <section id="calendar">
           <SectionDivider label="ECONOMIC CALENDAR" />
-          <GAEconomicCalendar />
+          <WidgetDocWrapper widgetId="calendar">
+            <GAEconomicCalendar />
+          </WidgetDocWrapper>
         </section>
       </div>
 
@@ -254,33 +267,45 @@ const Intelligence = () => {
 
         <section id="bitcoin">
           <SectionDivider label="BITCOIN NETWORK" />
-          <GABitcoinNetwork />
+          <WidgetDocWrapper widgetId="bitcoin">
+            <GABitcoinNetwork />
+          </WidgetDocWrapper>
         </section>
 
         <section id="ethereum">
           <SectionDivider label="ETHEREUM NETWORK" />
-          <GAEthereumNetwork />
+          <WidgetDocWrapper widgetId="ethereum">
+            <GAEthereumNetwork />
+          </WidgetDocWrapper>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="xrp">
             <SectionDivider label="XRP LEDGER" />
-            <GAXRPLedger />
+            <WidgetDocWrapper widgetId="xrp">
+              <GAXRPLedger />
+            </WidgetDocWrapper>
           </section>
           <section id="tron">
             <SectionDivider label="TRON NETWORK" />
-            <GATronNetwork />
+            <WidgetDocWrapper widgetId="tron">
+              <GATronNetwork />
+            </WidgetDocWrapper>
           </section>
         </div>
 
         <section id="sec">
           <SectionDivider label="SEC EDGAR FILINGS" />
-          <GASECFilings />
+          <WidgetDocWrapper widgetId="sec">
+            <GASECFilings />
+          </WidgetDocWrapper>
         </section>
 
         <section id="whales">
           <SectionDivider label="WHALE WATCH" />
-          <GAWhaleWatch />
+          <WidgetDocWrapper widgetId="whales">
+            <GAWhaleWatch />
+          </WidgetDocWrapper>
         </section>
       </div>
 
@@ -292,17 +317,23 @@ const Intelligence = () => {
 
         <section id="crypto-market">
           <SectionDivider label="CRYPTO MARKET OVERVIEW" />
-          <GACryptoMarket />
+          <WidgetDocWrapper widgetId="crypto-market">
+            <GACryptoMarket />
+          </WidgetDocWrapper>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="sentiment">
             <SectionDivider label="MARKET SENTIMENT" />
-            <GAFearGreed />
+            <WidgetDocWrapper widgetId="sentiment">
+              <GAFearGreed />
+            </WidgetDocWrapper>
           </section>
           <section id="defi">
             <SectionDivider label="DeFi TOTAL VALUE LOCKED" />
-            <GADeFiDashboard />
+            <WidgetDocWrapper widgetId="defi">
+              <GADeFiDashboard />
+            </WidgetDocWrapper>
           </section>
         </div>
       </div>
@@ -313,42 +344,58 @@ const Intelligence = () => {
 
         <section id="pulse">
           <SectionDivider label="MARKET PULSE COMMAND CENTER" />
-          <GAMarketPulse />
+          <WidgetDocWrapper widgetId="pulse">
+            <GAMarketPulse />
+          </WidgetDocWrapper>
         </section>
 
         <section id="correlation">
           <SectionDivider label="CROSS-ASSET CORRELATION" />
-          <GACrossAssetDashboard />
+          <WidgetDocWrapper widgetId="correlation">
+            <GACrossAssetDashboard />
+          </WidgetDocWrapper>
         </section>
 
         <section id="chain-hub">
           <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
-          <GABlockchainHub />
+          <WidgetDocWrapper widgetId="chain-hub">
+            <GABlockchainHub />
+          </WidgetDocWrapper>
         </section>
 
         <section id="commodity-radar">
           <SectionDivider label="COMMODITY RADAR" />
-          <GACommodityRadar />
+          <WidgetDocWrapper widgetId="commodity-radar">
+            <GACommodityRadar />
+          </WidgetDocWrapper>
         </section>
 
         <section id="forex-room">
           <SectionDivider label="FOREX WAR ROOM" />
-          <GAForexWarRoom />
+          <WidgetDocWrapper widgetId="forex-room">
+            <GAForexWarRoom />
+          </WidgetDocWrapper>
         </section>
 
         <section id="volatility">
           <SectionDivider label="VOLATILITY MATRIX" />
-          <GAVolatilityMatrix />
+          <WidgetDocWrapper widgetId="volatility">
+            <GAVolatilityMatrix />
+          </WidgetDocWrapper>
         </section>
 
         <section id="portfolios">
           <SectionDivider label="PORTFOLIO ALLOCATOR" />
-          <GAPortfolioAllocator />
+          <WidgetDocWrapper widgetId="portfolios">
+            <GAPortfolioAllocator />
+          </WidgetDocWrapper>
         </section>
 
         <section id="yields">
           <SectionDivider label="DeFi YIELD MONITOR" />
-          <GAYieldMonitor />
+          <WidgetDocWrapper widgetId="yields">
+            <GAYieldMonitor />
+          </WidgetDocWrapper>
         </section>
       </div>
 
@@ -360,60 +407,82 @@ const Intelligence = () => {
 
         <section id="ratios">
           <SectionDivider label="METAL RATIOS" />
-          <GAGoldRatio />
+          <WidgetDocWrapper widgetId="ratios">
+            <GAGoldRatio />
+          </WidgetDocWrapper>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="reserves">
             <SectionDivider label="RESERVE BACKING" />
-            <GAReserveGauge />
+            <WidgetDocWrapper widgetId="reserves">
+              <GAReserveGauge />
+            </WidgetDocWrapper>
           </section>
           <section id="timeline">
             <SectionDivider label="RESERVE HISTORY" />
-            <GAReserveTimeline />
+            <WidgetDocWrapper widgetId="timeline">
+              <GAReserveTimeline />
+            </WidgetDocWrapper>
           </section>
         </div>
 
         <section id="profiles">
           <SectionDivider label="METAL PROFILES" />
-          <GAMetalProfile />
+          <WidgetDocWrapper widgetId="profiles">
+            <GAMetalProfile />
+          </WidgetDocWrapper>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="vault">
             <SectionDivider label="VAULT INVENTORY" />
-            <GAVaultMatrix />
+            <WidgetDocWrapper widgetId="vault">
+              <GAVaultMatrix />
+            </WidgetDocWrapper>
           </section>
           <section id="bullion-heatmap">
             <SectionDivider label="BULLION HEATMAP" />
-            <GABullionHeatmap />
+            <WidgetDocWrapper widgetId="bullion-heatmap">
+              <GABullionHeatmap />
+            </WidgetDocWrapper>
           </section>
         </div>
 
         <section id="screener">
           <SectionDivider label="BULLION SCREENER" />
-          <GAMetalScreener />
+          <WidgetDocWrapper widgetId="screener">
+            <GAMetalScreener />
+          </WidgetDocWrapper>
         </section>
 
         <section id="certs">
           <SectionDivider label="CERTIFICATE REGISTRY" />
-          <GACertificateFlow />
+          <WidgetDocWrapper widgetId="certs">
+            <GACertificateFlow />
+          </WidgetDocWrapper>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section id="anchors">
             <SectionDivider label="BITCOIN ANCHORS" />
-            <GAAnchorStatus />
+            <WidgetDocWrapper widgetId="anchors">
+              <GAAnchorStatus />
+            </WidgetDocWrapper>
           </section>
           <section id="activity">
             <SectionDivider label="ANCHORED ACTIVITY" />
-            <GAActivityFeed />
+            <WidgetDocWrapper widgetId="activity">
+              <GAActivityFeed />
+            </WidgetDocWrapper>
           </section>
         </div>
 
         <section id="partners">
           <SectionDivider label="PARTNER NETWORK" />
-          <GAPartnerNetwork />
+          <WidgetDocWrapper widgetId="partners">
+            <GAPartnerNetwork />
+          </WidgetDocWrapper>
         </section>
       </div>
 
