@@ -40,7 +40,7 @@ const getCryptoLogoUrl = (key: string): string | null => {
   return `https://assets.coingecko.com/coins/images/${info.id}/small/${info.img}.png`;
 };
 
-// ─── Stock / ETF / Company domain map for Clearbit logos ──
+// ─── Stock / ETF / Company domain map for logo.dev ───────
 const STOCK_DOMAINS: Record<string, string> = {
   // Oil & Gas
   xom: 'exxonmobil.com', cvx: 'chevron.com', cop: 'conocophillips.com',
@@ -71,7 +71,7 @@ const STOCK_DOMAINS: Record<string, string> = {
   tip: 'ishares.com', lqd: 'ishares.com', hyg: 'ishares.com',
   agg: 'ishares.com', mub: 'ishares.com', emb: 'ishares.com',
   bnd: 'vanguard.com', govt: 'ishares.com', vcsh: 'vanguard.com',
-  // Energy commodities (use related ETF/company logos)
+  // Energy commodities
   oil: 'cmegroup.com', brent: 'theice.com', natgas: 'cmegroup.com',
   rbob: 'cmegroup.com', heating_oil: 'cmegroup.com', coal: 'cmegroup.com',
   uranium: 'globalxetfs.com', ethanol: 'cmegroup.com',
@@ -86,7 +86,7 @@ const FOREX_FLAG_MAP: Record<string, [string, string]> = {
   usdtry: ['us', 'tr'], usdinr: ['us', 'in'], usdcny: ['us', 'cn'],
 };
 
-// ─── Metal icon URLs (commodity-specific from public sources) ──
+// ─── Metal icon URLs ─────────────────────────────────────
 const METAL_ICONS: Record<string, string> = {
   gold: 'https://logo.clearbit.com/gold.org',
   silver: 'https://logo.clearbit.com/silverinstitute.org',

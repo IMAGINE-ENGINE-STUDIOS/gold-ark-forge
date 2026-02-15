@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { Line, ReferenceLine } from 'recharts';
+import { ChevronDown } from 'lucide-react';
 
 // ─── Indicator computation functions ─────────────────────
 
@@ -225,7 +226,7 @@ export const computeMFI = (highs: number[], lows: number[], closes: number[], pe
     if (i < period) { result.push(NaN); continue; }
     let posFlow = 0, negFlow = 0;
     for (let j = i - period + 1; j <= i; j++) {
-      const flow = tp[j] * (1000 + Math.random() * 500); // synthetic volume
+      const flow = tp[j] * (1000 + Math.random() * 500);
       if (tp[j] > tp[j - 1]) posFlow += flow;
       else negFlow += flow;
     }
@@ -244,11 +245,8 @@ export const computeAwesomeOscillator = (highs: number[], lows: number[]): numbe
 
 export const computeAlligator = (highs: number[], lows: number[]) => {
   const midpoints = highs.map((h, i) => (h + lows[i]) / 2);
-  // Jaw (blue): 13-period SMMA shifted 8 bars forward
   const jaw = computeSMA(midpoints, 13);
-  // Teeth (red): 8-period SMMA shifted 5 bars forward
   const teeth = computeSMA(midpoints, 8);
-  // Lips (green): 5-period SMMA shifted 3 bars forward
   const lips = computeSMA(midpoints, 5);
   return { jaw, teeth, lips };
 };
@@ -355,30 +353,112 @@ export const INDICATORS: IndicatorDef[] = [
   { key: 'osma', label: 'OsMA', color: 'hsl(40,80%,50%)', category: 'oscillator' },
 ];
 
-// ─── Indicator Toggle Bar ────────────────────────────────
+// ─── Indicator Toggle Bar with Overflow Dropdown ─────────
+
+const MAX_VISIBLE_INDICATORS = 12;
 
 interface IndicatorToggleBarProps {
   active: Set<IndicatorKey>;
   onToggle: (key: IndicatorKey) => void;
 }
 
-export const IndicatorToggleBar = ({ active, onToggle }: IndicatorToggleBarProps) => (
-  <div className="flex gap-1 overflow-x-auto py-1 px-2 scrollbar-hide">
-    {INDICATORS.map((ind) => (
-      <button
-        key={ind.key}
-        onClick={() => onToggle(ind.key)}
-        className={`flex-shrink-0 px-2 py-0.5 text-[8px] font-mono tracking-wider rounded transition-all border ${
-          active.has(ind.key)
-            ? 'text-gold bg-gold/15 border-gold/30'
-            : 'text-marble/30 border-gold/5 hover:text-marble/50'
-        }`}
-      >
-        {ind.label}
-      </button>
-    ))}
-  </div>
-);
+export const IndicatorToggleBar = ({ active, onToggle }: IndicatorToggleBarProps) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [maxVisible, setMaxVisible] = useState(MAX_VISIBLE_INDICATORS);
+
+  // Dynamically calculate how many fit
+  useEffect(() => {
+    const measure = () => {
+      if (!containerRef.current) return;
+      const containerW = containerRef.current.offsetWidth;
+      // Each button is ~60px wide + 4px gap, dropdown toggle ~60px
+      const btnWidth = 58;
+      const dropdownBtnWidth = 70;
+      const available = containerW - dropdownBtnWidth - 8;
+      setMaxVisible(Math.max(4, Math.floor(available / btnWidth)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showDropdown]);
+
+  const visibleIndicators = INDICATORS.slice(0, maxVisible);
+  const overflowIndicators = INDICATORS.slice(maxVisible);
+  const overflowActiveCount = overflowIndicators.filter(ind => active.has(ind.key)).length;
+
+  return (
+    <div ref={containerRef} className="flex items-center gap-1 py-1 px-2 relative">
+      {visibleIndicators.map((ind) => (
+        <button
+          key={ind.key}
+          onClick={() => onToggle(ind.key)}
+          className={`flex-shrink-0 px-2 py-0.5 text-[8px] font-mono tracking-wider rounded transition-all border ${
+            active.has(ind.key)
+              ? 'text-gold bg-gold/15 border-gold/30'
+              : 'text-marble/30 border-gold/5 hover:text-marble/50'
+          }`}
+        >
+          {ind.label}
+        </button>
+      ))}
+      {overflowIndicators.length > 0 && (
+        <div ref={dropdownRef} className="relative">
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            className={`flex items-center gap-0.5 px-2 py-0.5 text-[8px] font-mono tracking-wider rounded transition-all border ${
+              showDropdown || overflowActiveCount > 0
+                ? 'text-gold bg-gold/15 border-gold/30'
+                : 'text-marble/30 border-gold/5 hover:text-marble/50'
+            }`}
+          >
+            MORE{overflowActiveCount > 0 && ` (${overflowActiveCount})`}
+            <ChevronDown className={`w-2.5 h-2.5 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+          </button>
+          {showDropdown && (
+            <div className="absolute top-full right-0 mt-1 z-50 bg-navy-dark border border-gold/20 rounded-lg shadow-xl min-w-[180px] max-h-[300px] overflow-y-auto">
+              <div className="px-3 py-1.5 text-[8px] font-display tracking-[0.15em] text-marble/25 border-b border-gold/10 sticky top-0 bg-navy-dark">
+                MORE INDICATORS
+              </div>
+              {overflowIndicators.map((ind) => (
+                <button
+                  key={ind.key}
+                  onClick={() => onToggle(ind.key)}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors border-b border-gold/5 last:border-0 ${
+                    active.has(ind.key)
+                      ? 'bg-gold/10 text-gold'
+                      : 'text-marble/40 hover:text-marble/70 hover:bg-navy-light/30'
+                  }`}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: ind.color }}
+                  />
+                  <span className="text-[9px] font-mono">{ind.label}</span>
+                  <span className="text-[7px] text-marble/20 ml-auto uppercase">{ind.category}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Inject indicator data into chart data ───────────────
 

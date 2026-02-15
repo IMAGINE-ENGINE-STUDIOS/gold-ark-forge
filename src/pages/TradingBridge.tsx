@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import ProprietaryChart from '@/components/trading/ProprietaryChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -31,9 +31,11 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
+import { usePaperTrading } from '@/hooks/usePaperTrading';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 // ─── Mobile section tabs ─────────────────────────────────
 const MOBILE_TABS = [
@@ -58,6 +60,141 @@ const BOTTOM_TABS = [
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 
+// ─── Paper Trading Panel ─────────────────────────────────
+function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
+  activeSymbol: { key: string; label: string; ticker: string; cat: string };
+  activePrice: number;
+  paper: ReturnType<typeof usePaperTrading>;
+}) {
+  const [qty, setQty] = useState('');
+  const [side, setSide] = useState<'buy' | 'sell'>('buy');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const [limitPrice, setLimitPrice] = useState('');
+  const { toast } = useToast();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qty || !activePrice) return;
+    try {
+      paper.submitOrder({
+        symbol: activeSymbol.ticker,
+        side,
+        qty: parseFloat(qty),
+        type: orderType,
+        price: activePrice,
+        limitPrice: orderType === 'limit' ? parseFloat(limitPrice) : undefined,
+      });
+      toast({
+        title: `Paper ${side.toUpperCase()} Filled`,
+        description: `${qty} ${activeSymbol.ticker} @ $${activePrice.toLocaleString()}`,
+      });
+      setQty('');
+    } catch (err) {
+      toast({ title: 'Order Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Paper Account Summary */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+          <div className="text-[7px] text-marble/30 font-display tracking-wider">EQUITY</div>
+          <div className="text-xs font-mono text-marble">${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+        </div>
+        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+          <div className="text-[7px] text-marble/30 font-display tracking-wider">CASH</div>
+          <div className="text-xs font-mono text-marble">${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+        </div>
+        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+          <div className="text-[7px] text-marble/30 font-display tracking-wider">P&L</div>
+          <div className={`text-xs font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {paper.account.totalPnl >= 0 ? '+' : ''}${paper.account.totalPnl.toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      {/* Order Form */}
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setSide('buy')}
+            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
+              side === 'buy' ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
+            }`}>
+            <TrendingUp className="w-3 h-3" /> BUY
+          </button>
+          <button type="button" onClick={() => setSide('sell')}
+            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
+              side === 'sell' ? 'bg-red-500/20 border border-red-500/50 text-red-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
+            }`}>
+            <TrendingDown className="w-3 h-3" /> SELL
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Qty" min="0.001" step="any"
+            className="bg-navy-light border-gold/20 text-marble font-mono text-sm flex-1" required />
+          <select value={orderType} onChange={(e) => setOrderType(e.target.value as any)}
+            className="bg-navy-light border border-gold/20 text-marble text-xs rounded px-2 font-display tracking-wider">
+            <option value="market">MARKET</option>
+            <option value="limit">LIMIT</option>
+          </select>
+        </div>
+        {orderType === 'limit' && (
+          <Input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="Limit Price" step="0.01"
+            className="bg-navy-light border-gold/20 text-marble font-mono text-sm" required />
+        )}
+        <div className="text-[9px] font-mono text-marble/30 text-center">
+          {activeSymbol.ticker} @ ${activePrice < 10 ? activePrice.toFixed(4) : activePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </div>
+        <Button type="submit" disabled={!qty}
+          className={`w-full font-display tracking-wider ${side === 'buy' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
+          {side.toUpperCase()} {activeSymbol.ticker}
+        </Button>
+      </form>
+
+      {/* Paper Positions */}
+      {paper.positions.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS</div>
+          {paper.positions.map(pos => (
+            <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
+              <div>
+                <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
+                <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</div>
+              </div>
+              <div className="text-right">
+                <div className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)}
+                </div>
+                <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[7px] text-marble/25 hover:text-red-400 transition-colors">CLOSE</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recent Orders */}
+      {paper.orders.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">RECENT ORDERS ({paper.orders.length})</div>
+          {paper.orders.slice(0, 5).map(o => (
+            <div key={o.id} className="flex items-center justify-between px-2 py-1 text-[9px] font-mono text-marble/30 border-b border-gold/5">
+              <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
+              <span>{o.qty} {o.symbol}</span>
+              <span>${o.price.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Reset */}
+      <button onClick={paper.resetAccount} className="flex items-center gap-1 mx-auto text-[8px] text-marble/20 hover:text-red-400 transition-colors mt-2">
+        <RotateCcw className="w-2.5 h-2.5" /> RESET PAPER ACCOUNT
+      </button>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
@@ -70,6 +207,7 @@ const TradingBridge = () => {
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [brokerDialogOpen, setBrokerDialogOpen] = useState(false);
+  const [tradingMode, setTradingMode] = useState<'live' | 'paper'>('paper');
   const { data: connections } = useBrokerConnections();
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
@@ -78,6 +216,7 @@ const TradingBridge = () => {
   const { data: oilPricesData } = useOilGasPrices();
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
+  const paper = usePaperTrading();
 
   // Filter watchlist by search
   const filteredCategories = useMemo(() => {
@@ -109,6 +248,33 @@ const TradingBridge = () => {
     const sp = SYNTHETIC_PRICES[sym.key];
     return sp?.p ?? 100;
   }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
+
+  // ─── Mode Toggle ───────────────────────────────────
+  const ModeToggle = () => (
+    <div className="flex items-center gap-0.5 bg-navy-light/50 rounded-lg p-0.5 border border-gold/10">
+      <button
+        onClick={() => setTradingMode('paper')}
+        className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
+          tradingMode === 'paper'
+            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+            : 'text-marble/30 border border-transparent hover:text-marble/50'
+        }`}
+      >
+        PAPER
+      </button>
+      <button
+        onClick={() => setTradingMode('live')}
+        className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
+          tradingMode === 'live'
+            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+            : 'text-marble/30 border border-transparent hover:text-marble/50'
+        }`}
+      >
+        LIVE
+      </button>
+    </div>
+  );
+
   // ─── MOBILE LAYOUT ──────────────────────────────────
   if (isMobile) {
     return (
@@ -127,6 +293,7 @@ const TradingBridge = () => {
             </button>
           </div>
           <div className="flex items-center gap-2">
+            <ModeToggle />
             <button
               onClick={() => setBrokerDialogOpen(true)}
               className="text-[8px] font-mono bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
@@ -145,7 +312,7 @@ const TradingBridge = () => {
 
         {/* Mobile Watchlist Overlay */}
         {watchlistOpen && (
-          <div className="absolute top-11 left-0 right-0 z-50 bg-navy-dark/98 border-b border-gold/20 max-h-[60vh] overflow-y-auto backdrop-blur-sm">
+          <div className="absolute top-11 left-0 right-0 z-50 bg-navy-dark/98 border-b border-gold/20 max-h-[60vh] overflow-y-auto backdrop-blur-sm watchlist-scroll">
             <div className="sticky top-0 z-10 p-2 bg-navy-dark border-b border-gold/10">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-marble/30" />
@@ -207,7 +374,18 @@ const TradingBridge = () => {
 
           {mobileTab === 'trade' && (
             <div className="p-3 space-y-4">
-              <TradingPanel activeSymbol={activeSymbol.ticker} />
+              {tradingMode === 'paper' ? (
+                <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FlaskConical className="w-4 h-4 text-emerald-400" />
+                    <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
+                    <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono">SIMULATED</span>
+                  </div>
+                  <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+                </div>
+              ) : (
+                <TradingPanel activeSymbol={activeSymbol.ticker} />
+              )}
               <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
             </div>
           )}
@@ -222,7 +400,6 @@ const TradingBridge = () => {
 
           {mobileTab === 'tools' && (
             <div className="p-3 space-y-4">
-              {/* Tool sub-tabs */}
               <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
                 {BOTTOM_TABS.map((tab) => (
                   <button
@@ -296,6 +473,7 @@ const TradingBridge = () => {
           </Link>
           <span className="text-gold/20">|</span>
           <span className="font-display text-xs tracking-[0.2em] text-marble/40">TRADING BRIDGE</span>
+          <ModeToggle />
           <button
             onClick={() => setBrokerDialogOpen(true)}
             className="text-[9px] font-mono bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
@@ -344,7 +522,7 @@ const TradingBridge = () => {
               </div>
             </div>
           )}
-          <div className="overflow-y-auto" style={{ height: `calc(100% - ${sidebarCollapsed ? '33px' : '66px'})` }}>
+          <div className="overflow-y-auto watchlist-scroll" style={{ height: `calc(100% - ${sidebarCollapsed ? '33px' : '66px'})` }}>
             {filteredCategories.map((cat) => (
               <div key={cat.label}>
                 {!sidebarCollapsed && (
@@ -400,8 +578,19 @@ const TradingBridge = () => {
                 </ResizablePanel>
                 <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={45}>
-                  <div className="h-full overflow-y-auto p-2 space-y-4">
-                    <TradingPanel activeSymbol={activeSymbol.ticker} />
+                  <div className="h-full overflow-y-auto p-2 space-y-4 watchlist-scroll">
+                    {tradingMode === 'paper' ? (
+                      <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FlaskConical className="w-4 h-4 text-emerald-400" />
+                          <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
+                          <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono ml-auto">SIMULATED</span>
+                        </div>
+                        <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+                      </div>
+                    ) : (
+                      <TradingPanel activeSymbol={activeSymbol.ticker} />
+                    )}
                     <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
                     <PortfolioSummary />
                   </div>
@@ -430,7 +619,7 @@ const TradingBridge = () => {
                   ))}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3">
+                <div className="flex-1 overflow-y-auto p-3 watchlist-scroll">
                   {bottomTab === 'book' && activeConn && (
                     <div className="space-y-4">
                       <PositionsPanel connectionId={activeConn.id} />
@@ -464,13 +653,20 @@ const TradingBridge = () => {
       <div className="h-6 flex items-center justify-between px-3 bg-navy-dark border-t border-gold/10 flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[9px] font-mono text-marble/30">CONNECTED</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${tradingMode === 'paper' ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
+            <span className={`text-[9px] font-mono ${tradingMode === 'paper' ? 'text-emerald-400/50' : 'text-red-400/50'}`}>
+              {tradingMode === 'paper' ? 'PAPER MODE' : 'LIVE MODE'}
+            </span>
           </div>
           <span className="text-[9px] font-mono text-marble/20">{activeSymbol.label}</span>
           <span className="text-[9px] font-mono text-marble/15 uppercase">{activeSymbol.cat}</span>
         </div>
         <div className="flex items-center gap-4">
+          {tradingMode === 'paper' && (
+            <span className="text-[9px] font-mono text-emerald-400/30">
+              PAPER: ${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            </span>
+          )}
           <span className="text-[9px] font-mono text-marble/20">NON-CUSTODIAL</span>
           <span className="text-[9px] font-mono text-marble/20">GOLD ARROW v3.0</span>
         </div>
@@ -531,7 +727,6 @@ function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
         <span className="font-display text-sm tracking-wider text-gold-light">TRADE ANALYTICS</span>
       </div>
 
-      {/* KPI Row — responsive */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         {[
           { label: 'TOTAL TRADES', value: totalTrades.toString(), icon: Activity, color: 'text-marble' },
@@ -550,7 +745,6 @@ function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
         ))}
       </div>
 
-      {/* Charts Row — responsive */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <div className="lg:col-span-2 bg-navy-light/20 rounded-lg p-3 border border-gold/5">
           <div className="text-[9px] font-display tracking-wider text-marble/30 mb-2">EQUITY CURVE (30D)</div>
@@ -647,7 +841,6 @@ function RiskPanel({ connectionId }: { connectionId?: string }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {/* Position Sizer */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
           <div className="flex items-center gap-1.5 mb-3">
             <Calculator className="w-3 h-3 text-gold/50" />
@@ -674,7 +867,6 @@ function RiskPanel({ connectionId }: { connectionId?: string }) {
           </div>
         </div>
 
-        {/* Exposure Limits */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
           <div className="flex items-center gap-1.5 mb-3">
             <AlertTriangle className="w-3 h-3 text-gold/50" />
@@ -702,7 +894,6 @@ function RiskPanel({ connectionId }: { connectionId?: string }) {
           </div>
         </div>
 
-        {/* Correlation Matrix */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5 sm:col-span-2 lg:col-span-1">
           <div className="flex items-center gap-1.5 mb-3">
             <PieChart className="w-3 h-3 text-gold/50" />
@@ -757,7 +948,6 @@ function StrategiesPanel() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {/* DCA Bot */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
           <div className="flex items-center gap-1.5 mb-3">
             <Clock className="w-3 h-3 text-gold/50" />
@@ -793,7 +983,6 @@ function StrategiesPanel() {
           </div>
         </div>
 
-        {/* Grid Trading */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
           <div className="flex items-center gap-1.5 mb-3">
             <Flame className="w-3 h-3 text-gold/50" />
@@ -826,7 +1015,6 @@ function StrategiesPanel() {
           </div>
         </div>
 
-        {/* Custom Rules */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5 sm:col-span-2 lg:col-span-1">
           <div className="flex items-center gap-1.5 mb-3">
             <Bot className="w-3 h-3 text-gold/50" />
@@ -857,7 +1045,6 @@ function StrategiesPanel() {
         </div>
       </div>
 
-      {/* Visual Rule Builder */}
       <div className="mt-4 pt-4 border-t border-gold/10">
         <RuleBuilder />
       </div>
@@ -884,7 +1071,6 @@ function SocialPanel() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Leaderboard */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
           <div className="flex items-center gap-1.5 mb-3">
             <Award className="w-3 h-3 text-gold/50" />
@@ -914,7 +1100,6 @@ function SocialPanel() {
           </div>
         </div>
 
-        {/* Profile + Strategy Sharing */}
         <div className="space-y-3">
           <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
             <div className="flex items-center gap-1.5 mb-3">
