@@ -6,7 +6,7 @@ export interface WidgetDocEntry {
   thesis: string;
   metrics: string[];
   instructions: string[];
-  tier: 'MARKET DATA' | 'BLOCKCHAIN' | 'DeFi' | 'COMPOSITE' | 'PROPRIETARY';
+  tier: 'MARKET DATA' | 'BLOCKCHAIN' | 'DeFi' | 'COMPOSITE' | 'PROPRIETARY' | 'ENERGY';
 }
 
 export const widgetDocContent: Record<string, WidgetDocEntry> = {
@@ -1034,6 +1034,371 @@ Partner status tracking (Active, Suspended, Offboarded) provides transparency in
       'Active status with green indicators confirms operational connectivity.',
       'Click any partner to view their sites, jurisdiction, and integration details.',
       'Multiple partners per type provides redundancy and competitive custody options.',
+    ],
+  },
+
+  // ═══════════════ OIL & GAS ENERGY WIDGETS ═══════════════
+
+  'og-prices': {
+    name: 'Energy Spot Prices',
+    purpose: 'Live spot and near-month futures prices for crude oil, natural gas, and refined products.',
+    sources: ['EIA v2 API', 'CME', 'ICE'],
+    refreshInterval: '30s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Energy Spot Prices panel is the foundational pricing layer for all energy market analysis. It displays live prices for WTI Crude, Brent Crude, Henry Hub Natural Gas, RBOB Gasoline, and Heating Oil — the five benchmark contracts that anchor global energy trading.
+
+Each price card combines the current spot level with a 24-hour percentage change and directional indicator, providing immediate context on market momentum. The data flows from the EIA v2 API through a dedicated backend function with multi-source fallback, ensuring continuous price visibility even during API maintenance windows.
+
+For institutional energy desks, having all five benchmarks in a single view eliminates the need to toggle between CME and ICE terminals, providing a unified pricing baseline that feeds into every other analytical widget on this dashboard.`,
+    metrics: [
+      'WTI Crude Oil spot price ($/bbl)',
+      'Brent Crude spot price ($/bbl)',
+      'Henry Hub Natural Gas ($/MMBtu)',
+      'RBOB Gasoline ($/gal)',
+      'Heating Oil ($/gal)',
+      '24-hour change (absolute & percentage)',
+    ],
+    instructions: [
+      'Prices auto-refresh every 30 seconds — no manual action required.',
+      'Green arrows indicate positive 24h movement; red arrows indicate price decline.',
+      'Use these spot prices as the baseline reference for interpreting spread and margin widgets.',
+      'WTI and Brent are quoted per barrel; gas products are quoted per gallon or MMBtu.',
+    ],
+  },
+
+  'og-futures': {
+    name: 'Futures Curve',
+    purpose: 'Forward curve visualization showing term structure across multiple contract months.',
+    sources: ['CME', 'ICE'],
+    refreshInterval: '60s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Futures Curve widget plots the term structure of WTI and Brent crude oil futures across multiple delivery months, revealing whether the market is in contango (upward-sloping, future prices higher than spot) or backwardation (downward-sloping, spot premium over futures).
+
+This shape of the curve is one of the most critical signals in energy trading. Persistent backwardation signals tight physical supply and draws on inventories, while steep contango indicates oversupply and incentivizes storage plays. The curve shape directly influences the economics of physical crude storage, pipeline scheduling, and refinery procurement strategies.
+
+By visualizing the full curve rather than individual contract prices, traders can identify inflection points, roll-yield opportunities, and term-structure anomalies that are invisible when monitoring only front-month contracts.`,
+    metrics: [
+      'Contract prices across 12+ delivery months',
+      'Contango vs backwardation shape identification',
+      'Front-month to back-month spread',
+      'Curve steepness and inflection points',
+      'WTI and Brent curve overlay comparison',
+    ],
+    instructions: [
+      'Examine the curve slope — upward = contango (oversupply), downward = backwardation (tightness).',
+      'Hover over individual contract months to see exact settlement prices.',
+      'Compare WTI and Brent curves to assess relative term structure.',
+      'Look for inflection points where the curve changes direction — these often indicate seasonal supply/demand shifts.',
+    ],
+  },
+
+  'og-wti-brent': {
+    name: 'WTI-Brent Spread Tracker',
+    purpose: '30-day historical visualization of the WTI-Brent crude oil price differential.',
+    sources: ['EIA', 'CME'],
+    refreshInterval: '60s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The WTI-Brent Spread is the single most-watched inter-crude differential in global energy markets. It reflects the relative pricing between US domestic crude (WTI, delivered at Cushing, Oklahoma) and the international waterborne benchmark (Brent, North Sea), encoding information about transportation logistics, pipeline capacity, export economics, and regional supply imbalances.
+
+When WTI trades at a deep discount to Brent, it signals US oversupply relative to export capacity, potentially indicating Cushing inventory builds or pipeline bottlenecks. Conversely, when the spread narrows or inverts, it suggests strong US crude demand or constrained international supply. This spread directly drives the profitability of US crude exports and influences refinery crude procurement strategies globally.
+
+The 30-day historical view captures the spread's trajectory, enabling traders to identify trend changes, mean-reversion opportunities, and structural shifts driven by geopolitical events or infrastructure changes.`,
+    metrics: [
+      'Current WTI-Brent spread ($/bbl)',
+      '30-day historical spread chart',
+      'Average, minimum, and maximum spread over period',
+      'Spread direction and momentum',
+    ],
+    instructions: [
+      'A negative value means WTI trades at a discount to Brent (the typical state).',
+      'Hover over the chart to see daily spread values across the 30-day window.',
+      'Widening spreads may indicate US pipeline or export capacity constraints.',
+      'Cross-reference with the Inventory widget to validate supply-side explanations for spread moves.',
+    ],
+  },
+
+  'og-spreads': {
+    name: 'Crack Spreads & Margins',
+    purpose: 'Refinery margin indicators showing the economics of converting crude oil into refined products.',
+    sources: ['EIA', 'CME'],
+    refreshInterval: '60s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `Crack Spreads measure the theoretical profit margin of refining crude oil into finished products — primarily gasoline (RBOB) and distillates (heating oil/diesel). The "3-2-1" crack spread (3 barrels of crude refined into 2 barrels of gasoline and 1 barrel of distillate) is the industry-standard proxy for US Gulf Coast refinery profitability.
+
+These margins are critical for understanding refinery utilization decisions. When crack spreads are strong, refineries maximize throughput, increasing crude demand and drawing down inventories. When spreads compress, refineries reduce runs, cutting crude demand and potentially building stocks. This feedback loop makes crack spreads a leading indicator for crude oil demand.
+
+The widget tracks multiple spread configurations (gasoline crack, heating oil crack, composite 3-2-1) to give a complete picture of refinery economics across product slates, enabling analysts to identify which product is driving overall refinery margins.`,
+    metrics: [
+      '3-2-1 crack spread ($/bbl)',
+      'Gasoline crack spread',
+      'Distillate/heating oil crack spread',
+      'Historical spread trends',
+      'Margin direction indicators',
+    ],
+    instructions: [
+      'The 3-2-1 spread is the primary indicator — higher values mean more profitable refining.',
+      'Compare gasoline vs distillate cracks to see which product is driving margins.',
+      'Strong cracks typically correlate with higher refinery runs and increased crude demand.',
+      'Seasonal patterns are significant — gasoline cracks peak in summer, distillate cracks in winter.',
+    ],
+  },
+
+  'og-inventory': {
+    name: 'EIA Crude Inventory',
+    purpose: 'Weekly US commercial crude oil inventory tracking with draw/build analysis.',
+    sources: ['EIA v2 API'],
+    refreshInterval: '5min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The EIA Weekly Petroleum Status Report is the single most market-moving regularly scheduled data release in energy markets. This widget tracks US commercial crude oil inventories at Cushing, Oklahoma (the WTI delivery hub) and total US commercial stocks, providing the definitive measure of physical supply-demand balance in the world's largest oil market.
+
+Inventory draws (declining stocks) signal that consumption and exports exceed production and imports, a fundamentally bullish signal. Inventory builds signal the opposite. The magnitude of the weekly change relative to consensus expectations drives immediate price reactions — surprises of ±2 million barrels routinely move crude prices by 1-3%.
+
+The gauge visualization provides immediate context by showing current inventory levels relative to the 5-year seasonal range, enabling traders to assess whether stocks are historically elevated, depleted, or at normal seasonal levels — context that raw barrel counts alone cannot provide.`,
+    metrics: [
+      'Total US commercial crude stocks (million barrels)',
+      'Cushing, OK hub inventory level',
+      'Weekly change (draw or build, million barrels)',
+      'Position relative to 5-year seasonal range',
+      'Days of supply coverage',
+    ],
+    instructions: [
+      'Green gauge zones indicate below-average inventory (bullish); red zones indicate builds (bearish).',
+      'The weekly change figure is the most actionable data point — compare it to consensus expectations.',
+      'EIA reports release every Wednesday at 10:30 AM ET — expect data updates shortly after.',
+      'Cross-reference inventory changes with refinery utilization and import/export data for context.',
+    ],
+  },
+
+  'og-rigs': {
+    name: 'Baker Hughes Rig Count',
+    purpose: 'Weekly US and international oil & gas rig activity tracking as a leading production indicator.',
+    sources: ['Baker Hughes'],
+    refreshInterval: '10min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Baker Hughes Rig Count is the industry-standard leading indicator of future oil and gas production. Since drilling activity precedes production by 3-6 months, changes in rig counts provide early warning of supply trajectory shifts before they appear in production or inventory data.
+
+This widget tracks the total US oil and gas rig count alongside directional changes, enabling analysts to monitor the upstream investment cycle. Rising rig counts signal operator confidence and expanding capital expenditure, typically associated with higher oil prices and strong balance sheets. Declining counts signal capital discipline, budget cuts, or price-driven activity reductions.
+
+The oil/gas rig breakdown is particularly important as it reveals sector-specific drilling trends. In the US shale landscape, the mix between oil-directed and gas-directed rigs reflects relative commodity economics and producer hedging strategies.`,
+    metrics: [
+      'Total US oil rig count',
+      'Total US gas rig count',
+      'Combined US rig count',
+      'Weekly change (rigs added or removed)',
+      'International rig count comparison',
+    ],
+    instructions: [
+      'Baker Hughes releases rig counts every Friday at 1:00 PM ET.',
+      'Rising rig counts are a leading indicator of future production growth (3-6 month lag).',
+      'Compare oil vs gas rig trends to understand producer capital allocation decisions.',
+      'Sustained rig count declines often precede supply tightening and price support.',
+    ],
+  },
+
+  'og-supply-demand': {
+    name: 'Global Supply/Demand Balance',
+    purpose: 'Macro-level visualization of global oil production versus consumption with surplus/deficit tracking.',
+    sources: ['IEA', 'EIA', 'OPEC'],
+    refreshInterval: '10min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Global Supply/Demand Balance is the most fundamental analytical framework in energy markets. By aggregating production and consumption estimates from the three authoritative agencies (IEA, EIA, and OPEC), this widget reveals the global surplus or deficit that ultimately drives inventory changes, price trends, and OPEC+ policy decisions.
+
+Each agency publishes monthly estimates that can diverge by 0.5-1.5 million barrels per day — a spread that itself contains analytical value. The IEA (Paris-based, consumer-country perspective), EIA (US government, statistically rigorous), and OPEC (producer cartel, politically influenced) each bring different methodological approaches and potential biases.
+
+The implied stock change (production minus consumption) is the key output — a persistent deficit signals inventory draws and potential price support, while a surplus suggests builds and potential price pressure. Seasonal patterns, demand growth forecasts, and OPEC+ production decisions are the primary variables driving the balance.`,
+    metrics: [
+      'Global oil production (million bpd)',
+      'Global oil consumption/demand (million bpd)',
+      'Implied surplus or deficit (million bpd)',
+      'Year-over-year demand growth rate',
+      'OPEC vs non-OPEC production split',
+    ],
+    instructions: [
+      'Focus on the surplus/deficit figure — positive means oversupply, negative means undersupply.',
+      'Compare estimates across IEA, EIA, and OPEC to identify agency divergence.',
+      'Seasonal demand patterns are significant — Q3 typically sees highest demand (summer driving + cooling).',
+      'Cross-reference with OPEC+ Compliance to understand whether supply adjustments are voluntary or market-driven.',
+    ],
+  },
+
+  'og-opec': {
+    name: 'OPEC+ Compliance Monitor',
+    purpose: 'Tracking OPEC+ production quotas versus actual output to measure cartel discipline.',
+    sources: ['OPEC MOMR'],
+    refreshInterval: '10min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `OPEC+ compliance — the degree to which member nations adhere to agreed production quotas — is the most important variable in global oil supply management. This widget tracks each member's production quota versus actual output, revealing the cartel's collective discipline and identifying habitual overproducers.
+
+High compliance (above 90%) indicates strong cartel cohesion and effective supply management, typically supportive of oil prices. Declining compliance signals internal disagreements, quota cheating, or economic pressures forcing members to overproduce — historically a precursor to price wars or quota collapses.
+
+The Monthly Oil Market Report (MOMR) from OPEC is the primary data source, supplemented by secondary source estimates from tanker tracking and satellite monitoring. Individual country compliance rates reveal the political dynamics within the cartel — Saudi Arabia's role as swing producer, UAE's capacity ambitions, and Russian adherence to non-OPEC+ commitments.`,
+    metrics: [
+      'Overall OPEC+ compliance rate (%)',
+      'Individual member production vs quota',
+      'Total OPEC+ production (million bpd)',
+      'Voluntary cut adherence',
+      'Spare capacity estimates by member',
+    ],
+    instructions: [
+      'Compliance above 100% means the group is cutting more than agreed (bullish for prices).',
+      'Identify members consistently above quota — they represent risk to cartel discipline.',
+      'OPEC MOMR releases monthly — data updates reflect the latest available report.',
+      'Saudi Arabia\'s production relative to its quota is the single most important member-level signal.',
+    ],
+  },
+
+  'og-production': {
+    name: 'Top Producers',
+    purpose: 'Ranked visualization of the world\'s largest oil-producing nations with output data.',
+    sources: ['EIA', 'IEA'],
+    refreshInterval: '10min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Top Producers widget ranks the world's largest oil-producing nations by daily output, providing geopolitical context for global supply analysis. The concentration of production among a small number of nations — the US, Saudi Arabia, and Russia account for roughly 40% of global output — means that policy decisions, sanctions, or disruptions in any single country can materially impact global supply.
+
+This ranking also reveals structural shifts in the production landscape. The rise of US shale transformed America from a net importer to the world's largest producer in under a decade, fundamentally altering global energy geopolitics. Similarly, production growth in Brazil, Guyana, and other non-OPEC nations is gradually eroding OPEC's market share and pricing power.
+
+By tracking production levels alongside growth rates, analysts can identify which producers are gaining or losing share, informing long-term supply forecasts and geopolitical risk assessments.`,
+    metrics: [
+      'Production ranking by country (million bpd)',
+      'Market share by producer',
+      'Year-over-year production changes',
+      'OPEC vs non-OPEC output split',
+    ],
+    instructions: [
+      'The top three producers (US, Saudi Arabia, Russia) are the key swing suppliers.',
+      'Compare OPEC members\' actual output against their quotas using the OPEC+ Compliance widget.',
+      'Growth in non-OPEC producers (US, Brazil, Guyana) represents structural supply additions.',
+      'Production disruptions in any top-10 producer can move global prices significantly.',
+    ],
+  },
+
+  'og-pipelines': {
+    name: 'Global Pipeline Flow',
+    purpose: 'Major oil and gas pipeline utilization and throughput tracking.',
+    sources: ['EIA', 'FERC'],
+    refreshInterval: '5min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `Pipeline infrastructure represents the physical arteries of the global energy system. This widget monitors utilization rates and throughput volumes for major crude oil and natural gas pipelines, revealing transportation bottlenecks, capacity constraints, and flow disruptions that directly impact regional pricing differentials.
+
+Pipeline capacity constraints have historically created some of the most significant pricing dislocations in energy markets. The Permian Basin pipeline shortage of 2018-2019, for example, caused Midland WTI to trade at a $15+/bbl discount to Cushing WTI, creating massive arbitrage opportunities for traders with pipeline access. Similarly, Canadian heavy crude (WCS) discounts have widened dramatically during periods of export pipeline constraints.
+
+By monitoring utilization rates across major corridors, traders can anticipate capacity-driven pricing anomalies, identify stranded production risk, and evaluate the impact of new pipeline projects on regional basis differentials.`,
+    metrics: [
+      'Pipeline utilization rate (%)',
+      'Throughput volume (bpd or MMcf/d)',
+      'Capacity vs actual flow',
+      'Regional pipeline corridor status',
+      'Maintenance and outage alerts',
+    ],
+    instructions: [
+      'Utilization above 90% signals near-capacity operation and potential bottleneck risk.',
+      'Compare pipeline flows with production data to identify stranded supply situations.',
+      'Natural gas pipelines are particularly sensitive to seasonal heating/cooling demand shifts.',
+      'New pipeline completions can rapidly compress regional price differentials.',
+    ],
+  },
+
+  'og-chokepoints': {
+    name: 'Geopolitical Chokepoint Risk',
+    purpose: 'Real-time monitoring of critical maritime transit points for global oil flows.',
+    sources: ['Shipping Telemetry', 'EIA'],
+    refreshInterval: '60s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `Maritime chokepoints — narrow straits and canals through which significant volumes of global oil transit — represent the highest-concentration geopolitical risk points in energy markets. The Strait of Hormuz alone handles approximately 20% of global oil consumption daily, meaning any disruption would trigger an immediate and severe supply shock.
+
+This widget monitors vessel traffic, throughput estimates, and risk levels for the six most critical chokepoints: Strait of Hormuz, Strait of Malacca, Suez Canal, Bab el-Mandeb, Turkish Straits, and Panama Canal. Each point is assessed for operational status, recent disruption events, and geopolitical threat level based on regional conflict indicators and shipping insurance rates.
+
+The Houthi attacks on Red Sea shipping in 2024 demonstrated how chokepoint disruptions cascade through global supply chains, increasing shipping costs, extending transit times, and creating regional supply imbalances. This widget provides early warning of similar emerging risks across all critical transit corridors.`,
+    metrics: [
+      'Throughput volume per chokepoint (million bpd)',
+      'Vessel traffic density',
+      'Risk level assessment (low/medium/high/critical)',
+      'Recent disruption events',
+      'Alternative routing impact (cost and time)',
+    ],
+    instructions: [
+      'Red risk levels indicate active or imminent disruption threats — cross-reference with news feed.',
+      'The Strait of Hormuz is the highest-impact chokepoint — monitor Iranian geopolitical tensions closely.',
+      'Chokepoint disruptions typically cause immediate crude price spikes and tanker rate increases.',
+      'Compare throughput volumes with historical averages to identify unusual flow patterns.',
+    ],
+  },
+
+  'og-news': {
+    name: 'Energy Intelligence Feed',
+    purpose: 'Curated energy sector news and analysis from authoritative industry sources.',
+    sources: ['Public RSS', 'EIA'],
+    refreshInterval: '2min auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Energy Intelligence Feed aggregates real-time news and analysis from authoritative energy industry sources, providing the narrative context that explains price movements, policy changes, and supply disruptions tracked by the quantitative widgets.
+
+Energy markets are uniquely sensitive to geopolitical developments — OPEC+ meeting outcomes, sanctions announcements, pipeline outages, hurricane forecasts, and regulatory changes can all move prices significantly within minutes. This feed prioritizes institutional-quality sources over retail news, filtering for actionable intelligence rather than clickbait or opinion content.
+
+The feed is organized chronologically with source attribution, enabling analysts to track developing stories across multiple sources and assess consensus vs contrarian viewpoints. Cross-referencing news developments with real-time price movements in the Spot Prices widget creates a complete picture of market-moving events.`,
+    metrics: [
+      'Breaking energy news headlines',
+      'Source attribution and timestamp',
+      'Category tags (OPEC, supply, demand, policy, weather)',
+      'Story development tracking',
+    ],
+    instructions: [
+      'Scan headlines for OPEC, EIA, and pipeline-related keywords — these are most market-moving.',
+      'Cross-reference breaking news with the Spot Prices widget to assess market reaction.',
+      'Weather-related headlines (hurricanes, polar vortex) impact both supply and demand.',
+      'EIA weekly report commentary provides context for inventory data interpretation.',
+    ],
+  },
+
+  'og-energy-dashboard': {
+    name: 'Energy Executive Dashboard',
+    purpose: 'Consolidated multi-pane energy market overview for executive-level briefings.',
+    sources: ['EIA', 'CME', 'ICE'],
+    refreshInterval: '60s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Energy Executive Dashboard consolidates the most critical energy market indicators into a single, dense analytical workspace designed for senior decision-makers who need a comprehensive market view without navigating multiple individual widgets.
+
+This composite tool aggregates spot prices, inventory positions, spread analytics, and supply-demand balances into a multi-pane layout that reveals cross-variable relationships. For example, viewing crack spreads alongside inventory changes and rig counts simultaneously enables rapid identification of whether margin compression is driven by oversupply, weak demand, or refinery over-processing.
+
+The dashboard is designed for the "morning briefing" use case — a 30-second scan that provides sufficient context to make informed trading, hedging, or procurement decisions. All data panes share the same refresh cycle, ensuring temporal consistency across displayed metrics.`,
+    metrics: [
+      'Key benchmark prices (WTI, Brent, Henry Hub)',
+      'Weekly inventory change summary',
+      'Crack spread overview',
+      'Rig count trend',
+      'Supply/demand balance indicator',
+      'Top geopolitical risk flag',
+    ],
+    instructions: [
+      'Use this dashboard for daily morning market assessment before drilling into individual widgets.',
+      'Red highlights across multiple panes simultaneously indicate correlated stress events.',
+      'The dashboard provides breadth — switch to individual widgets for analytical depth on any metric.',
+      'All data refreshes synchronously to ensure cross-pane temporal consistency.',
+    ],
+  },
+
+  'og-risk-analyzer': {
+    name: 'Risk & Spreads Analyzer',
+    purpose: 'Multi-factor risk assessment combining price spreads, geopolitical signals, and supply metrics.',
+    sources: ['EIA', 'CME', 'Shipping Telemetry'],
+    refreshInterval: '60s auto-refresh',
+    tier: 'ENERGY',
+    thesis: `The Risk & Spreads Analyzer is the most sophisticated composite tool in the energy intelligence suite, integrating multiple data streams into a unified risk assessment framework. It combines price-based signals (crack spreads, WTI-Brent differential, futures curve shape) with physical-market indicators (inventory levels, pipeline utilization, chokepoint risk) to generate a holistic view of energy market risk.
+
+Traditional energy risk analysis treats price risk and physical risk as separate domains — this tool bridges that gap by showing how physical market disruptions translate into spread dislocations and vice versa. For example, a Hormuz Strait disruption would simultaneously appear as elevated chokepoint risk, widening Brent-Dubai spreads, and steepening futures curve backwardation.
+
+The analyzer is designed for risk managers, trading desk heads, and strategic planning teams who need to understand the interconnected nature of energy market risks rather than monitoring individual indicators in isolation.`,
+    metrics: [
+      'Composite energy risk score',
+      'Spread deviation from historical norms',
+      'Geopolitical risk heat indicators',
+      'Supply disruption probability estimates',
+      'Cross-factor correlation matrix',
+    ],
+    instructions: [
+      'The composite risk score aggregates multiple indicators — higher scores indicate elevated market stress.',
+      'Spread deviations beyond 2 standard deviations from historical norms warrant immediate attention.',
+      'Cross-reference risk flags with the Chokepoints widget for geopolitical context.',
+      'Use the correlation view to understand which factors are driving overall risk levels.',
     ],
   },
 };
