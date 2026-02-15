@@ -17,161 +17,169 @@ interface CommodityPrice {
   timestamp: string;
 }
 
-// ─── Source 1: Yahoo Finance via public query endpoint ───
-async function fetchFromYahooFinance(): Promise<CommodityPrice[]> {
-  const symbols = [
-    { yahoo: "CL=F", symbol: "CL", name: "WTI Crude Oil", unit: "$/bbl", color: "hsl(25, 80%, 50%)" },
-    { yahoo: "BZ=F", symbol: "BZ", name: "Brent Crude Oil", unit: "$/bbl", color: "hsl(210, 60%, 50%)" },
-    { yahoo: "NG=F", symbol: "NG", name: "Natural Gas", unit: "$/MMBtu", color: "hsl(145, 60%, 45%)" },
-    { yahoo: "HO=F", symbol: "HO", name: "Heating Oil", unit: "$/gal", color: "hsl(0, 60%, 50%)" },
-    { yahoo: "RB=F", symbol: "RB", name: "RBOB Gasoline", unit: "$/gal", color: "hsl(43, 72%, 50%)" },
-  ];
+// ─── EIA API v2 ─────────────────────────────────────────
+// Official US government energy data - most authoritative source
+// Endpoint: https://api.eia.gov/v2/petroleum/pri/spt/data/
+// Products: EPCWTI (WTI), EPCBRENT (Brent)
+// NatGas: https://api.eia.gov/v2/natural-gas/pri/fut/data/
 
-  const query = symbols.map((s) => s.yahoo).join(",");
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${query}&fields=regularMarketPrice,regularMarketChangePercent,shortName`;
-
-  const resp = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; GoldArrow/1.0)",
-    },
-  });
-
-  if (!resp.ok) throw new Error(`Yahoo Finance returned ${resp.status}`);
-
-  const data = await resp.json();
-  const quotes = data?.quoteResponse?.result ?? [];
-
-  return symbols.map((s) => {
-    const q = quotes.find((r: any) => r.symbol === s.yahoo);
-    if (!q || !q.regularMarketPrice) throw new Error(`Missing data for ${s.yahoo}`);
-    return {
-      symbol: s.symbol,
-      name: s.name,
-      price: Math.round(q.regularMarketPrice * 100) / 100,
-      change: Math.round((q.regularMarketChangePercent ?? 0) * 100) / 100,
-      unit: s.unit,
-      color: s.color,
-      source: "yahoo_finance",
-      timestamp: new Date().toISOString(),
-    };
-  });
-}
-
-// ─── Source 2: Fallback via public commodity proxy ───
-async function fetchFromOpenExchange(): Promise<CommodityPrice[]> {
-  // Use a lightweight free commodities endpoint
-  const url = "https://cdn.jsdelivr.net/npm/@nicheprotocol/commodity-data@latest/data/latest.json";
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error("CDN fetch failed");
-    const data = await resp.json();
-    // Map if the structure matches; otherwise throw to hit fallback
-    if (!data?.WTI) throw new Error("Unexpected data structure");
-    return [
-      { symbol: "CL", name: "WTI Crude Oil", price: data.WTI, change: 0, unit: "$/bbl", color: "hsl(25, 80%, 50%)", source: "open_exchange", timestamp: new Date().toISOString() },
-      { symbol: "BZ", name: "Brent Crude Oil", price: data.BRENT, change: 0, unit: "$/bbl", color: "hsl(210, 60%, 50%)", source: "open_exchange", timestamp: new Date().toISOString() },
-      { symbol: "NG", name: "Natural Gas", price: data.NATGAS, change: 0, unit: "$/MMBtu", color: "hsl(145, 60%, 45%)", source: "open_exchange", timestamp: new Date().toISOString() },
-    ];
-  } catch {
-    throw new Error("Open exchange fetch failed");
-  }
-}
-
-// ─── Source 3: EIA API (if key configured) ───
-async function fetchFromEIA(): Promise<CommodityPrice[] | null> {
-  const apiKey = Deno.env.get("EIA_API_KEY");
-  if (!apiKey) return null;
-
-  const series = [
-    { id: "PET.RWTC.D", symbol: "CL", name: "WTI Crude Oil", unit: "$/bbl", color: "hsl(25, 80%, 50%)" },
-    { id: "PET.RBRTE.D", symbol: "BZ", name: "Brent Crude Oil", unit: "$/bbl", color: "hsl(210, 60%, 50%)" },
-    { id: "NG.RNGWHHD.D", symbol: "NG", name: "Natural Gas", unit: "$/MMBtu", color: "hsl(145, 60%, 45%)" },
-  ];
-
+async function fetchFromEIA(apiKey: string): Promise<CommodityPrice[]> {
   const results: CommodityPrice[] = [];
+  const now = new Date().toISOString();
 
-  for (const s of series) {
-    try {
-      const url = `https://api.eia.gov/v2/seriesid/${s.id}?api_key=${apiKey}&num=2`;
-      const resp = await fetch(url);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      const points = data?.response?.data ?? [];
-      if (points.length >= 2) {
-        const latest = points[0].value;
-        const prev = points[1].value;
+  // Fetch WTI & Brent spot prices
+  const petroUrl = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPCWTI&facets[product][]=EPCBRENT&sort[0][column]=period&sort[0][direction]=desc&length=5`;
+
+  console.log("[EIA] Fetching petroleum prices...");
+  const petroResp = await fetch(petroUrl);
+
+  if (!petroResp.ok) {
+    const errText = await petroResp.text();
+    throw new Error(`EIA petroleum API returned ${petroResp.status}: ${errText}`);
+  }
+
+  const petroData = await petroResp.json();
+  const petroRows = petroData?.response?.data ?? [];
+  console.log(`[EIA] Got ${petroRows.length} petroleum rows`);
+
+  // Extract WTI
+  const wtiRows = petroRows.filter((r: any) => r.product === "EPCWTI");
+  if (wtiRows.length >= 2) {
+    const latest = parseFloat(wtiRows[0].value);
+    const prev = parseFloat(wtiRows[1].value);
+    const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
+    results.push({
+      symbol: "CL", name: "WTI Crude Oil",
+      price: Math.round(latest * 100) / 100, change,
+      unit: "$/bbl", color: "hsl(25, 80%, 50%)",
+      source: "eia_gov", timestamp: now,
+    });
+  }
+
+  // Extract Brent
+  const brentRows = petroRows.filter((r: any) => r.product === "EPCBRENT");
+  if (brentRows.length >= 2) {
+    const latest = parseFloat(brentRows[0].value);
+    const prev = parseFloat(brentRows[1].value);
+    const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
+    results.push({
+      symbol: "BZ", name: "Brent Crude Oil",
+      price: Math.round(latest * 100) / 100, change,
+      unit: "$/bbl", color: "hsl(210, 60%, 50%)",
+      source: "eia_gov", timestamp: now,
+    });
+  }
+
+  // Fetch Natural Gas (Henry Hub futures)
+  try {
+    const ngUrl = `https://api.eia.gov/v2/natural-gas/pri/fut/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[process][]=PRS&sort[0][column]=period&sort[0][direction]=desc&length=5`;
+
+    console.log("[EIA] Fetching natural gas prices...");
+    const ngResp = await fetch(ngUrl);
+    if (ngResp.ok) {
+      const ngData = await ngResp.json();
+      const ngRows = ngData?.response?.data ?? [];
+      console.log(`[EIA] Got ${ngRows.length} natural gas rows`);
+
+      if (ngRows.length >= 2) {
+        const latest = parseFloat(ngRows[0].value);
+        const prev = parseFloat(ngRows[1].value);
         const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
         results.push({
-          symbol: s.symbol,
-          name: s.name,
-          price: Math.round(latest * 100) / 100,
-          change,
-          unit: s.unit,
-          color: s.color,
-          source: "eia_gov",
-          timestamp: new Date().toISOString(),
+          symbol: "NG", name: "Natural Gas",
+          price: Math.round(latest * 1000) / 1000, change,
+          unit: "$/MMBtu", color: "hsl(145, 60%, 45%)",
+          source: "eia_gov", timestamp: now,
         });
       }
-    } catch {
-      // Skip this series
     }
+  } catch (e) {
+    console.log("[EIA] Natural gas fetch failed:", e);
   }
 
-  return results.length > 0 ? results : null;
+  // Fetch Heating Oil spot price
+  try {
+    const hoUrl = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPD2DXL0&sort[0][column]=period&sort[0][direction]=desc&length=5`;
+
+    const hoResp = await fetch(hoUrl);
+    if (hoResp.ok) {
+      const hoData = await hoResp.json();
+      const hoRows = hoData?.response?.data ?? [];
+      if (hoRows.length >= 2) {
+        const latest = parseFloat(hoRows[0].value);
+        const prev = parseFloat(hoRows[1].value);
+        const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
+        results.push({
+          symbol: "HO", name: "Heating Oil",
+          price: Math.round(latest * 1000) / 1000, change,
+          unit: "$/gal", color: "hsl(0, 60%, 50%)",
+          source: "eia_gov", timestamp: now,
+        });
+      }
+    }
+  } catch (e) {
+    console.log("[EIA] Heating oil fetch failed:", e);
+  }
+
+  // Fetch Gasoline (RBOB) spot price
+  try {
+    const rbUrl = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPC0&sort[0][column]=period&sort[0][direction]=desc&length=5`;
+
+    const rbResp = await fetch(rbUrl);
+    if (rbResp.ok) {
+      const rbData = await rbResp.json();
+      const rbRows = rbData?.response?.data ?? [];
+      if (rbRows.length >= 2) {
+        const latest = parseFloat(rbRows[0].value);
+        const prev = parseFloat(rbRows[1].value);
+        const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
+        results.push({
+          symbol: "RB", name: "RBOB Gasoline",
+          price: Math.round(latest * 1000) / 1000, change,
+          unit: "$/gal", color: "hsl(43, 72%, 50%)",
+          source: "eia_gov", timestamp: now,
+        });
+      }
+    }
+  } catch (e) {
+    console.log("[EIA] Gasoline fetch failed:", e);
+  }
+
+  return results;
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Priority: EIA (government source) > Yahoo Finance > Open Exchange > Error
-    let prices: CommodityPrice[] | null = null;
-    let source = "unknown";
-
-    // Try EIA first (most authoritative)
-    try {
-      prices = await fetchFromEIA();
-      if (prices) source = "eia_gov";
-    } catch (e) {
-      console.log("EIA fetch failed:", e);
-    }
-
-    // Try Yahoo Finance
-    if (!prices) {
-      try {
-        prices = await fetchFromYahooFinance();
-        source = "yahoo_finance";
-      } catch (e) {
-        console.log("Yahoo Finance fetch failed:", e);
-      }
-    }
-
-    // Try open exchange
-    if (!prices) {
-      try {
-        prices = await fetchFromOpenExchange();
-        source = "open_exchange";
-      } catch (e) {
-        console.log("Open exchange fetch failed:", e);
-      }
-    }
-
-    if (!prices || prices.length === 0) {
+    const apiKey = Deno.env.get("EIA_API_KEY");
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "All commodity data sources unavailable", source: "none" }),
+        JSON.stringify({ success: false, error: "EIA_API_KEY is not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const prices = await fetchFromEIA(apiKey);
+
+    if (prices.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: "No price data returned from EIA", source: "eia_gov" }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log(`[EIA] Returning ${prices.length} commodity prices`);
+
     return new Response(
-      JSON.stringify({ success: true, prices, source, timestamp: new Date().toISOString() }),
+      JSON.stringify({ success: true, prices, source: "eia_gov", timestamp: new Date().toISOString() }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("Commodity price fetch error:", msg);
+    console.error("[EIA] Commodity price fetch error:", msg);
     return new Response(
       JSON.stringify({ success: false, error: msg }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
