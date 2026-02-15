@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.certificate-registry]
 verify_jwt = false
+
+[functions.broker-proxy]
+verify_jwt = false
+
+[functions.fetch-commodity-prices]
+verify_jwt = false
