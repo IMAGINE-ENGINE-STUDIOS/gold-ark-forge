@@ -32,26 +32,27 @@ interface Props {
   onSymbolChange?: (sym: WatchlistSymbol) => void;
 }
 
-const timeframes = ['1H', '4H', '1D', '1W', '1M'] as const;
+const timeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
 type Timeframe = (typeof timeframes)[number];
 
 interface TFConfig {
   points: number;
   intervalMs: number;
-  volatility: number; // realistic % volatility per candle
+  candleMs: number; // how long each candle lasts in realtime mode
+  volatility: number;
   labelFn: (d: Date) => string;
 }
 
 const tfConfigs: Record<Timeframe, TFConfig> = {
-  '1H': { points: 12, intervalMs: 5 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '4H': { points: 48, intervalMs: 5 * 60_000, volatility: 0.0005, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '1D': { points: 96, intervalMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '1W': { points: 84, intervalMs: 2 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
-  '1M': { points: 120, intervalMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  'RT': { points: 60, intervalMs: 5_000, candleMs: 5_000, volatility: 0.0002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+  '1H': { points: 12, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '4H': { points: 48, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0005, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1D': { points: 96, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1W': { points: 84, intervalMs: 2 * 3_600_000, candleMs: 2 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
+  '1M': { points: 120, intervalMs: 6 * 3_600_000, candleMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
 };
 
-// Deterministic seeded PRNG — same seed always produces same sequence
-// This ensures indicators computed on chart data are CONSISTENT and REPEATABLE
+// Deterministic seeded PRNG
 const seededRandom = (seed: number) => {
   let s = seed;
   return () => {
@@ -68,10 +69,10 @@ const hashSeed = (str: string): number => {
   return Math.abs(hash);
 };
 
-// Build chart from real sparkline data (crypto) — resample to match timeframe
-const buildFromSparkline = (sparkline: number[], tf: Timeframe, livePrice: number): ChartDataPoint[] => {
+// Build chart from real sparkline data (crypto)
+const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: number): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
-  const totalPrices = sparkline.length; // typically 168 hourly prices (7 days)
+  const totalPrices = sparkline.length;
   const step = Math.max(1, Math.floor(totalPrices / cfg.points));
   const now = Date.now();
   const data: ChartDataPoint[] = [];
@@ -98,43 +99,28 @@ const buildFromSparkline = (sparkline: number[], tf: Timeframe, livePrice: numbe
     });
   }
 
-  // Update last candle with live price
-  if (data.length > 0 && livePrice > 0) {
-    const last = data[data.length - 1];
-    last.close = parseFloat(livePrice.toFixed(2));
-    last.value = last.close;
-    last.high = Math.max(last.high, last.close);
-    last.low = Math.min(last.low, last.close);
-  }
-
   return data;
 };
 
 // Generate deterministic chart data for non-sparkline assets
-// Uses seeded PRNG so the same symbol+timeframe ALWAYS produces the same chart
-// This means indicators (SMA, RSI, etc.) are stable and meaningful
 const generateChartData = (price: number, change: number, tf: Timeframe, symbolKey: string): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
-  const seed = hashSeed(`${symbolKey}:${tf}:${Math.floor(Date.now() / 3_600_000)}`); // stable per hour
+  const seed = hashSeed(`${symbolKey}:${tf}:${Math.floor(Date.now() / 3_600_000)}`);
   const rand = seededRandom(seed);
   const data: ChartDataPoint[] = [];
   const now = Date.now();
 
-  // Walk backward from current price using a realistic random walk
-  // The walk is seeded so it's deterministic
-  let walkPrice = price / (1 + change / 100); // approximate starting price
-  const drift = (price - walkPrice) / cfg.points; // trend component
+  let walkPrice = price / (1 + change / 100);
+  const drift = (price - walkPrice) / cfg.points;
 
   for (let i = 0; i < cfg.points; i++) {
-    const r1 = rand() - 0.5; // centered random
+    const r1 = rand() - 0.5;
     const r2 = rand() - 0.5;
     const r3 = rand();
 
-    // Random walk with drift toward current price
     const step = drift + r1 * walkPrice * cfg.volatility * 2;
     walkPrice += step;
 
-    // Generate OHLC from the walk price
     const spread = Math.abs(r2) * walkPrice * cfg.volatility * 1.5;
     const direction = r1 > 0;
     const open = walkPrice - (direction ? spread * 0.3 : -spread * 0.3);
@@ -143,7 +129,6 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
     const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
     const high = Math.max(open, close) + wickUp;
     const low = Math.min(open, close) - wickDown;
-
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
 
     data.push({
@@ -156,19 +141,8 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
     });
   }
 
-  // Snap last candle to actual live price
-  if (data.length > 0 && price > 0) {
-    const last = data[data.length - 1];
-    last.close = parseFloat(price.toFixed(price < 10 ? 4 : 2));
-    last.value = last.close;
-    last.high = Math.max(last.high, last.close);
-    last.low = Math.min(last.low, last.close);
-  }
-
   return data;
 };
-
-// Removed inline computeRSI — using proper computeRSIArray from IndicatorOverlay
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -199,6 +173,88 @@ const OIL_SYMBOL_MAP: Record<string, string> = {
   oil: 'WTI', brent: 'BRENT', natgas: 'NG', rbob: 'RBOB',
 };
 
+// ═══════════════════════════════════════════════════════════
+// LIVE CANDLE ENGINE HOOK
+// Maintains a persistent array of candles. On each price tick:
+//   - Updates the LAST candle's close, high, low in-place
+//   - When the candle period expires, closes it and starts a new one
+// This creates the real-time growing/shrinking animation like TradingView.
+// ═══════════════════════════════════════════════════════════
+const useLiveCandleEngine = (
+  price: number,
+  tf: Timeframe,
+  historicalData: ChartDataPoint[],
+  symbolKey: string,
+) => {
+  const candlesRef = useRef<ChartDataPoint[]>([]);
+  const currentCandleStartRef = useRef<number>(0);
+  const lastSymbolRef = useRef<string>('');
+  const lastTfRef = useRef<Timeframe>('1D');
+  const [candles, setCandles] = useState<ChartDataPoint[]>([]);
+  const tickCountRef = useRef(0);
+
+  const cfg = tfConfigs[tf];
+
+  // Reset candles when symbol or timeframe changes
+  useEffect(() => {
+    if (symbolKey !== lastSymbolRef.current || tf !== lastTfRef.current) {
+      lastSymbolRef.current = symbolKey;
+      lastTfRef.current = tf;
+      candlesRef.current = [...historicalData];
+      currentCandleStartRef.current = Date.now();
+      tickCountRef.current = 0;
+      setCandles([...historicalData]);
+    }
+  }, [symbolKey, tf, historicalData]);
+
+  // On each price tick, update the live candle
+  useEffect(() => {
+    if (price <= 0 || candlesRef.current.length === 0) return;
+
+    const now = Date.now();
+    const elapsed = now - currentCandleStartRef.current;
+    const arr = candlesRef.current;
+
+    if (elapsed >= cfg.candleMs) {
+      // ── Close current candle and start a new one ──
+      const newCandleTime = new Date();
+      const newCandle: ChartDataPoint = {
+        time: cfg.labelFn(newCandleTime),
+        value: price,
+        open: price,
+        close: price,
+        high: price,
+        low: price,
+      };
+      arr.push(newCandle);
+
+      // Keep array trimmed to max points
+      const maxPoints = tf === 'RT' ? 120 : cfg.points + 30;
+      if (arr.length > maxPoints) {
+        arr.splice(0, arr.length - maxPoints);
+      }
+
+      currentCandleStartRef.current = now;
+    } else {
+      // ── Update the last candle with the new tick ──
+      const last = arr[arr.length - 1];
+      if (last) {
+        const decimals = price < 10 ? 4 : 2;
+        last.close = parseFloat(price.toFixed(decimals));
+        last.value = last.close;
+        last.high = parseFloat(Math.max(last.high, price).toFixed(decimals));
+        last.low = parseFloat(Math.min(last.low, price).toFixed(decimals));
+      }
+    }
+
+    tickCountRef.current++;
+    // Force React re-render with a new array reference
+    setCandles([...arr]);
+  }, [price, cfg.candleMs, cfg.labelFn, tf]);
+
+  return candles;
+};
+
 const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [tf, setTf] = useState<Timeframe>('1D');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
@@ -220,7 +276,6 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
 
   // Resolve base price from APIs
   const { basePrice, baseChange } = useMemo(() => {
-    // Check WebSocket first (sub-second updates for crypto)
     if (wsData && wsData.price > 0) {
       return { basePrice: wsData.price, baseChange: wsData.change24h };
     }
@@ -238,7 +293,6 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    // Use expanded synthetic prices for stocks, bonds, forex
     const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
     return { basePrice: sp.p, baseChange: sp.c };
   }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
@@ -249,30 +303,40 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
   const price = isWsLive ? wsData.price : streamedPrice;
   const change = isWsLive ? wsData.change24h : streamedChange;
 
-  // Get sparkline data for crypto assets (real 7-day hourly prices)
+  // Get sparkline data for crypto assets
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
     const coin = cryptoData.find((c) => c.id === symbolKey || c.symbol === symbolKey);
     return coin?.sparkline_in_7d?.price ?? null;
   }, [category, cryptoData, symbolKey]);
 
-  // Use real sparkline data for crypto, deterministic seeded data for others
-  const rawChartData = useMemo(() => {
+  // Historical data (seed data for the candle engine)
+  const historicalData = useMemo(() => {
     if (sparklineData && sparklineData.length > 10) {
       return buildFromSparkline(sparklineData, tf, price);
     }
-    return generateChartData(price, change, tf, symbolKey);
-  }, [sparklineData, price, change, tf, symbolKey]);
-  const chartData = useMemo(() => enrichChartData(rawChartData, activeIndicators), [rawChartData, activeIndicators]);
+    return generateChartData(basePrice || price, change, tf, symbolKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sparklineData, tf, symbolKey, basePrice]);
+
+  // ═══ LIVE CANDLE ENGINE ═══
+  // This is the key difference from static charts:
+  // Instead of regenerating all candles on every render, we maintain persistent
+  // candle state. Each price tick updates the last candle's OHLC in real-time,
+  // and when the candle period expires, it closes and a new one starts.
+  const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
+
+  // Enrich with indicators (computed from the live candle data)
+  const chartData = useMemo(() => enrichChartData(liveCandles, activeIndicators), [liveCandles, activeIndicators]);
 
   const color = CATEGORY_COLORS[category] ?? 'hsl(43, 72%, 50%)';
   const gradientId = `prop-grad-${symbolKey}`;
 
-  const chartValues = rawChartData.map((d) => d.value);
-  const chartHighs = rawChartData.map((d) => d.high);
-  const chartLows = rawChartData.map((d) => d.low);
+  const chartValues = liveCandles.map((d) => d.value);
+  const chartHighs = liveCandles.map((d) => d.high);
+  const chartLows = liveCandles.map((d) => d.low);
 
-  // Real-time computed indicators from streaming chart data
+  // Real-time computed indicators from live candle data
   const headerStats = useMemo(() => {
     const rsiArr = computeRSIArray(chartValues);
     const rsi = rsiArr[rsiArr.length - 1] ?? 50;
@@ -316,7 +380,6 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
         } else if (activeTool === 'fib') {
           const diff = Math.abs(y1 - y2);
           const high = Math.max(y1, y2);
-          const low = Math.min(y1, y2);
           [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].forEach(level => {
             addDrawing({ type: 'hline', y1: high - diff * level, color: 'hsl(43,72%,50%)', label: `Fib ${(level * 100).toFixed(1)}% $${(high - diff * level).toFixed(2)}` });
           });
@@ -467,13 +530,11 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
               MACD {headerStats.macdCross === 'bullish' ? '▲' : '▼'}
             </span>
           </div>
-          {/* Pending click indicator */}
           {pendingClick !== null && activeTool && (
             <span className="text-[8px] font-mono text-gold animate-pulse bg-gold/10 px-2 py-0.5 rounded border border-gold/20">
-              Click 2nd point · ${ pendingClick.toFixed(2)}
+              Click 2nd point · ${pendingClick.toFixed(2)}
             </span>
           )}
-          {/* Drawing tools (desktop only) */}
           {!isMobile && (
             <ChartDrawingTools
               activeTool={activeTool}
@@ -512,7 +573,11 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
                 key={t}
                 onClick={() => setTf(t)}
                 className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
-                  tf === t ? 'bg-gold/15 text-gold border border-gold/30' : 'text-marble/30 hover:text-marble/60 border border-transparent'
+                  tf === t
+                    ? t === 'RT'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-gold/15 text-gold border border-gold/30'
+                    : 'text-marble/30 hover:text-marble/60 border border-transparent'
                 }`}
               >
                 {t}
@@ -570,7 +635,7 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
 
               {/* Main chart rendering based on mode */}
               {chartMode === 'area' && (
-                <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+                <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} isAnimationActive={false} />
               )}
               {chartMode === 'candlestick' && (
                 <Customized component={(props: any) => {
@@ -592,11 +657,11 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
                   return <OHLCLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
                 }} />
               )}
-              {/* Price path line + transparent area for hover tooltip on candle/OHLC modes */}
+              {/* Price path line for candle/OHLC modes */}
               {chartMode !== 'area' && (
                 <>
-                  <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1} strokeOpacity={0.4} dot={false} connectNulls />
-                  <Area type="monotone" dataKey="value" stroke="transparent" strokeWidth={0} fill="transparent" dot={false} activeDot={{ r: 3, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} />
+                  <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1} strokeOpacity={0.4} dot={false} connectNulls isAnimationActive={false} />
+                  <Area type="monotone" dataKey="value" stroke="transparent" strokeWidth={0} fill="transparent" dot={false} activeDot={{ r: 3, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} isAnimationActive={false} />
                 </>
               )}
 
@@ -609,7 +674,10 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
 
       {/* Bottom info bar */}
       <div className="flex items-center justify-between px-3 py-1 border-t border-gold/10 flex-shrink-0">
-        <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">{category} · {tf}</span>
+        <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">
+          {category} · {tf === 'RT' ? 'REALTIME' : tf}
+          {tf === 'RT' && <span className="ml-1 text-emerald-400 animate-pulse">●</span>}
+        </span>
         <div className="flex items-center gap-3">
           {activeIndicators.size > 0 && (
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
