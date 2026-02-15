@@ -20,6 +20,11 @@ import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard
 import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
 import GABlockchainHub from '@/components/ga-widgets/GABlockchainHub';
 import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
+import GACommodityRadar from '@/components/ga-widgets/GACommodityRadar';
+import GAForexWarRoom from '@/components/ga-widgets/GAForexWarRoom';
+import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
+import GAPortfolioAllocator from '@/components/ga-widgets/GAPortfolioAllocator';
+import GAYieldMonitor from '@/components/ga-widgets/GAYieldMonitor';
 
 // Blockchain live widgets (free APIs)
 import GABitcoinNetwork from '@/components/ga-widgets/GABitcoinNetwork';
@@ -49,6 +54,7 @@ import {
   Gauge, Building2, Network, SlidersHorizontal, Layers,
   Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText, Fish,
   DollarSign, LineChart, Eye, Globe, Flame, BarChart, ArrowLeftRight,
+  Zap, Crosshair, Activity, PieChart as PieChartIcon, Landmark,
 } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -77,18 +83,17 @@ const sections = [
   { id: 'crypto-market', label: 'COINS', icon: Layers },
   { id: 'sentiment', label: 'SENTIMENT', icon: Gauge },
   { id: 'defi', label: 'DeFi TVL', icon: Layers },
+  // Composite Tools
+  { id: 'pulse', label: 'PULSE', icon: Zap },
+  { id: 'correlation', label: 'CORR', icon: ArrowLeftRight },
+  { id: 'chain-hub', label: 'CHAINS', icon: Network },
+  { id: 'commodity-radar', label: 'RADAR', icon: Crosshair },
+  { id: 'forex-room', label: 'FX ROOM', icon: Globe },
+  { id: 'volatility', label: 'VOL', icon: Activity },
+  { id: 'portfolios', label: 'ALLOC', icon: PieChartIcon },
+  { id: 'yields', label: 'YIELDS', icon: Landmark },
   // Proprietary
   { id: 'ratios', label: 'RATIOS', icon: BarChart3 },
-  { id: 'reserves', label: 'RESERVES', icon: Shield },
-  { id: 'profiles', label: 'PROFILES', icon: Layers },
-  { id: 'vault', label: 'VAULT', icon: Vault },
-  { id: 'bullion-heatmap', label: 'BULLION', icon: Grid3X3 },
-  { id: 'screener', label: 'SCREENER', icon: SlidersHorizontal },
-  { id: 'certs', label: 'CERTS', icon: FileCheck2 },
-  { id: 'anchors', label: 'ANCHORS', icon: Network },
-  { id: 'activity', label: 'ACTIVITY', icon: History },
-  { id: 'partners', label: 'PARTNERS', icon: Building2 },
-  { id: 'timeline', label: 'TIMELINE', icon: History },
 ];
 
 const SectionDivider = ({ label }: { label: string }) => (
@@ -319,6 +324,31 @@ const Intelligence = () => {
         <section id="chain-hub">
           <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
           <GABlockchainHub />
+        </section>
+
+        <section id="commodity-radar">
+          <SectionDivider label="COMMODITY RADAR" />
+          <GACommodityRadar />
+        </section>
+
+        <section id="forex-room">
+          <SectionDivider label="FOREX WAR ROOM" />
+          <GAForexWarRoom />
+        </section>
+
+        <section id="volatility">
+          <SectionDivider label="VOLATILITY MATRIX" />
+          <GAVolatilityMatrix />
+        </section>
+
+        <section id="portfolios">
+          <SectionDivider label="PORTFOLIO ALLOCATOR" />
+          <GAPortfolioAllocator />
+        </section>
+
+        <section id="yields">
+          <SectionDivider label="DeFi YIELD MONITOR" />
+          <GAYieldMonitor />
         </section>
       </div>
 
