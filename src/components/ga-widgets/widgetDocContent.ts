@@ -3,6 +3,9 @@ export interface TutorialHotspot {
   description: string;
   x: number;
   y: number;
+  spotlightW?: number;
+  spotlightH?: number;
+  tooltipSide?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 export interface WidgetDocEntry {
@@ -43,10 +46,10 @@ By combining precious metals and digital assets in a single view, the widget ena
       'Metal prices reflect troy ounce USD pricing; crypto prices reflect per-unit USD.',
     ],
     tutorial: [
-      { label: 'Symbol Badge', description: 'Asset identifier showing the trading pair and metal/crypto type', x: 15, y: 15 },
-      { label: 'Spot Price', description: 'Live spot price in USD, updated every 30 seconds from aggregated feeds', x: 50, y: 40 },
-      { label: 'Change Indicator', description: '24-hour percentage change with green (up) or red (down) color coding', x: 85, y: 15 },
-      { label: 'Sparkline', description: 'Intraday price trend visualization showing recent price movement shape', x: 50, y: 80 },
+      { label: 'Symbol Badge', description: 'Asset identifier showing the trading pair and metal/crypto type', x: 15, y: 15, spotlightW: 18, spotlightH: 14, tooltipSide: 'right' },
+      { label: 'Spot Price', description: 'Live spot price in USD, updated every 30 seconds from aggregated feeds', x: 50, y: 40, spotlightW: 30, spotlightH: 18 },
+      { label: 'Change Indicator', description: '24-hour percentage change with green (up) or red (down) color coding', x: 85, y: 15, spotlightW: 18, spotlightH: 14, tooltipSide: 'left' },
+      { label: 'Sparkline', description: 'Intraday price trend visualization showing recent price movement shape', x: 50, y: 80, spotlightW: 60, spotlightH: 18, tooltipSide: 'top' },
     ],
   },
 
@@ -105,10 +108,10 @@ The tabbed architecture keeps the interface clean while allowing rapid switching
       'Use the forex tab to assess USD strength relative to major currencies.',
     ],
     tutorial: [
-      { label: 'Asset Class Tabs', description: 'Switch between Metals, Crypto, and Forex views', x: 30, y: 8 },
-      { label: 'Price Column', description: 'Current price for each asset in USD', x: 50, y: 40 },
-      { label: '24h Change', description: 'Daily percentage change with color coding', x: 75, y: 40 },
-      { label: 'Sort Headers', description: 'Click any column header to rank assets by that metric', x: 50, y: 20 },
+      { label: 'Asset Class Tabs', description: 'Switch between Metals, Crypto, and Forex views', x: 30, y: 8, spotlightW: 50, spotlightH: 10, tooltipSide: 'bottom' },
+      { label: 'Price Column', description: 'Current price for each asset in USD', x: 50, y: 40, spotlightW: 20, spotlightH: 30 },
+      { label: '24h Change', description: 'Daily percentage change with color coding', x: 75, y: 40, spotlightW: 20, spotlightH: 30, tooltipSide: 'left' },
+      { label: 'Sort Headers', description: 'Click any column header to rank assets by that metric', x: 50, y: 20, spotlightW: 70, spotlightH: 8, tooltipSide: 'bottom' },
     ],
   },
 
@@ -138,11 +141,11 @@ The chart supports multiple metal selections, allowing direct visual comparison 
       'RSI above 70 suggests overbought conditions; below 30 suggests oversold.',
     ],
     tutorial: [
-      { label: 'Asset Selector', description: 'Choose which metal (Gold, Silver, Platinum) to chart', x: 15, y: 8 },
-      { label: 'Timeframe Buttons', description: 'Switch between 1D, 1W, 1M, 3M chart periods', x: 50, y: 8 },
-      { label: 'Candlestick Area', description: 'Main price chart with OHLC data — hover for details', x: 50, y: 45 },
-      { label: 'Indicator Toggles', description: 'Enable/disable SMA, EMA, RSI overlays', x: 85, y: 8 },
-      { label: 'RSI Panel', description: 'Relative Strength Index sub-panel below the main chart', x: 50, y: 85 },
+      { label: 'Asset Selector', description: 'Choose which metal (Gold, Silver, Platinum) to chart', x: 15, y: 8, spotlightW: 20, spotlightH: 10, tooltipSide: 'bottom' },
+      { label: 'Timeframe Buttons', description: 'Switch between 1D, 1W, 1M, 3M chart periods', x: 50, y: 8, spotlightW: 30, spotlightH: 10, tooltipSide: 'bottom' },
+      { label: 'Candlestick Area', description: 'Main price chart with OHLC data — hover for details', x: 50, y: 45, spotlightW: 80, spotlightH: 40 },
+      { label: 'Indicator Toggles', description: 'Enable/disable SMA, EMA, RSI overlays', x: 85, y: 8, spotlightW: 20, spotlightH: 10, tooltipSide: 'left' },
+      { label: 'RSI Panel', description: 'Relative Strength Index sub-panel below the main chart', x: 50, y: 85, spotlightW: 80, spotlightH: 14, tooltipSide: 'top' },
     ],
   },
 
