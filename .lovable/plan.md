@@ -1,91 +1,101 @@
 
 
-# Phase 6: Pro Trading Tools — Filling the MT5 Gap
+# Add More Brokers, Built-in Wallet, and UI Testing
 
 ## Overview
-Instead of integrating MetaTrader 5 (which would add licensing costs, infrastructure complexity, and single-broker dependency), this phase adds the 5 missing MT5-equivalent features as native Gold Arrow widgets within the Trading Bridge.
+This plan adds 6 new brokers (for a total of 15), integrates a built-in Web3 wallet system that removes the MetaMask dependency, and ensures the broker dialog + chart searcher work correctly from the Trading Bridge UI.
 
-## What This Adds
+---
 
-### 1. Extended Technical Indicators Widget
-Add 10+ institutional-grade indicators to the proprietary chart and Technical Gauge:
-- **Bollinger Bands** (20-period, 2 std dev)
-- **MACD Histogram** (12/26/9)
-- **ATR (Average True Range)**
-- **Parabolic SAR**
-- **Ichimoku Cloud** (Tenkan/Kijun/Senkou)
-- **Fibonacci Retracement** (auto-detected swing highs/lows)
-- **Volume Profile** (price-at-volume distribution)
-- **Stochastic RSI**
-- **Williams %R** (already in gauge, add to chart)
-- **ADX with +DI/-DI**
+## 1. Add 6 New Brokers
 
-These will be toggleable overlays on the existing ProprietaryChart component.
+Expand `BrokerType` and `BROKER_META` in `src/hooks/useBrokerTrading.ts` with these free/popular brokers:
 
-### 2. Backtesting Engine
-A new "BACKTEST" tab in the Trading Bridge bottom panel:
-- Select any asset from the watchlist
-- Choose a strategy template (SMA crossover, RSI mean reversion, Bollinger bounce, custom rule)
-- Set date range and initial capital
-- Run simulation against historical price data (from CoinGecko sparklines for crypto, generated synthetic for metals/stocks)
-- Display results: total return, max drawdown, Sharpe ratio, win rate, equity curve
-- Compare multiple strategies side-by-side
+| Broker | Assets | Why |
+|--------|--------|-----|
+| **Binance** | Crypto, Futures | Largest crypto exchange, free API |
+| **Bybit** | Crypto, Derivatives | Popular derivatives platform |
+| **Bitfinex** | Crypto | Advanced trading, free API |
+| **eToro** | Stocks, Crypto, Forex, CFDs | Multi-asset, popular retail |
+| **Robinhood** | Stocks, ETFs, Crypto, Options | Commission-free, widely used |
+| **Saxo Bank** | Stocks, Forex, Bonds, Options, Futures | Institutional-grade, multi-asset |
 
-### 3. Order Book / Depth of Market (DOM)
-A new GA widget showing simulated market depth:
-- Bid/ask ladder with volume at each price level
-- Visual depth chart (cumulative volume)
-- Spread indicator
-- Integrates with broker data when available (Alpaca Level 2 for stocks)
+Update `BrokerConnectDialog.tsx` to include all 15 brokers in the picker list with a scrollable layout.
 
-### 4. Chart Drawing Tools
-Interactive overlay system on ProprietaryChart:
-- Horizontal lines (support/resistance)
-- Trendlines (click two points)
-- Fibonacci retracement (auto or manual)
-- Price range measurement tool
-- All drawings stored in local state (persist across symbol switches)
+---
 
-### 5. Strategy Scripting (Visual Rule Builder)
-Upgrade the existing IF-THEN rule engine from static examples to a functional builder:
-- Drag-and-drop condition blocks (Price above/below, RSI crosses, SMA crossover)
-- Action blocks (Buy/Sell, Set stop, Alert)
-- Broker routing selector
-- Save/load strategy templates
-- Dry-run mode (paper test against live data without execution)
+## 2. Built-in Web Wallet (No Extension Required)
 
-## Technical Plan
+Currently the platform requires MetaMask browser extension. This adds an **in-app wallet** option so users can authenticate and manage keys without downloading anything.
 
-### Files to Create
-- `src/components/trading/IndicatorOverlay.tsx` — Bollinger, Ichimoku, MACD overlay calculations and rendering on the chart
-- `src/components/trading/BacktestPanel.tsx` — Backtesting engine UI and simulation logic
-- `src/components/trading/DepthOfMarket.tsx` — Order book ladder and depth chart widget
-- `src/components/trading/ChartDrawingTools.tsx` — SVG-based drawing tool overlay for ProprietaryChart
-- `src/components/trading/RuleBuilder.tsx` — Visual strategy builder with condition/action blocks
+### Approach
+- Add a **"Create Vault Wallet"** option alongside MetaMask in `WalletSelectorDialog.tsx`
+- Generate a local keypair using the Web Crypto API (non-custodial -- private key stays in browser localStorage, encrypted with a user-set password)
+- Use the same SIWE flow but sign locally instead of via MetaMask
+- Add key export/backup functionality (show seed phrase or private key behind password confirmation)
+- Keep MetaMask as the recommended option but offer the built-in wallet as a lightweight alternative
 
-### Files to Modify
-- `src/components/trading/ProprietaryChart.tsx` — Add indicator toggle panel, integrate IndicatorOverlay and ChartDrawingTools as layers
-- `src/pages/TradingBridge.tsx` — Add "BACKTEST" tab to bottom panel, integrate DepthOfMarket into the right sidebar, wire RuleBuilder into the Strategies tab
-- `src/components/ga-widgets/GATechnicalGauge.tsx` — Extend with Bollinger, MACD, ATR, Ichimoku signal computations
+### New Files
+- `src/lib/localWallet.ts` -- Key generation, encryption/decryption, local storage, SIWE message signing
 
-### Data Strategy
-- **Crypto indicators**: Computed from CoinGecko 7-day sparkline data (already available via `useCryptoData`)
-- **Metals indicators**: Derived from `useMetalPrices` feed with synthetic historical extension
-- **Backtesting data**: Use existing sparkline arrays for crypto; generate synthetic OHLC from known price + volatility for metals/energy/stocks
-- **Order book**: Simulated from current price with realistic spread modeling; real Level 2 data from Alpaca when connected
+### Modified Files
+- `src/contexts/WalletContext.tsx` -- Add `walletType: 'local'` support, `createLocalWallet()`, `importWallet()` methods
+- `src/components/wallet/WalletSelectorDialog.tsx` -- Add "Create Vault Wallet" and "Import Wallet" options with password setup UI
 
-### Mobile Responsiveness
-- All new panels will follow the existing mobile-first pattern
-- Indicator toggles: horizontal scrollable chip bar
-- Backtest results: single-column stacked cards
-- DOM: simplified vertical ladder (no depth chart on mobile)
-- Drawing tools: hidden on mobile (touch conflicts with scroll)
-- Rule builder: vertical block stacking with tap-to-configure
+---
 
-## Sequencing
-1. Extended indicators (most impactful, enhances existing chart)
-2. Backtesting engine (high value, leverages existing data hooks)
-3. Depth of Market widget (moderate complexity)
-4. Chart drawing tools (SVG overlay engineering)
-5. Visual rule builder (most complex, builds on strategies tab)
+## 3. Make Broker Button Clickable from Top Bar
+
+Currently the "0 BROKERS" badge in the TradingBridge top bar is a static `span`. Make it a clickable button that opens the `BrokerConnectDialog` directly.
+
+### Modified File
+- `src/pages/TradingBridge.tsx` -- Add `BrokerConnectDialog` state + import, wire the badge as a button
+
+---
+
+## 4. Verify Chart Symbol Searcher (`/` key)
+
+The `/` keyboard shortcut for symbol search is already implemented in `ProprietaryChart.tsx`. This plan verifies it works and ensures the search overlay is properly wired to update the active symbol in the parent `TradingBridge`.
+
+---
+
+## Technical Details
+
+### `src/hooks/useBrokerTrading.ts` Changes
+- Add to `BrokerType`: `'binance' | 'bybit' | 'bitfinex' | 'etoro' | 'robinhood' | 'saxo'`
+- Add corresponding entries to `BROKER_META` with environments, fields, and asset descriptions
+
+### `src/components/trading/BrokerConnectDialog.tsx` Changes
+- Update `BROKERS` array to include all 15 brokers
+- Add `max-h-[60vh] overflow-y-auto` to the broker picker list for scrollability
+- Add `DialogDescription` for accessibility
+
+### `src/lib/localWallet.ts` (New)
+- `generateWallet()`: Create Ethereum keypair using Web Crypto / ethers-compatible logic
+- `encryptKey(privateKey, password)`: AES-256-GCM encryption
+- `decryptKey(encrypted, password)`: Decryption
+- `signMessage(message, privateKey)`: EIP-191 personal_sign equivalent
+- `storeWallet(encrypted)` / `loadWallet()`: localStorage operations
+
+### `src/contexts/WalletContext.tsx` Changes
+- Add `WalletType = 'metamask' | 'local'`
+- Add `createLocalWallet(password)` and `importWallet(privateKey, password)` to context
+- Local wallet sign-in follows same SIWE flow but uses local signing instead of `window.ethereum.request`
+
+### `src/components/wallet/WalletSelectorDialog.tsx` Changes
+- Add second option card: "Create Vault Wallet" with password setup
+- Add third option: "Import Existing Wallet" with private key input
+- Show wallet backup/export option after creation
+
+### `src/pages/TradingBridge.tsx` Changes
+- Import `BrokerConnectDialog`, add `brokerDialogOpen` state
+- Convert the "0 BROKERS" badge to a clickable button that sets `brokerDialogOpen(true)`
+- Render `<BrokerConnectDialog>` in the desktop and mobile layouts
+
+### Security Considerations
+- Private keys are encrypted at rest in localStorage with user password
+- Keys never leave the browser -- non-custodial mandate maintained
+- Password is never stored -- used only for encryption/decryption
+- Export flow requires password re-entry
+- Clear warning that losing password = losing access (no recovery)
 
