@@ -1,3 +1,10 @@
+export interface TutorialHotspot {
+  label: string;
+  description: string;
+  x: number;
+  y: number;
+}
+
 export interface WidgetDocEntry {
   name: string;
   purpose: string;
@@ -7,6 +14,7 @@ export interface WidgetDocEntry {
   metrics: string[];
   instructions: string[];
   tier: 'MARKET DATA' | 'BLOCKCHAIN' | 'DeFi' | 'COMPOSITE' | 'PROPRIETARY' | 'ENERGY';
+  tutorial?: TutorialHotspot[];
 }
 
 export const widgetDocContent: Record<string, WidgetDocEntry> = {
@@ -34,6 +42,12 @@ By combining precious metals and digital assets in a single view, the widget ena
       'Use spot prices as the reference baseline when interpreting other widgets.',
       'Metal prices reflect troy ounce USD pricing; crypto prices reflect per-unit USD.',
     ],
+    tutorial: [
+      { label: 'Symbol Badge', description: 'Asset identifier showing the trading pair and metal/crypto type', x: 15, y: 15 },
+      { label: 'Spot Price', description: 'Live spot price in USD, updated every 30 seconds from aggregated feeds', x: 50, y: 40 },
+      { label: 'Change Indicator', description: '24-hour percentage change with green (up) or red (down) color coding', x: 85, y: 15 },
+      { label: 'Sparkline', description: 'Intraday price trend visualization showing recent price movement shape', x: 50, y: 80 },
+    ],
   },
 
   'mini-charts': {
@@ -59,6 +73,12 @@ Each chart is independently rendered with its own data feed, ensuring that a slo
       'Flat lines suggest consolidation — useful for identifying breakout candidates.',
       'Use alongside Spot Price Cards for combined numerical and visual analysis.',
     ],
+    tutorial: [
+      { label: 'Asset Label', description: 'Identifies which asset the sparkline represents', x: 10, y: 20 },
+      { label: 'Sparkline Chart', description: '24-hour compressed price trend — steep curves show momentum', x: 50, y: 50 },
+      { label: 'Current Price', description: 'Latest spot price overlaid on the sparkline endpoint', x: 80, y: 30 },
+      { label: 'Change Badge', description: 'Percentage change badge with directional color', x: 90, y: 70 },
+    ],
   },
 
   overview: {
@@ -83,6 +103,12 @@ The tabbed architecture keeps the interface clean while allowing rapid switching
       'Sort by any column header to rank assets by that metric.',
       'Compare 24h changes across tabs to identify risk-on/risk-off flows.',
       'Use the forex tab to assess USD strength relative to major currencies.',
+    ],
+    tutorial: [
+      { label: 'Asset Class Tabs', description: 'Switch between Metals, Crypto, and Forex views', x: 30, y: 8 },
+      { label: 'Price Column', description: 'Current price for each asset in USD', x: 50, y: 40 },
+      { label: '24h Change', description: 'Daily percentage change with color coding', x: 75, y: 40 },
+      { label: 'Sort Headers', description: 'Click any column header to rank assets by that metric', x: 50, y: 20 },
     ],
   },
 
@@ -111,6 +137,13 @@ The chart supports multiple metal selections, allowing direct visual comparison 
       'Hover over any candle/point to see exact OHLC values and timestamp.',
       'RSI above 70 suggests overbought conditions; below 30 suggests oversold.',
     ],
+    tutorial: [
+      { label: 'Asset Selector', description: 'Choose which metal (Gold, Silver, Platinum) to chart', x: 15, y: 8 },
+      { label: 'Timeframe Buttons', description: 'Switch between 1D, 1W, 1M, 3M chart periods', x: 50, y: 8 },
+      { label: 'Candlestick Area', description: 'Main price chart with OHLC data — hover for details', x: 50, y: 45 },
+      { label: 'Indicator Toggles', description: 'Enable/disable SMA, EMA, RSI overlays', x: 85, y: 8 },
+      { label: 'RSI Panel', description: 'Relative Strength Index sub-panel below the main chart', x: 50, y: 85 },
+    ],
   },
 
   analysis: {
@@ -135,6 +168,12 @@ Institutional desks use similar composite indicators to quickly validate or chal
       'Check individual indicator breakdowns below the gauge for detail.',
       'A strong consensus (most indicators aligned) is more reliable than a mixed signal.',
       'Use in combination with the Advanced Chart for confirmation.',
+    ],
+    tutorial: [
+      { label: 'Gauge Needle', description: 'Overall technical bias — Strong Sell through Strong Buy', x: 50, y: 35 },
+      { label: 'Signal Count', description: 'Buy vs Sell vs Neutral indicator breakdown', x: 50, y: 70 },
+      { label: 'Oscillator Panel', description: 'Individual oscillator readings (RSI, Stochastic, CCI)', x: 25, y: 85 },
+      { label: 'Moving Averages', description: 'Short, medium, and long-term MA consensus', x: 75, y: 85 },
     ],
   },
 
@@ -162,6 +201,12 @@ The summary format prioritizes breadth over depth — it shows the most decision
       'Cross-reference metal and crypto movements for macro correlation signals.',
       'Use as a navigation guide — identify which asset class needs deeper investigation.',
     ],
+    tutorial: [
+      { label: 'Crypto Market Cap', description: 'Global crypto market capitalization with 24h change', x: 20, y: 25 },
+      { label: 'BTC Dominance', description: 'Bitcoin share of total crypto market — risk sentiment barometer', x: 60, y: 25 },
+      { label: 'Metal Prices', description: 'Precious metal spot price levels for quick reference', x: 20, y: 60 },
+      { label: 'Forex Rates', description: 'Key currency pair rates (EUR/USD, GBP/USD)', x: 60, y: 60 },
+    ],
   },
 
   quotes: {
@@ -188,6 +233,12 @@ The tabular format supports rapid scanning across many instruments simultaneousl
       'Compare daily range to current price to assess intraday positioning.',
       'Sort by volume to find the most actively traded assets.',
     ],
+    tutorial: [
+      { label: 'Instrument Column', description: 'Asset names with symbols for identification', x: 12, y: 40 },
+      { label: 'Bid/Ask', description: 'Current bid and ask prices — the tighter the spread, the more liquid', x: 40, y: 40 },
+      { label: 'Spread Column', description: 'Absolute and percentage spread indicating market liquidity', x: 60, y: 40 },
+      { label: 'Volume', description: '24h trading volume in USD — higher means more liquid', x: 80, y: 40 },
+    ],
   },
 
   movers: {
@@ -212,6 +263,12 @@ The widget filters out stablecoins and low-cap noise assets to ensure the rankin
       'Check losers for potential mean-reversion opportunities.',
       'Large moves on high volume are more significant than low-volume spikes.',
       'Cross-reference unusual movers with the News Feed for catalyst identification.',
+    ],
+    tutorial: [
+      { label: 'Gainers Column', description: 'Top performing assets ranked by 24h percentage gain', x: 25, y: 40 },
+      { label: 'Losers Column', description: 'Worst performing assets ranked by 24h percentage loss', x: 75, y: 40 },
+      { label: 'Price Display', description: 'Current price alongside change percentage for each mover', x: 50, y: 60 },
+      { label: 'Volume Context', description: 'Trading volume validates whether the move has conviction', x: 50, y: 80 },
     ],
   },
 
@@ -238,6 +295,12 @@ The feed applies categorical filtering to separate metal-specific news from cryp
       'Click any headline to open the full article in a new tab.',
       'Cross-reference news timing with chart movements for cause-and-effect analysis.',
     ],
+    tutorial: [
+      { label: 'Headline', description: 'Breaking news title — click to open the full article', x: 50, y: 30 },
+      { label: 'Source Tag', description: 'Attribution showing where the story originates', x: 15, y: 50 },
+      { label: 'Timestamp', description: 'Publication time for assessing recency and market impact window', x: 85, y: 30 },
+      { label: 'Category Filter', description: 'Filter by Metals, Crypto, Macro, or Regulatory topics', x: 50, y: 10 },
+    ],
   },
 
   forex: {
@@ -262,6 +325,12 @@ The matrix format enables rapid identification of currency strength and weakness
       'Green cells indicate the base currency strengthening against the quote.',
       'Use USD row/column specifically when analyzing metal price movements.',
       'A uniformly strong USD row suggests dollar-driven commodity weakness.',
+    ],
+    tutorial: [
+      { label: 'Currency Grid', description: 'Cross-rate matrix — read rows for one currency vs all others', x: 50, y: 50 },
+      { label: 'Color Coding', description: 'Green = base strengthening; Red = base weakening', x: 50, y: 30 },
+      { label: 'USD Row', description: 'Critical for interpreting commodity price movements', x: 15, y: 40 },
+      { label: 'Strength Ranking', description: 'Overall currency strength sorted by performance', x: 85, y: 70 },
     ],
   },
 
@@ -288,6 +357,12 @@ The multi-market scope (metals, crypto, forex, indices) makes cross-asset correl
       'Compare metal tiles to crypto tiles for cross-asset correlation.',
       'Hover over any tile for exact percentage and price details.',
     ],
+    tutorial: [
+      { label: 'Color Tiles', description: 'Deep green = strong gains, deep red = strong losses — scan for dominant color', x: 50, y: 50 },
+      { label: 'Asset Labels', description: 'Name and percentage change overlaid on each tile', x: 30, y: 30 },
+      { label: 'Category Groups', description: 'Tiles grouped by asset class for categorical comparison', x: 50, y: 15 },
+      { label: 'Tile Size', description: 'Larger tiles indicate higher market cap or importance weighting', x: 70, y: 70 },
+    ],
   },
 
   calendar: {
@@ -312,6 +387,12 @@ The calendar assigns impact ratings (high, medium, low) based on historical vola
       'Reduce position sizes or widen stops before high-impact releases.',
       'Compare actual vs. forecast values — surprises drive the biggest moves.',
       'Filter by country or impact level to focus your attention.',
+    ],
+    tutorial: [
+      { label: 'Event List', description: 'Upcoming economic events with dates and times', x: 30, y: 40 },
+      { label: 'Impact Rating', description: 'High/Medium/Low impact — high-impact events move markets', x: 80, y: 40 },
+      { label: 'Forecast vs Actual', description: 'Compare expected vs actual — surprises drive the biggest moves', x: 60, y: 60 },
+      { label: 'Country Flag', description: 'Region of origin for the economic release', x: 10, y: 40 },
     ],
   },
 
@@ -339,6 +420,13 @@ These on-chain metrics provide analytical edge because they reflect actual netwo
       'Block time averaging >10 minutes suggests the network is between difficulty adjustments.',
       'Use fee rate data to time Bitcoin transactions optimally.',
     ],
+    tutorial: [
+      { label: 'Block Height', description: 'Current Bitcoin blockchain height — the global block counter', x: 20, y: 20 },
+      { label: 'Last Block Timer', description: 'Minutes since the last mined block — typically ~10 min', x: 50, y: 20 },
+      { label: 'Hashrate Gauge', description: 'Network security measured in exahashes per second', x: 80, y: 20 },
+      { label: 'Fee Estimates', description: 'Priority, Standard, and Economy fee tiers in sat/vB', x: 30, y: 70 },
+      { label: 'Mempool Count', description: 'Unconfirmed transactions awaiting block inclusion', x: 70, y: 70 },
+    ],
   },
 
   ethereum: {
@@ -364,6 +452,12 @@ Post-Merge, Ethereum's staking metrics (total staked, validator count, yield) pr
       'Gas above 50 Gwei indicates high network activity — consider delaying non-urgent transactions.',
       'Compare staking APY to DeFi yields to assess capital efficiency.',
       'Monitor ETH burn rate as an indicator of network utilization intensity.',
+    ],
+    tutorial: [
+      { label: 'Gas Price', description: 'Current gas in Gwei — slow/standard/fast tiers', x: 50, y: 20 },
+      { label: 'ETH Price', description: 'Live ETH/USD price with 24h change', x: 20, y: 20 },
+      { label: 'Staking Data', description: 'Total ETH staked and current staking APY', x: 50, y: 55 },
+      { label: 'Block Info', description: 'Latest block number and average block time', x: 80, y: 55 },
     ],
   },
 
@@ -391,6 +485,12 @@ The escrow data is particularly noteworthy: Ripple's programmatic XRP escrow rel
       'Track escrow release schedules for supply impact awareness.',
       'Compare XRP performance to BTC and ETH for relative value analysis.',
     ],
+    tutorial: [
+      { label: 'XRP Price', description: 'Live XRP/USD spot price with 24h movement', x: 20, y: 20 },
+      { label: 'Ledger Index', description: 'Current ledger sequence number and close time', x: 50, y: 20 },
+      { label: 'Transaction Data', description: 'Throughput and fees — indicates network utilization', x: 50, y: 55 },
+      { label: 'Escrow Info', description: 'Circulating supply and programmatic escrow release schedule', x: 80, y: 55 },
+    ],
   },
 
   tron: {
@@ -417,6 +517,12 @@ Monitoring TRON's energy and bandwidth economics provides insight into the cost 
       'Compare TRON USDT volume to Ethereum USDT volume for settlement market share.',
       'Use alongside Whale Watch for large USDT flow detection.',
     ],
+    tutorial: [
+      { label: 'TRX Price', description: 'Live TRX/USD price with daily change', x: 20, y: 20 },
+      { label: 'Account Stats', description: 'Total accounts and daily active addresses', x: 50, y: 20 },
+      { label: 'Block Data', description: 'Current block height and block production rate', x: 80, y: 20 },
+      { label: 'Energy/Bandwidth', description: 'Network resource pricing for transaction economics', x: 50, y: 70 },
+    ],
   },
 
   sec: {
@@ -442,6 +548,12 @@ This widget transforms the EDGAR database from a compliance archive into a compe
       'Click any filing to open the full document on the SEC website.',
       'Cross-reference filing dates with price movements for event-driven analysis.',
     ],
+    tutorial: [
+      { label: 'Filing Type', description: '10-K, 10-Q, 8-K, S-1 — each type has different significance', x: 15, y: 40 },
+      { label: 'Company Name', description: 'Entity that filed — filtered for metals, mining, and digital assets', x: 40, y: 40 },
+      { label: 'Filing Date', description: 'When the filing was submitted and accepted by the SEC', x: 70, y: 40 },
+      { label: 'EDGAR Link', description: 'Click to open the full filing document on SEC.gov', x: 90, y: 40 },
+    ],
   },
 
   whales: {
@@ -466,6 +578,12 @@ The widget aggregates whale alerts across multiple chains, providing a unified v
       'Exchange outflows to unknown wallets suggest institutional accumulation.',
       'Multiple large transactions in the same direction amplify the signal.',
       'Cross-reference whale alerts with Top Movers for confirmation.',
+    ],
+    tutorial: [
+      { label: 'Transaction Hash', description: 'Unique transaction identifier — click to view on explorer', x: 15, y: 40 },
+      { label: 'Value (USD)', description: 'Transaction value in US dollars — larger = more significant', x: 50, y: 40 },
+      { label: 'Wallet Type', description: 'Source/destination classified: Exchange, Cold Wallet, Unknown', x: 75, y: 40 },
+      { label: 'Chain Badge', description: 'Which blockchain the transaction occurred on', x: 90, y: 20 },
     ],
   },
 
@@ -493,6 +611,13 @@ Volume analysis adds a critical dimension: price movements on high volume carry 
       'High volume + price increase = strong trend; low volume + increase = weak trend.',
       'Use the 7d column to distinguish noise from sustained trends.',
     ],
+    tutorial: [
+      { label: 'Rank Column', description: 'Market cap ranking — top assets by total market value', x: 8, y: 40 },
+      { label: 'Price & Change', description: 'Current price with 24h and 7d percentage changes', x: 45, y: 40 },
+      { label: 'Market Cap', description: 'Total market capitalization — measures asset size', x: 70, y: 40 },
+      { label: 'BTC Dominance', description: 'Bitcoin share of total market — risk sentiment indicator', x: 50, y: 10 },
+      { label: 'Volume', description: '24h trading volume — validates price move conviction', x: 88, y: 40 },
+    ],
   },
 
   sentiment: {
@@ -517,6 +642,11 @@ Historical analysis shows that sustained readings below 20 (Extreme Fear) have p
       'Extreme Fear (<20) historically correlates with market bottoms.',
       'Extreme Greed (>80) historically precedes corrections.',
       'Combine with technical analysis — sentiment confirms but should not replace chart analysis.',
+    ],
+    tutorial: [
+      { label: 'Gauge Dial', description: 'Main sentiment reading from 0 (Extreme Fear) to 100 (Extreme Greed)', x: 50, y: 40 },
+      { label: 'Sentiment Label', description: 'Classification text: Fear, Neutral, Greed, or Extreme variants', x: 50, y: 65 },
+      { label: 'Historical Chart', description: 'Recent sentiment trajectory showing trend direction', x: 50, y: 85 },
     ],
   },
 
@@ -544,6 +674,12 @@ The chain breakdown reveals competitive dynamics: Ethereum's TVL dominance, Sola
       'Rapidly declining TVL in a protocol may signal a de-pegging or exploit risk.',
       'Compare TVL growth rates between chains for relative momentum analysis.',
     ],
+    tutorial: [
+      { label: 'Total TVL', description: 'Aggregate value locked across all DeFi protocols', x: 50, y: 15 },
+      { label: 'Chain Breakdown', description: 'TVL split by blockchain — Ethereum, Solana, BSC, etc.', x: 30, y: 50 },
+      { label: 'Top Protocols', description: 'Highest TVL protocols with 24h change indicators', x: 70, y: 50 },
+      { label: 'TVL Trend', description: '7d/30d trend chart showing ecosystem growth or contraction', x: 50, y: 80 },
+    ],
   },
 
   pulse: {
@@ -570,6 +706,13 @@ The Command Center is not a replacement for individual widgets — it is a curat
       'Click any panel element to navigate to the corresponding detailed widget.',
       'The combined view reveals correlations invisible in isolated widgets.',
     ],
+    tutorial: [
+      { label: 'Price Ticker', description: 'Multi-asset price strip with sparklines across top', x: 50, y: 10 },
+      { label: 'Sentiment Gauge', description: 'Fear & Greed index providing market psychology reading', x: 20, y: 45 },
+      { label: 'Volume Panel', description: 'Volume anomaly detection with alerts for unusual activity', x: 50, y: 45 },
+      { label: 'Momentum Scores', description: 'Cross-asset momentum rankings for directional bias', x: 80, y: 45 },
+      { label: 'Event Countdown', description: 'Upcoming high-impact economic events with timers', x: 50, y: 85 },
+    ],
   },
 
   correlation: {
@@ -594,6 +737,12 @@ For portfolio managers, correlation data is essential for true diversification. 
       'Values near 0 indicate true independence — ideal for diversification.',
       'Compare short-term (7d) and long-term (90d) correlations to detect regime changes.',
       'Use for portfolio construction: combine low-correlation assets for maximum diversification.',
+    ],
+    tutorial: [
+      { label: 'Correlation Matrix', description: 'Color-coded grid — green (+1) to red (-1) showing asset relationships', x: 50, y: 45 },
+      { label: 'Asset Labels', description: 'Row and column headers identifying each tracked asset', x: 10, y: 25 },
+      { label: 'Time Window', description: 'Toggle between 7d, 30d, 90d rolling correlation periods', x: 80, y: 10 },
+      { label: 'Diagonal', description: 'Self-correlation (always 1.0) — reference baseline', x: 30, y: 30 },
     ],
   },
 
@@ -621,6 +770,12 @@ For Gold Arrow specifically, this Hub is operationally relevant — the certific
       'Use the health status indicators to quickly identify any network issues.',
       'Tabbed interface allows focusing on individual chains or viewing all at once.',
     ],
+    tutorial: [
+      { label: 'Chain Tabs', description: 'Switch between BTC, ETH, XRP, TRON individual views', x: 30, y: 8 },
+      { label: 'Health Status', description: 'Green/yellow/red indicators for each network\'s operational state', x: 80, y: 15 },
+      { label: 'Throughput Cards', description: 'Transaction volume comparison across all four chains', x: 50, y: 45 },
+      { label: 'Fee Comparison', description: 'Cross-chain fee economics side-by-side', x: 50, y: 75 },
+    ],
   },
 
   'commodity-radar': {
@@ -646,6 +801,13 @@ The bar chart visualization makes performance ranking immediately intuitive — 
       'Long green bars = strong outperformers; consider momentum positions.',
       'Long red bars = significant underperformers; evaluate for mean reversion.',
       'Compare leaders across categories to identify cross-asset themes.',
+    ],
+    tutorial: [
+      { label: 'Category Tabs', description: 'Filter by ALL, METALS, ENERGY, or CRYPTO categories', x: 30, y: 8 },
+      { label: 'Performance Bars', description: '24h performance ranking — longest bars are strongest movers', x: 50, y: 40 },
+      { label: 'Leaders Panel', description: 'Top 3 best-performing assets with percentage gains', x: 20, y: 75 },
+      { label: 'Laggards Panel', description: 'Bottom 3 worst-performing assets with percentage losses', x: 80, y: 75 },
+      { label: 'Price Grid', description: 'Scrollable list of all assets with detailed metrics', x: 50, y: 90 },
     ],
   },
 
@@ -673,6 +835,12 @@ The trading session indicators (Tokyo, London, New York) add temporal context cr
       'Session indicators show current market hours — liquidity is highest during overlaps.',
       'London-New York overlap (13:00-17:00 UTC) is the highest-volume forex window.',
     ],
+    tutorial: [
+      { label: 'Pair Table', description: 'Major and cross currency pair rates with 24h changes', x: 40, y: 35 },
+      { label: 'Strength Index', description: 'Currency strength ranking — strongest to weakest', x: 80, y: 35 },
+      { label: 'Session Clocks', description: 'Tokyo, London, New York session indicators with overlap highlighting', x: 50, y: 10 },
+      { label: 'Volatility Bars', description: 'Per-pair volatility indicators for risk assessment', x: 40, y: 75 },
+    ],
   },
 
   volatility: {
@@ -698,6 +866,12 @@ The comparison between 24-hour and 7-day volatility reveals whether current cond
       'Green "LOW" tiles suggest stable conditions suitable for tighter stop placement.',
       'Compare 24h vs 7d volatility — 24h > 7d indicates escalating risk.',
       'Use volatility readings to scale position sizes inversely.',
+    ],
+    tutorial: [
+      { label: 'Risk Tiles', description: 'Color-coded tiles — green (Low) through red (Extreme) per asset', x: 50, y: 40 },
+      { label: '24h Volatility', description: 'Recent 24-hour price standard deviation score', x: 30, y: 60 },
+      { label: '7d Volatility', description: 'Week-long volatility for trend comparison', x: 60, y: 60 },
+      { label: 'Risk Label', description: 'Classification: Low, Moderate, High, or Extreme risk level', x: 85, y: 40 },
     ],
   },
 
@@ -725,6 +899,12 @@ The weighted return calculation shows the actual portfolio-level impact of each 
       'Pie charts show allocation weights — larger slices have more portfolio impact.',
       'Use as a framework for your own allocation, adjusting weights to your risk tolerance.',
     ],
+    tutorial: [
+      { label: 'Portfolio Tabs', description: 'Switch between Conservative, Balanced, and Aggressive models', x: 30, y: 8 },
+      { label: 'Pie Chart', description: 'Visual allocation weights — larger slices have more impact', x: 35, y: 50 },
+      { label: 'Weighted Return', description: 'Portfolio-level 24h return based on current allocation', x: 75, y: 25 },
+      { label: 'Asset Breakdown', description: 'Individual asset contribution to overall portfolio return', x: 75, y: 65 },
+    ],
   },
 
   yields: {
@@ -750,6 +930,13 @@ By categorizing yields (Lending, Staking, LP), the Monitor enables like-for-like
       'Yields significantly above category average may carry elevated risk.',
       'Check TVL alongside APY — high APY with declining TVL is a warning sign.',
       'Use the trend chart to identify yields that are compressing or expanding.',
+    ],
+    tutorial: [
+      { label: 'Protocol List', description: 'DeFi protocols sorted by APY with category tags', x: 30, y: 40 },
+      { label: 'APY Column', description: 'Current annual percentage yield — higher may mean more risk', x: 60, y: 40 },
+      { label: 'TVL Column', description: 'Total value locked — validates protocol trust and adoption', x: 75, y: 40 },
+      { label: 'Category Filter', description: 'Filter by Lending, Staking, or Liquidity Provision', x: 50, y: 10 },
+      { label: 'Trend Chart', description: '30-day yield history showing compression or expansion', x: 50, y: 85 },
     ],
   },
 
@@ -777,6 +964,12 @@ For traders, the ratio provides a pairs-trading framework: buy silver and sell g
       'Use the trend chart to identify if the ratio is expanding or compressing.',
       'Cross-reference with individual metal price trends for confirmation.',
     ],
+    tutorial: [
+      { label: 'Ratio Display', description: 'Current gold/silver ratio with historical context', x: 50, y: 25 },
+      { label: 'Trend Chart', description: 'Ratio trend with mean reversion bands showing extremes', x: 50, y: 55 },
+      { label: 'Percentile Rank', description: 'Where the current ratio falls vs historical distribution', x: 80, y: 25 },
+      { label: 'Cross-Metal Ratios', description: 'Gold/Platinum and Silver/Platinum for complete picture', x: 20, y: 80 },
+    ],
   },
 
   reserves: {
@@ -802,6 +995,12 @@ This widget serves both compliance and marketing functions: it demonstrates to r
       'Compare certificate counts to physical ounce totals for verification.',
       'Click the merkle proof hash to view the cryptographic verification details.',
       'Monitor trends over time — consistent 100%+ backing demonstrates operational integrity.',
+    ],
+    tutorial: [
+      { label: 'Backing Gauge', description: 'Visual gauge showing certificate-to-physical backing ratio', x: 50, y: 35 },
+      { label: 'Certificate Count', description: 'Total issued certificates by metal type', x: 25, y: 65 },
+      { label: 'Physical Ounces', description: 'Total physical bullion in custody backing certificates', x: 75, y: 65 },
+      { label: 'Merkle Proof', description: 'Cryptographic verification hash — click to inspect', x: 50, y: 85 },
     ],
   },
 
@@ -829,6 +1028,12 @@ This timeline serves as the historical complement to the Reserve Gauge's real-ti
       'Compare consecutive snapshots to identify reserve changes over time.',
       'Consistent or growing reserves across snapshots demonstrate ongoing backing.',
     ],
+    tutorial: [
+      { label: 'Timeline Entries', description: 'Chronological snapshot records with timestamps', x: 15, y: 40 },
+      { label: 'Merkle Root', description: 'Cryptographic hash of the snapshot data at that point in time', x: 50, y: 40 },
+      { label: 'Bitcoin TxID', description: 'Click to verify the anchor on a Bitcoin block explorer', x: 80, y: 40 },
+      { label: 'Ounce Totals', description: 'Total physical ounces at each snapshot point', x: 50, y: 70 },
+    ],
   },
 
   profiles: {
@@ -854,6 +1059,12 @@ The profiles are designed for both experienced metal traders who need quick refe
       'Use the supply/demand breakdown to understand structural price drivers.',
       'Compare YTD performance across metals for relative value assessment.',
       'Review key price drivers to inform your fundamental outlook.',
+    ],
+    tutorial: [
+      { label: 'Metal Tabs', description: 'Select Gold, Silver, or Platinum for detailed profile', x: 30, y: 8 },
+      { label: 'Price & Performance', description: 'Current price, 24h change, and YTD return', x: 50, y: 25 },
+      { label: 'Supply Breakdown', description: 'Mining, recycling, and central bank supply sources', x: 30, y: 60 },
+      { label: 'Demand Breakdown', description: 'Jewelry, industrial, and investment demand allocation', x: 70, y: 60 },
     ],
   },
 
@@ -881,6 +1092,12 @@ The matrix also serves operational functions: identifying which bars are availab
       'Click any bar serial number for full details and verification history.',
       'Monitor "Last Verified" dates — recent verification indicates active custody management.',
     ],
+    tutorial: [
+      { label: 'Metal Filter', description: 'Filter by gold, silver, or platinum inventory', x: 20, y: 8 },
+      { label: 'Bar Table', description: 'Individual bar details: serial, weight, purity, custody status', x: 50, y: 45 },
+      { label: 'Custody Status', description: 'Free, Pledged, or Redeemed — shows bar availability', x: 75, y: 45 },
+      { label: 'Last Verified', description: 'Date of most recent physical verification for each bar', x: 90, y: 45 },
+    ],
   },
 
   'bullion-heatmap': {
@@ -906,6 +1123,12 @@ The color intensity encoding provides immediate visual feedback: darker tiles re
       'Look for gaps in the heatmap — they indicate weight classes with no inventory.',
       'Use for inventory diversification planning and rebalancing decisions.',
     ],
+    tutorial: [
+      { label: 'Color Tiles', description: 'Darker tiles = higher inventory concentration in that category', x: 50, y: 45 },
+      { label: 'Weight Classes', description: 'Column headers showing bar weight categories (1oz, 10oz, 100oz, etc.)', x: 50, y: 10 },
+      { label: 'Metal Rows', description: 'Row labels for Gold, Silver, Platinum', x: 8, y: 45 },
+      { label: 'Hover Details', description: 'Hover any tile for exact bar count and total ounces', x: 70, y: 70 },
+    ],
   },
 
   screener: {
@@ -930,6 +1153,11 @@ The Screener also serves compliance functions: auditors can filter for bars with
       'Click column headers to sort the results by that field.',
       'Combine filters for precise searches (e.g., gold + 100oz + free status).',
       'Export-ready format for compliance reporting.',
+    ],
+    tutorial: [
+      { label: 'Filter Controls', description: 'Metal, weight, purity, status, and vault filter dropdowns', x: 50, y: 10 },
+      { label: 'Results Table', description: 'Matching bars with full metadata — click headers to sort', x: 50, y: 50 },
+      { label: 'Result Count', description: 'Total matching bars and summary statistics', x: 85, y: 10 },
     ],
   },
 
@@ -957,6 +1185,12 @@ For institutional credibility, the Registry Flow demonstrates that every certifi
       'Active certificates should always be backed by corresponding vault inventory.',
       'Frozen certificates indicate pending investigation or compliance holds.',
     ],
+    tutorial: [
+      { label: 'Status Breakdown', description: 'Active, Frozen, Revoked, Redeemed certificate counts', x: 50, y: 15 },
+      { label: 'Event Feed', description: 'Recent certificate lifecycle events with timestamps', x: 50, y: 50 },
+      { label: 'Flow Visualization', description: 'Lifecycle diagram: issuance → transfers → end state', x: 50, y: 80 },
+      { label: 'Partner Tag', description: 'Which authorized partner issued each certificate', x: 85, y: 50 },
+    ],
   },
 
   anchors: {
@@ -982,6 +1216,12 @@ Confirmed anchors are Gold Arrow's strongest trust guarantee — they create an 
       'Yellow "Broadcast" indicates the transaction is awaiting Bitcoin confirmations.',
       'Red "Pending" indicates anchors that have not yet been broadcast.',
       'Click any txid to verify the anchor on a Bitcoin block explorer.',
+    ],
+    tutorial: [
+      { label: 'Status Column', description: 'Green (Confirmed), Yellow (Broadcast), Red (Pending) indicators', x: 15, y: 40 },
+      { label: 'Merkle Root', description: 'Hash of the anchored data — cryptographic proof', x: 45, y: 40 },
+      { label: 'Leaf Count', description: 'Number of certificate events included in this anchor', x: 65, y: 40 },
+      { label: 'Bitcoin TxID', description: 'Click to verify on a block explorer', x: 85, y: 40 },
     ],
   },
 
@@ -1009,6 +1249,12 @@ The feed serves multiple audiences: operations teams monitor for unusual event p
       'Events with confirmed anchor status have the strongest integrity guarantee.',
       'Cross-reference event timestamps with Anchor Status for verification pipeline tracking.',
     ],
+    tutorial: [
+      { label: 'Event Type', description: 'Issued, Transferred, Frozen, Revoked, or Redeemed tag', x: 15, y: 40 },
+      { label: 'Certificate ID', description: 'Unique certificate identifier — click for full history', x: 40, y: 40 },
+      { label: 'Timestamp', description: 'When the event occurred in the lifecycle', x: 65, y: 40 },
+      { label: 'Anchor Status', description: 'Whether this event has been committed to Bitcoin', x: 85, y: 40 },
+    ],
   },
 
   partners: {
@@ -1034,6 +1280,12 @@ Partner status tracking (Active, Suspended, Offboarded) provides transparency in
       'Active status with green indicators confirms operational connectivity.',
       'Click any partner to view their sites, jurisdiction, and integration details.',
       'Multiple partners per type provides redundancy and competitive custody options.',
+    ],
+    tutorial: [
+      { label: 'Partner Cards', description: 'Individual partner tiles showing type, status, and jurisdiction', x: 50, y: 40 },
+      { label: 'Type Legend', description: 'Vault, Dealer, Custodian, Arbiter role indicators', x: 15, y: 15 },
+      { label: 'Status Badge', description: 'Active (green), Suspended (yellow), Offboarded (red)', x: 80, y: 40 },
+      { label: 'Site Count', description: 'Number of physical sites operated by each partner', x: 50, y: 75 },
     ],
   },
 
@@ -1064,6 +1316,12 @@ For institutional energy desks, having all five benchmarks in a single view elim
       'Use these spot prices as the baseline reference for interpreting spread and margin widgets.',
       'WTI and Brent are quoted per barrel; gas products are quoted per gallon or MMBtu.',
     ],
+    tutorial: [
+      { label: 'Price Cards', description: 'Individual cards for WTI, Brent, NatGas, Gasoline, Heating Oil', x: 50, y: 40 },
+      { label: 'Change Arrow', description: 'Green up-arrow or red down-arrow showing 24h direction', x: 80, y: 25 },
+      { label: 'Percentage Change', description: '24h percentage and absolute price movement', x: 80, y: 55 },
+      { label: 'Unit Label', description: 'Per-barrel, per-gallon, or per-MMBtu pricing denomination', x: 30, y: 70 },
+    ],
   },
 
   'og-futures': {
@@ -1090,6 +1348,13 @@ By visualizing the full curve rather than individual contract prices, traders ca
       'Compare WTI and Brent curves to assess relative term structure.',
       'Look for inflection points where the curve changes direction — these often indicate seasonal supply/demand shifts.',
     ],
+    tutorial: [
+      { label: 'Series Toggles', description: 'Switch between WTI+Brent combined, WTI only, or Brent only', x: 25, y: 8 },
+      { label: 'Curve Line', description: 'Forward price curve across delivery months — slope reveals market structure', x: 50, y: 45 },
+      { label: 'M1 Spread', description: 'Front-month WTI-Brent differential value', x: 85, y: 8 },
+      { label: 'Shape Label', description: 'CONTANGO or BACKWARDATION classification', x: 50, y: 90 },
+      { label: 'Month Axis', description: 'Delivery months from near to far — hover for exact prices', x: 50, y: 75 },
+    ],
   },
 
   'og-wti-brent': {
@@ -1114,6 +1379,12 @@ The 30-day historical view captures the spread's trajectory, enabling traders to
       'Hover over the chart to see daily spread values across the 30-day window.',
       'Widening spreads may indicate US pipeline or export capacity constraints.',
       'Cross-reference with the Inventory widget to validate supply-side explanations for spread moves.',
+    ],
+    tutorial: [
+      { label: 'Spread Value', description: 'Current WTI-Brent differential in $/bbl', x: 50, y: 15 },
+      { label: 'Historical Chart', description: '30-day spread trajectory — hover for daily values', x: 50, y: 50 },
+      { label: 'Average Line', description: 'Period average for mean-reversion reference', x: 30, y: 50 },
+      { label: 'Min/Max Range', description: 'Extremes over the 30-day window', x: 80, y: 50 },
     ],
   },
 
@@ -1141,6 +1412,12 @@ The widget tracks multiple spread configurations (gasoline crack, heating oil cr
       'Strong cracks typically correlate with higher refinery runs and increased crude demand.',
       'Seasonal patterns are significant — gasoline cracks peak in summer, distillate cracks in winter.',
     ],
+    tutorial: [
+      { label: '3-2-1 Spread', description: 'Composite refinery margin — the primary indicator', x: 50, y: 20 },
+      { label: 'Gasoline Crack', description: 'RBOB gasoline refining margin component', x: 25, y: 50 },
+      { label: 'Distillate Crack', description: 'Heating oil/diesel refining margin component', x: 75, y: 50 },
+      { label: 'Direction Arrow', description: 'Margin trend — expanding or compressing', x: 85, y: 20 },
+    ],
   },
 
   'og-inventory': {
@@ -1166,6 +1443,12 @@ The gauge visualization provides immediate context by showing current inventory 
       'The weekly change figure is the most actionable data point — compare it to consensus expectations.',
       'EIA reports release every Wednesday at 10:30 AM ET — expect data updates shortly after.',
       'Cross-reference inventory changes with refinery utilization and import/export data for context.',
+    ],
+    tutorial: [
+      { label: 'Gauge Dial', description: 'Current inventory level relative to 5-year seasonal range', x: 50, y: 35 },
+      { label: 'Weekly Change', description: 'Barrels added (build) or drawn (draw) from storage', x: 50, y: 65 },
+      { label: 'Cushing Level', description: 'WTI delivery hub inventory — operationally critical', x: 25, y: 80 },
+      { label: 'Days of Supply', description: 'How many days current inventory would cover at current consumption', x: 75, y: 80 },
     ],
   },
 
@@ -1193,6 +1476,12 @@ The oil/gas rig breakdown is particularly important as it reveals sector-specifi
       'Compare oil vs gas rig trends to understand producer capital allocation decisions.',
       'Sustained rig count declines often precede supply tightening and price support.',
     ],
+    tutorial: [
+      { label: 'Oil Rig Count', description: 'Total US oil-directed rigs currently active', x: 25, y: 30 },
+      { label: 'Gas Rig Count', description: 'Total US gas-directed rigs currently active', x: 50, y: 30 },
+      { label: 'Weekly Change', description: 'Rigs added or removed from last week — direction matters', x: 75, y: 30 },
+      { label: 'Trend Chart', description: 'Historical rig count trajectory showing drilling cycle', x: 50, y: 70 },
+    ],
   },
 
   'og-supply-demand': {
@@ -1218,6 +1507,12 @@ The implied stock change (production minus consumption) is the key output — a 
       'Compare estimates across IEA, EIA, and OPEC to identify agency divergence.',
       'Seasonal demand patterns are significant — Q3 typically sees highest demand (summer driving + cooling).',
       'Cross-reference with OPEC+ Compliance to understand whether supply adjustments are voluntary or market-driven.',
+    ],
+    tutorial: [
+      { label: 'Supply Bar', description: 'Global oil production in million barrels per day', x: 25, y: 35 },
+      { label: 'Demand Bar', description: 'Global oil consumption/demand in million bpd', x: 75, y: 35 },
+      { label: 'Balance Indicator', description: 'Surplus (+) or deficit (-) — the key output', x: 50, y: 60 },
+      { label: 'Growth Rate', description: 'Year-over-year demand growth percentage', x: 50, y: 80 },
     ],
   },
 
@@ -1245,6 +1540,12 @@ The Monthly Oil Market Report (MOMR) from OPEC is the primary data source, suppl
       'OPEC MOMR releases monthly — data updates reflect the latest available report.',
       'Saudi Arabia\'s production relative to its quota is the single most important member-level signal.',
     ],
+    tutorial: [
+      { label: 'Compliance Rate', description: 'Overall OPEC+ compliance percentage — above 100% is bullish', x: 50, y: 15 },
+      { label: 'Member Table', description: 'Individual country production vs quota breakdown', x: 50, y: 50 },
+      { label: 'Over-Quota Flag', description: 'Red highlights on members exceeding their allocation', x: 80, y: 50 },
+      { label: 'Spare Capacity', description: 'Estimated production headroom by member', x: 50, y: 85 },
+    ],
   },
 
   'og-production': {
@@ -1269,6 +1570,12 @@ By tracking production levels alongside growth rates, analysts can identify whic
       'Compare OPEC members\' actual output against their quotas using the OPEC+ Compliance widget.',
       'Growth in non-OPEC producers (US, Brazil, Guyana) represents structural supply additions.',
       'Production disruptions in any top-10 producer can move global prices significantly.',
+    ],
+    tutorial: [
+      { label: 'Country Ranking', description: 'Producers ranked by daily output in million bpd', x: 30, y: 40 },
+      { label: 'Output Bar', description: 'Visual bar showing relative production size', x: 60, y: 40 },
+      { label: 'Market Share', description: 'Percentage of global production each country represents', x: 80, y: 40 },
+      { label: 'OPEC Badge', description: 'Identifies which producers are OPEC members', x: 15, y: 40 },
     ],
   },
 
@@ -1296,6 +1603,12 @@ By monitoring utilization rates across major corridors, traders can anticipate c
       'Natural gas pipelines are particularly sensitive to seasonal heating/cooling demand shifts.',
       'New pipeline completions can rapidly compress regional price differentials.',
     ],
+    tutorial: [
+      { label: 'Pipeline List', description: 'Major crude and gas pipelines with corridor names', x: 25, y: 35 },
+      { label: 'Utilization Bar', description: 'Visual capacity utilization — red above 90% signals bottleneck', x: 55, y: 35 },
+      { label: 'Flow Volume', description: 'Current throughput in bpd or MMcf/d', x: 75, y: 35 },
+      { label: 'Alert Icons', description: 'Maintenance or outage notifications for each pipeline', x: 90, y: 35 },
+    ],
   },
 
   'og-chokepoints': {
@@ -1322,6 +1635,12 @@ The Houthi attacks on Red Sea shipping in 2024 demonstrated how chokepoint disru
       'Chokepoint disruptions typically cause immediate crude price spikes and tanker rate increases.',
       'Compare throughput volumes with historical averages to identify unusual flow patterns.',
     ],
+    tutorial: [
+      { label: 'Chokepoint Map', description: 'Six critical maritime transit points with risk indicators', x: 50, y: 35 },
+      { label: 'Risk Level', description: 'Low/Medium/High/Critical assessment per chokepoint', x: 80, y: 25 },
+      { label: 'Throughput', description: 'Million bpd flowing through each strait or canal', x: 30, y: 60 },
+      { label: 'Disruption Log', description: 'Recent incidents or threats affecting transit', x: 50, y: 85 },
+    ],
   },
 
   'og-news': {
@@ -1346,6 +1665,12 @@ The feed is organized chronologically with source attribution, enabling analysts
       'Cross-reference breaking news with the Spot Prices widget to assess market reaction.',
       'Weather-related headlines (hurricanes, polar vortex) impact both supply and demand.',
       'EIA weekly report commentary provides context for inventory data interpretation.',
+    ],
+    tutorial: [
+      { label: 'Headlines', description: 'Breaking energy news — click to open full article', x: 50, y: 35 },
+      { label: 'Source Tag', description: 'Attribution showing which authoritative source published it', x: 15, y: 55 },
+      { label: 'Timestamp', description: 'Publication time for assessing recency', x: 85, y: 35 },
+      { label: 'Category Tags', description: 'OPEC, supply, demand, policy, weather topic filters', x: 50, y: 15 },
     ],
   },
 
@@ -1374,6 +1699,13 @@ The dashboard is designed for the "morning briefing" use case — a 30-second sc
       'The dashboard provides breadth — switch to individual widgets for analytical depth on any metric.',
       'All data refreshes synchronously to ensure cross-pane temporal consistency.',
     ],
+    tutorial: [
+      { label: 'Price Strip', description: 'Key benchmark prices (WTI, Brent, Henry Hub) at the top', x: 50, y: 10 },
+      { label: 'Inventory Pane', description: 'Weekly inventory change summary for quick context', x: 25, y: 40 },
+      { label: 'Spread Pane', description: 'Crack spread and WTI-Brent differential overview', x: 75, y: 40 },
+      { label: 'Rig Count', description: 'Current rig count trend indicator', x: 25, y: 75 },
+      { label: 'Risk Flag', description: 'Top geopolitical risk alert — red = active concern', x: 75, y: 75 },
+    ],
   },
 
   'og-risk-analyzer': {
@@ -1399,6 +1731,12 @@ The analyzer is designed for risk managers, trading desk heads, and strategic pl
       'Spread deviations beyond 2 standard deviations from historical norms warrant immediate attention.',
       'Cross-reference risk flags with the Chokepoints widget for geopolitical context.',
       'Use the correlation view to understand which factors are driving overall risk levels.',
+    ],
+    tutorial: [
+      { label: 'Risk Score', description: 'Composite energy risk index — higher = more market stress', x: 50, y: 15 },
+      { label: 'Spread Panel', description: 'Key spread deviations from historical norms', x: 30, y: 45 },
+      { label: 'Geo-Risk Flags', description: 'Geopolitical risk heat indicators by region', x: 70, y: 45 },
+      { label: 'Correlation View', description: 'Cross-factor relationships showing what drives risk', x: 50, y: 80 },
     ],
   },
 };
