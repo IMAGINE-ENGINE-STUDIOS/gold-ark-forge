@@ -256,7 +256,7 @@ const useLiveCandleEngine = (
 };
 
 const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
-  const [tf, setTf] = useState<Timeframe>('1D');
+  const [tf, setTf] = useState<Timeframe>('RT');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
   const [searchOpen, setSearchOpen] = useState(false);
