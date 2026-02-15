@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { BookOpen, Monitor, Database, Clock, ChevronRight } from 'lucide-react';
+import { BookOpen, Monitor, Database, Clock, ChevronRight, GraduationCap } from 'lucide-react';
 import { widgetDocContent, type WidgetDocEntry } from './widgetDocContent';
+import TutorialOverlay from './TutorialOverlay';
 
 interface WidgetDocWrapperProps {
   children: ReactNode;
@@ -85,10 +86,12 @@ const ThesisPanel = ({ doc }: { doc: WidgetDocEntry }) => (
 );
 
 const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
-  const [tab, setTab] = useState<'widget' | 'thesis'>('widget');
+  const [tab, setTab] = useState<'widget' | 'thesis' | 'tutorial'>('widget');
   const doc = widgetDocContent[widgetId];
 
   if (!doc) return <>{children}</>;
+
+  const hasTutorial = doc.tutorial && doc.tutorial.length > 0;
 
   return (
     <div>
@@ -116,10 +119,27 @@ const WidgetDocWrapper = ({ children, widgetId }: WidgetDocWrapperProps) => {
           <BookOpen className="w-3.5 h-3.5" />
           THESIS & GUIDE
         </button>
+        {hasTutorial && (
+          <button
+            onClick={() => setTab('tutorial')}
+            className={`flex items-center gap-2 px-4 py-2 rounded border text-[10px] font-display tracking-[0.25em] transition-all ${
+              tab === 'tutorial'
+                ? 'border-gold/60 text-gold bg-gold/10'
+                : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            TUTORIAL
+          </button>
+        )}
       </div>
 
       {/* Content */}
-      {tab === 'widget' ? children : <ThesisPanel doc={doc} />}
+      {tab === 'widget' && children}
+      {tab === 'thesis' && <ThesisPanel doc={doc} />}
+      {tab === 'tutorial' && hasTutorial && (
+        <TutorialOverlay hotspots={doc.tutorial!}>{children}</TutorialOverlay>
+      )}
     </div>
   );
 };

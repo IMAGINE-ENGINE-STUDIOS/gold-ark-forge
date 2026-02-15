@@ -572,3 +572,15 @@
     scrollbar-color: hsla(43, 72%, 50%, 0.2) hsl(213, 35%, 10%);
   }
 }
+
+@keyframes tutorial-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsla(43, 72%, 50%, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 12px hsla(43, 72%, 50%, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsla(43, 72%, 50%, 0);
+  }
+}
