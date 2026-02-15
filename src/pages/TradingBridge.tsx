@@ -46,10 +46,8 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 
 // ─── Bottom Panel Tabs ───────────────────────────────────
 const BOTTOM_TABS = [
-  { key: 'positions', label: 'POSITIONS', icon: Briefcase },
-  { key: 'orders', label: 'ORDERS', icon: Activity },
-  { key: 'schedule', label: 'SCHEDULE', icon: CalendarDays },
-  { key: 'alerts', label: 'ALERTS', icon: Bell },
+  { key: 'book', label: 'BOOK', icon: Briefcase },
+  { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
   { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   { key: 'risk', label: 'RISK', icon: Shield },
@@ -65,7 +63,7 @@ type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 
 const TradingBridge = () => {
   const [activeSymbol, setActiveSymbol] = useState(ALL_SYMBOLS[0]);
-  const [bottomTab, setBottomTab] = useState<BottomTab>('positions');
+  const [bottomTab, setBottomTab] = useState<BottomTab>('book');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
@@ -135,7 +133,7 @@ const TradingBridge = () => {
               {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
             </button>
             {priceAlertsHook.activeCount > 0 && (
-              <button onClick={() => { setMobileTab('tools'); setBottomTab('alerts'); }} className="relative p-1 text-gold/60 hover:text-gold">
+              <button onClick={() => { setMobileTab('tools'); setBottomTab('automate'); }} className="relative p-1 text-gold/60 hover:text-gold">
                 <Bell className="w-3.5 h-3.5" />
                 <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
               </button>
@@ -235,12 +233,23 @@ const TradingBridge = () => {
                   </button>
                 ))}
               </div>
-              {bottomTab === 'positions' && activeConn && <PositionsPanel connectionId={activeConn.id} />}
-              {bottomTab === 'positions' && !activeConn && <EmptyState text="Connect a broker to view positions" />}
-              {bottomTab === 'orders' && activeConn && <OrderHistory connectionId={activeConn.id} />}
-              {bottomTab === 'orders' && !activeConn && <EmptyState text="Connect a broker to view orders" />}
-              {bottomTab === 'schedule' && <SchedulePanel />}
-              {bottomTab === 'alerts' && <PriceAlerts alertsHook={priceAlertsHook} />}
+              {bottomTab === 'book' && activeConn && (
+                <div className="space-y-4">
+                  <PositionsPanel connectionId={activeConn.id} />
+                  <div className="border-t border-gold/10 pt-4">
+                    <OrderHistory connectionId={activeConn.id} />
+                  </div>
+                </div>
+              )}
+              {bottomTab === 'book' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+              {bottomTab === 'automate' && (
+                <div className="space-y-4">
+                  <SchedulePanel />
+                  <div className="border-t border-gold/10 pt-4">
+                    <PriceAlerts alertsHook={priceAlertsHook} />
+                  </div>
+                </div>
+              )}
               {bottomTab === 'backtest' && <BacktestPanel />}
               {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
               {bottomTab === 'risk' && <><RiskPanel connectionId={activeConn?.id} /><div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div></>}
@@ -293,7 +302,7 @@ const TradingBridge = () => {
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => setBottomTab('alerts')} className="relative p-1 text-gold/60 hover:text-gold">
+            <button onClick={() => setBottomTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
               <Bell className="w-3.5 h-3.5" />
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
@@ -413,12 +422,23 @@ const TradingBridge = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3">
-                  {bottomTab === 'positions' && activeConn && <PositionsPanel connectionId={activeConn.id} />}
-                  {bottomTab === 'positions' && !activeConn && <EmptyState text="Connect a broker to view positions" />}
-                  {bottomTab === 'orders' && activeConn && <OrderHistory connectionId={activeConn.id} />}
-                  {bottomTab === 'orders' && !activeConn && <EmptyState text="Connect a broker to view orders" />}
-                  {bottomTab === 'schedule' && <SchedulePanel />}
-                  {bottomTab === 'alerts' && <PriceAlerts alertsHook={priceAlertsHook} />}
+                  {bottomTab === 'book' && activeConn && (
+                    <div className="space-y-4">
+                      <PositionsPanel connectionId={activeConn.id} />
+                      <div className="border-t border-gold/10 pt-4">
+                        <OrderHistory connectionId={activeConn.id} />
+                      </div>
+                    </div>
+                  )}
+                  {bottomTab === 'book' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+                  {bottomTab === 'automate' && (
+                    <div className="space-y-4">
+                      <SchedulePanel />
+                      <div className="border-t border-gold/10 pt-4">
+                        <PriceAlerts alertsHook={priceAlertsHook} />
+                      </div>
+                    </div>
+                  )}
                   {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
                   {bottomTab === 'risk' && <><RiskPanel connectionId={activeConn?.id} /><div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div></>}
