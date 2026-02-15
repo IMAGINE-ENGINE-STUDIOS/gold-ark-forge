@@ -12,10 +12,11 @@ import OGNewsFeed from '@/components/og-widgets/OGNewsFeed';
 import OGSupplyDemand from '@/components/og-widgets/OGSupplyDemand';
 import OGPipelineFlow from '@/components/og-widgets/OGPipelineFlow';
 import OGProductionMap from '@/components/og-widgets/OGProductionMap';
+import OGChokepoints from '@/components/og-widgets/OGChokepoints';
 
 import {
   Fuel, BarChart3, Database, Drill, ArrowLeftRight, TrendingUp,
-  Globe, Newspaper, Network, MapPin,
+  Globe, Newspaper, Network, MapPin, ShieldAlert,
 } from 'lucide-react';
 
 const sections = [
@@ -28,6 +29,7 @@ const sections = [
   { id: 'opec', label: 'OPEC+', icon: Globe },
   { id: 'production', label: 'PRODUCERS', icon: MapPin },
   { id: 'pipelines', label: 'PIPELINES', icon: Network },
+  { id: 'chokepoints', label: 'CHOKEPOINTS', icon: ShieldAlert },
   { id: 'news', label: 'NEWS', icon: Newspaper },
 ];
 
@@ -162,6 +164,11 @@ const OilGasIntelligence = () => {
         <section id="pipelines">
           <SectionDivider label="GLOBAL PIPELINE FLOW" />
           <OGPipelineFlow />
+        </section>
+
+        <section id="chokepoints">
+          <SectionDivider label="GEOPOLITICAL CHOKEPOINT RISK" />
+          <OGChokepoints />
         </section>
 
         <section id="news">

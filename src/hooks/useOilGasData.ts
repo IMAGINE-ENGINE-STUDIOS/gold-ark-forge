@@ -81,13 +81,40 @@ const FALLBACK_SPREADS = {
 
 // ─── LIVE FETCH HELPERS ──────────────────────────────────
 
-const fetchOilPricesFromCoinGecko = async (): Promise<OilGasPrice[]> => {
-  // CoinGecko doesn't cover oil; use fallback with small random drift for realism
-  const now = Date.now();
-  return FALLBACK_PRICES.map((p) => {
-    const seed = Math.sin(now / 60000 + p.symbol.charCodeAt(0)) * 0.02;
-    return { ...p, price: Math.round((p.price * (1 + seed)) * 100) / 100, change: Math.round((p.change + (Math.random() - 0.5) * 0.3) * 100) / 100 };
-  });
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+const fetchLiveCommodityPrices = async (): Promise<OilGasPrice[]> => {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/fetch-commodity-prices`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!resp.ok) throw new Error(`Edge function returned ${resp.status}`);
+
+    const data = await resp.json();
+    if (data.success && data.prices?.length > 0) {
+      console.log(`[OG] Live commodity data from: ${data.source}`);
+      // Merge live data with fallback for any missing commodities
+      const liveMap = new Map(data.prices.map((p: OilGasPrice) => [p.symbol, p]));
+      return FALLBACK_PRICES.map((fp) => {
+        const live = liveMap.get(fp.symbol) as OilGasPrice | undefined;
+        return live ? { ...fp, price: live.price, change: live.change } : fp;
+      }) as OilGasPrice[];
+    }
+    throw new Error('No live data returned');
+  } catch (err) {
+    console.warn('[OG] Live fetch failed, using fallback with drift:', err);
+    // Fallback with realistic drift
+    const now = Date.now();
+    return FALLBACK_PRICES.map((p) => {
+      const seed = Math.sin(now / 60000 + p.symbol.charCodeAt(0)) * 0.02;
+      return { ...p, price: Math.round((p.price * (1 + seed)) * 100) / 100, change: Math.round((p.change + (Math.random() - 0.5) * 0.3) * 100) / 100 };
+    });
+  }
 };
 
 // ─── HOOKS ────────────────────────────────────────────────
@@ -95,7 +122,7 @@ const fetchOilPricesFromCoinGecko = async (): Promise<OilGasPrice[]> => {
 export const useOilGasPrices = () =>
   useQuery({
     queryKey: ['oil-gas-prices'],
-    queryFn: fetchOilPricesFromCoinGecko,
+    queryFn: fetchLiveCommodityPrices,
     refetchInterval: 30000,
     staleTime: 15000,
   });
