@@ -193,6 +193,31 @@ const accentPresets = [
 
 const dirOptions = ['0deg', '45deg', '90deg', '135deg', '180deg', '225deg', '270deg', '315deg'];
 
+/* ─── Background Theme Presets ─── */
+interface BgPreset {
+  name: string;
+  bgMode: 'solid' | 'gradient';
+  bgGradientDir: string;
+  bgOpacity: number;
+  backdropBlur: number;
+  bgHue: number; bgSat: number; bgLit: number;
+}
+
+const BG_PRESETS: BgPreset[] = [
+  { name: 'Deep Space', bgMode: 'solid', bgGradientDir: '180deg', bgOpacity: 100, backdropBlur: 0, bgHue: 230, bgSat: 25, bgLit: 6 },
+  { name: 'Midnight Navy', bgMode: 'solid', bgGradientDir: '180deg', bgOpacity: 95, backdropBlur: 2, bgHue: 213, bgSat: 32, bgLit: 16 },
+  { name: 'Charcoal Mist', bgMode: 'solid', bgGradientDir: '180deg', bgOpacity: 88, backdropBlur: 6, bgHue: 220, bgSat: 8, bgLit: 12 },
+  { name: 'Obsidian Glass', bgMode: 'solid', bgGradientDir: '180deg', bgOpacity: 78, backdropBlur: 12, bgHue: 0, bgSat: 0, bgLit: 5 },
+  { name: 'Aurora Gradient', bgMode: 'gradient', bgGradientDir: '135deg', bgOpacity: 92, backdropBlur: 4, bgHue: 180, bgSat: 40, bgLit: 10 },
+  { name: 'Sunset Drift', bgMode: 'gradient', bgGradientDir: '225deg', bgOpacity: 90, backdropBlur: 3, bgHue: 15, bgSat: 35, bgLit: 12 },
+  { name: 'Emerald Depth', bgMode: 'gradient', bgGradientDir: '180deg', bgOpacity: 95, backdropBlur: 2, bgHue: 155, bgSat: 30, bgLit: 9 },
+  { name: 'Frosted Panel', bgMode: 'solid', bgGradientDir: '180deg', bgOpacity: 65, backdropBlur: 16, bgHue: 215, bgSat: 20, bgLit: 18 },
+  { name: 'Royal Velvet', bgMode: 'gradient', bgGradientDir: '315deg', bgOpacity: 98, backdropBlur: 0, bgHue: 268, bgSat: 35, bgLit: 10 },
+  { name: 'Warm Smoke', bgMode: 'solid', bgGradientDir: '180deg', bgOpacity: 85, backdropBlur: 8, bgHue: 30, bgSat: 12, bgLit: 11 },
+  { name: 'Ice Crystal', bgMode: 'gradient', bgGradientDir: '45deg', bgOpacity: 75, backdropBlur: 14, bgHue: 200, bgSat: 45, bgLit: 14 },
+  { name: 'Dark Amber', bgMode: 'gradient', bgGradientDir: '180deg', bgOpacity: 96, backdropBlur: 1, bgHue: 35, bgSat: 28, bgLit: 8 },
+];
+
 type Section = 'colors' | 'background' | 'typography' | 'shape' | 'effects' | 'animation' | 'spacing' | 'presets';
 const SECTIONS: { key: Section; label: string }[] = [
   { key: 'colors', label: 'COLORS' }, { key: 'background', label: 'BACKGROUND' },
