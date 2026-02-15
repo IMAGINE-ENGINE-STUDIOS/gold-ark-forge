@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import goldBullion from '@/assets/gold-bars-rich.jpg';
 import categoryEnergy from '@/assets/category-energy.jpg';
 import categoryAgricultural from '@/assets/category-agricultural.jpg';
 import categoryBonds from '@/assets/category-bonds.jpg';
 import categorySurplus from '@/assets/category-surplus.jpg';
+import categoryLivestock from '@/assets/category-livestock.jpg';
+import categoryCorporateBonds from '@/assets/category-corporate-bonds.jpg';
+import categoryReits from '@/assets/category-reits.jpg';
 
 const categories = [
   {
@@ -34,13 +39,47 @@ const categories = [
     tagClass: 'bg-emerald-500/20 text-emerald-400',
   },
   {
+    name: 'Live Stock',
+    description: 'Cattle, hogs & feeder livestock futures',
+    image: categoryLivestock,
+    href: '/marketplace',
+    accentClass: 'from-orange-400/80 to-orange-400/20',
+    borderClass: 'border-orange-400/30 hover:border-orange-400/60',
+    tagClass: 'bg-orange-400/20 text-orange-300',
+  },
+  {
     name: 'Bonds',
-    description: 'Treasury notes, corporate & sovereign debt',
+    description: 'CDs, T-Bills, TIPS, Agency MBS & High-Yield Savings',
     image: categoryBonds,
     href: '/marketplace',
     accentClass: 'from-sky-400/80 to-sky-400/20',
     borderClass: 'border-sky-400/30 hover:border-sky-400/60',
     tagClass: 'bg-sky-400/20 text-sky-300',
+    subItems: [
+      'Certificates of Deposit (CDs)',
+      'Treasury Bills (T-Bills)',
+      'Treasury Inflation-Protected Securities (TIPS)',
+      'Agency Mortgage-Backed Securities (MBS)',
+      'High-Yield Savings & Money Market Accounts',
+    ],
+  },
+  {
+    name: 'Corporate Bonds',
+    description: 'High-grade AAA/AA corporate debt instruments',
+    image: categoryCorporateBonds,
+    href: '/marketplace',
+    accentClass: 'from-indigo-400/80 to-indigo-400/20',
+    borderClass: 'border-indigo-400/30 hover:border-indigo-400/60',
+    tagClass: 'bg-indigo-400/20 text-indigo-300',
+  },
+  {
+    name: 'REITs',
+    description: 'Real estate investment trusts & property income',
+    image: categoryReits,
+    href: '/marketplace',
+    accentClass: 'from-rose-400/80 to-rose-400/20',
+    borderClass: 'border-rose-400/30 hover:border-rose-400/60',
+    tagClass: 'bg-rose-400/20 text-rose-300',
   },
   {
     name: 'Surplus',
@@ -66,20 +105,20 @@ const CategoryCards = () => {
             EXPLORE MARKETS
           </h2>
           <p className="text-marble/50 max-w-xl mx-auto text-sm">
-            Institutional-grade access across five core asset classes
+            Institutional-grade access across eight core asset classes
           </p>
         </div>
 
-        {/* Top row: 3 cards */}
-        <div className="grid md:grid-cols-3 gap-5 max-w-6xl mx-auto mb-5">
-          {categories.slice(0, 3).map((cat) => (
+        {/* Top row: 4 cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 max-w-6xl mx-auto mb-4 md:mb-5">
+          {categories.slice(0, 4).map((cat) => (
             <CategoryCard key={cat.name} {...cat} />
           ))}
         </div>
 
-        {/* Bottom row: 2 cards centered */}
-        <div className="grid md:grid-cols-2 gap-5 max-w-4xl mx-auto">
-          {categories.slice(3).map((cat) => (
+        {/* Bottom row: 4 cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 max-w-6xl mx-auto">
+          {categories.slice(4).map((cat) => (
             <CategoryCard key={cat.name} {...cat} />
           ))}
         </div>
@@ -101,46 +140,76 @@ interface CategoryCardProps {
   accentClass: string;
   borderClass: string;
   tagClass: string;
+  subItems?: string[];
 }
 
-const CategoryCard = ({ name, description, image, href, accentClass, borderClass, tagClass }: CategoryCardProps) => (
-  <Link to={href} className="group relative">
-    <div className={`relative rounded-sm border ${borderClass} overflow-hidden transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl`}>
-      {/* Image */}
-      <div className="aspect-[16/10] overflow-hidden relative">
-        <img
-          src={image}
-          alt={name}
-          className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-navy via-navy/60 to-transparent" />
-        {/* Accent line at bottom of image */}
-        <div className={`absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r ${accentClass}`} />
-      </div>
+const CategoryCard = ({ name, description, image, href, accentClass, borderClass, tagClass, subItems }: CategoryCardProps) => {
+  const [expanded, setExpanded] = useState(false);
 
-      {/* Content */}
-      <div className="bg-navy-light/50 backdrop-blur-sm p-5">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-display text-lg tracking-[0.1em] text-marble group-hover:text-gold-light transition-colors">
-            {name.toUpperCase()}
-          </h3>
-          <span className={`text-[9px] font-display tracking-[0.2em] px-2 py-0.5 rounded-full ${tagClass}`}>
-            LIVE
-          </span>
+  return (
+    <div className="relative">
+      <Link to={href} className="group relative block">
+        <div className={`relative rounded-sm border ${borderClass} overflow-hidden transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl`}>
+          {/* Image */}
+          <div className="aspect-[16/10] overflow-hidden relative">
+            <img
+              src={image}
+              alt={name}
+              className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-navy via-navy/60 to-transparent" />
+            <div className={`absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r ${accentClass}`} />
+          </div>
+
+          {/* Content */}
+          <div className="bg-navy-light/50 backdrop-blur-sm p-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="font-display text-sm md:text-base tracking-[0.1em] text-marble group-hover:text-gold-light transition-colors">
+                {name.toUpperCase()}
+              </h3>
+              <span className={`text-[8px] font-display tracking-[0.2em] px-1.5 py-0.5 rounded-full ${tagClass}`}>
+                LIVE
+              </span>
+            </div>
+            <p className="text-marble/40 text-[11px] leading-relaxed">
+              {description}
+            </p>
+          </div>
+
+          {/* Ornate corners */}
+          <div className="ornate-corner ornate-corner-tl" />
+          <div className="ornate-corner ornate-corner-tr" />
+          <div className="ornate-corner ornate-corner-bl" />
+          <div className="ornate-corner ornate-corner-br" />
         </div>
-        <p className="text-marble/40 text-xs leading-relaxed">
-          {description}
-        </p>
-      </div>
+      </Link>
 
-      {/* Ornate corners */}
-      <div className="ornate-corner ornate-corner-tl" />
-      <div className="ornate-corner ornate-corner-tr" />
-      <div className="ornate-corner ornate-corner-bl" />
-      <div className="ornate-corner ornate-corner-br" />
+      {/* Sub-items expand button */}
+      {subItems && subItems.length > 0 && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className={`w-full mt-1 flex items-center justify-center gap-1 text-[9px] font-display tracking-[0.15em] py-1.5 rounded-sm border transition-all ${
+              expanded ? 'border-sky-400/40 text-sky-300 bg-sky-400/10' : 'border-gold/15 text-marble/30 hover:text-marble/50 hover:border-gold/30'
+            }`}
+          >
+            {expanded ? 'HIDE' : 'VIEW'} INSTRUMENTS
+            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {expanded && (
+            <div className="mt-1 bg-navy-light/60 border border-gold/10 rounded-sm p-3 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              {subItems.map((item) => (
+                <div key={item} className="flex items-center gap-2 text-[10px] text-marble/50">
+                  <div className="w-1 h-1 rounded-full bg-sky-400/60 flex-shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
-  </Link>
-);
+  );
+};
 
 export default CategoryCards;
