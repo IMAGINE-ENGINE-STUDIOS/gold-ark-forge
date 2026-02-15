@@ -13,6 +13,11 @@ import {
   enrichChartData,
   getIndicatorLines,
   getFibonacciLines,
+  computeSMA,
+  computeEMA,
+  computeRSI as computeRSIArray,
+  computeATR,
+  computeMACD,
   type IndicatorKey,
   type ChartDataPoint,
 } from './IndicatorOverlay';
@@ -67,16 +72,7 @@ const generateChartData = (price: number, change: number, tf: Timeframe): ChartD
   return data;
 };
 
-const computeRSI = (prices: number[], period = 14): number => {
-  if (prices.length < period + 1) return 50;
-  const changes = prices.slice(-period - 1).map((p, i, a) => (i > 0 ? p - a[i - 1] : 0)).slice(1);
-  const gains = changes.filter((c) => c > 0);
-  const losses = changes.filter((c) => c < 0).map((c) => -c);
-  const avgGain = gains.length ? gains.reduce((a, b) => a + b, 0) / period : 0;
-  const avgLoss = losses.length ? losses.reduce((a, b) => a + b, 0) / period : 0;
-  if (avgLoss === 0) return 100;
-  return 100 - 100 / (1 + avgGain / avgLoss);
-};
+// Removed inline computeRSI — using proper computeRSIArray from IndicatorOverlay
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -111,7 +107,7 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
-  const { drawings, activeTool, setActiveTool, addDrawing, clearAll } = useDrawings();
+  const { drawings, activeTool, setActiveTool, addDrawing, deleteDrawing, clearAll, showList, toggleList } = useDrawings();
   const [pendingClick, setPendingClick] = useState<number | null>(null);
 
   const { data: metalPrices } = useMetalPrices();
@@ -160,9 +156,27 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
   const gradientId = `prop-grad-${symbolKey}`;
 
   const chartValues = rawChartData.map((d) => d.value);
-  const rsi = computeRSI(chartValues);
-  const sma20 = chartValues.length >= 20 ? chartValues.slice(-20).reduce((a, b) => a + b, 0) / 20 : price;
-  const sma50 = chartValues.length >= 50 ? chartValues.slice(-50).reduce((a, b) => a + b, 0) / 50 : price;
+  const chartHighs = rawChartData.map((d) => d.high);
+  const chartLows = rawChartData.map((d) => d.low);
+
+  // Real-time computed indicators from streaming chart data
+  const headerStats = useMemo(() => {
+    const rsiArr = computeRSIArray(chartValues);
+    const rsi = rsiArr[rsiArr.length - 1] ?? 50;
+    const sma20Arr = computeSMA(chartValues, 20);
+    const sma20 = sma20Arr[sma20Arr.length - 1] ?? price;
+    const sma50Arr = computeSMA(chartValues, 50);
+    const sma50 = sma50Arr[sma50Arr.length - 1] ?? price;
+    const ema20Arr = computeEMA(chartValues, 20);
+    const ema20 = ema20Arr[ema20Arr.length - 1] ?? price;
+    const atrArr = computeATR(chartHighs, chartLows, chartValues);
+    const atr = atrArr[atrArr.length - 1] ?? 0;
+    const macdData = computeMACD(chartValues);
+    const macdVal = macdData.macd[macdData.macd.length - 1] ?? 0;
+    const macdSig = macdData.signal[macdData.signal.length - 1] ?? 0;
+    const macdCross = !isNaN(macdVal) && !isNaN(macdSig) ? (macdVal > macdSig ? 'bullish' : 'bearish') : 'neutral';
+    return { rsi, sma20, sma50, ema20, atr, macdCross, macdVal };
+  }, [chartValues, chartHighs, chartLows, price]);
 
   const toggleIndicator = useCallback((key: IndicatorKey) => {
     setActiveIndicators(prev => {
@@ -330,10 +344,14 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
         </div>
         <div className="flex items-center gap-3">
           {/* Indicators */}
-          <div className="hidden lg:flex items-center gap-3 mr-2">
-            <span className="text-[9px] font-mono text-marble/30">RSI <span className={rsi > 70 ? 'text-red-400' : rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{rsi.toFixed(1)}</span></span>
-            <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > sma20 ? 'text-emerald-400' : 'text-red-400'}>${sma20.toFixed(2)}</span></span>
-            <span className="text-[9px] font-mono text-marble/30">SMA50 <span className={price > sma50 ? 'text-emerald-400' : 'text-red-400'}>${sma50.toFixed(2)}</span></span>
+          <div className="hidden lg:flex items-center gap-2 mr-2">
+            <span className="text-[9px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(1)}</span></span>
+            <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > headerStats.sma20 ? 'text-emerald-400' : 'text-red-400'}>${headerStats.sma20.toFixed(2)}</span></span>
+            <span className="text-[9px] font-mono text-marble/30">EMA20 <span className={price > headerStats.ema20 ? 'text-emerald-400' : 'text-red-400'}>${headerStats.ema20.toFixed(2)}</span></span>
+            <span className="text-[9px] font-mono text-marble/30">ATR <span className="text-marble/50">{headerStats.atr.toFixed(2)}</span></span>
+            <span className={`text-[9px] font-mono ${headerStats.macdCross === 'bullish' ? 'text-emerald-400' : 'text-red-400'}`}>
+              MACD {headerStats.macdCross === 'bullish' ? '▲' : '▼'}
+            </span>
           </div>
           {/* Pending click indicator */}
           {pendingClick !== null && activeTool && (
@@ -348,7 +366,10 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
               onSelectTool={setActiveTool}
               drawings={drawings}
               onClearAll={clearAll}
+              onDeleteDrawing={deleteDrawing}
               drawingCount={drawings.length}
+              showList={showList}
+              onToggleList={toggleList}
             />
           )}
           {/* Timeframe selector */}
