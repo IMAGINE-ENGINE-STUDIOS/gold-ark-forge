@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { KeyRound, Eye, EyeOff, Zap, ArrowLeft, ChevronRight } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { KeyRound, Eye, EyeOff, Zap, ArrowLeft, ChevronRight, Link2Off, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useAddBrokerConnection, BROKER_META, BrokerType } from '@/hooks/useBrokerTrading';
+import { useAddBrokerConnection, useBrokerConnections, useDeleteBrokerConnection, BROKER_META, BrokerType } from '@/hooks/useBrokerTrading';
 import { useToast } from '@/hooks/use-toast';
 
 interface Props {
@@ -23,6 +23,8 @@ const BrokerConnectDialog = ({ open, onOpenChange }: Props) => {
   const [label, setLabel] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const addConnection = useAddBrokerConnection();
+  const { data: connections } = useBrokerConnections();
+  const deleteConn = useDeleteBrokerConnection();
   const { toast } = useToast();
 
   const meta = BROKER_META[selectedBroker];
@@ -46,6 +48,15 @@ const BrokerConnectDialog = ({ open, onOpenChange }: Props) => {
     setSelectedBroker(b);
     setEnvironment(BROKER_META[b].environments[0].value);
     setStep('credentials');
+  };
+
+  const handleDisconnect = async (id: string, brokerLabel: string) => {
+    try {
+      await deleteConn.mutateAsync(id);
+      toast({ title: 'Broker Disconnected', description: `${brokerLabel} has been removed.` });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to disconnect broker', variant: 'destructive' });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,31 +95,70 @@ const BrokerConnectDialog = ({ open, onOpenChange }: Props) => {
               </button>
             )}
             <KeyRound className="w-5 h-5 text-gold" />
-            {step === 'pick' ? 'SELECT BROKER' : `CONNECT ${meta.label.toUpperCase()}`}
+            {step === 'pick' ? 'BROKER CONNECTIONS' : `CONNECT ${meta.label.toUpperCase()}`}
           </DialogTitle>
-          <p className="text-marble/40 text-xs">Connect your brokerage account for non-custodial order routing</p>
+          <DialogDescription className="text-marble/40 text-xs">
+            {step === 'pick' ? 'Manage your broker accounts. Connect a broker to place buy/sell orders.' : 'Connect your brokerage account for non-custodial order routing'}
+          </DialogDescription>
         </DialogHeader>
 
         {step === 'pick' ? (
-          <div className="space-y-2 mt-2 max-h-[60vh] overflow-y-auto pr-1">
-            {BROKERS.map((b) => {
-              const m = BROKER_META[b];
-              return (
-                <button
-                  key={b}
-                  onClick={() => selectBroker(b)}
-                  className="w-full flex items-center justify-between p-4 rounded-lg bg-navy-light/50 border border-gold/10 hover:border-gold/30 transition-all group"
-                >
-                  <div className="text-left">
-                    <div className="font-display text-sm tracking-wider text-marble group-hover:text-gold-light transition-colors">
-                      {m.label.toUpperCase()}
+          <div className="space-y-3 mt-2">
+            {/* Connected brokers section */}
+            {connections && connections.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[9px] font-display tracking-wider text-marble/30">CONNECTED ({connections.length})</span>
+                {connections.map((conn) => {
+                  const bl = BROKER_META[conn.broker as BrokerType]?.label || conn.broker;
+                  const isLive = conn.environment === 'live' || conn.environment === 'production';
+                  return (
+                    <div key={conn.id} className="flex items-center justify-between p-3 rounded-lg bg-navy-light/50 border border-emerald-500/20">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500' : 'bg-emerald-500'} animate-pulse`} />
+                        <div>
+                          <div className="text-xs font-display tracking-wider text-marble">{bl.toUpperCase()}</div>
+                          <div className="text-[9px] text-marble/30">{conn.label || conn.environment.toUpperCase()}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDisconnect(conn.id, bl)}
+                        disabled={deleteConn.isPending}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-display tracking-wider text-red-400/70 hover:text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"
+                      >
+                        {deleteConn.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2Off className="w-3 h-3" />}
+                        DISCONNECT
+                      </button>
                     </div>
-                    <div className="text-[10px] text-marble/40 mt-0.5">{m.assets}</div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-marble/30 group-hover:text-gold transition-colors" />
-                </button>
-              );
-            })}
+                  );
+                })}
+                <div className="border-b border-gold/10 pt-2" />
+              </div>
+            )}
+
+            {/* Broker picker */}
+            <span className="text-[9px] font-display tracking-wider text-marble/30">ADD BROKER</span>
+            <div className="max-h-[40vh] overflow-y-auto pr-1 space-y-2">
+              {BROKERS.map((b) => {
+                const m = BROKER_META[b];
+                const alreadyConnected = connections?.some(c => c.broker === b);
+                return (
+                  <button
+                    key={b}
+                    onClick={() => selectBroker(b)}
+                    className="w-full flex items-center justify-between p-4 rounded-lg bg-navy-light/50 border border-gold/10 hover:border-gold/30 transition-all group"
+                  >
+                    <div className="text-left">
+                      <div className="font-display text-sm tracking-wider text-marble group-hover:text-gold-light transition-colors flex items-center gap-2">
+                        {m.label.toUpperCase()}
+                        {alreadyConnected && <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1 rounded">LINKED</span>}
+                      </div>
+                      <div className="text-[10px] text-marble/40 mt-0.5">{m.assets}</div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-marble/30 group-hover:text-gold transition-colors" />
+                  </button>
+                );
+              })}
+            </div>
             <p className="text-marble/25 text-[10px] text-center pt-2">
               Gold Arrow never touches your funds — orders execute on your broker account.
             </p>
