@@ -166,6 +166,107 @@ export type Database = {
         }
         Relationships: []
       }
+      broker_connections: {
+        Row: {
+          api_key: string
+          api_secret: string
+          broker: string
+          created_at: string
+          environment: string
+          id: string
+          is_active: boolean
+          label: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          api_secret: string
+          broker?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          api_secret?: string
+          broker?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      broker_orders: {
+        Row: {
+          broker_order_id: string | null
+          broker_response: Json | null
+          connection_id: string
+          created_at: string
+          filled_avg_price: number | null
+          filled_qty: number | null
+          id: string
+          limit_price: number | null
+          order_type: string
+          qty: number
+          side: string
+          status: string
+          symbol: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          broker_order_id?: string | null
+          broker_response?: Json | null
+          connection_id: string
+          created_at?: string
+          filled_avg_price?: number | null
+          filled_qty?: number | null
+          id?: string
+          limit_price?: number | null
+          order_type?: string
+          qty: number
+          side: string
+          status?: string
+          symbol: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          broker_order_id?: string | null
+          broker_response?: Json | null
+          connection_id?: string
+          created_at?: string
+          filled_avg_price?: number | null
+          filled_qty?: number | null
+          id?: string
+          limit_price?: number | null
+          order_type?: string
+          qty?: number
+          side?: string
+          status?: string
+          symbol?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broker_orders_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "broker_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bullion_bars: {
         Row: {
           created_at: string

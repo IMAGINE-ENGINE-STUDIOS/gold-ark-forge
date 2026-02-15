@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import TradingViewChart from '@/components/tradingview/TradingViewChart';
 import TradingViewTicker from '@/components/tradingview/TradingViewTicker';
+import TradingPanel from '@/components/trading/TradingPanel';
 
 const symbols = [
   { key: 'gold', label: 'Gold', symbol: 'OANDA:XAUUSD' },
@@ -15,6 +16,9 @@ const Markets = () => {
   const [activeTab, setActiveTab] = useState('gold');
   const activeSymbol = symbols.find((s) => s.key === activeTab)!;
 
+  // Derive a simple ticker from the active chart symbol for the order form
+  const tradingSymbol = activeTab === 'bitcoin' ? 'BTC/USD' : activeTab === 'gold' ? 'GLD' : activeTab === 'silver' ? 'SLV' : 'PPLT';
+
   return (
     <div className="min-h-screen bg-navy">
       <Header />
@@ -26,7 +30,7 @@ const Markets = () => {
             MARKET OVERVIEW
           </h1>
           <p className="text-marble/70 max-w-2xl mx-auto">
-            Real-time precious metals and Bitcoin market visualization. Charts provided by TradingView — visualization only, no trading.
+            Real-time precious metals and Bitcoin market visualization with integrated trading via Alpaca. Gold Arrow does not custody funds.
           </p>
         </div>
 
@@ -47,11 +51,18 @@ const Markets = () => {
           ))}
         </div>
 
-        {/* Chart */}
-        <TradingViewChart symbol={activeSymbol.symbol} height={600} />
+        {/* Chart + Trading Panel */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <TradingViewChart symbol={activeSymbol.symbol} height={600} />
+          </div>
+          <div>
+            <TradingPanel activeSymbol={tradingSymbol} />
+          </div>
+        </div>
 
         <p className="text-marble/40 text-xs text-center mt-4">
-          Charts are visualization-only and provided by TradingView. Gold Arrow does not execute trades or provide financial advice.
+          Charts are visualization-only and provided by TradingView. Trading is executed by Alpaca — Gold Arrow does not execute trades, custody funds, or provide financial advice.
         </p>
       </main>
       <Footer />
