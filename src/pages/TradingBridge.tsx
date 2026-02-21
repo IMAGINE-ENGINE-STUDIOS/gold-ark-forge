@@ -63,6 +63,7 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 
 // ─── Bottom Panel Tabs ───────────────────────────────────
 const BOTTOM_TABS = [
+  { key: 'trade', label: 'TRADE', icon: ArrowUpDown },
   { key: 'book', label: 'BOOK', icon: Briefcase },
   { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
   { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
@@ -334,7 +335,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
 const TradingBridge = () => {
   const [activeSymbol, setActiveSymbol] = useState(ALL_SYMBOLS[0]);
-  const [bottomTab, setBottomTab] = useState<BottomTab>('book');
+  const [bottomTab, setBottomTab] = useState<BottomTab>('trade');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
@@ -551,6 +552,23 @@ const TradingBridge = () => {
                   </button>
                 ))}
               </div>
+              {bottomTab === 'trade' && (
+                <div className="space-y-4">
+                  {tradingMode === 'paper' ? (
+                    <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FlaskConical className="w-4 h-4 text-emerald-400" />
+                        <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
+                        <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono">SIMULATED</span>
+                      </div>
+                      <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+                    </div>
+                  ) : (
+                    <TradingPanel activeSymbol={activeSymbol.ticker} />
+                  )}
+                  <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
+                </div>
+              )}
               {bottomTab === 'book' && activeConn && (
                 <div className="space-y-4">
                   <PositionsPanel connectionId={activeConn.id} />
@@ -743,20 +761,7 @@ const TradingBridge = () => {
                 </ResizablePanel>
                 <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={45}>
-                  <div className="h-full overflow-y-auto p-2 space-y-4 watchlist-scroll">
-                    {tradingMode === 'paper' ? (
-                      <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
-                        <div className="flex items-center gap-2 mb-3">
-                          <FlaskConical className="w-4 h-4 text-emerald-400" />
-                          <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
-                          <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono ml-auto">SIMULATED</span>
-                        </div>
-                        <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-                      </div>
-                    ) : (
-                      <TradingPanel activeSymbol={activeSymbol.ticker} />
-                    )}
-                    <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
+                   <div className="h-full overflow-y-auto p-2 space-y-4 watchlist-scroll">
                     <PortfolioSummary />
                     <GATechnicalGauge />
                     <GAFearGreed />
@@ -788,6 +793,23 @@ const TradingBridge = () => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 watchlist-scroll">
+                  {bottomTab === 'trade' && (
+                    <div className="space-y-4">
+                      {tradingMode === 'paper' ? (
+                        <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
+                          <div className="flex items-center gap-2 mb-3">
+                            <FlaskConical className="w-4 h-4 text-emerald-400" />
+                            <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
+                            <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono ml-auto">SIMULATED</span>
+                          </div>
+                          <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+                        </div>
+                      ) : (
+                        <TradingPanel activeSymbol={activeSymbol.ticker} />
+                      )}
+                      <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
+                    </div>
+                  )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 mb-2">
