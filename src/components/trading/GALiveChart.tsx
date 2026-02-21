@@ -513,8 +513,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 overflow-hidden max-h-10">
-        <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 relative z-30">
+        <div className="flex items-center gap-2 flex-shrink-0 min-w-0 overflow-hidden">
           <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={22} />
           <button
             onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
@@ -570,14 +570,11 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
             );
           })()}
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {/* Indicators */}
-          <div className="hidden lg:flex items-center gap-2 mr-2">
-            <span className="text-[9px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(1)}</span></span>
-            <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > headerStats.sma20 ? 'text-emerald-400' : 'text-red-400'}>${headerStats.sma20.toFixed(2)}</span></span>
-            <span className="text-[9px] font-mono text-marble/30">EMA20 <span className={price > headerStats.ema20 ? 'text-emerald-400' : 'text-red-400'}>${headerStats.ema20.toFixed(2)}</span></span>
-            <span className="text-[9px] font-mono text-marble/30">ATR <span className="text-marble/50">{headerStats.atr.toFixed(2)}</span></span>
-            <span className={`text-[9px] font-mono ${headerStats.macdCross === 'bullish' ? 'text-emerald-400' : 'text-red-400'}`}>
+          <div className="hidden xl:flex items-center gap-2 mr-1">
+            <span className="text-[8px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(0)}</span></span>
+            <span className={`text-[8px] font-mono ${headerStats.macdCross === 'bullish' ? 'text-emerald-400' : 'text-red-400'}`}>
               MACD {headerStats.macdCross === 'bullish' ? '▲' : '▼'}
             </span>
           </div>
