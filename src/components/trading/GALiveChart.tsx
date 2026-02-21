@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2 } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -265,7 +265,9 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tfMenuOpen, setTfMenuOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const tfMenuRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { drawings, activeTool, setActiveTool, addDrawing, deleteDrawing, clearAll, showList, toggleList } = useDrawings();
   const [pendingClick, setPendingClick] = useState<number | null>(null);
@@ -604,23 +606,36 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
             ))}
           </div>
           {/* Timeframe selector */}
-          <div className="flex gap-0.5">
-            {timeframes.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTf(t)}
-                className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
-                  tf === t
-                    ? t === 'RT'
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-gold/15 text-gold border border-gold/30'
-                    : 'text-marble/30 hover:text-marble/60 border border-transparent'
-                }`}
-              >
-                {t}
+          {isMobile ? (
+            <div className="relative" ref={tfMenuRef}>
+              <button onClick={() => setTfMenuOpen(!tfMenuOpen)}
+                className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
+                  tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
+                }`}>
+                {tf} <MoreHorizontal className="w-3 h-3" />
               </button>
-            ))}
-          </div>
+              {tfMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+                  {timeframes.map((t) => (
+                    <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
+                      className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                        tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
+                      }`}>{t} {t === 'RT' && '●'}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-0.5">
+              {timeframes.map((t) => (
+                <button key={t} onClick={() => setTf(t)}
+                  className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
+                    tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
+                    : 'text-marble/30 hover:text-marble/60 border border-transparent'
+                  }`}>{t}</button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
