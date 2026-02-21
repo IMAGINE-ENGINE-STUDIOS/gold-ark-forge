@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Layers, BrickWall } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -25,7 +25,7 @@ import {
 } from './IndicatorOverlay';
 import ChartDrawingTools, { useDrawings, getDrawingReferenceLines } from './ChartDrawingTools';
 import SymbolLogo from './SymbolLogo';
-import { CandlestickLayer, OHLCLayer, type ChartMode } from './CandlestickRenderer';
+import { CandlestickLayer, OHLCLayer, HeikinAshiLayer, RenkoLayer, type ChartMode } from './CandlestickRenderer';
 
 interface Props {
   symbolKey: string;
@@ -34,7 +34,7 @@ interface Props {
   onSymbolChange?: (sym: WatchlistSymbol) => void;
 }
 
-const timeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
+const timeframes = ['RT', '1m', '5m', '15m', '30m', '1H', '2H', '3H', '4H', '6H', '8H', '1D', '1W', '1M'] as const;
 type Timeframe = (typeof timeframes)[number];
 
 interface TFConfig {
@@ -47,8 +47,16 @@ interface TFConfig {
 
 const tfConfigs: Record<Timeframe, TFConfig> = {
   'RT': { points: 60, intervalMs: 5_000, candleMs: 5_000, volatility: 0.0002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+  '1m': { points: 60, intervalMs: 60_000, candleMs: 60_000, volatility: 0.00015, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+  '5m': { points: 60, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0003, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '15m': { points: 48, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.00035, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '30m': { points: 48, intervalMs: 30 * 60_000, candleMs: 30 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1H': { points: 12, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '2H': { points: 48, intervalMs: 2 * 3_600_000, candleMs: 2 * 3_600_000, volatility: 0.0006, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '3H': { points: 40, intervalMs: 3 * 3_600_000, candleMs: 3 * 3_600_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '4H': { points: 48, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0005, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '6H': { points: 28, intervalMs: 6 * 3_600_000, candleMs: 6 * 3_600_000, volatility: 0.0012, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
+  '8H': { points: 21, intervalMs: 8 * 3_600_000, candleMs: 8 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
   '1D': { points: 96, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1W': { points: 84, intervalMs: 2 * 3_600_000, candleMs: 2 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
   '1M': { points: 120, intervalMs: 6 * 3_600_000, candleMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
@@ -594,6 +602,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
               { mode: 'area' as ChartMode, icon: LineChart, tip: 'Area' },
               { mode: 'candlestick' as ChartMode, icon: CandlestickChart, tip: 'Candles' },
               { mode: 'ohlc' as ChartMode, icon: BarChart2, tip: 'OHLC' },
+              { mode: 'heikinashi' as ChartMode, icon: BarChart3, tip: 'Heikin-Ashi' },
+              { mode: 'renko' as ChartMode, icon: Layers, tip: 'Renko' },
             ]).map(({ mode, icon: Icon, tip }) => (
               <button
                 key={mode}
@@ -628,10 +638,10 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
               )}
             </div>
           ) : (
-            <div className="flex gap-0.5">
+            <div className="flex gap-0.5 flex-wrap max-w-[360px]">
               {timeframes.map((t) => (
                 <button key={t} onClick={() => setTf(t)}
-                  className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
+                  className={`px-1.5 py-0.5 text-[8px] font-mono tracking-wider rounded transition-all ${
                     tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
                     : 'text-marble/30 hover:text-marble/60 border border-transparent'
                   }`}>{t}</button>
@@ -692,6 +702,26 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                   if (!xAxis?.scale || !yAxis?.scale) return null;
                   const barW = Math.max(Math.floor((xAxis.width || 600) / chartData.length * 0.6), 3);
                   return <OHLCLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
+                }} />
+              )}
+              {chartMode === 'heikinashi' && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  const barW = Math.max(Math.floor((xAxis.width || 600) / chartData.length * 0.6), 3);
+                  return <HeikinAshiLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
+                }} />
+              )}
+              {chartMode === 'renko' && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  const barW = Math.max(Math.floor((xAxis.width || 600) / chartData.length * 0.6), 3);
+                  return <RenkoLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
                 }} />
               )}
               {chartMode !== 'area' && (
