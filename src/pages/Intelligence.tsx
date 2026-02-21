@@ -49,6 +49,8 @@ import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
+import GATimeSales from '@/components/ga-widgets/GATimeSales';
+import GATradeJournal from '@/components/ga-widgets/GATradeJournal';
 import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 
 import {
@@ -96,6 +98,9 @@ const sections = [
   { id: 'yields', label: 'YIELDS', icon: Landmark },
   // Proprietary
   { id: 'ratios', label: 'RATIOS', icon: BarChart3 },
+  // Trading Tools
+  { id: 'tape', label: 'TAPE', icon: Activity },
+  { id: 'journal', label: 'JOURNAL', icon: BarChart3 },
 ];
 
 const SectionDivider = ({ label }: { label: string }) => (
@@ -489,6 +494,27 @@ const Intelligence = () => {
           <SectionDivider label="PARTNER NETWORK" />
           <WidgetDocWrapper widgetId="partners">
             <GAPartnerNetwork />
+          </WidgetDocWrapper>
+        </section>
+      </div>
+
+      <div className="greek-key-border-rich h-2" />
+
+      {/* ═══════════════ TRADING TOOLS ═══════════════ */}
+      <div className="container mx-auto px-6 py-12 space-y-12">
+        <TierBanner label="TRADING TOOLS" sub="ORDER FLOW · JOURNALING · PROFESSIONAL ANALYTICS" />
+
+        <section id="tape">
+          <SectionDivider label="TIME & SALES (TAPE READER)" />
+          <WidgetDocWrapper widgetId="tape">
+            <GATimeSales />
+          </WidgetDocWrapper>
+        </section>
+
+        <section id="journal">
+          <SectionDivider label="TRADE JOURNAL" />
+          <WidgetDocWrapper widgetId="journal">
+            <GATradeJournal />
           </WidgetDocWrapper>
         </section>
       </div>
