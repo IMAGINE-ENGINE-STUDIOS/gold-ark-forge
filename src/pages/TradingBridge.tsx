@@ -10,6 +10,19 @@ import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
+import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
+import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
+import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
+import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
+import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
+import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
+import GABullionHeatmap from '@/components/ga-widgets/GABullionHeatmap';
+import GAMarketHeatmap from '@/components/ga-widgets/GAMarketHeatmap';
+import GACryptoHeatmap from '@/components/ga-widgets/GACryptoHeatmap';
+import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
+import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
+import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
+import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
 import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
@@ -53,6 +66,7 @@ const BOTTOM_TABS = [
   { key: 'book', label: 'BOOK', icon: Briefcase },
   { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
   { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
+  { key: 'market', label: 'MARKET', icon: Layers },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   { key: 'risk', label: 'RISK', icon: Shield },
   { key: 'strategies', label: 'STRATEGIES', icon: Bot },
@@ -483,11 +497,13 @@ const TradingBridge = () => {
               <div className="h-[45vh] min-h-[260px]">
                 <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
               </div>
-              <div className="p-3 space-y-3">
-                <GAPriceCards />
-                <GAFearGreed />
-                <GATopMovers />
-              </div>
+               <div className="p-3 space-y-3">
+                 <GAPriceCards />
+                 <GAFearGreed />
+                 <GATopMovers />
+                 <GAMiniCharts />
+                 <GAMarketPulse />
+               </div>
             </div>
           )}
 
@@ -553,8 +569,38 @@ const TradingBridge = () => {
                 </div>
               )}
               {bottomTab === 'backtest' && <BacktestPanel />}
-              {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
-              {bottomTab === 'risk' && <><RiskPanel connectionId={activeConn?.id} /><div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div></>}
+              {bottomTab === 'analytics' && (
+                <div className="space-y-4">
+                  <AnalyticsPanel connectionId={activeConn?.id} />
+                  <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <GAMarketPulse />
+                    <GACrossAssetDashboard />
+                    <GAAssetOverview />
+                    <GAMiniCharts />
+                  </div>
+                </div>
+              )}
+              {bottomTab === 'risk' && (
+                <>
+                  <RiskPanel connectionId={activeConn?.id} />
+                  <div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div>
+                  <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <GAVolatilityMatrix />
+                    <GAGoldRatio />
+                    <div className="lg:col-span-2"><GABullionHeatmap /></div>
+                  </div>
+                </>
+              )}
+              {bottomTab === 'market' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <GAMarketHeatmap />
+                  <GACryptoHeatmap />
+                  <GAForexMatrix />
+                  <GAEconomicCalendar />
+                  <GAMarketQuotes />
+                  <GAMarketSummary />
+                </div>
+              )}
               {bottomTab === 'strategies' && <StrategiesPanel />}
               {bottomTab === 'social' && <SocialPanel />}
             </div>
@@ -712,6 +758,9 @@ const TradingBridge = () => {
                     )}
                     <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
                     <PortfolioSummary />
+                    <GATechnicalGauge />
+                    <GAFearGreed />
+                    <GAPriceCards />
                   </div>
                 </ResizablePanel>
               </ResizablePanelGroup>
@@ -799,8 +848,38 @@ const TradingBridge = () => {
                     </div>
                   )}
                   {bottomTab === 'backtest' && <BacktestPanel />}
-                  {bottomTab === 'analytics' && <AnalyticsPanel connectionId={activeConn?.id} />}
-                  {bottomTab === 'risk' && <><RiskPanel connectionId={activeConn?.id} /><div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div></>}
+                  {bottomTab === 'analytics' && (
+                    <div className="space-y-4">
+                      <AnalyticsPanel connectionId={activeConn?.id} />
+                      <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <GAMarketPulse />
+                        <GACrossAssetDashboard />
+                        <GAAssetOverview />
+                        <GAMiniCharts />
+                      </div>
+                    </div>
+                  )}
+                  {bottomTab === 'risk' && (
+                    <>
+                      <RiskPanel connectionId={activeConn?.id} />
+                      <div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div>
+                      <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <GAVolatilityMatrix />
+                        <GAGoldRatio />
+                        <div className="lg:col-span-2"><GABullionHeatmap /></div>
+                      </div>
+                    </>
+                  )}
+                  {bottomTab === 'market' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <GAMarketHeatmap />
+                      <GACryptoHeatmap />
+                      <GAForexMatrix />
+                      <GAEconomicCalendar />
+                      <GAMarketQuotes />
+                      <GAMarketSummary />
+                    </div>
+                  )}
                   {bottomTab === 'strategies' && <StrategiesPanel />}
                   {bottomTab === 'social' && <SocialPanel />}
                 </div>
