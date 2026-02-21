@@ -243,10 +243,11 @@ const SliderRow = ({ label, value, min, max, step, onChange, suffix = '' }: { la
 );
 
 /* ─── Gradient Color Picker ─── */
-const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitChange, label }: {
+const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitChange, label, onEyedrop }: {
   hue: number; sat: number; lit: number;
   onHueChange: (v: number) => void; onSatChange: (v: number) => void; onLitChange: (v: number) => void;
   label: string;
+  onEyedrop?: () => void;
 }) => {
   const [hexInput, setHexInput] = useState('');
   const satLitRef = useRef<HTMLDivElement>(null);
@@ -342,6 +343,11 @@ const GradientColorPicker = ({ hue, sat, lit, onHueChange, onSatChange, onLitCha
           placeholder="#C9973F"
           className="flex-1 px-2 py-1 text-[10px] bg-navy-light/50 border border-gold/10 rounded text-marble/60 placeholder:text-marble/25 focus:outline-none focus:border-gold/30 font-mono"
         />
+        {onEyedrop && (
+          <button onClick={onEyedrop} className="w-6 h-6 rounded border border-gold/10 flex items-center justify-center text-marble/30 hover:text-gold hover:border-gold/30 transition-colors shrink-0" title="Pick color from screen">
+            <Pipette className="w-3 h-3" />
+          </button>
+        )}
       </div>
       <div className="space-y-0.5">
         <button onClick={() => copyToClipboard(currentHex, 'HEX')} className="flex items-center gap-2 w-full text-left px-1.5 py-0.5 rounded hover:bg-gold/5 transition-colors group">
@@ -470,6 +476,22 @@ const MobileSheet = ({ mobileOpen, setMobileOpen, universal, randomize, reset, c
   );
 };
 
+/* ─── Eyedropper helper ─── */
+const useEyedropper = (onPick: (h: number, s: number, l: number) => void) => {
+  return useCallback(async () => {
+    if (!('EyeDropper' in window)) {
+      toast.error('EyeDropper not supported in this browser');
+      return;
+    }
+    try {
+      const dropper = new (window as any).EyeDropper();
+      const result = await dropper.open();
+      const hsl = hexToHsl(result.sRGBHex);
+      if (hsl) { onPick(hsl.h, hsl.s, hsl.l); toast.success(`Picked ${result.sRGBHex}`); }
+    } catch {}
+  }, [onPick]);
+};
+
 /* ─── Main Component ─── */
 interface PaletteEditorProps { children: ReactNode; widgetId: string; }
 
@@ -544,6 +566,14 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
   }, [universal, state]);
 
   useEffect(() => { if (state.fontFamily) loadFont(state.fontFamily); }, [state.fontFamily]);
+
+  // Eyedropper hooks
+  const eyedropAccent = useEyedropper(useCallback((h, s, l) => { set('accentHue', h); set('accentSat', s); set('accentLit', l); }, [set]));
+  const eyedropText = useEyedropper(useCallback((h, s, l) => { set('textHue', h); set('textSat', s); set('textLit', l); }, [set]));
+  const eyedropBg = useEyedropper(useCallback((h, s, l) => { set('bgHue', h); set('bgSat', s); set('bgLit', l); }, [set]));
+
+  // Unique ID for scoped styles
+  const scopeId = useRef(`pe-${widgetId.replace(/\W/g, '')}-${Math.random().toString(36).slice(2, 6)}`).current;
 
   const toggleUniversal = useCallback((val: boolean) => {
     if (!val) {
@@ -690,10 +720,28 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
     padding: `${state.padding * 4}px`,
     filter: `saturate(${state.saturationBoost}%) contrast(${state.contrastBoost}%)`,
     backdropFilter: state.backdropBlur > 0 ? `blur(${state.backdropBlur}px)` : undefined,
-    gap: `${state.gap}rem`,
     position: 'relative' as const,
-    overflow: 'hidden',
+    overflow: 'visible',
   });
+
+  // Fix 1: Background rendering (solid or gradient)
+  const bgColor = `hsl(${state.bgHue}, ${state.bgSat}%, ${state.bgLit}%)`;
+  const bgColorDark = `hsl(${state.bgHue}, ${Math.max(0, state.bgSat - 10)}%, ${Math.max(0, state.bgLit - 6)}%)`;
+  if (state.bgMode === 'gradient') {
+    wrapperStyle.background = `linear-gradient(${state.bgGradientDir}, ${bgColor}, ${bgColorDark})`;
+  } else {
+    wrapperStyle.background = bgColor;
+  }
+  if (state.bgOpacity < 100) {
+    // Re-apply with opacity channel
+    const bgAlpha = state.bgOpacity / 100;
+    if (state.bgMode === 'gradient') {
+      wrapperStyle.background = `linear-gradient(${state.bgGradientDir}, hsl(${state.bgHue} ${state.bgSat}% ${state.bgLit}% / ${bgAlpha}), hsl(${state.bgHue} ${Math.max(0, state.bgSat - 10)}% ${Math.max(0, state.bgLit - 6)}% / ${bgAlpha}))`;
+    } else {
+      wrapperStyle.background = `hsl(${state.bgHue} ${state.bgSat}% ${state.bgLit}% / ${bgAlpha})`;
+    }
+  }
+
   if (state.fontFamily && !universal) wrapperStyle.fontFamily = `'${state.fontFamily}', sans-serif`;
 
   const shadowMap: Record<string, string> = {
@@ -792,7 +840,8 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
               {key === 'colors' && (
                 <>
                   <GradientColorPicker label="ACCENT COLOR" hue={state.accentHue} sat={state.accentSat} lit={state.accentLit}
-                    onHueChange={v => set('accentHue', v)} onSatChange={v => set('accentSat', v)} onLitChange={v => set('accentLit', v)} />
+                    onHueChange={v => set('accentHue', v)} onSatChange={v => set('accentSat', v)} onLitChange={v => set('accentLit', v)}
+                    onEyedrop={eyedropAccent} />
                   <div>
                     <label className="text-[9px] text-marble/40 font-display tracking-wider">QUICK SWATCHES</label>
                     <div className="flex flex-wrap gap-1.5 mt-1">
@@ -810,13 +859,15 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
                   </div>
                   <div className="divider-ornate"><span className="text-[8px] text-gold/30 font-display tracking-[0.3em]">TEXT COLOR</span></div>
                   <GradientColorPicker label="TEXT / MARBLE" hue={state.textHue} sat={state.textSat} lit={state.textLit}
-                    onHueChange={v => set('textHue', v)} onSatChange={v => set('textSat', v)} onLitChange={v => set('textLit', v)} />
+                    onHueChange={v => set('textHue', v)} onSatChange={v => set('textSat', v)} onLitChange={v => set('textLit', v)}
+                    onEyedrop={eyedropText} />
                 </>
               )}
               {key === 'background' && (
                 <>
                   <GradientColorPicker label="BACKGROUND" hue={state.bgHue} sat={state.bgSat} lit={state.bgLit}
-                    onHueChange={v => set('bgHue', v)} onSatChange={v => set('bgSat', v)} onLitChange={v => set('bgLit', v)} />
+                    onHueChange={v => set('bgHue', v)} onSatChange={v => set('bgSat', v)} onLitChange={v => set('bgLit', v)}
+                    onEyedrop={eyedropBg} />
                   <div className="flex items-center gap-2">
                     <label className="text-[9px] text-marble/40 font-display tracking-wider">GRADIENT</label>
                     <Switch checked={state.bgMode === 'gradient'} onCheckedChange={v => set('bgMode', v ? 'gradient' : 'solid')} className="scale-75 origin-left" />
@@ -953,13 +1004,28 @@ const PaletteEditor = ({ children, widgetId }: PaletteEditorProps) => {
     </div>
   );
 
+  // Build scoped style string for font override, title size, text opacity, gap
+  const scopedCSS = `
+    .${scopeId} * { ${state.fontFamily && !universal ? `font-family: '${state.fontFamily}', sans-serif !important;` : ''} }
+    .${scopeId} h1, .${scopeId} h2, .${scopeId} h3, .${scopeId} h4, .${scopeId} h5, .${scopeId} h6,
+    .${scopeId} .font-display { font-size: ${state.titleSize}px !important; }
+    .${scopeId} { color: hsl(${state.textHue} ${state.textSat}% ${state.textLit}% / ${state.textOpacity / 100}); }
+    .${scopeId} p, .${scopeId} span, .${scopeId} div, .${scopeId} td, .${scopeId} li { color: inherit; }
+    .${scopeId} .flex, .${scopeId} .grid, .${scopeId} [class*="space-"] > * + * { --palette-gap: ${state.gap}rem; }
+    .${scopeId} .flex { gap: ${state.gap}rem; }
+    .${scopeId} .grid { gap: ${state.gap}rem; }
+  `;
+
   return (
     <div className="relative">
-      <div style={wrapperStyle as React.CSSProperties}>
+      <style dangerouslySetInnerHTML={{ __html: scopedCSS }} />
+      <div className={scopeId} style={wrapperStyle as React.CSSProperties}>
         {state.ornateCorners && (
           <>
-            <span className="ornate-corner ornate-corner-tl" /><span className="ornate-corner ornate-corner-tr" />
-            <span className="ornate-corner ornate-corner-bl" /><span className="ornate-corner ornate-corner-br" />
+            <span className="ornate-corner ornate-corner-tl pointer-events-none z-10" />
+            <span className="ornate-corner ornate-corner-tr pointer-events-none z-10" />
+            <span className="ornate-corner ornate-corner-bl pointer-events-none z-10" />
+            <span className="ornate-corner ornate-corner-br pointer-events-none z-10" />
           </>
         )}
         {children}
