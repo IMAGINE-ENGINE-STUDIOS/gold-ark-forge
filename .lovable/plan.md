@@ -1,75 +1,58 @@
 
+# Fix All Broken Indicators on Gold Arrow LIVE Chart
 
-## Palette Background Presets, Shuffle Integration, Swipe-Down Close, and Tutorial Fix
+## Problem Summary
 
-### Part 1: Background Presets in UI and Shuffle
+Most indicators are broken or invisible on the chart:
+- **Envelopes** use a 10% deviation, creating bands so far from the price that the chart zooms out and the price line looks flat
+- **All oscillators** (MACD, RSI, Stoch RSI, Williams %R, ADX, CCI, Momentum, OBV, MFI, Awesome Oscillator, StdDev, DeMarker, Force Index, Bulls/Bears Power, OsMA) render on the same Y-axis as price -- a value of 50 (RSI) is invisible next to $2,350 (gold)
+- **Fibonacci** levels work but can distort the Y-axis scaling
 
-The 12 `BG_PRESETS` (Deep Space, Aurora Gradient, etc.) were added to the code but never wired into the UI or shuffle logic.
+## Solution: Oscillator Sub-Panel + Fix Envelopes
 
-**Changes to `src/components/ga-widgets/PaletteEditor.tsx`:**
+Professional charting platforms (TradingView, MetaTrader 5) solve this by rendering oscillators in a **separate panel below the main price chart**, with its own Y-axis. We will implement the same architecture.
 
-**A. Background Presets Grid in the BACKGROUND section (after the existing controls):**
-- Render a "BACKGROUND THEMES" label followed by a scrollable grid of preset cards
-- Each card shows a small color swatch (solid or gradient preview) plus the preset name
-- Clicking a card applies its `bgMode`, `bgGradientDir`, `bgOpacity`, `backdropBlur`, `bgHue`, `bgSat`, `bgLit` values to the state
-- Active preset gets a gold border highlight
+### Changes Overview
 
-**B. Shuffle includes a random BG_PRESET:**
-- In the `randomize()` function, after generating mood colors, also pick a random `BG_PRESETS` entry
-- Override the background properties (`bgMode`, `bgGradientDir`, `bgOpacity`, `backdropBlur`) from the selected preset
-- Keep the mood-generated `bgHue/bgSat/bgLit` or blend with the preset values (50/50 chance of using mood bg vs preset bg for variety)
+**1. Fix Envelopes deviation** (`IndicatorOverlay.tsx`)
+- Change default deviation from `0.1` (10%) to `0.002` (0.2%) so the bands hug the price line properly
 
----
+**2. Split indicator rendering into overlay vs oscillator** (`IndicatorOverlay.tsx`)
+- Add a new `getOscillatorLines()` function that returns JSX for oscillator-only indicators
+- Modify `getIndicatorLines()` to only return overlay indicators (SMA, EMA, Bollinger, Ichimoku, SAR, Alligator, Envelopes)
+- Add a `getOscillatorYDomain()` helper to calculate proper min/max for the oscillator panel
+- Export a new `OscillatorPanel` component: a small `ResponsiveContainer` + `ComposedChart` with its own Y-axis, rendered below the main chart
 
-### Part 2: Swipe-Down-to-Close for Mobile Palette
+**3. Add oscillator sub-panel to GALiveStandalone** (`GALiveStandalone.tsx`)
+- Below the main chart area, conditionally render the `OscillatorPanel` when any oscillator indicator is active
+- Main chart keeps 70% height, oscillator panel gets 30% height (auto-adjusts when no oscillators are active)
 
-Add touch gesture handling to the mobile bottom sheet so swiping down on the drag handle closes it.
+**4. Add oscillator sub-panel to GALiveChart** (`GALiveChart.tsx`)
+- Same pattern: split the chart area to show the oscillator sub-panel below the main chart when oscillators are active
 
-**Changes to `src/components/ga-widgets/PaletteEditor.tsx`:**
-
-- Track `touchStartY` on the drag handle bar (the `w-10 h-1 rounded-full bg-gold/30` element and the header area)
-- On `touchEnd`, if vertical delta > 60px downward, call `setMobileOpen(false)`
-- Add a visual feedback: translate the sheet down slightly during the drag gesture for a natural feel
-
----
-
-### Part 3: Tutorial Approach Change
-
-The current tutorial system uses hardcoded percentage-based `x`/`y` coordinates that attempt to guess where widget elements are. Since widget content is dynamic (API data, responsive layout), these coordinates often miss. 
-
-**New approach -- Replace spotlight with a sequential card-based tutorial:**
-
-Instead of trying to aim a spotlight at an element inside a live widget (which requires DOM measurement or perfect coordinate guesses), switch to a **numbered annotation card list** overlaid on the widget. This approach:
-
-- Removes the SVG spotlight mask entirely
-- Shows a numbered step card (1, 2, 3...) anchored to the TOP of the widget area, not positioned over specific coordinates
-- Each card displays the label and description from the hotspot data
-- Auto-advances with the same timer, or user clicks next/prev
-- The widget beneath remains fully visible (dimmed slightly) -- no spotlight aiming needed
-- This eliminates the "random area highlighting" problem entirely since nothing tries to point at specific pixel positions
-
-**Changes to `src/components/ga-widgets/TutorialOverlay.tsx`:**
-
-- Remove the SVG mask, spotlight rect, gold glow div, and inactive badges
-- Replace with a floating annotation card that sits at the bottom of the widget container
-- Keep the existing navigation controls (play/pause, prev/next, dots)
-- Keep keyboard and swipe navigation
-- Add a semi-transparent overlay (no cutout) so the widget is visible but the tutorial card has contrast
-- The card shows the step number, label, and description in the same gold/navy styling
-
----
+**5. Fix Fibonacci Y-axis domain** (`GALiveStandalone.tsx` + `GALiveChart.tsx`)
+- When Fibonacci is active, expand the Y-axis domain to include all fib levels so they're always visible
 
 ### Technical Details
 
-**Background preset card rendering:**
-Each card renders a 40x24px div with either a solid `hsl(bgHue, bgSat%, bgLit%)` fill, or a CSS `linear-gradient` in the preset's direction using the preset's HSL color. A `backdrop-blur` CSS property note is shown for presets with blur > 0.
+**Oscillator panel will display:**
+- RSI / Stoch RSI: Y-axis 0-100
+- MACD / OsMA: auto-scaled
+- Williams %R: Y-axis -100 to 0
+- CCI: auto-scaled (typically -300 to +300)
+- ADX: Y-axis 0-100
+- Momentum / Force Index / Bulls / Bears Power: auto-scaled
+- MFI: Y-axis 0-100
+- DeMarker: Y-axis 0-1
+- StdDev / OBV / Awesome Oscillator: auto-scaled
 
-**Swipe gesture implementation:**
-```
-onTouchStart: record e.touches[0].clientY
-onTouchMove: calculate delta, apply translateY(delta) if delta > 0
-onTouchEnd: if delta > 60 close, else snap back to translateY(0)
-```
+**Oscillator panel features:**
+- Shared X-axis aligned with the main chart
+- Reference lines at key levels (RSI 30/70, Williams -20/-80, CCI +/-100)
+- Labels showing which oscillator is displayed
+- Same dark theme styling as the main chart
 
-**Tutorial card-based approach:**
-The annotation card uses `position: absolute; bottom: 0; left: 0; right: 0` inside the container, with the same `bg-navy-dark/95 border border-gold/30 backdrop-blur-sm` styling. The widget gets a simple `opacity: 0.6` overlay instead of the complex SVG mask. This is simpler, more reliable, and works regardless of widget content or layout.
+**Files modified:**
+1. `src/components/trading/IndicatorOverlay.tsx` -- Fix envelopes, add OscillatorPanel component, split overlay vs oscillator line generators
+2. `src/components/ga-widgets/GALiveStandalone.tsx` -- Integrate OscillatorPanel, fix Y-axis for Fibonacci
+3. `src/components/trading/GALiveChart.tsx` -- Same integration as GALiveStandalone
