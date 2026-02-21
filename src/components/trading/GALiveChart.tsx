@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Layers, BrickWall } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Layers, BrickWall, Pencil, ChevronDown } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -276,6 +276,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [tfMenuOpen, setTfMenuOpen] = useState(false);
+  const [showDrawMenu, setShowDrawMenu] = useState(false);
+  const [showModeMenu, setShowModeMenu] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const tfMenuRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -584,70 +586,111 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
               Click 2nd point · ${pendingClick.toFixed(2)}
             </span>
           )}
+          {/* Drawing Tools Dropdown */}
           {!isMobile && (
-            <ChartDrawingTools
-              activeTool={activeTool}
-              onSelectTool={setActiveTool}
-              drawings={drawings}
-              onClearAll={clearAll}
-              onDeleteDrawing={deleteDrawing}
-              drawingCount={drawings.length}
-              showList={showList}
-              onToggleList={toggleList}
-            />
-          )}
-          {/* Chart mode toggle */}
-          <div className="flex gap-0.5 mr-1">
-            {([
-              { mode: 'area' as ChartMode, icon: LineChart, tip: 'Area' },
-              { mode: 'candlestick' as ChartMode, icon: CandlestickChart, tip: 'Candles' },
-              { mode: 'ohlc' as ChartMode, icon: BarChart2, tip: 'OHLC' },
-              { mode: 'heikinashi' as ChartMode, icon: BarChart3, tip: 'Heikin-Ashi' },
-              { mode: 'renko' as ChartMode, icon: Layers, tip: 'Renko' },
-            ]).map(({ mode, icon: Icon, tip }) => (
+            <div className="relative">
               <button
-                key={mode}
-                onClick={() => setChartMode(mode)}
-                className={`p-1 rounded transition-all ${
-                  chartMode === mode ? 'bg-gold/15 text-gold' : 'text-marble/25 hover:text-marble/50'
+                onClick={() => setShowDrawMenu(prev => !prev)}
+                className={`flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono rounded transition-all border ${
+                  activeTool ? 'bg-gold/15 text-gold border-gold/30' : 'text-marble/25 border-transparent hover:text-marble/50'
                 }`}
-                title={tip}
+                title="Drawing tools"
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Pencil className="w-3 h-3" />
+                {drawings.length > 0 && <span className="text-gold/50">{drawings.length}</span>}
               </button>
-            ))}
-          </div>
-          {/* Timeframe selector */}
-          {isMobile ? (
-            <div className="relative" ref={tfMenuRef}>
-              <button onClick={() => setTfMenuOpen(!tfMenuOpen)}
-                className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
-                  tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
-                }`}>
-                {tf} <MoreHorizontal className="w-3 h-3" />
-              </button>
-              {tfMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
-                  {timeframes.map((t) => (
-                    <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
-                      className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
-                        tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
-                      }`}>{t} {t === 'RT' && '●'}</button>
-                  ))}
+              {showDrawMenu && (
+                <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[140px]">
+                  <ChartDrawingTools
+                    activeTool={activeTool}
+                    onSelectTool={(t) => { setActiveTool(t); setShowDrawMenu(false); }}
+                    drawings={drawings}
+                    onClearAll={() => { clearAll(); setShowDrawMenu(false); }}
+                    onDeleteDrawing={deleteDrawing}
+                    drawingCount={drawings.length}
+                    showList={showList}
+                    onToggleList={toggleList}
+                  />
                 </div>
               )}
             </div>
-          ) : (
-            <div className="flex gap-0.5 flex-nowrap overflow-hidden">
-              {timeframes.map((t) => (
-                <button key={t} onClick={() => setTf(t)}
-                  className={`px-1.5 py-0.5 text-[8px] font-mono tracking-wider rounded transition-all ${
-                    tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
-                    : 'text-marble/30 hover:text-marble/60 border border-transparent'
-                  }`}>{t}</button>
-              ))}
-            </div>
           )}
+          {/* Chart Mode Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowModeMenu(prev => !prev)}
+              className="flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono rounded transition-all text-marble/40 hover:text-marble/70 border border-transparent"
+              title="Chart mode"
+            >
+              {(() => {
+                const modes = [
+                  { mode: 'area' as ChartMode, icon: LineChart },
+                  { mode: 'candlestick' as ChartMode, icon: CandlestickChart },
+                  { mode: 'ohlc' as ChartMode, icon: BarChart2 },
+                  { mode: 'heikinashi' as ChartMode, icon: BarChart3 },
+                  { mode: 'renko' as ChartMode, icon: Layers },
+                ];
+                const cur = modes.find(m => m.mode === chartMode) || modes[0];
+                const CurIcon = cur.icon;
+                return <CurIcon className="w-3.5 h-3.5 text-gold" />;
+              })()}
+              <ChevronDown className="w-2.5 h-2.5" />
+            </button>
+            {showModeMenu && (
+              <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[130px]">
+                {([
+                  { mode: 'area' as ChartMode, icon: LineChart, tip: 'Area' },
+                  { mode: 'candlestick' as ChartMode, icon: CandlestickChart, tip: 'Candlestick' },
+                  { mode: 'ohlc' as ChartMode, icon: BarChart2, tip: 'OHLC' },
+                  { mode: 'heikinashi' as ChartMode, icon: BarChart3, tip: 'Heikin-Ashi' },
+                  { mode: 'renko' as ChartMode, icon: Layers, tip: 'Renko' },
+                ]).map(({ mode, icon: Icon, tip }) => (
+                  <button key={mode} onClick={() => { setChartMode(mode); setShowModeMenu(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                      chartMode === mode ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
+                    }`}>
+                    <Icon className="w-3.5 h-3.5" />
+                    {tip}
+                    {chartMode === mode && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-gold" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Timeframe Dropdown */}
+          <div className="relative" ref={tfMenuRef}>
+            <button onClick={() => setTfMenuOpen(!tfMenuOpen)}
+              className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
+                tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
+              }`}>
+              {tf} <ChevronDown className="w-2.5 h-2.5" />
+            </button>
+            {tfMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[100px] max-h-[300px] overflow-y-auto">
+                <div className="px-3 py-1 text-[7px] font-display tracking-wider text-marble/25 bg-navy-dark/80 sticky top-0">INTRADAY</div>
+                {(['RT','1m','5m','15m','30m'] as Timeframe[]).map(t => (
+                  <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
+                    className={`w-full px-3 py-1.5 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                      tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5'
+                    }`}>{t}{t === 'RT' ? ' ●' : ''}</button>
+                ))}
+                <div className="px-3 py-1 text-[7px] font-display tracking-wider text-marble/25 bg-navy-dark/80 sticky top-0 border-t border-gold/10">HOURLY</div>
+                {(['1H','2H','3H','4H','6H','8H'] as Timeframe[]).map(t => (
+                  <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
+                    className={`w-full px-3 py-1.5 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                      tf === t ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5'
+                    }`}>{t}</button>
+                ))}
+                <div className="px-3 py-1 text-[7px] font-display tracking-wider text-marble/25 bg-navy-dark/80 sticky top-0 border-t border-gold/10">DAILY+</div>
+                {(['1D','1W','1M'] as Timeframe[]).map(t => (
+                  <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
+                    className={`w-full px-3 py-1.5 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                      tf === t ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5'
+                    }`}>{t}</button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

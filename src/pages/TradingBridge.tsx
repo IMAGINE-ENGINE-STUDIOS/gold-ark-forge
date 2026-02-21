@@ -25,6 +25,10 @@ import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
 import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
 import GATimeSales from '@/components/ga-widgets/GATimeSales';
 import GATradeJournal from '@/components/ga-widgets/GATradeJournal';
+import GAPerformanceDashboard from '@/components/ga-widgets/GAPerformanceDashboard';
+import GATradingSessions from '@/components/ga-widgets/GATradingSessions';
+import GAPipCalculator from '@/components/ga-widgets/GAPipCalculator';
+import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
 import OneClickTrading from '@/components/trading/OneClickTrading';
 import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
@@ -979,6 +983,8 @@ const TradingBridge = () => {
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                         <GAMarketPulse />
                         <GACrossAssetDashboard />
+                        <GAPerformanceDashboard />
+                        <GATradingSessions />
                         <GAAssetOverview />
                         <GAMiniCharts />
                       </div>
@@ -991,6 +997,8 @@ const TradingBridge = () => {
                       <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                         <GAVolatilityMatrix />
                         <GAGoldRatio />
+                        <GAPipCalculator />
+                        <GAMarginCalc />
                         <div className="lg:col-span-2"><GABullionHeatmap /></div>
                       </div>
                     </>
