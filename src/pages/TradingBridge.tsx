@@ -492,7 +492,7 @@ const TradingBridge = () => {
         )}
 
         {/* Mobile Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           {mobileTab === 'chart' && (
             <div className="flex flex-col">
               <div className="h-[45vh] min-h-[260px]">
@@ -536,21 +536,25 @@ const TradingBridge = () => {
 
           {mobileTab === 'tools' && (
             <div className="p-3 space-y-4">
-              <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-                {BOTTOM_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setBottomTab(tab.key)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded text-[10px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
-                      bottomTab === tab.key
-                        ? 'bg-gold/15 text-gold border border-gold/30'
-                        : 'text-marble/35 border border-gold/5'
-                    }`}
-                  >
-                    <tab.icon className="w-3 h-3" />
-                    {tab.label}
-                  </button>
-                ))}
+              <div className="relative">
+                <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide flex-nowrap">
+                  {BOTTOM_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setBottomTab(tab.key)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
+                        bottomTab === tab.key
+                          ? 'bg-gold/15 text-gold border border-gold/30'
+                          : 'text-marble/35 border border-gold/5'
+                      }`}
+                    >
+                      <tab.icon className="w-2.5 h-2.5" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-navy to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-navy to-transparent" />
               </div>
               {bottomTab === 'trade' && (
                 <div className="space-y-4">
@@ -590,7 +594,7 @@ const TradingBridge = () => {
               {bottomTab === 'analytics' && (
                 <div className="space-y-4">
                   <AnalyticsPanel connectionId={activeConn?.id} />
-                  <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                   <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
                     <GAMarketPulse />
                     <GACrossAssetDashboard />
                     <GAAssetOverview />
@@ -602,15 +606,15 @@ const TradingBridge = () => {
                 <>
                   <RiskPanel connectionId={activeConn?.id} />
                   <div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div>
-                  <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
                     <GAVolatilityMatrix />
                     <GAGoldRatio />
-                    <div className="lg:col-span-2"><GABullionHeatmap /></div>
+                    <GABullionHeatmap />
                   </div>
                 </>
               )}
               {bottomTab === 'market' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
                   <GAMarketHeatmap />
                   <GACryptoHeatmap />
                   <GAForexMatrix />
@@ -775,24 +779,28 @@ const TradingBridge = () => {
 
             <ResizablePanel defaultSize={35} minSize={15}>
               <div className="h-full flex flex-col">
-                <div className="flex items-center gap-1 px-2 py-1 bg-navy-dark/80 border-b border-gold/10 flex-shrink-0 overflow-x-auto">
-                  {BOTTOM_TABS.map((tab) => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setBottomTab(tab.key)}
-                      className={`flex items-center gap-1 px-3 py-1 rounded text-[10px] font-display tracking-wider transition-all whitespace-nowrap ${
-                        bottomTab === tab.key
-                          ? 'bg-gold/15 text-gold border border-gold/30'
-                          : 'text-marble/35 hover:text-marble/60 border border-transparent'
-                      }`}
-                    >
-                      <tab.icon className="w-3 h-3" />
-                      {tab.label}
-                    </button>
-                  ))}
+                <div className="relative flex-shrink-0">
+                  <div className="flex items-center gap-1 px-2 py-1 bg-navy-dark/80 border-b border-gold/10 overflow-x-auto scrollbar-hide">
+                    {BOTTOM_TABS.map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setBottomTab(tab.key)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-display tracking-wider transition-all whitespace-nowrap flex-shrink-0 ${
+                          bottomTab === tab.key
+                            ? 'bg-gold/15 text-gold border border-gold/30'
+                            : 'text-marble/35 hover:text-marble/60 border border-transparent'
+                        }`}
+                      >
+                        <tab.icon className="w-3 h-3" />
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-navy-dark/80 to-transparent" />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-navy-dark/80 to-transparent" />
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 watchlist-scroll">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 watchlist-scroll">
                   {bottomTab === 'trade' && (
                     <div className="space-y-4">
                       {tradingMode === 'paper' ? (
@@ -873,7 +881,7 @@ const TradingBridge = () => {
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
                       <AnalyticsPanel connectionId={activeConn?.id} />
-                      <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                         <GAMarketPulse />
                         <GACrossAssetDashboard />
                         <GAAssetOverview />
@@ -885,7 +893,7 @@ const TradingBridge = () => {
                     <>
                       <RiskPanel connectionId={activeConn?.id} />
                       <div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div>
-                      <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                         <GAVolatilityMatrix />
                         <GAGoldRatio />
                         <div className="lg:col-span-2"><GABullionHeatmap /></div>
@@ -893,7 +901,7 @@ const TradingBridge = () => {
                     </>
                   )}
                   {bottomTab === 'market' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                       <GAMarketHeatmap />
                       <GACryptoHeatmap />
                       <GAForexMatrix />
