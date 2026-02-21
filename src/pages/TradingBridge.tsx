@@ -601,7 +601,7 @@ const TradingBridge = () => {
           </button>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/markets" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">MARKETS</Link>
+          <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
