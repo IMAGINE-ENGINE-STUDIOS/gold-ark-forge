@@ -511,8 +511,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gold/10 flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 overflow-hidden max-h-10">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={22} />
           <button
             onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
@@ -568,7 +568,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
             );
           })()}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0">
           {/* Indicators */}
           <div className="hidden lg:flex items-center gap-2 mr-2">
             <span className="text-[9px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(1)}</span></span>
@@ -638,7 +638,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
               )}
             </div>
           ) : (
-            <div className="flex gap-0.5 flex-wrap max-w-[360px]">
+            <div className="flex gap-0.5 flex-nowrap overflow-hidden">
               {timeframes.map((t) => (
                 <button key={t} onClick={() => setTf(t)}
                   className={`px-1.5 py-0.5 text-[8px] font-mono tracking-wider rounded transition-all ${
