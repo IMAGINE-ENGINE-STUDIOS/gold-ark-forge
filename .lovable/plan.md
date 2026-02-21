@@ -1,97 +1,110 @@
 
 
-# Phase 3: Add 6 New Indicators to IndicatorOverlay.tsx
+# Phase 4: Professional Analytics Widgets + Chart UI Cleanup
 
-## What Changes
+## Overview
 
-6 new professional-grade indicators added to `IndicatorOverlay.tsx`, following the exact same patterns already established in the file:
+Two parallel efforts in one implementation:
 
-| Indicator | Type | Data Keys | Reference Lines |
-|-----------|------|-----------|-----------------|
-| VWAP | Overlay | `vwap` | None (single line on price axis) |
-| Pivot Points | Overlay | `pivotP`, `pivotR1`, `pivotR2`, `pivotR3`, `pivotS1`, `pivotS2`, `pivotS3` | None (7 horizontal lines) |
-| Donchian Channels | Overlay | `donchianUpper`, `donchianMiddle`, `donchianLower` | None (3 lines like Bollinger) |
-| Keltner Channels | Overlay | `keltnerUpper`, `keltnerMiddle`, `keltnerLower` | None (3 lines like Envelopes) |
-| CMF | Oscillator | `cmf` | y=0 zero line |
-| A/D Line | Oscillator | `adLine` | None (cumulative line) |
+1. **4 new professional analytics widgets** as standalone components in `src/components/ga-widgets/`
+2. **Chart header UI cleanup** -- consolidate overflowing tools into dropdown menus so nothing falls off-screen
 
-## Technical Details -- Single File: `src/components/trading/IndicatorOverlay.tsx`
+---
 
-### 1. Add 6 computation functions (after line ~309, before the indicator definitions)
+## Part A: Chart UI Cleanup (GALiveChart.tsx)
 
-**`computeVWAP`** -- Volume Weighted Average Price
-- Takes closes and volumes (simulated if unavailable)
-- Cumulative (typicalPrice * volume) / cumulative(volume)
-- Resets concept: since we don't have session boundaries, runs cumulatively over the data window
+### Problem
+The chart header (line 514) packs too many elements into a single row: symbol info, bid/ask, day range, drawing tools (4 buttons + count + trash), 5 chart mode buttons, and 14 timeframe buttons. On many screen sizes these overflow or get clipped by `overflow-hidden`.
 
-**`computePivotPoints`** -- Standard Pivot Points
-- Takes the previous bar's high, low, close to compute:
-  - Pivot (P) = (H + L + C) / 3
-  - R1 = 2P - L, S1 = 2P - H
-  - R2 = P + (H - L), S2 = P - (H - L)
-  - R3 = H + 2(P - L), S3 = L - 2(H - P)
-- Draws 7 horizontal reference lines across the chart
+### Solution: Consolidate into 3 dropdown menus
 
-**`computeDonchian`** -- Donchian Channels (period=20)
-- Upper = highest high over N periods
-- Lower = lowest low over N periods
-- Middle = (Upper + Lower) / 2
+**1. Drawing Tools dropdown**
+- Replace the 4 inline tool buttons + count + trash with a single "Draw" toggle button
+- When clicked, shows a dropdown with all 4 tools, the drawing count, and clear-all
+- Active tool state shown via gold highlight on the trigger button
 
-**`computeKeltner`** -- Keltner Channels (EMA=20, ATR multiplier=1.5)
-- Middle = EMA(close, 20)
-- Upper = Middle + 1.5 * ATR(10)
-- Lower = Middle - 1.5 * ATR(10)
+**2. Chart Mode dropdown**
+- Replace 5 inline chart-mode icon buttons with a single button showing the current mode icon + a chevron
+- Dropdown lists all 5 modes (Area, Candlestick, OHLC, Heikin-Ashi, Renko) with labels and icons
+- Active mode gets a gold indicator dot
 
-**`computeCMF`** -- Chaikin Money Flow (period=20)
-- Money Flow Multiplier = ((C - L) - (H - C)) / (H - L)
-- Money Flow Volume = MFM * Volume
-- CMF = Sum(MFV, N) / Sum(Vol, N)
-- Range: roughly -1 to +1
+**3. Timeframe dropdown (desktop too)**
+- Replace the 14 inline timeframe buttons with a single dropdown (same pattern already used on mobile)
+- Shows current timeframe + chevron on desktop, opens a dropdown with all 14 options
+- Group visually: Intraday (RT-30m), Hourly (1H-8H), Daily+ (1D-1M)
 
-**`computeADLine`** -- Accumulation/Distribution Line
-- A/D = prev A/D + ((C - L) - (H - C)) / (H - L) * Volume
-- Cumulative, no period parameter
+This frees the header to fit comfortably in one row on any screen width without overflow-hidden clipping.
 
-### 2. Expand the `IndicatorKey` type (line 313-317)
+### Implementation in `GALiveChart.tsx`
 
-Add 6 new keys:
-```
-'vwap' | 'pivotPoints' | 'donchian' | 'keltner' | 'cmf' | 'adLine'
-```
+- Lines 587-598 (ChartDrawingTools inline render): Replace with a dropdown button that opens ChartDrawingTools in a positioned dropdown panel
+- Lines 599-618 (chart mode buttons): Replace with a single-button dropdown
+- Lines 620-650 (timeframe selector): Use the mobile dropdown pattern for all screen sizes, removing the flex-nowrap inline buttons
 
-### 3. Add to `INDICATORS` array (line 326-354)
+---
 
-4 new overlays (after `envelopes`, before `fibonacci`):
-- `{ key: 'vwap', label: 'VWAP', color: 'hsl(45,85%,55%)', category: 'overlay' }`
-- `{ key: 'pivotPoints', label: 'Pivots', color: 'hsl(200,70%,60%)', category: 'overlay' }`
-- `{ key: 'donchian', label: 'Donchian', color: 'hsl(160,65%,50%)', category: 'overlay' }`
-- `{ key: 'keltner', label: 'Keltner', color: 'hsl(320,60%,55%)', category: 'overlay' }`
+## Part B: 4 New Professional Analytics Widgets
 
-2 new oscillators (after `osma`):
-- `{ key: 'cmf', label: 'CMF', color: 'hsl(180,70%,45%)', category: 'oscillator' }`
-- `{ key: 'adLine', label: 'A/D Line', color: 'hsl(90,55%,50%)', category: 'oscillator' }`
+### Widget 1: `src/components/ga-widgets/GAPerformanceDashboard.tsx`
 
-### 4. Add enrichment blocks in `enrichChartData` (after line 531, before oscillator section)
+A compact performance analytics card showing:
+- Sharpe Ratio, Sortino Ratio, Max Drawdown, Calmar Ratio
+- Win/Loss ratio with visual bar
+- Profit Factor
+- Average Win vs Average Loss comparison
+- Monthly returns heatmap grid (12 months x simulated)
 
-6 new `if (activeIndicators.has(...))` blocks following the exact pattern of the existing ones -- compute the values, iterate, assign to `enriched[i].dataKey`.
+All data simulated/computed from paper trading state or mock data. Renders as a self-contained widget card using the existing WidgetShell-style border pattern.
 
-### 5. Add overlay lines in `getIndicatorLines` (after line 641)
+### Widget 2: `src/components/ga-widgets/GAMarginCalc.tsx`
 
-- VWAP: single solid line
-- Pivot Points: 7 reference lines (P, R1-R3, S1-S3) with labels, dashed
-- Donchian: 3 lines (upper, middle dashed, lower)
-- Keltner: 3 lines (upper, middle, lower)
+Margin & Leverage Calculator:
+- Input fields: Account Size, Leverage (1x-100x), Position Size, Entry Price
+- Computed outputs: Required Margin, Maintenance Margin, Liquidation Price, Max Position
+- Visual margin usage bar (green/yellow/red zones)
+- Preset buttons for common leverage levels (1x, 5x, 10x, 25x, 50x, 100x)
 
-### 6. Add oscillator configs in `OSCILLATOR_CONFIGS` (after line 670)
+### Widget 3: `src/components/ga-widgets/GATradingSessions.tsx`
 
-- CMF: domain [-1, 1], zero reference line
-- A/D Line: auto domain, no reference lines
+Global Trading Sessions Clock:
+- Shows 4 major sessions: Sydney, Tokyo, London, New York
+- Each with open/close times, current status (OPEN/CLOSED), and a visual timeline bar
+- Overlapping session highlights (London-NY overlap = highest liquidity)
+- Current time indicator on the timeline
+- Session-specific volatility hint labels
 
-### 7. Add to `OSCILLATOR_KEYS` array (line 607)
+### Widget 4: `src/components/ga-widgets/GAPipCalculator.tsx`
 
-Append `'cmf'` and `'adLine'`.
+Pip Value & Profit Calculator:
+- Inputs: Currency Pair (select from common pairs), Lot Size (micro/mini/standard), Entry Price, Exit Price
+- Computed: Pip Value in USD, Total Pips, Profit/Loss
+- Quick preset lot sizes (0.01, 0.1, 1.0, 10.0)
+- Works for forex, metals (XAU, XAG pip definitions), and crypto
 
-### No Other Files Changed
+---
 
-All 6 indicators are self-contained within `IndicatorOverlay.tsx`. They automatically appear in the indicator toggle bar (visible or in the MORE dropdown) and work with both the price chart overlays and the oscillator sub-panel.
+## Part C: Integration into TradingBridge
+
+### `src/pages/TradingBridge.tsx`
+
+- Import the 4 new widgets
+- Add them to the **ANALYTICS** tab (bottomTab === 'analytics', lines 976-985):
+  - Place GAPerformanceDashboard and GATradingSessions in the existing grid alongside GAMarketPulse, etc.
+- Add GAPipCalculator and GAMarginCalc to the **RISK** tab (bottomTab === 'risk', lines 987-997):
+  - Place them in the grid alongside the existing position sizer and correlation matrix
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `src/components/trading/GALiveChart.tsx` | Refactor header: drawing tools, chart modes, and timeframes into dropdown menus |
+| `src/components/ga-widgets/GAPerformanceDashboard.tsx` | **NEW** -- Performance metrics widget |
+| `src/components/ga-widgets/GAMarginCalc.tsx` | **NEW** -- Margin calculator widget |
+| `src/components/ga-widgets/GATradingSessions.tsx` | **NEW** -- Trading sessions clock widget |
+| `src/components/ga-widgets/GAPipCalculator.tsx` | **NEW** -- Pip calculator widget |
+| `src/pages/TradingBridge.tsx` | Import + place 4 new widgets in Analytics and Risk tabs |
+
+No new dependencies required. All widgets use existing patterns (Recharts, Tailwind, lucide-react icons).
 
