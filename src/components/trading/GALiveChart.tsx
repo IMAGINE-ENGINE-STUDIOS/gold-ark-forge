@@ -34,7 +34,7 @@ interface Props {
   onSymbolChange?: (sym: WatchlistSymbol) => void;
 }
 
-const timeframes = ['RT', '1m', '5m', '15m', '30m', '1H', '2H', '3H', '4H', '6H', '8H', '1D', '1W', '1M'] as const;
+const timeframes = ['RT', '1m', '5m', '15m', '30m', '1H', '2H', '3H', '4H', '6H', '8H', '1D', '1W', '1M', '3M', '6M', '1Y', 'YTD', 'ALL'] as const;
 type Timeframe = (typeof timeframes)[number];
 
 interface TFConfig {
@@ -60,6 +60,11 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   '1D': { points: 96, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1W': { points: 84, intervalMs: 2 * 3_600_000, candleMs: 2 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
   '1M': { points: 120, intervalMs: 6 * 3_600_000, candleMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '3M': { points: 90, intervalMs: 86_400_000, candleMs: 86_400_000, volatility: 0.005, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '6M': { points: 120, intervalMs: 2 * 86_400_000, candleMs: 2 * 86_400_000, volatility: 0.008, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '1Y': { points: 120, intervalMs: 3 * 86_400_000, candleMs: 3 * 86_400_000, volatility: 0.012, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+  'YTD': { points: Math.max(1, Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86_400_000)), intervalMs: 86_400_000, candleMs: 86_400_000, volatility: 0.006, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  'ALL': { points: 200, intervalMs: 7 * 86_400_000, candleMs: 7 * 86_400_000, volatility: 0.02, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
 };
 
 // Deterministic seeded PRNG
@@ -513,7 +518,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 relative z-30">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 relative z-30">
+        {/* Row 1: Symbol info */}
         <div className="flex items-center gap-2 flex-shrink-0 min-w-0 overflow-hidden">
           <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={22} />
           <button
@@ -570,7 +576,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
             );
           })()}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Row 2: Tool controls — wraps to second row on mobile */}
+        <div className="flex items-center gap-1.5 flex-shrink-0 mt-1 lg:mt-0">
           {/* Indicators */}
           <div className="hidden xl:flex items-center gap-2 mr-1">
             <span className="text-[8px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(0)}</span></span>
@@ -680,6 +687,13 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                 ))}
                 <div className="px-3 py-1 text-[7px] font-display tracking-wider text-marble/25 bg-navy-dark/80 sticky top-0 border-t border-gold/10">DAILY+</div>
                 {(['1D','1W','1M'] as Timeframe[]).map(t => (
+                  <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
+                    className={`w-full px-3 py-1.5 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                      tf === t ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5'
+                    }`}>{t}</button>
+                ))}
+                <div className="px-3 py-1 text-[7px] font-display tracking-wider text-marble/25 bg-navy-dark/80 sticky top-0 border-t border-gold/10">EXTENDED</div>
+                {(['3M','6M','1Y','YTD','ALL'] as Timeframe[]).map(t => (
                   <button key={t} onClick={() => { setTf(t); setTfMenuOpen(false); }}
                     className={`w-full px-3 py-1.5 text-left text-[10px] font-mono tracking-wider transition-colors ${
                       tf === t ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5'
