@@ -657,9 +657,9 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       )}
 
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 relative z-30">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between px-3 py-1.5 border-b border-gold/10 flex-shrink-0 relative z-30 gap-0.5">
         {/* Row 1: Symbol info */}
-        <div className="flex items-center gap-2 flex-shrink-0 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-2 flex-shrink min-w-0 overflow-x-auto scrollbar-none">
           <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={22} />
           <button
             onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
@@ -716,7 +716,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
           })()}
         </div>
         {/* Row 2: Tool controls — wraps to second row on mobile */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 mt-1 lg:mt-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5 lg:mt-0 overflow-x-auto scrollbar-none">
           {/* Indicators */}
           <div className="hidden xl:flex items-center gap-2 mr-1">
             <span className="text-[8px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(0)}</span></span>
