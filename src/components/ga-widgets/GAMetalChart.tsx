@@ -2,7 +2,8 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, MoreHorizontal } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import LivePulse from './LivePulse';
 
 type MetalKey = 'gold' | 'silver' | 'platinum';
@@ -157,6 +158,9 @@ const GAMetalChart = () => {
   const { data: prices, isLoading } = useMetalPrices();
   const [activeMetal, setActiveMetal] = useState<MetalKey>('gold');
   const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('RT');
+  const [tfMenuOpen, setTfMenuOpen] = useState(false);
+  const tfMenuRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   const feed = prices?.[activeMetal];
   const basePrice = feed?.price_usd ?? 0;
@@ -216,23 +220,56 @@ const GAMetalChart = () => {
               </button>
             ))}
           </div>
-          <div className="flex gap-1">
-            {timeframes.map((tf) => (
+          {isMobile ? (
+            <div className="relative" ref={tfMenuRef}>
               <button
-                key={tf}
-                onClick={() => setActiveTimeframe(tf)}
-                className={`px-3 py-1 text-[10px] font-mono tracking-wider rounded transition-all ${
-                  activeTimeframe === tf
-                    ? tf === 'RT'
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      : 'bg-navy-light text-marble border border-marble/20'
-                    : 'text-marble/30 hover:text-marble/60 border border-transparent'
+                onClick={() => setTfMenuOpen(!tfMenuOpen)}
+                className={`px-3 py-1 text-[10px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
+                  activeTimeframe === 'RT'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : 'bg-navy-light text-marble border border-marble/20'
                 }`}
               >
-                {tf}
+                {activeTimeframe}
+                <MoreHorizontal className="w-3 h-3" />
               </button>
-            ))}
-          </div>
+              {tfMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+                  {timeframes.map((tf) => (
+                    <button
+                      key={tf}
+                      onClick={() => { setActiveTimeframe(tf); setTfMenuOpen(false); }}
+                      className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                        activeTimeframe === tf
+                          ? tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gold/10 text-gold'
+                          : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
+                      }`}
+                    >
+                      {tf} {tf === 'RT' && '●'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              {timeframes.map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => setActiveTimeframe(tf)}
+                  className={`px-3 py-1 text-[10px] font-mono tracking-wider rounded transition-all ${
+                    activeTimeframe === tf
+                      ? tf === 'RT'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        : 'bg-navy-light text-marble border border-marble/20'
+                      : 'text-marble/30 hover:text-marble/60 border border-transparent'
+                  }`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="h-80">

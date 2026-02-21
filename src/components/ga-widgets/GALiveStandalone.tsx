@@ -7,7 +7,7 @@
  */
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2 } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -196,6 +196,50 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
   }, [price, cfg.candleMs, cfg.labelFn, tf]);
 
   return candles;
+};
+
+// ─── Mobile Timeframe Dropdown ───────────────────────────
+const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
+          tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
+        }`}
+      >
+        {tf}
+        <MoreHorizontal className="w-3 h-3" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-[60] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+          {timeframes.map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTf(t); setOpen(false); }}
+              className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                tf === t
+                  ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-gold/10 text-gold'
+                  : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
+              }`}
+            >
+              {t} {t === 'RT' && '●'}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -389,84 +433,98 @@ const GALiveStandalone = () => {
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gold/10 flex-shrink-0 bg-navy-dark/30">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-gold" />
-            <span className="font-display text-xs tracking-[0.15em] text-gold-light">GOLD ARROW LIVE</span>
-            <span className="text-gold/20 mx-1">|</span>
-            <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={20} />
-            <button onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
-              className="flex items-center gap-1 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group" title="Search symbol (press /)">
-              <span className="font-display text-sm tracking-wider text-marble group-hover:text-gold">{label}</span>
-              <Search className="w-3 h-3 text-marble/20 group-hover:text-gold/60" />
-            </button>
-            {isWsLive ? (
-              <span className="flex items-center gap-0.5 text-[8px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20"><Wifi className="w-2.5 h-2.5" /> WS</span>
-            ) : (
-              <LivePulse label="LIVE" />
-            )}
-            <span className="font-display text-lg text-marble ml-2">
-              ${price < 10 ? price.toFixed(3) : price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </span>
-            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${change >= 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
-              {change >= 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : <TrendingDown className="w-3 h-3 inline mr-0.5" />}
-              {change >= 0 ? '+' : ''}{change.toFixed(2)}%
-            </span>
-            {/* Day H/L */}
-            {!isMobile && liveCandles.length > 0 && (() => {
-              const dayHigh = Math.max(...chartHighs);
-              const dayLow = Math.min(...chartLows);
-              const range = dayHigh - dayLow;
-              const pct = range > 0 ? ((price - dayLow) / range) * 100 : 50;
-              return (
-                <span className="flex items-center gap-1.5 ml-2">
-                  <span className="text-[8px] font-mono text-red-400/40">L:{dayLow < 10 ? dayLow.toFixed(4) : dayLow.toFixed(2)}</span>
-                  <div className="w-16 h-1.5 bg-navy-light/50 rounded-full overflow-hidden relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-marble/20 to-emerald-500/30 rounded-full" />
-                    <div className="absolute top-0 h-full w-1 bg-gold rounded-full" style={{ left: `${Math.min(Math.max(pct, 0), 100)}%` }} />
-                  </div>
-                  <span className="text-[8px] font-mono text-emerald-400/40">H:{dayHigh < 10 ? dayHigh.toFixed(4) : dayHigh.toFixed(2)}</span>
-                </span>
-              );
-            })()}
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Indicator stats */}
-            {!isMobile && (
-              <div className="flex items-center gap-2 mr-2">
-                <span className="text-[9px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(1)}</span></span>
-                <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > headerStats.sma20 ? 'text-emerald-400' : 'text-red-400'}>${headerStats.sma20.toFixed(2)}</span></span>
-                <span className={`text-[9px] font-mono ${headerStats.macdCross === 'bullish' ? 'text-emerald-400' : 'text-red-400'}`}>MACD {headerStats.macdCross === 'bullish' ? '▲' : '▼'}</span>
-              </div>
-            )}
-            {pendingClick !== null && activeTool && (
-              <span className="text-[8px] font-mono text-gold animate-pulse bg-gold/10 px-2 py-0.5 rounded border border-gold/20">Click 2nd point · ${pendingClick.toFixed(2)}</span>
-            )}
-            {!isMobile && (
-              <ChartDrawingTools activeTool={activeTool} onSelectTool={setActiveTool} drawings={drawings} onClearAll={clearAll} onDeleteDrawing={deleteDrawing} drawingCount={drawings.length} showList={showList} onToggleList={toggleList} />
-            )}
-            {/* Chart mode */}
-            <div className="flex gap-0.5 mr-1">
-              {([
-                { mode: 'area' as ChartMode, icon: LineChart, tip: 'Area' },
-                { mode: 'candlestick' as ChartMode, icon: CandlestickChart, tip: 'Candles' },
-                { mode: 'ohlc' as ChartMode, icon: BarChart2, tip: 'OHLC' },
-              ]).map(({ mode, icon: Icon, tip }) => (
-                <button key={mode} onClick={() => setChartMode(mode)} className={`p-1 rounded transition-all ${chartMode === mode ? 'bg-gold/15 text-gold' : 'text-marble/25 hover:text-marble/50'}`} title={tip}>
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
-              ))}
+        {/* Header — Mobile: stacked, Desktop: single row */}
+        <div className="flex flex-col border-b border-gold/10 flex-shrink-0 bg-navy-dark/30">
+          {/* Row 1: Symbol + Price */}
+          <div className="flex items-center justify-between px-4 py-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <BarChart3 className="w-4 h-4 text-gold flex-shrink-0" />
+              <span className="font-display text-xs tracking-[0.15em] text-gold-light hidden sm:inline">GOLD ARROW LIVE</span>
+              <span className="text-gold/20 mx-1 hidden sm:inline">|</span>
+              <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={20} />
+              <button onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
+                className="flex items-center gap-1 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group" title="Search symbol (press /)">
+                <span className="font-display text-sm tracking-wider text-marble group-hover:text-gold truncate max-w-[80px] sm:max-w-none">{label}</span>
+                <Search className="w-3 h-3 text-marble/20 group-hover:text-gold/60 flex-shrink-0" />
+              </button>
+              {isWsLive ? (
+                <span className="flex items-center gap-0.5 text-[8px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20"><Wifi className="w-2.5 h-2.5" /> WS</span>
+              ) : (
+                <LivePulse label="LIVE" />
+              )}
             </div>
-            {/* Timeframes */}
-            <div className="flex gap-0.5">
-              {timeframes.map((t) => (
-                <button key={t} onClick={() => setTf(t)}
-                  className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
-                    tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
-                    : 'text-marble/30 hover:text-marble/60 border border-transparent'
-                  }`}>{t}</button>
-              ))}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="font-display text-lg text-marble">
+                ${price < 10 ? price.toFixed(3) : price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </span>
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${change >= 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
+                {change >= 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : <TrendingDown className="w-3 h-3 inline mr-0.5" />}
+                {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+              </span>
+            </div>
+          </div>
+          {/* Row 2: Tools — chart modes, timeframes, drawing tools, indicators */}
+          <div className="flex items-center justify-between px-4 py-1.5 border-t border-gold/5 gap-2 overflow-x-auto">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Day H/L — desktop only */}
+              {!isMobile && liveCandles.length > 0 && (() => {
+                const dayHigh = Math.max(...chartHighs);
+                const dayLow = Math.min(...chartLows);
+                const range = dayHigh - dayLow;
+                const pct = range > 0 ? ((price - dayLow) / range) * 100 : 50;
+                return (
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-[8px] font-mono text-red-400/40">L:{dayLow < 10 ? dayLow.toFixed(4) : dayLow.toFixed(2)}</span>
+                    <div className="w-16 h-1.5 bg-navy-light/50 rounded-full overflow-hidden relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-marble/20 to-emerald-500/30 rounded-full" />
+                      <div className="absolute top-0 h-full w-1 bg-gold rounded-full" style={{ left: `${Math.min(Math.max(pct, 0), 100)}%` }} />
+                    </div>
+                    <span className="text-[8px] font-mono text-emerald-400/40">H:{dayHigh < 10 ? dayHigh.toFixed(4) : dayHigh.toFixed(2)}</span>
+                  </span>
+                );
+              })()}
+              {/* Indicator stats — desktop only */}
+              {!isMobile && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono text-marble/30">RSI <span className={headerStats.rsi > 70 ? 'text-red-400' : headerStats.rsi < 30 ? 'text-emerald-400' : 'text-marble/50'}>{headerStats.rsi.toFixed(1)}</span></span>
+                  <span className="text-[9px] font-mono text-marble/30">SMA20 <span className={price > headerStats.sma20 ? 'text-emerald-400' : 'text-red-400'}>${headerStats.sma20.toFixed(2)}</span></span>
+                  <span className={`text-[9px] font-mono ${headerStats.macdCross === 'bullish' ? 'text-emerald-400' : 'text-red-400'}`}>MACD {headerStats.macdCross === 'bullish' ? '▲' : '▼'}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {pendingClick !== null && activeTool && (
+                <span className="text-[8px] font-mono text-gold animate-pulse bg-gold/10 px-2 py-0.5 rounded border border-gold/20">Click 2nd · ${pendingClick.toFixed(2)}</span>
+              )}
+              {!isMobile && (
+                <ChartDrawingTools activeTool={activeTool} onSelectTool={setActiveTool} drawings={drawings} onClearAll={clearAll} onDeleteDrawing={deleteDrawing} drawingCount={drawings.length} showList={showList} onToggleList={toggleList} />
+              )}
+              {/* Chart mode */}
+              <div className="flex gap-0.5">
+                {([
+                  { mode: 'area' as ChartMode, icon: LineChart, tip: 'Area' },
+                  { mode: 'candlestick' as ChartMode, icon: CandlestickChart, tip: 'Candles' },
+                  { mode: 'ohlc' as ChartMode, icon: BarChart2, tip: 'OHLC' },
+                ]).map(({ mode, icon: Icon, tip }) => (
+                  <button key={mode} onClick={() => setChartMode(mode)} className={`p-1 rounded transition-all ${chartMode === mode ? 'bg-gold/15 text-gold' : 'text-marble/25 hover:text-marble/50'}`} title={tip}>
+                    <Icon className="w-3.5 h-3.5" />
+                  </button>
+                ))}
+              </div>
+              {/* Timeframes — show all on desktop, overflow on mobile */}
+              {isMobile ? (
+                <MobileTimeframeMenu tf={tf} setTf={setTf} />
+              ) : (
+                <div className="flex gap-0.5">
+                  {timeframes.map((t) => (
+                    <button key={t} onClick={() => setTf(t)}
+                      className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
+                        tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
+                        : 'text-marble/30 hover:text-marble/60 border border-transparent'
+                      }`}>{t}</button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
