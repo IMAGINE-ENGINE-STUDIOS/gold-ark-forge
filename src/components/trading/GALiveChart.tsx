@@ -13,6 +13,8 @@ import {
   enrichChartData,
   getIndicatorLines,
   getFibonacciLines,
+  hasActiveOscillators,
+  OscillatorPanel,
   computeSMA,
   computeEMA,
   computeRSI as computeRSIArray,
@@ -645,7 +647,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       </div>
 
       {/* Chart */}
-      <div className="flex-1 px-1 py-1" style={{ cursor: activeTool ? 'crosshair' : 'default' }}>
+      <div className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0 }}>
         {price === 0 || liveCandles.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
             <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
@@ -662,32 +664,13 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(213, 28%, 24%)" />
-              <XAxis
-                dataKey="time"
-                tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.2)' }}
-                axisLine={{ stroke: 'hsl(213, 28%, 24%)' }}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                domain={[(dataMin: number) => dataMin * 0.999, (dataMax: number) => dataMax * 1.001]}
-                tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.2)' }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `$${v.toLocaleString()}`}
-                width={65}
-              />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={{ stroke: 'hsl(213, 28%, 24%)' }} tickLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[(dataMin: number) => dataMin * 0.999, (dataMax: number) => dataMax * 1.001]} tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v.toLocaleString()}`} width={65} />
               <Tooltip content={<CustomTooltip />} />
-
-              {/* Drawing reference lines */}
               {drawingRefLines.map((rl, i) => (
                 <ReferenceLine key={`dr-${i}`} y={rl.y} stroke={rl.stroke} strokeDasharray={rl.strokeDasharray} strokeWidth={rl.strokeWidth} label={rl.label} />
               ))}
-
-              {/* Fibonacci levels */}
               {fibLines}
-
-              {/* Main chart rendering based on mode */}
               {chartMode === 'area' && (
                 <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} isAnimationActive={false} />
               )}
@@ -711,20 +694,24 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                   return <OHLCLayer data={chartData as any} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} barWidth={barW} />;
                 }} />
               )}
-              {/* Price path line for candle/OHLC modes */}
               {chartMode !== 'area' && (
                 <>
                   <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1} strokeOpacity={0.4} dot={false} connectNulls isAnimationActive={false} />
                   <Area type="monotone" dataKey="value" stroke="transparent" strokeWidth={0} fill="transparent" dot={false} activeDot={{ r: 3, fill: color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }} isAnimationActive={false} />
                 </>
               )}
-
-              {/* Indicator overlays */}
               {indicatorLines}
             </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* Oscillator Sub-Panel */}
+      {hasActiveOscillators(activeIndicators) && chartData.length > 0 && (
+        <div className="border-t border-gold/10 overflow-y-auto" style={{ flex: '0 0 auto', maxHeight: '30%' }}>
+          <OscillatorPanel data={chartData} activeIndicators={activeIndicators} />
+        </div>
+      )}
 
       {/* Bottom info bar */}
       <div className="flex items-center justify-between px-3 py-1 border-t border-gold/10 flex-shrink-0">
