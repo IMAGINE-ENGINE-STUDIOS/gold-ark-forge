@@ -19,7 +19,7 @@ import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
 import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
-import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
+
 import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
 import GALiveTicker from '@/components/ga-widgets/GALiveTicker';
 import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
@@ -52,7 +52,7 @@ const sections: ShowcaseSection[] = [
   { id: 'mini-charts', title: 'Mini Charts', description: 'Compact sparkline charts for quick visual reference across multiple assets.', category: 'Charts' },
   { id: 'advanced-chart', title: 'Advanced Chart', description: 'Full-featured proprietary chart with indicators and drawing tools.', category: 'Charts' },
   { id: 'technical-gauge', title: 'Technical Analysis', description: 'Oscillators and moving average summary gauge with buy/sell signals.', category: 'Analysis' },
-  { id: 'fear-greed', title: 'Fear & Greed Index', description: 'Market sentiment gauge across multiple asset classes.', category: 'Analysis' },
+  
   { id: 'volatility', title: 'Volatility Matrix', description: 'Cross-asset volatility comparison with historical percentiles.', category: 'Analysis' },
   { id: 'news-feed', title: 'Market News', description: 'Real-time aggregated news from global financial sources.', category: 'News' },
   { id: 'market-quotes', title: 'Market Quotes', description: 'Live quotes across precious metals, crypto, indices, and forex.', category: 'Watchlists' },
@@ -98,7 +98,7 @@ const TradingViewShowroom = () => {
       case 'mini-charts': return <GAMiniCharts />;
       case 'advanced-chart': return <GAMetalChart />;
       case 'technical-gauge': return <GATechnicalGauge />;
-      case 'fear-greed': return <GAFearGreed />;
+      
       case 'volatility': return <GAVolatilityMatrix />;
       case 'news-feed': return <GANewsFeed />;
       case 'market-quotes': return <GAMarketQuotes />;

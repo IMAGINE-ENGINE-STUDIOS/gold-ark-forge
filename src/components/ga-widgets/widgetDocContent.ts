@@ -623,35 +623,6 @@ Volume analysis adds a critical dimension: price movements on high volume carry 
     ],
   },
 
-  sentiment: {
-    name: 'Fear & Greed Index',
-    purpose: 'Market sentiment gauge measuring crowd psychology from extreme fear to extreme greed.',
-    sources: ['Alternative.me API'],
-    refreshInterval: '5m auto-refresh',
-    tier: 'DeFi',
-    thesis: `The Fear & Greed Index quantifies market sentiment on a 0-100 scale, derived from multiple factors including volatility, volume, social media, dominance, and trends. It provides a contrarian signal framework: extreme fear often marks buying opportunities, while extreme greed precedes corrections.
-
-Warren Buffett's maxim to "be fearful when others are greedy, and greedy when others are fearful" is the philosophical foundation of this widget. By quantifying crowd psychology, it helps analysts maintain discipline against the natural human tendency to follow the herd.
-
-Historical analysis shows that sustained readings below 20 (Extreme Fear) have preceded significant recovery rallies, while readings above 80 (Extreme Greed) have preceded corrections. The widget displays both the current reading and recent history to show sentiment trajectory.`,
-    metrics: [
-      'Current index value (0-100) with sentiment label',
-      'Sentiment classification: Extreme Fear, Fear, Neutral, Greed, Extreme Greed',
-      'Visual gauge with color gradient',
-      'Historical trend over recent periods',
-    ],
-    instructions: [
-      'Use as a contrarian indicator — extreme readings often precede reversals.',
-      'Extreme Fear (<20) historically correlates with market bottoms.',
-      'Extreme Greed (>80) historically precedes corrections.',
-      'Combine with technical analysis — sentiment confirms but should not replace chart analysis.',
-    ],
-    tutorial: [
-      { label: 'Gauge Dial', description: 'Main sentiment reading from 0 (Extreme Fear) to 100 (Extreme Greed)', x: 50, y: 40 },
-      { label: 'Sentiment Label', description: 'Classification text: Fear, Neutral, Greed, or Extreme variants', x: 50, y: 65 },
-      { label: 'Historical Chart', description: 'Recent sentiment trajectory showing trend direction', x: 50, y: 85 },
-    ],
-  },
 
   defi: {
     name: 'DeFi TVL Dashboard',
