@@ -45,7 +45,7 @@ import GAActivityFeed from '@/components/ga-widgets/GAActivityFeed';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
 import GAAnchorStatus from '@/components/ga-widgets/GAAnchorStatus';
 import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
-import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
+
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
@@ -335,12 +335,6 @@ const Intelligence = () => {
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="sentiment">
-            <SectionDivider label="MARKET SENTIMENT" />
-            <WidgetDocWrapper widgetId="sentiment">
-              <GAFearGreed />
-            </WidgetDocWrapper>
-          </section>
           <section id="defi">
             <SectionDivider label="DeFi TOTAL VALUE LOCKED" />
             <WidgetDocWrapper widgetId="defi">

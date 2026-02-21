@@ -5,7 +5,7 @@ import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tool
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
-import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
+
 import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
@@ -416,7 +416,6 @@ function TradeTabContent({
         <CollapsibleSection title="MARKET PULSE" icon={Activity} defaultOpen>
           <div className="space-y-3">
             <GAPriceCards />
-            <GAFearGreed />
           </div>
         </CollapsibleSection>
 
@@ -613,7 +612,7 @@ const TradingBridge = () => {
               </div>
                <div className="p-3 space-y-3">
                  <GAPriceCards />
-                 <GAFearGreed />
+                 
                  <GATopMovers />
                  <GAMiniCharts />
                  <GAMarketPulse />
