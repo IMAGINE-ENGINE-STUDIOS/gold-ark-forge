@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import ProprietaryChart from '@/components/trading/ProprietaryChart';
+import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
@@ -481,7 +481,7 @@ const TradingBridge = () => {
           {mobileTab === 'chart' && (
             <div className="flex flex-col">
               <div className="h-[45vh] min-h-[260px]">
-                <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
+                <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
               </div>
               <div className="p-3 space-y-3">
                 <GAPriceCards />
@@ -692,7 +692,7 @@ const TradingBridge = () => {
               <ResizablePanelGroup direction="horizontal">
                 <ResizablePanel defaultSize={70} minSize={40}>
                   <div className="h-full">
-                    <ProprietaryChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
+                    <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />

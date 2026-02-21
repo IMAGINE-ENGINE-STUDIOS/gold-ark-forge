@@ -8,6 +8,7 @@ import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
 import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
 import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
 import GAMetalChart from '@/components/ga-widgets/GAMetalChart';
+import GALiveStandalone from '@/components/ga-widgets/GALiveStandalone';
 import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
 import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
@@ -196,10 +197,16 @@ const Intelligence = () => {
         </section>
 
         <section id="chart">
-          <SectionDivider label="ADVANCED CHART" />
+          <SectionDivider label="GOLD ARROW LIVE" />
           <WidgetDocWrapper widgetId="chart">
-            <GAMetalChart />
+            <GALiveStandalone />
           </WidgetDocWrapper>
+          <div className="mt-8">
+            <SectionDivider label="METALS CHART" />
+            <WidgetDocWrapper widgetId="chart">
+              <GAMetalChart />
+            </WidgetDocWrapper>
+          </div>
         </section>
 
         <section id="analysis">
