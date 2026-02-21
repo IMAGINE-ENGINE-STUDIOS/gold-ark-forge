@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -50,6 +50,45 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import OrderConfirmationDialog, { OrderConfirmationData } from '@/components/trading/OrderConfirmationDialog';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+
+// ─── Collapsible Section Component ───────────────────────
+function CollapsibleSection({ 
+  title, 
+  icon: Icon, 
+  badge, 
+  defaultOpen = false, 
+  children 
+}: { 
+  title: string; 
+  icon: React.ElementType; 
+  badge?: string; 
+  defaultOpen?: boolean; 
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="rounded-lg border border-gold/10 bg-navy-dark/40 overflow-hidden">
+        <CollapsibleTrigger asChild>
+          <button className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gold/5 transition-colors border-l-2 border-l-gold/40">
+            <Icon className="w-3.5 h-3.5 text-gold/60 flex-shrink-0" />
+            <span className="font-display text-[10px] tracking-[0.15em] text-marble/70 flex-1 text-left">{title}</span>
+            {badge && (
+              <span className="text-[7px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/60 border border-gold/15">{badge}</span>
+            )}
+            <ChevronDown className={`w-3 h-3 text-marble/30 transition-transform duration-200 flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-3 pb-3 pt-1">
+            {children}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
 
 // ─── Mobile section tabs ─────────────────────────────────
 const MOBILE_TABS = [
@@ -329,6 +368,68 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   );
 }
 
+// ─── Trade Tab Content (Collapsible Layout) ──────────────
+function TradeTabContent({ 
+  tradingMode, activeSymbol, activePrice, paper, activeConn 
+}: { 
+  tradingMode: 'live' | 'paper'; 
+  activeSymbol: { key: string; label: string; ticker: string; cat: string }; 
+  activePrice: number; 
+  paper: ReturnType<typeof usePaperTrading>; 
+  activeConn?: { id: string } | null;
+}) {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {/* Column 1: Order Execution */}
+      <div className="space-y-3">
+        <CollapsibleSection 
+          title="ORDER TICKET" 
+          icon={ArrowUpDown} 
+          badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} 
+          defaultOpen
+        >
+          {tradingMode === 'paper' ? (
+            <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+          ) : (
+            <TradingPanel activeSymbol={activeSymbol.ticker} />
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection title="DEPTH OF MARKET" icon={BarChart3}>
+          <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
+        </CollapsibleSection>
+      </div>
+
+      {/* Column 2: Market Context */}
+      <div className="space-y-3">
+        <CollapsibleSection title="MARKET PULSE" icon={Activity} defaultOpen>
+          <div className="space-y-3">
+            <GAPriceCards />
+            <GAFearGreed />
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
+          <GATechnicalGauge />
+        </CollapsibleSection>
+      </div>
+
+      {/* Column 3: Portfolio */}
+      <div className="space-y-3">
+        <CollapsibleSection title="PORTFOLIO" icon={Briefcase} defaultOpen>
+          <PortfolioSummary />
+        </CollapsibleSection>
+
+        {activeConn && (
+          <CollapsibleSection title="POSITIONS" icon={TrendingUp}>
+            <PositionsPanel connectionId={activeConn.id} />
+          </CollapsibleSection>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
@@ -509,20 +610,14 @@ const TradingBridge = () => {
           )}
 
           {mobileTab === 'trade' && (
-            <div className="p-3 space-y-4">
-              {tradingMode === 'paper' ? (
-                <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FlaskConical className="w-4 h-4 text-emerald-400" />
-                    <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
-                    <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono">SIMULATED</span>
-                  </div>
-                  <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-                </div>
-              ) : (
-                <TradingPanel activeSymbol={activeSymbol.ticker} />
-              )}
-              <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
+            <div className="p-3 space-y-3">
+              <TradeTabContent 
+                tradingMode={tradingMode} 
+                activeSymbol={activeSymbol} 
+                activePrice={activePrice} 
+                paper={paper} 
+                activeConn={activeConn} 
+              />
             </div>
           )}
 
@@ -557,21 +652,13 @@ const TradingBridge = () => {
                 <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-navy to-transparent" />
               </div>
               {bottomTab === 'trade' && (
-                <div className="space-y-4">
-                  {tradingMode === 'paper' ? (
-                    <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
-                      <div className="flex items-center gap-2 mb-3">
-                        <FlaskConical className="w-4 h-4 text-emerald-400" />
-                        <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
-                        <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono">SIMULATED</span>
-                      </div>
-                      <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-                    </div>
-                  ) : (
-                    <TradingPanel activeSymbol={activeSymbol.ticker} />
-                  )}
-                  <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
-                </div>
+                <TradeTabContent 
+                  tradingMode={tradingMode} 
+                  activeSymbol={activeSymbol} 
+                  activePrice={activePrice} 
+                  paper={paper} 
+                  activeConn={activeConn} 
+                />
               )}
               {bottomTab === 'book' && activeConn && (
                 <div className="space-y-4">
@@ -682,21 +769,18 @@ const TradingBridge = () => {
         </div>
       </div>
 
-      {/* Live Ticker Strip */}
-      <GAMultiTicker />
-
-      {/* Main Terminal Area */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Content */}
+      <div className="flex-1 flex min-h-0">
         {/* Watchlist Sidebar */}
-        <div className={`flex-shrink-0 border-r border-gold/10 bg-navy-dark/50 transition-all duration-200 ${sidebarCollapsed ? 'w-10' : 'w-48'}`}>
-          <div className="flex items-center justify-between px-2 py-2 border-b border-gold/10">
-            {!sidebarCollapsed && <span className="text-[9px] font-display tracking-[0.2em] text-marble/30">WATCHLIST</span>}
-            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="text-marble/30 hover:text-gold transition-colors p-0.5">
-              {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+        <div className={`${sidebarCollapsed ? 'w-12' : 'w-48'} transition-all duration-200 bg-navy-dark border-r border-gold/10 flex flex-col flex-shrink-0`}>
+          <div className="flex items-center justify-between px-2 py-1.5 border-b border-gold/10 flex-shrink-0">
+            {!sidebarCollapsed && <span className="text-[9px] font-display tracking-[0.2em] text-gold/40">WATCHLIST</span>}
+            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="text-marble/30 hover:text-marble transition-colors ml-auto">
+              {sidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
             </button>
           </div>
           {!sidebarCollapsed && (
-            <div className="px-2 py-1.5 border-b border-gold/10">
+            <div className="px-1.5 py-1 border-b border-gold/5 flex-shrink-0">
               <div className="relative">
                 <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-marble/20" />
                 <input
@@ -753,26 +837,13 @@ const TradingBridge = () => {
           </div>
         </div>
 
-        {/* Resizable Main Content */}
+        {/* Resizable Main Content — Chart takes full width now */}
         <div className="flex-1">
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel defaultSize={65} minSize={30}>
-              <ResizablePanelGroup direction="horizontal">
-                <ResizablePanel defaultSize={70} minSize={40}>
-                  <div className="h-full">
-                    <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />
-                <ResizablePanel defaultSize={30} minSize={20} maxSize={45}>
-                   <div className="h-full overflow-y-auto p-2 space-y-4 watchlist-scroll">
-                    <PortfolioSummary />
-                    <GATechnicalGauge />
-                    <GAFearGreed />
-                    <GAPriceCards />
-                  </div>
-                </ResizablePanel>
-              </ResizablePanelGroup>
+              <div className="h-full">
+                <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
+              </div>
             </ResizablePanel>
 
             <ResizableHandle withHandle className="bg-gold/10 hover:bg-gold/30 transition-colors" />
@@ -802,21 +873,13 @@ const TradingBridge = () => {
 
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 watchlist-scroll">
                   {bottomTab === 'trade' && (
-                    <div className="space-y-4">
-                      {tradingMode === 'paper' ? (
-                        <div className="bg-navy-dark/50 rounded-lg p-3 border border-emerald-500/20">
-                          <div className="flex items-center gap-2 mb-3">
-                            <FlaskConical className="w-4 h-4 text-emerald-400" />
-                            <span className="font-display text-sm tracking-wider text-emerald-400">PAPER TRADING</span>
-                            <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-mono ml-auto">SIMULATED</span>
-                          </div>
-                          <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-                        </div>
-                      ) : (
-                        <TradingPanel activeSymbol={activeSymbol.ticker} />
-                      )}
-                      <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
-                    </div>
+                    <TradeTabContent 
+                      tradingMode={tradingMode} 
+                      activeSymbol={activeSymbol} 
+                      activePrice={activePrice} 
+                      paper={paper} 
+                      activeConn={activeConn} 
+                    />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
@@ -1012,48 +1075,52 @@ function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
           <div key={kpi.label} className="bg-navy-light/30 rounded-lg p-2 sm:p-3 border border-gold/5">
             <div className="flex items-center gap-1 mb-1">
               <kpi.icon className="w-3 h-3 text-marble/25" />
-              <span className="text-[8px] text-marble/35 font-display tracking-wider">{kpi.label}</span>
+              <span className="text-[7px] sm:text-[8px] font-display tracking-wider text-marble/35">{kpi.label}</span>
             </div>
-            <div className={`text-sm sm:text-base font-mono ${kpi.color}`}>{kpi.value}</div>
+            <div className={`text-base sm:text-lg font-mono ${kpi.color}`}>{kpi.value}</div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2 bg-navy-light/20 rounded-lg p-3 border border-gold/5">
-          <div className="text-[9px] font-display tracking-wider text-marble/30 mb-2">EQUITY CURVE (30D)</div>
-          <ResponsiveContainer width="100%" height={120}>
-            <AreaChart data={pnlCurve}>
-              <defs>
-                <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(43,72%,50%)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(43,72%,50%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(213,28%,24%)" />
-              <XAxis dataKey="day" tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} width={50} />
-              <Tooltip contentStyle={chartTooltipStyle} />
-              <Area type="monotone" dataKey="value" stroke="hsl(43,72%,50%)" fill="url(#eqGrad)" strokeWidth={1.5} />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="lg:col-span-2 bg-navy-light/30 rounded-lg p-3 border border-gold/5">
+          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">EQUITY CURVE (30D)</div>
+          <div className="h-32 sm:h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={pnlCurve}>
+                <defs>
+                  <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(43,72%,50%)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="hsl(43,72%,50%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(43,72%,50%,0.05)" />
+                <XAxis dataKey="day" tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} width={45} />
+                <Tooltip contentStyle={chartTooltipStyle} />
+                <Area type="monotone" dataKey="value" stroke="hsl(43,72%,50%)" strokeWidth={1.5} fill="url(#eqGrad)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="bg-navy-light/20 rounded-lg p-3 border border-gold/5">
-          <div className="text-[9px] font-display tracking-wider text-marble/30 mb-2">ALLOCATION</div>
-          <ResponsiveContainer width="100%" height={120}>
-            <RechartsPie>
-              <Pie data={assetBreakdown} dataKey="value" cx="50%" cy="50%" outerRadius={40} innerRadius={20} strokeWidth={0}>
-                {assetBreakdown.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={chartTooltipStyle} />
-            </RechartsPie>
-          </ResponsiveContainer>
-          <div className="mt-1 space-y-0.5">
-            {assetBreakdown.slice(0, 4).map((item, i) => (
-              <div key={item.name} className="flex items-center gap-1.5 text-[8px]">
-                <div className="w-2 h-2 rounded-sm" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                <span className="text-marble/40 font-mono">{item.name}</span>
+        <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
+          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">ASSET BREAKDOWN</div>
+          <div className="h-32 sm:h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsPie>
+                <Pie data={assetBreakdown} dataKey="value" cx="50%" cy="50%" outerRadius={55} innerRadius={25} strokeWidth={0}>
+                  {assetBreakdown.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={chartTooltipStyle} />
+              </RechartsPie>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2 justify-center">
+            {assetBreakdown.map((a, i) => (
+              <div key={a.name} className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                <span className="text-[8px] font-mono text-marble/40">{a.name}</span>
               </div>
             ))}
           </div>
@@ -1066,38 +1133,36 @@ function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
 // ─── Risk Panel ──────────────────────────────────────────
 
 function RiskPanel({ connectionId }: { connectionId?: string }) {
-  const [riskPercent, setRiskPercent] = useState('2');
-  const [accountSize, setAccountSize] = useState('10000');
-  const [stopDistance, setStopDistance] = useState('5');
   const { data: positions } = usePositions(connectionId);
+  const [accountSize, setAccountSize] = useState('100000');
+  const [riskPercent, setRiskPercent] = useState('2');
+  const [stopDistance, setStopDistance] = useState('5');
 
-  const positionSize = useMemo(() => {
-    const risk = parseFloat(riskPercent) / 100;
-    const acct = parseFloat(accountSize);
-    const stop = parseFloat(stopDistance);
-    if (!risk || !acct || !stop) return 0;
-    return Math.floor((acct * risk) / stop);
-  }, [riskPercent, accountSize, stopDistance]);
+  const riskAmount = (parseFloat(accountSize) || 0) * (parseFloat(riskPercent) || 0) / 100;
+  const positionSize = parseFloat(stopDistance) > 0 ? Math.floor(riskAmount / parseFloat(stopDistance)) : 0;
 
-  const riskAmount = (parseFloat(accountSize) * parseFloat(riskPercent) / 100) || 0;
-
-  const assets = ['XAU', 'BTC', 'SPY', 'WTI', 'TLT'];
-  const corrMatrix = assets.map((_, i) =>
-    assets.map((_, j) => {
-      if (i === j) return 1;
-      const v = [0.3, -0.2, 0.15, 0.4, -0.5, 0.6, -0.1, 0.25, -0.3, 0.1][(i * 5 + j) % 10];
-      return v;
-    })
-  );
+  const assets = ['XAU', 'BTC', 'SPY', 'OIL', 'EUR'];
+  const corrMatrix = useMemo(() => {
+    const base = [
+      [1.0, -0.2, 0.1, 0.3, 0.4],
+      [-0.2, 1.0, 0.6, -0.1, 0.2],
+      [0.1, 0.6, 1.0, 0.2, -0.3],
+      [0.3, -0.1, 0.2, 1.0, 0.1],
+      [0.4, 0.2, -0.3, 0.1, 1.0],
+    ];
+    return base;
+  }, []);
 
   const exposureData = useMemo(() => {
-    if (!positions?.length) return [
-      { name: 'Metals', value: 0, max: 40 },
-      { name: 'Crypto', value: 0, max: 20 },
-      { name: 'Stocks', value: 0, max: 50 },
-      { name: 'Energy', value: 0, max: 30 },
-      { name: 'Bonds', value: 0, max: 25 },
-    ];
+    if (!positions?.length) {
+      return [
+        { name: 'Metals', value: 0, max: 40 },
+        { name: 'Crypto', value: 0, max: 20 },
+        { name: 'Stocks', value: 0, max: 50 },
+        { name: 'Energy', value: 0, max: 30 },
+        { name: 'Bonds', value: 0, max: 25 },
+      ];
+    }
     return [
       { name: 'Metals', value: 25, max: 40 },
       { name: 'Crypto', value: 15, max: 20 },
