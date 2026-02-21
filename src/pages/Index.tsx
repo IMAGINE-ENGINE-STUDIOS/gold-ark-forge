@@ -1,7 +1,7 @@
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
 import CategoryCards from '@/components/CategoryCards';
-import SymbolOverview from '@/components/tradingview/SymbolOverview';
+import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
 import Features from '@/components/Features';
 import VaultPreview from '@/components/VaultPreview';
 import ClientTypes from '@/components/ClientTypes';
@@ -14,7 +14,7 @@ const Index = () => {
       <main>
         <Hero />
         <CategoryCards />
-        {/* Market Overview — TradingView Symbol Overview */}
+        {/* Market Overview — GA Proprietary */}
         <section className="bg-navy py-16">
           <div className="container mx-auto px-4">
             <div className="text-center mb-8">
@@ -23,10 +23,10 @@ const Index = () => {
                 MARKET OVERVIEW
               </h2>
               <p className="text-marble/60 max-w-xl mx-auto text-sm">
-                Live precious metals and Bitcoin trends — visualization only, powered by TradingView.
+                Live precious metals and Bitcoin trends — powered by Gold Arrow proprietary analytics.
               </p>
             </div>
-            <SymbolOverview />
+            <GAMiniCharts />
           </div>
         </section>
         <Features />

@@ -1,29 +1,40 @@
 import { useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import TradingViewTicker from '@/components/tradingview/TradingViewTicker';
-import TradingViewChart from '@/components/tradingview/TradingViewChart';
-import SymbolOverview from '@/components/tradingview/SymbolOverview';
-import TradingViewMiniChart from '@/components/tradingview/TradingViewMiniChart';
-import TradingViewTechnicalAnalysis from '@/components/tradingview/TradingViewTechnicalAnalysis';
-import TradingViewHeatmap from '@/components/tradingview/TradingViewHeatmap';
-import TradingViewScreener from '@/components/tradingview/TradingViewScreener';
-import TradingViewMarketOverview from '@/components/tradingview/TradingViewMarketOverview';
-import TradingViewForexCrossRates from '@/components/tradingview/TradingViewForexCrossRates';
-import TradingViewForexHeatmap from '@/components/tradingview/TradingViewForexHeatmap';
-import TradingViewCryptoMarket from '@/components/tradingview/TradingViewCryptoMarket';
-import TradingViewSingleTicker from '@/components/tradingview/TradingViewSingleTicker';
-import TradingViewEconomicCalendar from '@/components/tradingview/TradingViewEconomicCalendar';
-import TradingViewTopStories from '@/components/tradingview/TradingViewTopStories';
-import TradingViewCompanyProfile from '@/components/tradingview/TradingViewCompanyProfile';
-import TradingViewSymbolInfo from '@/components/tradingview/TradingViewSymbolInfo';
-import TradingViewFundamentalData from '@/components/tradingview/TradingViewFundamentalData';
-import TradingViewHotlists from '@/components/tradingview/TradingViewHotlists';
-import TradingViewMarketQuotes from '@/components/tradingview/TradingViewMarketQuotes';
-import TradingViewStockMarket from '@/components/tradingview/TradingViewStockMarket';
-import TradingViewTickers from '@/components/tradingview/TradingViewTickers';
-import TradingViewSnaps from '@/components/tradingview/TradingViewSnaps';
-import WidgetCarousel from '@/components/tradingview/WidgetCarousel';
+
+// GA Proprietary Widgets
+import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
+import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
+import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
+import GAMetalChart from '@/components/ga-widgets/GAMetalChart';
+import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
+import GAMarketHeatmap from '@/components/ga-widgets/GAMarketHeatmap';
+import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
+import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
+import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
+import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
+import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
+import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
+import GATopMovers from '@/components/ga-widgets/GATopMovers';
+import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
+import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
+import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
+import GAFearGreed from '@/components/ga-widgets/GAFearGreed';
+import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
+import GALiveTicker from '@/components/ga-widgets/GALiveTicker';
+import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
+import GACryptoHeatmap from '@/components/ga-widgets/GACryptoHeatmap';
+import GAForexWarRoom from '@/components/ga-widgets/GAForexWarRoom';
+import GACommodityRadar from '@/components/ga-widgets/GACommodityRadar';
+import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
+import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
+import GAPortfolioAllocator from '@/components/ga-widgets/GAPortfolioAllocator';
+import GAYieldMonitor from '@/components/ga-widgets/GAYieldMonitor';
+import GABullionHeatmap from '@/components/ga-widgets/GABullionHeatmap';
+import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
+import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
+import GASECFilings from '@/components/ga-widgets/GASECFilings';
+import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 
 interface ShowcaseSection {
   id: string;
@@ -33,31 +44,40 @@ interface ShowcaseSection {
 }
 
 const sections: ShowcaseSection[] = [
-  { id: 'ticker-tape', title: 'Live Ticker Tape', description: 'Scrolling real-time quotes in a classic Wall Street ticker format. Ideal for headers and persistent price bars.', category: 'Tickers' },
-  { id: 'tickers-strip', title: 'Tickers Strip', description: 'Horizontal strip showing key stats for multiple symbols at a glance. Compact and information-dense.', category: 'Tickers' },
-  { id: 'single-ticker', title: 'Single Quote', description: 'Compact single-symbol quote display showing price, change, and percentage. Perfect for inline spotlights.', category: 'Tickers' },
-  { id: 'symbol-info', title: 'Symbol Info', description: 'Key symbol data in an easy-to-read format — financials, quotes, and company details at a glance.', category: 'Symbol Details' },
-  { id: 'symbol-profile', title: 'Symbol Profile', description: 'Compact symbol profile card with key information and description.', category: 'Symbol Details' },
-  { id: 'mini-chart', title: 'Mini Chart', description: 'Compact symbol overview with a small chart and key stats. Great for sidebars and card layouts.', category: 'Charts' },
-  { id: 'symbol-overview', title: 'Multi-Asset Overview', description: 'Multi-symbol area chart with date range selector. A visual snapshot of multiple assets at a glance.', category: 'Charts' },
-  { id: 'advanced-chart', title: 'Advanced Chart', description: 'Full-featured interactive chart with indicators, drawing tools, and timeframes. The flagship charting experience.', category: 'Charts' },
-  { id: 'technical-analysis', title: 'Technical Analysis', description: 'Oscillators and moving average summary gauge showing buy/sell/neutral signals across timeframes.', category: 'Analysis' },
-  { id: 'fundamental-data', title: 'Fundamental Data', description: 'Deep dive into a company\'s financials beyond stock price — revenue, earnings, margins, and more.', category: 'Analysis' },
-  { id: 'company-profile', title: 'Company Profile', description: 'Detailed company information including description, sector, industry, and key financial data.', category: 'Analysis' },
-  { id: 'top-stories', title: 'Market News', description: 'Latest news headlines and stories related to specific symbols. Stay informed with real-time market coverage.', category: 'News' },
-  { id: 'market-overview', title: 'Market Overview', description: 'Tabbed watchlist with embedded chart. Covers multiple asset classes in one widget.', category: 'Watchlists' },
-  { id: 'market-quotes', title: 'Market Data', description: 'Overview of global markets with Open, High, Low, Close values for selected instruments.', category: 'Watchlists' },
-  { id: 'hotlists', title: 'Hotlists', description: 'Trending and top-performing instruments by volume, gainers, and losers. Dynamic market movers.', category: 'Watchlists' },
-  { id: 'stock-market', title: 'Stock Market', description: 'Exchange-level stock overview with performance charts and key metrics.', category: 'Watchlists' },
-  { id: 'stock-heatmap', title: 'Stock Heatmap', description: 'Visual heatmap of market sectors by market cap and daily change. Macro view at a glance.', category: 'Heatmaps' },
-  { id: 'forex-cross-rates', title: 'Forex Cross Rates', description: 'Currency cross-rate matrix showing relative strength between major forex pairs.', category: 'Heatmaps' },
-  { id: 'forex-heatmap', title: 'Forex Heatmap', description: 'Color-coded strength visualization of currency pairs. Identifies strong and weak currencies instantly.', category: 'Heatmaps' },
-  { id: 'screener', title: 'Commodity Screener', description: 'Sortable table of commodities with fundamental and technical columns. Filter and rank instruments.', category: 'Screeners' },
-  { id: 'crypto-market', title: 'Crypto Market', description: 'Cryptocurrency-specific screener with market cap, volume, and performance metrics.', category: 'Screeners' },
-  { id: 'economic-calendar', title: 'Economic Calendar', description: 'Upcoming economic events, reports, and data releases with impact ratings and forecasts.', category: 'Data' },
+  { id: 'live-ticker', title: 'Live Ticker Tape', description: 'Scrolling real-time quotes across precious metals and crypto.', category: 'Tickers' },
+  { id: 'price-cards', title: 'Price Cards', description: 'Institutional-grade price cards with spot prices, change, and sparklines.', category: 'Tickers' },
+  { id: 'crypto-prices', title: 'Crypto Price Cards', description: 'Live cryptocurrency prices with 24h change and market cap.', category: 'Tickers' },
+  { id: 'metal-profile', title: 'Metal Profile', description: 'Deep-dive profile for each precious metal with key metrics and analysis.', category: 'Symbol Details' },
+  { id: 'gold-ratio', title: 'Gold Ratio', description: 'Gold-to-Silver and Gold-to-Platinum ratios with historical context.', category: 'Symbol Details' },
+  { id: 'mini-charts', title: 'Mini Charts', description: 'Compact sparkline charts for quick visual reference across multiple assets.', category: 'Charts' },
+  { id: 'advanced-chart', title: 'Advanced Chart', description: 'Full-featured proprietary chart with indicators and drawing tools.', category: 'Charts' },
+  { id: 'technical-gauge', title: 'Technical Analysis', description: 'Oscillators and moving average summary gauge with buy/sell signals.', category: 'Analysis' },
+  { id: 'fear-greed', title: 'Fear & Greed Index', description: 'Market sentiment gauge across multiple asset classes.', category: 'Analysis' },
+  { id: 'volatility', title: 'Volatility Matrix', description: 'Cross-asset volatility comparison with historical percentiles.', category: 'Analysis' },
+  { id: 'news-feed', title: 'Market News', description: 'Real-time aggregated news from global financial sources.', category: 'News' },
+  { id: 'market-quotes', title: 'Market Quotes', description: 'Live quotes across precious metals, crypto, indices, and forex.', category: 'Watchlists' },
+  { id: 'top-movers', title: 'Top Movers', description: 'Dynamic list of biggest gainers and losers across all markets.', category: 'Watchlists' },
+  { id: 'market-summary', title: 'Market Summary', description: 'Comprehensive global market dashboard with key indices and rates.', category: 'Watchlists' },
+  { id: 'asset-overview', title: 'Asset Overview', description: 'Multi-asset snapshot with performance metrics and allocation data.', category: 'Watchlists' },
+  { id: 'market-heatmap', title: 'Market Heatmap', description: 'Multi-market treemap visualization across crypto, stocks, forex, and commodities.', category: 'Heatmaps' },
+  { id: 'bullion-heatmap', title: 'Bullion Heatmap', description: 'Proprietary heatmap focused on precious metals market activity.', category: 'Heatmaps' },
+  { id: 'crypto-heatmap', title: 'Crypto Heatmap', description: 'Cryptocurrency market cap treemap with performance data.', category: 'Heatmaps' },
+  { id: 'forex-matrix', title: 'Forex Matrix', description: 'Currency strength matrix with cross-rate comparisons.', category: 'Heatmaps' },
+  { id: 'forex-war-room', title: 'Forex War Room', description: 'Professional FX strength index with multi-pair analysis.', category: 'Heatmaps' },
+  { id: 'screener', title: 'Metal Screener', description: 'Sortable screener for precious metals with fundamental columns.', category: 'Screeners' },
+  { id: 'crypto-market', title: 'Crypto Market', description: 'Full crypto screener with market cap, volume, and performance.', category: 'Screeners' },
+  { id: 'commodity-radar', title: 'Commodity Radar', description: 'Performance scanner across all commodity classes.', category: 'Screeners' },
+  { id: 'economic-calendar', title: 'Economic Calendar', description: 'Upcoming economic events with impact ratings and forecasts.', category: 'Data' },
+  { id: 'market-pulse', title: 'Market Pulse', description: 'Command center consolidating multi-market signals in real time.', category: 'Data' },
+  { id: 'cross-asset', title: 'Cross-Asset Dashboard', description: 'Correlation and performance dashboard across all asset classes.', category: 'Data' },
+  { id: 'portfolio', title: 'Portfolio Allocator', description: 'Model portfolio allocation tool with risk-return optimization.', category: 'Tools' },
+  { id: 'yield-monitor', title: 'Yield Monitor', description: 'Bond yield curves and interest rate tracking across sovereigns.', category: 'Tools' },
+  { id: 'defi', title: 'DeFi Dashboard', description: 'Decentralized finance protocol metrics and yield aggregation.', category: 'Tools' },
+  { id: 'sec-filings', title: 'SEC Filings', description: 'Latest regulatory filings tracker for publicly traded companies.', category: 'Tools' },
+  { id: 'whale-watch', title: 'Whale Watch', description: 'Large transaction monitoring across blockchain networks.', category: 'Tools' },
 ];
 
-const categories = ['All', 'Tickers', 'Symbol Details', 'Charts', 'Analysis', 'News', 'Watchlists', 'Heatmaps', 'Screeners', 'Data'];
+const categories = ['All', 'Tickers', 'Symbol Details', 'Charts', 'Analysis', 'News', 'Watchlists', 'Heatmaps', 'Screeners', 'Data', 'Tools'];
 
 const TradingViewShowroom = () => {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -70,319 +90,56 @@ const TradingViewShowroom = () => {
 
   const renderWidget = (id: string) => {
     switch (id) {
-      case 'ticker-tape':
-        return (
-          <div className="rounded-lg overflow-hidden border border-gold/20">
-            <TradingViewTicker />
-          </div>
-        );
-
-      case 'tickers-strip':
-        return (
-          <WidgetCarousel
-            variants={[
-              {
-                label: 'Metals & Crypto',
-                description: 'Precious metals and cryptocurrency tickers',
-                render: () => <TradingViewTickers />,
-              },
-              {
-                label: 'Indices',
-                description: 'Major stock indices',
-                render: () => (
-                  <TradingViewTickers
-                    symbols={[
-                      { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
-                      { proName: 'FOREXCOM:DJI', title: 'Dow Jones' },
-                      { proName: 'FOREXCOM:NSXUSD', title: 'Nasdaq' },
-                      { proName: 'TVC:UKX', title: 'FTSE 100' },
-                    ]}
-                  />
-                ),
-              },
-              {
-                label: 'Forex',
-                description: 'Major currency pairs',
-                render: () => (
-                  <TradingViewTickers
-                    symbols={[
-                      { proName: 'FX:EURUSD', title: 'EUR/USD' },
-                      { proName: 'FX:GBPUSD', title: 'GBP/USD' },
-                      { proName: 'FX:USDJPY', title: 'USD/JPY' },
-                      { proName: 'FX:AUDUSD', title: 'AUD/USD' },
-                    ]}
-                  />
-                ),
-              },
-            ]}
-          />
-        );
-
-      case 'single-ticker':
-        return (
-          <WidgetCarousel
-            variants={[
-              {
-                label: 'Precious Metals',
-                render: () => (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <TradingViewSingleTicker symbol="OANDA:XAUUSD" />
-                    <TradingViewSingleTicker symbol="OANDA:XAGUSD" />
-                    <TradingViewSingleTicker symbol="OANDA:XPTUSD" />
-                    <TradingViewSingleTicker symbol="TVC:PALLADIUM" />
-                  </div>
-                ),
-              },
-              {
-                label: 'Crypto',
-                render: () => (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <TradingViewSingleTicker symbol="BITSTAMP:BTCUSD" />
-                    <TradingViewSingleTicker symbol="BITSTAMP:ETHUSD" />
-                    <TradingViewSingleTicker symbol="BINANCE:SOLUSD" />
-                    <TradingViewSingleTicker symbol="BINANCE:ADAUSD" />
-                  </div>
-                ),
-              },
-              {
-                label: 'Indices',
-                render: () => (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <TradingViewSingleTicker symbol="FOREXCOM:SPXUSD" />
-                    <TradingViewSingleTicker symbol="FOREXCOM:DJI" />
-                    <TradingViewSingleTicker symbol="FOREXCOM:NSXUSD" />
-                    <TradingViewSingleTicker symbol="TVC:UKX" />
-                  </div>
-                ),
-              },
-            ]}
-          />
-        );
-
-      case 'symbol-info':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'Gold', render: () => <TradingViewSymbolInfo symbol="OANDA:XAUUSD" /> },
-              { label: 'Silver', render: () => <TradingViewSymbolInfo symbol="OANDA:XAGUSD" /> },
-              { label: 'Bitcoin', render: () => <TradingViewSymbolInfo symbol="BITSTAMP:BTCUSD" /> },
-              { label: 'Apple', render: () => <TradingViewSymbolInfo symbol="NASDAQ:AAPL" /> },
-            ]}
-          />
-        );
-
-      case 'symbol-profile':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'Gold', render: () => <TradingViewSnaps symbol="OANDA:XAUUSD" height={300} /> },
-              { label: 'Apple', render: () => <TradingViewSnaps symbol="NASDAQ:AAPL" height={300} /> },
-              { label: 'Bitcoin', render: () => <TradingViewSnaps symbol="BITSTAMP:BTCUSD" height={300} /> },
-            ]}
-          />
-        );
-
-      case 'mini-chart':
-        return (
-          <WidgetCarousel
-            variants={[
-              {
-                label: 'Metals',
-                render: () => (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <TradingViewMiniChart symbol="OANDA:XAUUSD" height={220} />
-                    <TradingViewMiniChart symbol="OANDA:XAGUSD" height={220} />
-                    <TradingViewMiniChart symbol="OANDA:XPTUSD" height={220} />
-                  </div>
-                ),
-              },
-              {
-                label: 'Crypto',
-                render: () => (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <TradingViewMiniChart symbol="BITSTAMP:BTCUSD" height={220} />
-                    <TradingViewMiniChart symbol="BITSTAMP:ETHUSD" height={220} />
-                    <TradingViewMiniChart symbol="BINANCE:SOLUSD" height={220} />
-                  </div>
-                ),
-              },
-              {
-                label: 'Stocks',
-                render: () => (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <TradingViewMiniChart symbol="NASDAQ:AAPL" height={220} />
-                    <TradingViewMiniChart symbol="NASDAQ:GOOGL" height={220} />
-                    <TradingViewMiniChart symbol="NASDAQ:TSLA" height={220} />
-                  </div>
-                ),
-              },
-            ]}
-          />
-        );
-
-      case 'symbol-overview':
-        return <SymbolOverview />;
-
-      case 'advanced-chart':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'Gold', render: () => <TradingViewChart symbol="OANDA:XAUUSD" height={550} /> },
-              { label: 'Silver', render: () => <TradingViewChart symbol="OANDA:XAGUSD" height={550} /> },
-              { label: 'Bitcoin', render: () => <TradingViewChart symbol="BITSTAMP:BTCUSD" height={550} /> },
-              { label: 'S&P 500', render: () => <TradingViewChart symbol="FOREXCOM:SPXUSD" height={550} /> },
-            ]}
-          />
-        );
-
-      case 'technical-analysis':
-        return (
-          <WidgetCarousel
-            variants={[
-              {
-                label: 'Metals',
-                render: () => (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <TradingViewTechnicalAnalysis symbol="OANDA:XAUUSD" height={420} />
-                    <TradingViewTechnicalAnalysis symbol="OANDA:XAGUSD" height={420} />
-                  </div>
-                ),
-              },
-              {
-                label: 'Crypto',
-                render: () => (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <TradingViewTechnicalAnalysis symbol="BITSTAMP:BTCUSD" height={420} />
-                    <TradingViewTechnicalAnalysis symbol="BITSTAMP:ETHUSD" height={420} />
-                  </div>
-                ),
-              },
-            ]}
-          />
-        );
-
-      case 'fundamental-data':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'Apple', render: () => <TradingViewFundamentalData symbol="NASDAQ:AAPL" height={490} /> },
-              { label: 'Google', render: () => <TradingViewFundamentalData symbol="NASDAQ:GOOGL" height={490} /> },
-              { label: 'Tesla', render: () => <TradingViewFundamentalData symbol="NASDAQ:TSLA" height={490} /> },
-            ]}
-          />
-        );
-
-      case 'company-profile':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'Apple', render: () => <TradingViewCompanyProfile symbol="NASDAQ:AAPL" height={480} /> },
-              { label: 'Google', render: () => <TradingViewCompanyProfile symbol="NASDAQ:GOOGL" height={480} /> },
-              { label: 'Microsoft', render: () => <TradingViewCompanyProfile symbol="NASDAQ:MSFT" height={480} /> },
-            ]}
-          />
-        );
-
-      case 'top-stories':
-        return (
-          <WidgetCarousel
-            variants={[
-              {
-                label: 'Metals & Crypto',
-                render: () => (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <TradingViewTopStories symbol="OANDA:XAUUSD" height={500} />
-                    <TradingViewTopStories symbol="BITSTAMP:BTCUSD" height={500} />
-                  </div>
-                ),
-              },
-              {
-                label: 'Tech Stocks',
-                render: () => (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <TradingViewTopStories symbol="NASDAQ:AAPL" height={500} />
-                    <TradingViewTopStories symbol="NASDAQ:TSLA" height={500} />
-                  </div>
-                ),
-              },
-            ]}
-          />
-        );
-
-      case 'market-overview':
-        return <TradingViewMarketOverview height={500} />;
-
-      case 'market-quotes':
-        return <TradingViewMarketQuotes height={500} />;
-
-      case 'hotlists':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'US Market', render: () => <TradingViewHotlists exchange="US" height={500} /> },
-              { label: 'Europe', render: () => <TradingViewHotlists exchange="europe" height={500} /> },
-              { label: 'Asia', render: () => <TradingViewHotlists exchange="asia" height={500} /> },
-            ]}
-          />
-        );
-
-      case 'stock-market':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'US', render: () => <TradingViewStockMarket exchange="US" height={500} /> },
-              { label: 'Germany', render: () => <TradingViewStockMarket exchange="germany" height={500} /> },
-              { label: 'UK', render: () => <TradingViewStockMarket exchange="UK" height={500} /> },
-            ]}
-          />
-        );
-
-      case 'stock-heatmap':
-        return <TradingViewHeatmap height={500} />;
-
-      case 'forex-cross-rates':
-        return <TradingViewForexCrossRates height={400} />;
-
-      case 'forex-heatmap':
-        return <TradingViewForexHeatmap height={400} />;
-
-      case 'screener':
-        return (
-          <WidgetCarousel
-            variants={[
-              { label: 'Most Capitalized', render: () => <TradingViewScreener height={500} defaultScreen="most_capitalized" /> },
-              { label: 'Top Gainers', render: () => <TradingViewScreener height={500} defaultScreen="top_gainers" /> },
-              { label: 'Top Losers', render: () => <TradingViewScreener height={500} defaultScreen="top_losers" /> },
-            ]}
-          />
-        );
-
-      case 'crypto-market':
-        return <TradingViewCryptoMarket height={500} />;
-
-      case 'economic-calendar':
-        return <TradingViewEconomicCalendar height={500} />;
-
-      default:
-        return null;
+      case 'live-ticker': return <GALiveTicker />;
+      case 'price-cards': return <GAPriceCards />;
+      case 'crypto-prices': return <GACryptoPriceCards />;
+      case 'metal-profile': return <GAMetalProfile />;
+      case 'gold-ratio': return <GAGoldRatio />;
+      case 'mini-charts': return <GAMiniCharts />;
+      case 'advanced-chart': return <GAMetalChart />;
+      case 'technical-gauge': return <GATechnicalGauge />;
+      case 'fear-greed': return <GAFearGreed />;
+      case 'volatility': return <GAVolatilityMatrix />;
+      case 'news-feed': return <GANewsFeed />;
+      case 'market-quotes': return <GAMarketQuotes />;
+      case 'top-movers': return <GATopMovers />;
+      case 'market-summary': return <GAMarketSummary />;
+      case 'asset-overview': return <GAAssetOverview />;
+      case 'market-heatmap': return <GAMarketHeatmap />;
+      case 'bullion-heatmap': return <GABullionHeatmap />;
+      case 'crypto-heatmap': return <GACryptoHeatmap />;
+      case 'forex-matrix': return <GAForexMatrix />;
+      case 'forex-war-room': return <GAForexWarRoom />;
+      case 'screener': return <GAMetalScreener />;
+      case 'crypto-market': return <GACryptoMarket />;
+      case 'commodity-radar': return <GACommodityRadar />;
+      case 'economic-calendar': return <GAEconomicCalendar />;
+      case 'market-pulse': return <GAMarketPulse />;
+      case 'cross-asset': return <GACrossAssetDashboard />;
+      case 'portfolio': return <GAPortfolioAllocator />;
+      case 'yield-monitor': return <GAYieldMonitor />;
+      case 'defi': return <GADeFiDashboard />;
+      case 'sec-filings': return <GASECFilings />;
+      case 'whale-watch': return <GAWhaleWatch />;
+      default: return null;
     }
   };
 
   return (
     <div className="min-h-screen bg-navy">
       <Header />
-      <TradingViewTicker />
+      <GAMultiTicker />
 
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}
         <div className="text-center mb-12">
           <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-6" />
           <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
-            MARKET INTELLIGENCE
+            GA WIDGET SHOWROOM
           </h1>
           <p className="text-marble/70 max-w-3xl mx-auto">
-            Gold Arrow's comprehensive suite of market visualization and analysis tools.
-            From real-time tickers to interactive heatmaps — every tool you need to monitor global markets.
+            Gold Arrow's comprehensive suite of proprietary market visualization and analysis tools.
+            From real-time tickers to interactive heatmaps — every tool built in-house for institutional-grade analytics.
           </p>
           <p className="text-marble/40 text-xs mt-3">
             Visualization only — Gold Arrow does not execute trades or provide financial advice.
@@ -436,7 +193,7 @@ const TradingViewShowroom = () => {
         </div>
 
         <p className="text-marble/30 text-xs text-center mt-16 pt-8 border-t border-gold/10">
-          Market data powered by industry-standard feeds. Visualization only — no trading executed.
+          All market data powered by Gold Arrow proprietary analytics. Visualization only — no trading executed.
         </p>
       </main>
       <Footer />

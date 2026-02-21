@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import TradingViewChart from '@/components/tradingview/TradingViewChart';
-import TradingViewTicker from '@/components/tradingview/TradingViewTicker';
+import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
+import GAMetalChart from '@/components/ga-widgets/GAMetalChart';
 import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 
@@ -23,7 +23,7 @@ const Markets = () => {
   return (
     <div className="min-h-screen bg-navy">
       <Header />
-      <TradingViewTicker />
+      <GAMultiTicker />
       <main className="container mx-auto px-4 py-12">
         <div className="text-center mb-10">
           <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-6" />
@@ -56,7 +56,7 @@ const Markets = () => {
         {/* Chart + Trading Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <TradingViewChart symbol={activeSymbol.symbol} height={600} />
+            <GAMetalChart />
           </div>
           <div className="space-y-6">
             <TradingPanel activeSymbol={activeSymbol.ticker} />
@@ -65,7 +65,7 @@ const Markets = () => {
         </div>
 
         <p className="text-marble/40 text-xs text-center mt-4">
-          Charts provided by TradingView. Trading executed by your connected broker — Gold Arrow does not execute trades, custody funds, or provide financial advice.
+          Charts powered by Gold Arrow proprietary analytics. Trading executed by your connected broker — Gold Arrow does not execute trades, custody funds, or provide financial advice.
         </p>
       </main>
       <Footer />
