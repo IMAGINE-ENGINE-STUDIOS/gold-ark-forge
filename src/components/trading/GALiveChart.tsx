@@ -25,10 +25,9 @@ import {
   type ChartDataPoint,
 } from './IndicatorOverlay';
 
-// ═══ 2-HOUR FORECAST ENGINE ═══════════════════════════════
+// ═══ FORECAST ENGINE ═══════════════════════════════════════
 // Uses RSI, SMA20/50, EMA20, MACD, ATR, Bollinger to compute
-// a weighted directional bias and project 2 hours of future price.
-const FORECAST_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+// a weighted directional bias and project 10% of the timeline forward.
 
 interface ForecastPoint {
   time: string;
@@ -46,6 +45,7 @@ const computeForecastPoints = (
   tf: Timeframe,
   intervalMs: number,
   labelFn: (d: Date) => string,
+  totalPoints: number,
 ): ForecastPoint[] => {
   if (values.length < 30 || currentPrice <= 0) return [];
 
@@ -89,8 +89,8 @@ const computeForecastPoints = (
   const rawBias = rsiSignal + sma20Signal + sma50Signal + emaSignal + macdSignal + bollSignal;
   const bias = Math.max(-1, Math.min(1, rawBias));
 
-  // Project forward: 2 hours of future data points
-  const numPoints = Math.max(6, Math.ceil(FORECAST_DURATION_MS / intervalMs));
+  // Project forward: 10% of the timeline
+  const numPoints = Math.max(4, Math.ceil(totalPoints * 0.1));
   const points: ForecastPoint[] = [];
   const now = Date.now();
 
@@ -393,6 +393,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [tfMenuOpen, setTfMenuOpen] = useState(false);
   const [showDrawMenu, setShowDrawMenu] = useState(false);
   const [showModeMenu, setShowModeMenu] = useState(false);
+  const [showForecast, setShowForecast] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const tfMenuRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -468,14 +469,15 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const gradientId = `prop-grad-${symbolKey}`;
   const forecastGradId = `forecast-grad-${symbolKey}`;
 
-  // ═══ 2-HOUR FORECAST PROJECTION ═══
+  // ═══ FORECAST PROJECTION ═══
   const forecastPoints = useMemo(() => {
+    if (!showForecast) return [];
     const vals = liveCandles.map(d => d.value);
     const his = liveCandles.map(d => d.high);
     const los = liveCandles.map(d => d.low);
     const cfg = tfConfigs[tf];
-    return computeForecastPoints(vals, his, los, price, tf, cfg.intervalMs, cfg.labelFn);
-  }, [liveCandles, price, tf]);
+    return computeForecastPoints(vals, his, los, price, tf, cfg.intervalMs, cfg.labelFn, cfg.points);
+  }, [liveCandles, price, tf, showForecast]);
 
   // Merge: real chart data + bridge point + forecast zone
   const chartData = useMemo(() => {
@@ -798,6 +800,17 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
               </div>
             )}
           </div>
+          {/* Forecast Toggle */}
+          <button
+            onClick={() => setShowForecast(prev => !prev)}
+            className={`flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono rounded transition-all border ${
+              showForecast ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
+            }`}
+            title="Toggle forecast projection"
+          >
+            <TrendingUp className="w-3 h-3" />
+            <span className="hidden sm:inline">FORECAST</span>
+          </button>
           {/* Timeframe Dropdown */}
           <div className="relative" ref={tfMenuRef}>
             <button onClick={() => setTfMenuOpen(!tfMenuOpen)}
@@ -926,7 +939,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                 </>
               )}
               {indicatorLines}
-              {/* ═══ 2HR FORECAST ZONE ═══ */}
+              {/* ═══ FORECAST ZONE ═══ */}
               {forecastPoints.length > 0 && (
                 <>
                   <Area type="monotone" dataKey="forecastUpper" stroke="transparent" fill="transparent" dot={false} isAnimationActive={false} />
@@ -953,7 +966,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
         <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">
           {category} · {tf === 'RT' ? 'REALTIME' : tf}
           {tf === 'RT' && <span className="ml-1 text-emerald-400 animate-pulse">●</span>}
-          {forecastPoints.length > 0 && <span className="ml-2 text-purple-400/60 text-[8px] font-mono">2HR FORECAST · RSI+SMA+EMA+MACD+ATR+BB</span>}
+          {showForecast && forecastPoints.length > 0 && <span className="ml-2 text-purple-400/60 text-[8px] font-mono">FORECAST · RSI+SMA+EMA+MACD+ATR+BB</span>}
         </span>
         <div className="flex items-center gap-3">
           {price > 0 && (
