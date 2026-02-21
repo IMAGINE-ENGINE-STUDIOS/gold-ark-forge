@@ -1,5 +1,6 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
-import { useState, useMemo } from 'react';
+import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3 } from 'lucide-react';
 import LivePulse from './LivePulse';
@@ -12,7 +13,7 @@ const metalConfig: Record<MetalKey, { label: string; symbol: string; color: stri
   platinum: { label: 'PLATINUM', symbol: 'XPT/USD', color: 'hsl(210, 4%, 76%)', gradient: 'platGrad' },
 };
 
-const timeframes = ['1H', '4H', '1D', '1W', '1M'] as const;
+const timeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
 type Timeframe = typeof timeframes[number];
 
 interface TFConfig {
@@ -22,7 +23,7 @@ interface TFConfig {
   labelFn: (d: Date) => string;
 }
 
-const tfConfigs: Record<Timeframe, TFConfig> = {
+const tfConfigs: Record<Exclude<Timeframe, 'RT'>, TFConfig> = {
   '1H': { points: 12, intervalMs: 5 * 60 * 1000, noiseScale: 0.001, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '4H': { points: 48, intervalMs: 5 * 60 * 1000, noiseScale: 0.002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1D': { points: 96, intervalMs: 15 * 60 * 1000, noiseScale: 0.003, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
@@ -30,7 +31,7 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   '1M': { points: 120, intervalMs: 6 * 60 * 60 * 1000, noiseScale: 0.015, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
 };
 
-const generateChartData = (price: number, change: number, tf: Timeframe) => {
+const generateChartData = (price: number, change: number, tf: Exclude<Timeframe, 'RT'>) => {
   const cfg = tfConfigs[tf];
   const data = [];
   const startPrice = price / (1 + change / 100);
@@ -72,19 +73,105 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+// ─── RT Candle Engine ─────────────────────────────────────
+const MAX_RT_CANDLES = 60;
+const RT_INTERVAL = 5000; // 5-second candles
+
+interface RTCandle {
+  time: string;
+  value: number;
+  high: number;
+  low: number;
+}
+
+const useRealtimeCandles = (basePrice: number, metal: MetalKey, active: boolean) => {
+  const [candles, setCandles] = useState<RTCandle[]>([]);
+  const candleRef = useRef<RTCandle | null>(null);
+  const { price: livePrice } = useSimulatedStream(basePrice, 0, metal);
+
+  // Reset candles when metal changes
+  useEffect(() => {
+    setCandles([]);
+    candleRef.current = null;
+  }, [metal]);
+
+  useEffect(() => {
+    if (!active || basePrice === 0) return;
+
+    const tick = () => {
+      const now = new Date();
+      const timeLabel = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const price = livePrice || basePrice;
+
+      setCandles(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+
+        if (last && candleRef.current) {
+          // Update last candle in-place
+          const c = { ...last };
+          c.value = price;
+          c.high = Math.max(c.high, price);
+          c.low = Math.min(c.low, price);
+          updated[updated.length - 1] = c;
+          return updated;
+        }
+        return prev;
+      });
+    };
+
+    // Create new candle every RT_INTERVAL
+    const candleTimer = setInterval(() => {
+      const now = new Date();
+      const timeLabel = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const price = livePrice || basePrice;
+      const newCandle: RTCandle = { time: timeLabel, value: price, high: price, low: price };
+      candleRef.current = newCandle;
+      setCandles(prev => [...prev.slice(-MAX_RT_CANDLES + 1), newCandle]);
+    }, RT_INTERVAL);
+
+    // Tick every 800ms to update current candle
+    const tickTimer = setInterval(tick, 800);
+
+    // Seed initial candle immediately
+    if (candles.length === 0) {
+      const now = new Date();
+      const seed: RTCandle = {
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        value: basePrice, high: basePrice, low: basePrice,
+      };
+      candleRef.current = seed;
+      setCandles([seed]);
+    }
+
+    return () => {
+      clearInterval(candleTimer);
+      clearInterval(tickTimer);
+    };
+  }, [active, basePrice, metal, livePrice]);
+
+  return candles;
+};
+
 const GAMetalChart = () => {
   const { data: prices, isLoading } = useMetalPrices();
   const [activeMetal, setActiveMetal] = useState<MetalKey>('gold');
-  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('1D');
+  const [activeTimeframe, setActiveTimeframe] = useState<Timeframe>('RT');
 
   const feed = prices?.[activeMetal];
-  const price = feed?.price_usd ?? 0;
+  const basePrice = feed?.price_usd ?? 0;
   const change = feed?.change_24h ?? 0;
   const config = metalConfig[activeMetal];
 
+  const isRT = activeTimeframe === 'RT';
+  const { price: livePrice } = useSimulatedStream(basePrice, change, activeMetal);
+  const displayPrice = isRT ? livePrice : basePrice;
+
+  const rtCandles = useRealtimeCandles(basePrice, activeMetal, isRT);
+
   const chartData = useMemo(
-    () => generateChartData(price, change, activeTimeframe),
-    [price, change, activeTimeframe]
+    () => isRT ? rtCandles : generateChartData(basePrice, change, activeTimeframe as Exclude<Timeframe, 'RT'>),
+    [isRT, rtCandles, basePrice, change, activeTimeframe]
   );
 
   return (
@@ -99,11 +186,11 @@ const GAMetalChart = () => {
           <div className="flex items-center gap-3">
             <BarChart3 className="w-5 h-5 text-gold" />
             <h3 className="font-display text-lg tracking-[0.1em] text-gold-light">PRICE CHART</h3>
-            <LivePulse label="LIVE" />
+            <LivePulse label={isRT ? 'STREAMING' : 'LIVE'} />
           </div>
           <div className="flex items-center gap-4">
             <span className="font-display text-2xl text-marble font-semibold">
-              {isLoading ? '...' : `$${price.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+              {isLoading ? '...' : `$${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
             </span>
             <span className={`text-sm font-medium px-2 py-0.5 rounded ${
               change > 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'
@@ -136,7 +223,9 @@ const GAMetalChart = () => {
                 onClick={() => setActiveTimeframe(tf)}
                 className={`px-3 py-1 text-[10px] font-mono tracking-wider rounded transition-all ${
                   activeTimeframe === tf
-                    ? 'bg-navy-light text-marble border border-marble/20'
+                    ? tf === 'RT'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-navy-light text-marble border border-marble/20'
                     : 'text-marble/30 hover:text-marble/60 border border-transparent'
                 }`}
               >
@@ -178,11 +267,12 @@ const GAMetalChart = () => {
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke={config.color}
-                  strokeWidth={2}
+                  stroke={isRT ? 'hsl(145, 70%, 45%)' : config.color}
+                  strokeWidth={isRT ? 2.5 : 2}
                   fill={`url(#${config.gradient})`}
                   dot={false}
                   activeDot={{ r: 4, fill: config.color, stroke: 'hsl(213, 32%, 16%)', strokeWidth: 2 }}
+                  isAnimationActive={!isRT}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -190,7 +280,10 @@ const GAMetalChart = () => {
         </div>
 
         <div className="mt-4 flex items-center justify-between text-[10px] text-marble/30">
-          <span className="font-display tracking-[0.15em]">{config.symbol} · {activeTimeframe}</span>
+          <span className="font-display tracking-[0.15em]">
+            {config.symbol} · {activeTimeframe}
+            {isRT && <span className="text-emerald-400/60 ml-2">● 5s candles · live stream</span>}
+          </span>
           <span className="font-mono">
             Updated {feed?.updated_at ? new Date(feed.updated_at).toLocaleTimeString() : '--:--'}
           </span>
