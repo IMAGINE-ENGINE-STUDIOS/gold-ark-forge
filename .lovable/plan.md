@@ -1,63 +1,97 @@
 
 
-# Phase 2: New Timeframes + Heikin-Ashi & Renko Chart Types
+# Phase 3: Add 6 New Indicators to IndicatorOverlay.tsx
 
 ## What Changes
 
-1. **8 new timeframes** added to GALiveChart: 1M (1 minute), 5M, 15M, 30M, 2H, 3H, 6H, 8H
-2. **2 new chart types** added to CandlestickRenderer: Heikin-Ashi and Renko
-3. Chart mode selector updated to show 5 modes instead of 3
+6 new professional-grade indicators added to `IndicatorOverlay.tsx`, following the exact same patterns already established in the file:
 
-## Technical Details
+| Indicator | Type | Data Keys | Reference Lines |
+|-----------|------|-----------|-----------------|
+| VWAP | Overlay | `vwap` | None (single line on price axis) |
+| Pivot Points | Overlay | `pivotP`, `pivotR1`, `pivotR2`, `pivotR3`, `pivotS1`, `pivotS2`, `pivotS3` | None (7 horizontal lines) |
+| Donchian Channels | Overlay | `donchianUpper`, `donchianMiddle`, `donchianLower` | None (3 lines like Bollinger) |
+| Keltner Channels | Overlay | `keltnerUpper`, `keltnerMiddle`, `keltnerLower` | None (3 lines like Envelopes) |
+| CMF | Oscillator | `cmf` | y=0 zero line |
+| A/D Line | Oscillator | `adLine` | None (cumulative line) |
 
-### File 1: `src/components/trading/GALiveChart.tsx`
+## Technical Details -- Single File: `src/components/trading/IndicatorOverlay.tsx`
 
-**Timeframes array** (line 37): Expand from 6 to 14 entries:
+### 1. Add 6 computation functions (after line ~309, before the indicator definitions)
+
+**`computeVWAP`** -- Volume Weighted Average Price
+- Takes closes and volumes (simulated if unavailable)
+- Cumulative (typicalPrice * volume) / cumulative(volume)
+- Resets concept: since we don't have session boundaries, runs cumulatively over the data window
+
+**`computePivotPoints`** -- Standard Pivot Points
+- Takes the previous bar's high, low, close to compute:
+  - Pivot (P) = (H + L + C) / 3
+  - R1 = 2P - L, S1 = 2P - H
+  - R2 = P + (H - L), S2 = P - (H - L)
+  - R3 = H + 2(P - L), S3 = L - 2(H - P)
+- Draws 7 horizontal reference lines across the chart
+
+**`computeDonchian`** -- Donchian Channels (period=20)
+- Upper = highest high over N periods
+- Lower = lowest low over N periods
+- Middle = (Upper + Lower) / 2
+
+**`computeKeltner`** -- Keltner Channels (EMA=20, ATR multiplier=1.5)
+- Middle = EMA(close, 20)
+- Upper = Middle + 1.5 * ATR(10)
+- Lower = Middle - 1.5 * ATR(10)
+
+**`computeCMF`** -- Chaikin Money Flow (period=20)
+- Money Flow Multiplier = ((C - L) - (H - C)) / (H - L)
+- Money Flow Volume = MFM * Volume
+- CMF = Sum(MFV, N) / Sum(Vol, N)
+- Range: roughly -1 to +1
+
+**`computeADLine`** -- Accumulation/Distribution Line
+- A/D = prev A/D + ((C - L) - (H - C)) / (H - L) * Volume
+- Cumulative, no period parameter
+
+### 2. Expand the `IndicatorKey` type (line 313-317)
+
+Add 6 new keys:
 ```
-['RT', '1m', '5m', '15m', '30m', '1H', '2H', '3H', '4H', '6H', '8H', '1D', '1W', '1M']
+'vwap' | 'pivotPoints' | 'donchian' | 'keltner' | 'cmf' | 'adLine'
 ```
 
-**tfConfigs** (lines 48-55): Add 8 new config entries with appropriate point counts, intervals, volatility, and label functions:
+### 3. Add to `INDICATORS` array (line 326-354)
 
-| TF | Points | Interval | Volatility | Label |
-|----|--------|----------|-----------|-------|
-| 1m | 60 | 1 min | 0.00015 | HH:MM:SS |
-| 5m | 60 | 5 min | 0.0003 | HH:MM |
-| 15m | 48 | 15 min | 0.00035 | HH:MM |
-| 30m | 48 | 30 min | 0.0004 | HH:MM |
-| 2H | 48 | 2 hr | 0.0006 | HH:MM |
-| 3H | 40 | 3 hr | 0.0008 | HH:MM |
-| 6H | 28 | 6 hr | 0.0012 | Weekday HH |
-| 8H | 21 | 8 hr | 0.0015 | Weekday HH |
+4 new overlays (after `envelopes`, before `fibonacci`):
+- `{ key: 'vwap', label: 'VWAP', color: 'hsl(45,85%,55%)', category: 'overlay' }`
+- `{ key: 'pivotPoints', label: 'Pivots', color: 'hsl(200,70%,60%)', category: 'overlay' }`
+- `{ key: 'donchian', label: 'Donchian', color: 'hsl(160,65%,50%)', category: 'overlay' }`
+- `{ key: 'keltner', label: 'Keltner', color: 'hsl(320,60%,55%)', category: 'overlay' }`
 
-**Chart mode selector** (lines 592-608): Add `heikinashi` and `renko` modes with appropriate icons (use existing `BarChart3` for HA and `BarChart2` variant for Renko). Since 5 buttons is tight, group them compactly.
+2 new oscillators (after `osma`):
+- `{ key: 'cmf', label: 'CMF', color: 'hsl(180,70%,45%)', category: 'oscillator' }`
+- `{ key: 'adLine', label: 'A/D Line', color: 'hsl(90,55%,50%)', category: 'oscillator' }`
 
-**Chart rendering** (lines 674-702): Add two new branches in the `Customized` rendering section:
-- `chartMode === 'heikinashi'` renders `HeikinAshiLayer`
-- `chartMode === 'renko'` renders `RenkoLayer`
+### 4. Add enrichment blocks in `enrichChartData` (after line 531, before oscillator section)
 
-**Timeframe selector** (lines 631-640): Since 14 timeframes won't fit in a single row, group them with a scrollable horizontal strip or use the same overflow menu pattern already used on mobile. On desktop, show a compact flex-wrap row with smaller buttons. On mobile, keep the dropdown menu but with all 14 options.
+6 new `if (activeIndicators.has(...))` blocks following the exact pattern of the existing ones -- compute the values, iterate, assign to `enriched[i].dataKey`.
 
-**Bottom info bar** (line 719): Update the timeframe label to handle new values.
+### 5. Add overlay lines in `getIndicatorLines` (after line 641)
 
-### File 2: `src/components/trading/CandlestickRenderer.tsx`
+- VWAP: single solid line
+- Pivot Points: 7 reference lines (P, R1-R3, S1-S3) with labels, dashed
+- Donchian: 3 lines (upper, middle dashed, lower)
+- Keltner: 3 lines (upper, middle, lower)
 
-**ChartMode type** (line 3): Expand to include new modes:
-```typescript
-export type ChartMode = 'area' | 'candlestick' | 'ohlc' | 'heikinashi' | 'renko';
-```
+### 6. Add oscillator configs in `OSCILLATOR_CONFIGS` (after line 670)
 
-**HeikinAshiLayer** (new export): Transforms raw OHLC data into Heikin-Ashi candles before rendering. The HA formula:
-- HA Close = (Open + High + Low + Close) / 4
-- HA Open = (prev HA Open + prev HA Close) / 2
-- HA High = max(High, HA Open, HA Close)
-- HA Low = min(Low, HA Open, HA Close)
+- CMF: domain [-1, 1], zero reference line
+- A/D Line: auto domain, no reference lines
 
-Then renders using the same candlestick visual style (wicks + body) but with the smoothed values.
+### 7. Add to `OSCILLATOR_KEYS` array (line 607)
 
-**RenkoLayer** (new export): Converts OHLC data into Renko bricks. Takes a `brickSize` computed as ATR(14) or a percentage of price. Each brick is a fixed-height rectangle -- green (up) or red (down). No wicks. Bricks only form when price moves by the brick size. Renders as a staircase of equal-height colored rectangles.
+Append `'cmf'` and `'adLine'`.
 
-### No New Dependencies
+### No Other Files Changed
 
-All rendering uses existing SVG primitives within Recharts `Customized` components, same pattern as the current CandlestickLayer and OHLCLayer.
+All 6 indicators are self-contained within `IndicatorOverlay.tsx`. They automatically appear in the indicator toggle bar (visible or in the MORE dropdown) and work with both the price chart overlays and the oscillator sub-panel.
 
