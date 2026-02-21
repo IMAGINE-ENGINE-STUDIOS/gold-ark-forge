@@ -308,13 +308,93 @@ export const computeOsMA = (prices: number[]): number[] => {
   return macdData.histogram;
 };
 
+export const computeVWAP = (highs: number[], lows: number[], closes: number[]): number[] => {
+  const result: number[] = [];
+  let cumTPV = 0, cumVol = 0;
+  for (let i = 0; i < closes.length; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    const vol = 1000 + Math.random() * 500;
+    cumTPV += tp * vol;
+    cumVol += vol;
+    result.push(cumTPV / cumVol);
+  }
+  return result;
+};
+
+export const computePivotPoints = (highs: number[], lows: number[], closes: number[]) => {
+  const len = closes.length;
+  const p = new Array(len).fill(NaN);
+  const r1 = new Array(len).fill(NaN), r2 = new Array(len).fill(NaN), r3 = new Array(len).fill(NaN);
+  const s1 = new Array(len).fill(NaN), s2 = new Array(len).fill(NaN), s3 = new Array(len).fill(NaN);
+  for (let i = 1; i < len; i++) {
+    const H = highs[i - 1], L = lows[i - 1], C = closes[i - 1];
+    const pivot = (H + L + C) / 3;
+    p[i] = pivot; r1[i] = 2 * pivot - L; s1[i] = 2 * pivot - H;
+    r2[i] = pivot + (H - L); s2[i] = pivot - (H - L);
+    r3[i] = H + 2 * (pivot - L); s3[i] = L - 2 * (H - pivot);
+  }
+  return { p, r1, r2, r3, s1, s2, s3 };
+};
+
+export const computeDonchian = (highs: number[], lows: number[], period = 20) => {
+  const upper: number[] = [], lower: number[] = [], middle: number[] = [];
+  for (let i = 0; i < highs.length; i++) {
+    if (i < period - 1) { upper.push(NaN); lower.push(NaN); middle.push(NaN); continue; }
+    const hh = Math.max(...highs.slice(i - period + 1, i + 1));
+    const ll = Math.min(...lows.slice(i - period + 1, i + 1));
+    upper.push(hh); lower.push(ll); middle.push((hh + ll) / 2);
+  }
+  return { upper, middle, lower };
+};
+
+export const computeKeltner = (highs: number[], lows: number[], closes: number[], emaPeriod = 20, atrPeriod = 10, mult = 1.5) => {
+  const mid = computeEMA(closes, emaPeriod);
+  const atr = computeATR(highs, lows, closes, atrPeriod);
+  return {
+    upper: mid.map((m, i) => (isNaN(m) || isNaN(atr[i])) ? NaN : m + mult * atr[i]),
+    middle: mid,
+    lower: mid.map((m, i) => (isNaN(m) || isNaN(atr[i])) ? NaN : m - mult * atr[i]),
+  };
+};
+
+export const computeCMF = (highs: number[], lows: number[], closes: number[], period = 20): number[] => {
+  const result: number[] = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { result.push(NaN); continue; }
+    let sumMFV = 0, sumVol = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      const hl = highs[j] - lows[j];
+      const mfm = hl === 0 ? 0 : ((closes[j] - lows[j]) - (highs[j] - closes[j])) / hl;
+      const vol = 1000 + Math.random() * 500;
+      sumMFV += mfm * vol;
+      sumVol += vol;
+    }
+    result.push(sumVol === 0 ? 0 : sumMFV / sumVol);
+  }
+  return result;
+};
+
+export const computeADLine = (highs: number[], lows: number[], closes: number[]): number[] => {
+  const result: number[] = [];
+  let ad = 0;
+  for (let i = 0; i < closes.length; i++) {
+    const hl = highs[i] - lows[i];
+    const mfm = hl === 0 ? 0 : ((closes[i] - lows[i]) - (highs[i] - closes[i])) / hl;
+    const vol = 1000 + Math.random() * 500;
+    ad += mfm * vol;
+    result.push(ad);
+  }
+  return result;
+};
+
 // ─── Available indicator definitions ─────────────────────
 
 export type IndicatorKey =
   | 'bollinger' | 'macd' | 'atr' | 'parabolicSar' | 'ichimoku'
   | 'fibonacci' | 'stochRsi' | 'williamsR' | 'adx' | 'sma20' | 'sma50' | 'ema20'
   | 'cci' | 'momentum' | 'obv' | 'mfi' | 'awesomeOsc' | 'alligator'
-  | 'envelopes' | 'stdDev' | 'demarker' | 'forceIndex' | 'bullsPower' | 'bearsPower' | 'osma';
+  | 'envelopes' | 'stdDev' | 'demarker' | 'forceIndex' | 'bullsPower' | 'bearsPower' | 'osma'
+  | 'vwap' | 'pivotPoints' | 'donchian' | 'keltner' | 'cmf' | 'adLine';
 
 export interface IndicatorDef {
   key: IndicatorKey;
@@ -333,6 +413,10 @@ export const INDICATORS: IndicatorDef[] = [
   { key: 'parabolicSar', label: 'SAR', color: 'hsl(38,90%,55%)', category: 'overlay' },
   { key: 'alligator', label: 'Alligator', color: 'hsl(217,91%,60%)', category: 'overlay' },
   { key: 'envelopes', label: 'Envelopes', color: 'hsl(300,50%,55%)', category: 'overlay' },
+  { key: 'vwap', label: 'VWAP', color: 'hsl(45,85%,55%)', category: 'overlay' },
+  { key: 'pivotPoints', label: 'Pivots', color: 'hsl(200,70%,60%)', category: 'overlay' },
+  { key: 'donchian', label: 'Donchian', color: 'hsl(160,65%,50%)', category: 'overlay' },
+  { key: 'keltner', label: 'Keltner', color: 'hsl(320,60%,55%)', category: 'overlay' },
   { key: 'fibonacci', label: 'Fibonacci', color: 'hsl(43,72%,50%)', category: 'overlay' },
   // Oscillators
   { key: 'macd', label: 'MACD', color: 'hsl(217,91%,60%)', category: 'oscillator' },
@@ -351,6 +435,8 @@ export const INDICATORS: IndicatorDef[] = [
   { key: 'bullsPower', label: 'Bulls', color: 'hsl(145,70%,50%)', category: 'oscillator' },
   { key: 'bearsPower', label: 'Bears', color: 'hsl(0,70%,55%)', category: 'oscillator' },
   { key: 'osma', label: 'OsMA', color: 'hsl(40,80%,50%)', category: 'oscillator' },
+  { key: 'cmf', label: 'CMF', color: 'hsl(180,70%,45%)', category: 'oscillator' },
+  { key: 'adLine', label: 'A/D Line', color: 'hsl(90,55%,50%)', category: 'oscillator' },
 ];
 
 // ─── Indicator Toggle Bar with Overflow Dropdown ─────────
@@ -597,6 +683,40 @@ export const enrichChartData = (data: ChartDataPoint[], activeIndicators: Set<In
     const vals = computeOsMA(closes);
     vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].osma = parseFloat(v.toFixed(2)); });
   }
+  if (activeIndicators.has('vwap')) {
+    const vals = computeVWAP(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].vwap = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('pivotPoints')) {
+    const pp = computePivotPoints(highs, lows, closes);
+    pp.p.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotP = parseFloat(v.toFixed(2)); });
+    pp.r1.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotR1 = parseFloat(v.toFixed(2)); });
+    pp.r2.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotR2 = parseFloat(v.toFixed(2)); });
+    pp.r3.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotR3 = parseFloat(v.toFixed(2)); });
+    pp.s1.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotS1 = parseFloat(v.toFixed(2)); });
+    pp.s2.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotS2 = parseFloat(v.toFixed(2)); });
+    pp.s3.forEach((v, i) => { if (!isNaN(v)) enriched[i].pivotS3 = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('donchian')) {
+    const dc = computeDonchian(highs, lows);
+    dc.upper.forEach((v, i) => { if (!isNaN(v)) enriched[i].donchianUpper = parseFloat(v.toFixed(2)); });
+    dc.middle.forEach((v, i) => { if (!isNaN(v)) enriched[i].donchianMiddle = parseFloat(v.toFixed(2)); });
+    dc.lower.forEach((v, i) => { if (!isNaN(v)) enriched[i].donchianLower = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('keltner')) {
+    const kc = computeKeltner(highs, lows, closes);
+    kc.upper.forEach((v, i) => { if (!isNaN(v)) enriched[i].keltnerUpper = parseFloat(v.toFixed(2)); });
+    kc.middle.forEach((v, i) => { if (!isNaN(v)) enriched[i].keltnerMiddle = parseFloat(v.toFixed(2)); });
+    kc.lower.forEach((v, i) => { if (!isNaN(v)) enriched[i].keltnerLower = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('cmf')) {
+    const vals = computeCMF(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].cmf = parseFloat(v.toFixed(4)); });
+  }
+  if (activeIndicators.has('adLine')) {
+    const vals = computeADLine(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].adLine = parseFloat(v.toFixed(2)); });
+  }
   return enriched;
 };
 
@@ -606,6 +726,7 @@ export const enrichChartData = (data: ChartDataPoint[], activeIndicators: Set<In
 export const OSCILLATOR_KEYS: IndicatorKey[] = [
   'macd', 'stochRsi', 'williamsR', 'adx', 'atr', 'cci', 'momentum', 'obv',
   'mfi', 'awesomeOsc', 'stdDev', 'demarker', 'forceIndex', 'bullsPower', 'bearsPower', 'osma',
+  'cmf', 'adLine',
 ];
 
 export const hasActiveOscillators = (active: Set<IndicatorKey>): boolean =>
@@ -639,6 +760,28 @@ export const getIndicatorLines = (activeIndicators: Set<IndicatorKey>) => {
     lines.push(<Line key="envM" type="monotone" dataKey="envMiddle" stroke="hsl(300,50%,55%)" strokeWidth={0.5} dot={false} strokeDasharray="2 4" connectNulls />);
     lines.push(<Line key="envL" type="monotone" dataKey="envLower" stroke="hsl(300,50%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 3" connectNulls />);
   }
+  if (activeIndicators.has('vwap')) {
+    lines.push(<Line key="vwap" type="monotone" dataKey="vwap" stroke="hsl(45,85%,55%)" strokeWidth={1.5} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('pivotPoints')) {
+    lines.push(<Line key="pivP" type="monotone" dataKey="pivotP" stroke="hsl(200,70%,60%)" strokeWidth={1} dot={false} strokeDasharray="6 3" connectNulls />);
+    lines.push(<Line key="pivR1" type="monotone" dataKey="pivotR1" stroke="hsl(0,65%,55%)" strokeWidth={0.8} dot={false} strokeDasharray="4 4" connectNulls />);
+    lines.push(<Line key="pivR2" type="monotone" dataKey="pivotR2" stroke="hsl(0,65%,55%)" strokeWidth={0.6} dot={false} strokeDasharray="3 5" connectNulls />);
+    lines.push(<Line key="pivR3" type="monotone" dataKey="pivotR3" stroke="hsl(0,65%,55%)" strokeWidth={0.5} dot={false} strokeDasharray="2 6" connectNulls />);
+    lines.push(<Line key="pivS1" type="monotone" dataKey="pivotS1" stroke="hsl(145,60%,50%)" strokeWidth={0.8} dot={false} strokeDasharray="4 4" connectNulls />);
+    lines.push(<Line key="pivS2" type="monotone" dataKey="pivotS2" stroke="hsl(145,60%,50%)" strokeWidth={0.6} dot={false} strokeDasharray="3 5" connectNulls />);
+    lines.push(<Line key="pivS3" type="monotone" dataKey="pivotS3" stroke="hsl(145,60%,50%)" strokeWidth={0.5} dot={false} strokeDasharray="2 6" connectNulls />);
+  }
+  if (activeIndicators.has('donchian')) {
+    lines.push(<Line key="dcU" type="monotone" dataKey="donchianUpper" stroke="hsl(160,65%,50%)" strokeWidth={1} dot={false} connectNulls />);
+    lines.push(<Line key="dcM" type="monotone" dataKey="donchianMiddle" stroke="hsl(160,65%,50%)" strokeWidth={0.5} dot={false} strokeDasharray="3 4" connectNulls />);
+    lines.push(<Line key="dcL" type="monotone" dataKey="donchianLower" stroke="hsl(160,65%,50%)" strokeWidth={1} dot={false} connectNulls />);
+  }
+  if (activeIndicators.has('keltner')) {
+    lines.push(<Line key="kcU" type="monotone" dataKey="keltnerUpper" stroke="hsl(320,60%,55%)" strokeWidth={1} dot={false} connectNulls />);
+    lines.push(<Line key="kcM" type="monotone" dataKey="keltnerMiddle" stroke="hsl(320,60%,55%)" strokeWidth={1.2} dot={false} connectNulls />);
+    lines.push(<Line key="kcL" type="monotone" dataKey="keltnerLower" stroke="hsl(320,60%,55%)" strokeWidth={1} dot={false} connectNulls />);
+  }
   return lines;
 };
 
@@ -668,6 +811,8 @@ const OSCILLATOR_CONFIGS: OscillatorConfig[] = [
   { key: 'bullsPower', label: 'Bulls', dataKeys: [{ key: 'bulls', color: 'hsl(145,70%,50%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
   { key: 'bearsPower', label: 'Bears', dataKeys: [{ key: 'bears', color: 'hsl(0,70%,55%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
   { key: 'osma', label: 'OsMA', dataKeys: [{ key: 'osma', color: 'hsl(40,80%,50%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'cmf', label: 'CMF', dataKeys: [{ key: 'cmf', color: 'hsl(180,70%,45%)' }], domain: [-1, 1], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'adLine', label: 'A/D Line', dataKeys: [{ key: 'adLine', color: 'hsl(90,55%,50%)' }] },
 ];
 
 
