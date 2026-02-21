@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { Line, ReferenceLine } from 'recharts';
+import { Line, ReferenceLine, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChevronDown } from 'lucide-react';
 
 // ─── Indicator computation functions ─────────────────────
@@ -251,7 +251,7 @@ export const computeAlligator = (highs: number[], lows: number[]) => {
   return { jaw, teeth, lips };
 };
 
-export const computeEnvelopes = (prices: number[], period = 20, deviation = 0.1) => {
+export const computeEnvelopes = (prices: number[], period = 20, deviation = 0.002) => {
   const sma = computeSMA(prices, period);
   return {
     upper: sma.map(v => isNaN(v) ? NaN : v * (1 + deviation)),
@@ -530,7 +530,29 @@ export const enrichChartData = (data: ChartDataPoint[], activeIndicators: Set<In
       enriched.forEach(d => { d[`fib${l * 1000}`] = val; });
     });
   }
-  // ─── NEW MT5 oscillator enrichment ─────────────────────
+  // ─── Oscillator enrichment ──────────────────────────────
+  if (activeIndicators.has('macd')) {
+    const m = computeMACD(closes);
+    m.macd.forEach((v, i) => { if (!isNaN(v)) enriched[i].macdLine = parseFloat(v.toFixed(4)); });
+    m.signal.forEach((v, i) => { if (!isNaN(v)) enriched[i].macdSignal = parseFloat(v.toFixed(4)); });
+    m.histogram.forEach((v, i) => { if (!isNaN(v)) enriched[i].macdHist = parseFloat(v.toFixed(4)); });
+  }
+  if (activeIndicators.has('atr')) {
+    const vals = computeATR(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].atr = parseFloat(v.toFixed(4)); });
+  }
+  if (activeIndicators.has('stochRsi')) {
+    const vals = computeStochRSI(closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].stochRsi = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('williamsR')) {
+    const vals = computeWilliamsR(highs, lows, closes);
+    vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].williamsR = parseFloat(v.toFixed(2)); });
+  }
+  if (activeIndicators.has('adx')) {
+    const vals = computeADX(highs, lows, closes);
+    vals.adx.forEach((v, i) => { if (!isNaN(v)) enriched[i < enriched.length ? i : enriched.length - 1].adxVal = parseFloat(v.toFixed(2)); });
+  }
   if (activeIndicators.has('cci')) {
     const vals = computeCCI(highs, lows, closes);
     vals.forEach((v, i) => { if (!isNaN(v)) enriched[i].cci = parseFloat(v.toFixed(2)); });
@@ -580,18 +602,21 @@ export const enrichChartData = (data: ChartDataPoint[], activeIndicators: Set<In
 
 // ─── Render indicator lines as Recharts children ─────────
 
+// Oscillator indicator keys — used to detect if oscillator panel should show
+export const OSCILLATOR_KEYS: IndicatorKey[] = [
+  'macd', 'stochRsi', 'williamsR', 'adx', 'atr', 'cci', 'momentum', 'obv',
+  'mfi', 'awesomeOsc', 'stdDev', 'demarker', 'forceIndex', 'bullsPower', 'bearsPower', 'osma',
+];
+
+export const hasActiveOscillators = (active: Set<IndicatorKey>): boolean =>
+  OSCILLATOR_KEYS.some(k => active.has(k));
+
+// ─── Render OVERLAY indicator lines only (on price Y-axis) ──
 export const getIndicatorLines = (activeIndicators: Set<IndicatorKey>) => {
   const lines: JSX.Element[] = [];
-
-  if (activeIndicators.has('sma20')) {
-    lines.push(<Line key="sma20" type="monotone" dataKey="sma20" stroke="hsl(43,72%,50%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
-  }
-  if (activeIndicators.has('sma50')) {
-    lines.push(<Line key="sma50" type="monotone" dataKey="sma50" stroke="hsl(280,60%,60%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
-  }
-  if (activeIndicators.has('ema20')) {
-    lines.push(<Line key="ema20" type="monotone" dataKey="ema20" stroke="hsl(170,70%,50%)" strokeWidth={1} dot={false} connectNulls />);
-  }
+  if (activeIndicators.has('sma20')) lines.push(<Line key="sma20" type="monotone" dataKey="sma20" stroke="hsl(43,72%,50%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
+  if (activeIndicators.has('sma50')) lines.push(<Line key="sma50" type="monotone" dataKey="sma50" stroke="hsl(280,60%,60%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
+  if (activeIndicators.has('ema20')) lines.push(<Line key="ema20" type="monotone" dataKey="ema20" stroke="hsl(170,70%,50%)" strokeWidth={1} dot={false} connectNulls />);
   if (activeIndicators.has('bollinger')) {
     lines.push(<Line key="bbU" type="monotone" dataKey="bbUpper" stroke="hsl(210,80%,60%)" strokeWidth={1} dot={false} strokeDasharray="3 3" connectNulls />);
     lines.push(<Line key="bbM" type="monotone" dataKey="bbMiddle" stroke="hsl(210,80%,60%)" strokeWidth={0.5} dot={false} strokeDasharray="2 4" connectNulls />);
@@ -603,9 +628,7 @@ export const getIndicatorLines = (activeIndicators: Set<IndicatorKey>) => {
     lines.push(<Line key="ichA" type="monotone" dataKey="ichSenkouA" stroke="hsl(145,60%,45%)" strokeWidth={0.8} dot={false} strokeDasharray="2 2" connectNulls />);
     lines.push(<Line key="ichB" type="monotone" dataKey="ichSenkouB" stroke="hsl(0,60%,50%)" strokeWidth={0.8} dot={false} strokeDasharray="2 2" connectNulls />);
   }
-  if (activeIndicators.has('parabolicSar')) {
-    lines.push(<Line key="psar" type="monotone" dataKey="psar" stroke="hsl(38,90%,55%)" strokeWidth={0} dot={{ r: 1.5, fill: 'hsl(38,90%,55%)' }} connectNulls />);
-  }
+  if (activeIndicators.has('parabolicSar')) lines.push(<Line key="psar" type="monotone" dataKey="psar" stroke="hsl(38,90%,55%)" strokeWidth={0} dot={{ r: 1.5, fill: 'hsl(38,90%,55%)' }} connectNulls />);
   if (activeIndicators.has('alligator')) {
     lines.push(<Line key="alJaw" type="monotone" dataKey="alJaw" stroke="hsl(217,91%,60%)" strokeWidth={1.5} dot={false} connectNulls />);
     lines.push(<Line key="alTeeth" type="monotone" dataKey="alTeeth" stroke="hsl(0,70%,55%)" strokeWidth={1} dot={false} connectNulls />);
@@ -616,42 +639,130 @@ export const getIndicatorLines = (activeIndicators: Set<IndicatorKey>) => {
     lines.push(<Line key="envM" type="monotone" dataKey="envMiddle" stroke="hsl(300,50%,55%)" strokeWidth={0.5} dot={false} strokeDasharray="2 4" connectNulls />);
     lines.push(<Line key="envL" type="monotone" dataKey="envLower" stroke="hsl(300,50%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 3" connectNulls />);
   }
-  // ─── NEW MT5 oscillator lines ──────────────────────────
-  if (activeIndicators.has('cci')) {
-    lines.push(<Line key="cci" type="monotone" dataKey="cci" stroke="hsl(190,80%,50%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
-  }
-  if (activeIndicators.has('momentum')) {
-    lines.push(<Line key="momentum" type="monotone" dataKey="momentum" stroke="hsl(30,90%,55%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-  if (activeIndicators.has('obv')) {
-    lines.push(<Line key="obv" type="monotone" dataKey="obv" stroke="hsl(120,50%,50%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-  if (activeIndicators.has('mfi')) {
-    lines.push(<Line key="mfi" type="monotone" dataKey="mfi" stroke="hsl(55,70%,50%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
-  }
-  if (activeIndicators.has('awesomeOsc')) {
-    lines.push(<Line key="ao" type="monotone" dataKey="ao" stroke="hsl(145,70%,45%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-  if (activeIndicators.has('stdDev')) {
-    lines.push(<Line key="stddev" type="monotone" dataKey="stddev" stroke="hsl(200,60%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
-  }
-  if (activeIndicators.has('demarker')) {
-    lines.push(<Line key="demarker" type="monotone" dataKey="demarker" stroke="hsl(350,65%,55%)" strokeWidth={1} dot={false} strokeDasharray="4 2" connectNulls />);
-  }
-  if (activeIndicators.has('forceIndex')) {
-    lines.push(<Line key="force" type="monotone" dataKey="force" stroke="hsl(280,70%,55%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-  if (activeIndicators.has('bullsPower')) {
-    lines.push(<Line key="bulls" type="monotone" dataKey="bulls" stroke="hsl(145,70%,50%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-  if (activeIndicators.has('bearsPower')) {
-    lines.push(<Line key="bears" type="monotone" dataKey="bears" stroke="hsl(0,70%,55%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-  if (activeIndicators.has('osma')) {
-    lines.push(<Line key="osma" type="monotone" dataKey="osma" stroke="hsl(40,80%,50%)" strokeWidth={1} dot={false} connectNulls />);
-  }
-
   return lines;
+};
+
+// ─── Oscillator panel data keys + config ─────────────────
+interface OscillatorConfig {
+  key: IndicatorKey;
+  dataKeys: { key: string; color: string; dash?: string }[];
+  domain?: [number, number];
+  refLines?: { y: number; color: string; label: string }[];
+  label: string;
+}
+
+const OSCILLATOR_CONFIGS: OscillatorConfig[] = [
+  { key: 'macd', label: 'MACD', dataKeys: [{ key: 'macdLine', color: 'hsl(217,91%,60%)' }, { key: 'macdSignal', color: 'hsl(0,70%,55%)', dash: '3 3' }, { key: 'macdHist', color: 'hsl(145,60%,45%)' }] },
+  { key: 'stochRsi', label: 'Stoch RSI', dataKeys: [{ key: 'stochRsi', color: 'hsl(262,83%,58%)' }], domain: [0, 100], refLines: [{ y: 20, color: 'hsl(145,60%,45%)', label: '20' }, { y: 80, color: 'hsl(0,70%,55%)', label: '80' }] },
+  { key: 'williamsR', label: 'Williams %R', dataKeys: [{ key: 'williamsR', color: 'hsl(340,70%,55%)' }], domain: [-100, 0], refLines: [{ y: -20, color: 'hsl(0,70%,55%)', label: '-20' }, { y: -80, color: 'hsl(145,60%,45%)', label: '-80' }] },
+  { key: 'adx', label: 'ADX', dataKeys: [{ key: 'adxVal', color: 'hsl(25,95%,53%)' }], domain: [0, 100], refLines: [{ y: 25, color: 'hsl(43,72%,50%)', label: '25' }] },
+  { key: 'atr', label: 'ATR', dataKeys: [{ key: 'atr', color: 'hsl(145,60%,45%)' }] },
+  { key: 'cci', label: 'CCI', dataKeys: [{ key: 'cci', color: 'hsl(190,80%,50%)' }], refLines: [{ y: 100, color: 'hsl(0,70%,55%)', label: '+100' }, { y: -100, color: 'hsl(145,60%,45%)', label: '-100' }] },
+  { key: 'momentum', label: 'Momentum', dataKeys: [{ key: 'momentum', color: 'hsl(30,90%,55%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'obv', label: 'OBV', dataKeys: [{ key: 'obv', color: 'hsl(120,50%,50%)' }] },
+  { key: 'mfi', label: 'MFI', dataKeys: [{ key: 'mfi', color: 'hsl(55,70%,50%)' }], domain: [0, 100], refLines: [{ y: 20, color: 'hsl(145,60%,45%)', label: '20' }, { y: 80, color: 'hsl(0,70%,55%)', label: '80' }] },
+  { key: 'awesomeOsc', label: 'Awesome', dataKeys: [{ key: 'ao', color: 'hsl(145,70%,45%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'stdDev', label: 'Std Dev', dataKeys: [{ key: 'stddev', color: 'hsl(200,60%,55%)' }] },
+  { key: 'demarker', label: 'DeMarker', dataKeys: [{ key: 'demarker', color: 'hsl(350,65%,55%)' }], domain: [0, 1], refLines: [{ y: 0.3, color: 'hsl(145,60%,45%)', label: '0.3' }, { y: 0.7, color: 'hsl(0,70%,55%)', label: '0.7' }] },
+  { key: 'forceIndex', label: 'Force', dataKeys: [{ key: 'force', color: 'hsl(280,70%,55%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'bullsPower', label: 'Bulls', dataKeys: [{ key: 'bulls', color: 'hsl(145,70%,50%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'bearsPower', label: 'Bears', dataKeys: [{ key: 'bears', color: 'hsl(0,70%,55%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+  { key: 'osma', label: 'OsMA', dataKeys: [{ key: 'osma', color: 'hsl(40,80%,50%)' }], refLines: [{ y: 0, color: 'hsl(40,25%,96%)', label: '0' }] },
+];
+
+
+
+
+interface OscillatorPanelProps {
+  data: ChartDataPoint[];
+  activeIndicators: Set<IndicatorKey>;
+}
+
+export const OscillatorPanel = ({ data, activeIndicators }: OscillatorPanelProps) => {
+  const activeOscillators = OSCILLATOR_CONFIGS.filter(c => activeIndicators.has(c.key));
+  if (activeOscillators.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-0.5 w-full">
+      {activeOscillators.map((osc) => {
+        // Compute Y domain
+        let domain: [any, any] = ['auto', 'auto'];
+        if (osc.domain) {
+          domain = osc.domain;
+        } else {
+          // Auto-scale from data
+          const allVals = osc.dataKeys.flatMap(dk => data.map(d => d[dk.key] as number).filter(v => v !== undefined && !isNaN(v)));
+          if (allVals.length > 0) {
+            const min = Math.min(...allVals);
+            const max = Math.max(...allVals);
+            const pad = (max - min) * 0.1 || 1;
+            domain = [min - pad, max + pad];
+          }
+        }
+
+        return (
+          <div key={osc.key} className="w-full" style={{ height: '100px' }}>
+            <div className="flex items-center px-2 py-0.5 border-t border-gold/10">
+              <span className="text-[8px] font-mono tracking-wider text-marble/30">{osc.label}</span>
+            </div>
+            <ResponsiveContainer width="100%" height="85%">
+              <ComposedChart data={data} margin={{ top: 2, right: 5, left: 10, bottom: 2 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(213,28%,24%)" strokeOpacity={0.5} />
+                <XAxis dataKey="time" tick={false} axisLine={{ stroke: 'hsl(213,28%,24%)' }} tickLine={false} height={1} />
+                <YAxis
+                  domain={domain}
+                  tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.15)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={50}
+                  tickFormatter={(v: number) => typeof v === 'number' ? (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(v < 1 && v > -1 ? 2 : 1)) : ''}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="bg-navy-dark border border-gold/30 rounded px-2 py-1 shadow-lg">
+                        {payload.map((p: any) => (
+                          <p key={p.dataKey} className="text-[9px] font-mono" style={{ color: p.stroke }}>
+                            {p.name}: {typeof p.value === 'number' ? p.value.toFixed(2) : p.value}
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+                {osc.refLines?.map((rl) => (
+                  <ReferenceLine
+                    key={`${osc.key}-ref-${rl.y}`}
+                    y={rl.y}
+                    stroke={rl.color}
+                    strokeDasharray="4 4"
+                    strokeWidth={0.5}
+                    strokeOpacity={0.4}
+                    label={{ value: rl.label, position: 'right', fill: rl.color, fontSize: 7, opacity: 0.6 }}
+                  />
+                ))}
+                {osc.dataKeys.map((dk) => (
+                  <Line
+                    key={dk.key}
+                    type="monotone"
+                    dataKey={dk.key}
+                    stroke={dk.color}
+                    strokeWidth={1.2}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                    strokeDasharray={dk.dash}
+                    name={dk.key}
+                  />
+                ))}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 export const getFibonacciLines = (activeIndicators: Set<IndicatorKey>, data: ChartDataPoint[]) => {

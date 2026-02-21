@@ -20,6 +20,8 @@ import {
   enrichChartData,
   getIndicatorLines,
   getFibonacciLines,
+  hasActiveOscillators,
+  OscillatorPanel,
   computeSMA,
   computeEMA,
   computeRSI as computeRSIArray,
@@ -535,7 +537,7 @@ const GALiveStandalone = () => {
         </div>
 
         {/* Chart Area */}
-        <div className="flex-1 px-1 py-1" style={{ cursor: activeTool ? 'crosshair' : 'default' }}>
+        <div className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0 }}>
           {price === 0 || liveCandles.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3">
               <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
@@ -592,6 +594,13 @@ const GALiveStandalone = () => {
             </ResponsiveContainer>
           )}
         </div>
+
+        {/* Oscillator Sub-Panel */}
+        {hasActiveOscillators(activeIndicators) && chartData.length > 0 && (
+          <div className="border-t border-gold/10 overflow-y-auto" style={{ flex: '0 0 auto', maxHeight: '30%' }}>
+            <OscillatorPanel data={chartData} activeIndicators={activeIndicators} />
+          </div>
+        )}
 
         {/* Bottom bar */}
         <div className="flex items-center justify-between px-3 py-1.5 border-t border-gold/10 flex-shrink-0 bg-navy-dark/20">
