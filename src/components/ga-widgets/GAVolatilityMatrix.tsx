@@ -3,7 +3,10 @@ import { Activity, AlertTriangle } from 'lucide-react';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import LivePulse from './LivePulse';
+
+const CRYPTO_WS_KEYS = ['bitcoin', 'ethereum', 'solana', 'xrp', 'cardano', 'dogecoin', 'avalanche'];
 
 interface VolItem {
   name: string;
@@ -18,6 +21,7 @@ const GAVolatilityMatrix = () => {
   const { data: crypto } = useCryptoData(15);
   const { data: metals } = useMetalPrices();
   const { data: oil } = useOilGasPrices();
+  const wsPrices = useWebSocketPrices(CRYPTO_WS_KEYS);
 
   const items = useMemo((): VolItem[] => {
     const list: VolItem[] = [];

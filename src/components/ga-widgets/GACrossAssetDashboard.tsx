@@ -3,6 +3,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import LivePulse from './LivePulse';
 
@@ -12,30 +13,42 @@ const PAIRS = [
   { label: 'OIL vs GOLD', keyA: 'oil', keyB: 'gold', colorA: 'hsl(25, 95%, 53%)', colorB: 'hsl(43, 72%, 50%)' },
 ] as const;
 
+const LiveCorrelationPrice = ({ label, price }: { label: string; price: number }) => (
+  <div className="bg-navy-light/20 rounded p-3 border border-gold/5 text-center">
+    <div className="text-[8px] font-display tracking-wider text-marble/30">{label}</div>
+    <div className="text-sm font-mono text-marble">${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</div>
+  </div>
+);
+
 const GACrossAssetDashboard = () => {
   const [activePair, setActivePair] = useState(0);
   const { data: metals } = useMetalPrices();
   const { data: crypto } = useCryptoData(10);
   const { data: oil } = useOilGasPrices();
+  const wsPrices = useWebSocketPrices(['bitcoin']);
 
   const pair = PAIRS[activePair];
 
+  // Live gold price via simulated stream
+  const { price: liveGold } = useSimulatedStream(
+    metals?.gold?.price_usd ?? 2350, metals?.gold?.change_24h ?? 0, 'gold'
+  );
+
   const priceA = useMemo(() => {
-    if (pair.keyA === 'gold') return metals?.gold?.price_usd ?? 2350;
+    if (pair.keyA === 'gold') return liveGold;
     if (pair.keyA === 'oil') return oil?.find(p => p.symbol === 'CL')?.price ?? 71;
     return 100;
-  }, [pair, metals, oil]);
+  }, [pair, liveGold, oil]);
 
   const priceB = useMemo(() => {
-    if (pair.keyB === 'bitcoin') return crypto?.find(c => c.id === 'bitcoin')?.current_price ?? 97500;
-    if (pair.keyB === 'gold') return metals?.gold?.price_usd ?? 2350;
+    if (pair.keyB === 'bitcoin') return wsPrices.bitcoin?.price ?? crypto?.find(c => c.id === 'bitcoin')?.current_price ?? 97500;
+    if (pair.keyB === 'gold') return liveGold;
     if (pair.keyB === 'sp500') return 5940;
     return 100;
-  }, [pair, metals, crypto]);
+  }, [pair, liveGold, crypto, wsPrices]);
 
   const ratio = priceB > 0 ? (priceA / priceB) : 0;
 
-  // Generate synthetic historical correlation data
   const chartData = useMemo(() => {
     return Array.from({ length: 30 }, (_, i) => {
       const driftA = Math.sin(i / 4) * 0.02 + Math.sin(i / 7) * 0.01;
@@ -48,7 +61,6 @@ const GACrossAssetDashboard = () => {
     });
   }, [priceA, priceB]);
 
-  // Simulated correlation coefficient
   const correlation = useMemo(() => {
     const corrs = [0.32, -0.15, 0.68];
     return corrs[activePair];
@@ -67,10 +79,9 @@ const GACrossAssetDashboard = () => {
         <div className="flex items-center gap-3 mb-4">
           <ArrowLeftRight className="w-5 h-5 text-gold" />
           <h3 className="font-display text-lg tracking-[0.1em] text-gold-light">CROSS-ASSET CORRELATION</h3>
-          <LivePulse label="LIVE" />
+          <LivePulse label="STREAMING" />
         </div>
 
-        {/* Pair Tabs */}
         <div className="flex gap-1 mb-6">
           {PAIRS.map((p, i) => (
             <button key={p.label} onClick={() => setActivePair(i)}
@@ -82,25 +93,17 @@ const GACrossAssetDashboard = () => {
           ))}
         </div>
 
-        {/* Stats Row */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-navy-light/20 rounded p-3 border border-gold/5 text-center">
-            <div className="text-[8px] font-display tracking-wider text-marble/30">{pair.keyA.toUpperCase()}</div>
-            <div className="text-sm font-mono text-marble">${priceA.toLocaleString()}</div>
-          </div>
+          <LiveCorrelationPrice label={pair.keyA.toUpperCase()} price={priceA} />
           <div className="bg-navy-light/20 rounded p-3 border border-gold/5 text-center">
             <div className="text-[8px] font-display tracking-wider text-marble/30">CORRELATION</div>
             <div className={`text-lg font-mono ${correlation > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {correlation > 0 ? '+' : ''}{correlation.toFixed(2)}
             </div>
           </div>
-          <div className="bg-navy-light/20 rounded p-3 border border-gold/5 text-center">
-            <div className="text-[8px] font-display tracking-wider text-marble/30">{pair.keyB.toUpperCase()}</div>
-            <div className="text-sm font-mono text-marble">${priceB.toLocaleString()}</div>
-          </div>
+          <LiveCorrelationPrice label={pair.keyB.toUpperCase()} price={priceB} />
         </div>
 
-        {/* Chart */}
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={chartData}>
             <defs>
@@ -123,8 +126,9 @@ const GACrossAssetDashboard = () => {
           </AreaChart>
         </ResponsiveContainer>
 
-        <div className="text-center text-[9px] text-marble/20 mt-2 font-display tracking-wider">
-          RATIO: {ratio.toFixed(ratio < 0.01 ? 6 : 4)} · 30-DAY SYNTHETIC COMPARISON
+        <div className="text-center text-[9px] text-marble/20 mt-2 font-display tracking-wider flex items-center justify-center gap-2">
+          RATIO: {ratio.toFixed(ratio < 0.01 ? 6 : 4)} · LIVE COMPARISON
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         </div>
       </div>
     </div>

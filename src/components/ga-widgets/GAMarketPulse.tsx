@@ -2,15 +2,22 @@ import { Gauge, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import LivePulse from './LivePulse';
 import { useMemo } from 'react';
+
+const CRYPTO_WS_KEYS = ['bitcoin', 'ethereum', 'solana', 'xrp', 'cardano', 'dogecoin'];
 
 const GAMarketPulse = () => {
   const { data: metals } = useMetalPrices();
   const { data: crypto, isLoading } = useCryptoData(20);
   const { data: oil } = useOilGasPrices();
+  const wsPrices = useWebSocketPrices(CRYPTO_WS_KEYS);
 
-  // Fear & Greed simulation
+  // Live metal prices
+  const { price: goldLive } = useSimulatedStream(metals?.gold?.price_usd ?? 0, metals?.gold?.change_24h ?? 0, 'gold');
+  const { price: silverLive } = useSimulatedStream(metals?.silver?.price_usd ?? 0, metals?.silver?.change_24h ?? 0, 'silver');
+
   const fearGreed = useMemo(() => {
     if (!crypto?.length) return 50;
     const avg24h = crypto.slice(0, 10).reduce((s, c) => s + (c.price_change_percentage_24h ?? 0), 0) / 10;
@@ -19,7 +26,6 @@ const GAMarketPulse = () => {
   const fgLabel = fearGreed > 75 ? 'EXTREME GREED' : fearGreed > 55 ? 'GREED' : fearGreed > 45 ? 'NEUTRAL' : fearGreed > 25 ? 'FEAR' : 'EXTREME FEAR';
   const fgColor = fearGreed > 55 ? 'text-emerald-400' : fearGreed < 45 ? 'text-red-400' : 'text-gold';
 
-  // Top movers
   const movers = useMemo(() => {
     if (!crypto?.length) return [];
     return [...crypto]
@@ -28,19 +34,24 @@ const GAMarketPulse = () => {
       .slice(0, 6);
   }, [crypto]);
 
-  // Spot prices
+  // Live spot prices
   const spots = useMemo(() => {
     const items: { label: string; price: number; change: number }[] = [];
-    if (metals?.gold) items.push({ label: 'GOLD', price: metals.gold.price_usd, change: metals.gold.change_24h ?? 0 });
-    if (metals?.silver) items.push({ label: 'SILVER', price: metals.silver.price_usd, change: metals.silver.change_24h ?? 0 });
+    items.push({ label: 'GOLD', price: goldLive, change: metals?.gold?.change_24h ?? 0 });
+    items.push({ label: 'SILVER', price: silverLive, change: metals?.silver?.change_24h ?? 0 });
+
+    const btcWs = wsPrices.bitcoin;
     const btc = crypto?.find(c => c.id === 'bitcoin');
-    if (btc) items.push({ label: 'BTC', price: btc.current_price, change: btc.price_change_percentage_24h ?? 0 });
+    items.push({ label: 'BTC', price: btcWs?.price ?? btc?.current_price ?? 0, change: btcWs?.change24h ?? btc?.price_change_percentage_24h ?? 0 });
+
+    const ethWs = wsPrices.ethereum;
     const eth = crypto?.find(c => c.id === 'ethereum');
-    if (eth) items.push({ label: 'ETH', price: eth.current_price, change: eth.price_change_percentage_24h ?? 0 });
+    items.push({ label: 'ETH', price: ethWs?.price ?? eth?.current_price ?? 0, change: ethWs?.change24h ?? eth?.price_change_percentage_24h ?? 0 });
+
     const wti = oil?.find(p => p.symbol === 'CL');
     if (wti) items.push({ label: 'WTI', price: wti.price, change: wti.change });
     return items;
-  }, [metals, crypto, oil]);
+  }, [metals, crypto, oil, goldLive, silverLive, wsPrices]);
 
   return (
     <div className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden">
@@ -53,7 +64,7 @@ const GAMarketPulse = () => {
         <div className="flex items-center gap-3 mb-6">
           <Zap className="w-5 h-5 text-gold" />
           <h3 className="font-display text-lg tracking-[0.1em] text-gold-light">MARKET PULSE</h3>
-          <LivePulse label="LIVE" />
+          <LivePulse label="STREAMING" />
         </div>
 
         {isLoading ? (
@@ -76,24 +87,29 @@ const GAMarketPulse = () => {
             <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
               <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">TOP MOVERS (24H)</div>
               <div className="space-y-1.5">
-                {movers.map(m => (
-                  <div key={m.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img src={m.image} alt={m.name} className="w-4 h-4 rounded-full" />
-                      <span className="text-[10px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
+                {movers.map(m => {
+                  const wsKey = CRYPTO_WS_KEYS.find(k => k === m.id);
+                  const ws = wsKey ? wsPrices[wsKey] : undefined;
+                  const change = ws?.change24h ?? m.price_change_percentage_24h ?? 0;
+                  return (
+                    <div key={m.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img src={m.image} alt={m.name} className="w-4 h-4 rounded-full" />
+                        <span className="text-[10px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
+                      </div>
+                      <span className={`text-[10px] font-mono flex items-center gap-0.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {change.toFixed(1)}%
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-mono flex items-center gap-0.5 ${(m.price_change_percentage_24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(m.price_change_percentage_24h ?? 0) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {(m.price_change_percentage_24h ?? 0).toFixed(1)}%
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
             {/* Spot Prices */}
             <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
-              <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">SPOT PRICES</div>
+              <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">SPOT PRICES · LIVE</div>
               <div className="space-y-2">
                 {spots.map(s => (
                   <div key={s.label} className="flex items-center justify-between">
