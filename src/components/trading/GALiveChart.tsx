@@ -20,9 +20,101 @@ import {
   computeRSI as computeRSIArray,
   computeATR,
   computeMACD,
+  computeBollingerBands,
   type IndicatorKey,
   type ChartDataPoint,
 } from './IndicatorOverlay';
+
+// ═══ 2-HOUR FORECAST ENGINE ═══════════════════════════════
+// Uses RSI, SMA20/50, EMA20, MACD, ATR, Bollinger to compute
+// a weighted directional bias and project 2 hours of future price.
+const FORECAST_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+interface ForecastPoint {
+  time: string;
+  forecast: number;
+  forecastUpper: number;
+  forecastLower: number;
+  value?: undefined; // keep main series empty
+}
+
+const computeForecastPoints = (
+  values: number[],
+  highs: number[],
+  lows: number[],
+  currentPrice: number,
+  tf: Timeframe,
+  intervalMs: number,
+  labelFn: (d: Date) => string,
+): ForecastPoint[] => {
+  if (values.length < 30 || currentPrice <= 0) return [];
+
+  // Compute indicators
+  const rsiArr = computeRSIArray(values);
+  const rsi = rsiArr[rsiArr.length - 1] ?? 50;
+  const sma20 = computeSMA(values, 20);
+  const sma50 = computeSMA(values, 50);
+  const ema20 = computeEMA(values, 20);
+  const macdData = computeMACD(values);
+  const atrArr = computeATR(highs, lows, values);
+  const boll = computeBollingerBands(values, 20, 2);
+
+  const latestSMA20 = sma20[sma20.length - 1] ?? currentPrice;
+  const latestSMA50 = sma50[sma50.length - 1] ?? currentPrice;
+  const latestEMA20 = ema20[ema20.length - 1] ?? currentPrice;
+  const latestMACD = macdData.macd[macdData.macd.length - 1] ?? 0;
+  const latestSignal = macdData.signal[macdData.signal.length - 1] ?? 0;
+  const latestATR = atrArr[atrArr.length - 1] ?? currentPrice * 0.005;
+  const latestBollUpper = boll.upper[boll.upper.length - 1] ?? currentPrice;
+  const latestBollLower = boll.lower[boll.lower.length - 1] ?? currentPrice;
+
+  // ── Weighted signal scoring ──
+  // RSI: <30 bullish, >70 bearish, 30-70 neutral
+  const rsiSignal = rsi < 30 ? 0.6 : rsi > 70 ? -0.6 : (50 - rsi) / 100;
+  // Price vs SMA20: above = bullish
+  const sma20Signal = (currentPrice - latestSMA20) / latestATR * 0.3;
+  // Price vs SMA50: above = bullish (longer trend)
+  const sma50Signal = (currentPrice - latestSMA50) / latestATR * 0.2;
+  // EMA20 momentum
+  const emaSignal = (currentPrice - latestEMA20) / latestATR * 0.2;
+  // MACD cross
+  const macdSignal = isNaN(latestMACD) || isNaN(latestSignal) ? 0 :
+    Math.sign(latestMACD - latestSignal) * Math.min(Math.abs(latestMACD - latestSignal) / latestATR, 0.5) * 0.4;
+  // Bollinger position (mean reversion)
+  const bollRange = latestBollUpper - latestBollLower;
+  const bollPos = bollRange > 0 ? (currentPrice - latestBollLower) / bollRange : 0.5;
+  const bollSignal = (0.5 - bollPos) * 0.3; // closer to upper = bearish (reversion)
+
+  // Composite bias: clamp to [-1, 1]
+  const rawBias = rsiSignal + sma20Signal + sma50Signal + emaSignal + macdSignal + bollSignal;
+  const bias = Math.max(-1, Math.min(1, rawBias));
+
+  // Project forward: 2 hours of future data points
+  const numPoints = Math.max(6, Math.ceil(FORECAST_DURATION_MS / intervalMs));
+  const points: ForecastPoint[] = [];
+  const now = Date.now();
+
+  // The drift per step based on ATR and bias
+  const driftPerStep = (bias * latestATR * 0.15) / numPoints;
+  // Confidence band widens over time
+  const baseSpread = latestATR * 0.3;
+
+  for (let i = 1; i <= numPoints; i++) {
+    const progress = i / numPoints;
+    const futurePrice = currentPrice + driftPerStep * i;
+    const spread = baseSpread * (0.3 + progress * 0.7); // widens from 30% to 100% of base
+    const futureTime = new Date(now + i * intervalMs);
+
+    points.push({
+      time: labelFn(futureTime),
+      forecast: parseFloat(futurePrice.toFixed(currentPrice < 10 ? 4 : 2)),
+      forecastUpper: parseFloat((futurePrice + spread).toFixed(currentPrice < 10 ? 4 : 2)),
+      forecastLower: parseFloat((futurePrice - spread).toFixed(currentPrice < 10 ? 4 : 2)),
+    });
+  }
+
+  return points;
+};
 import ChartDrawingTools, { useDrawings, getDrawingReferenceLines } from './ChartDrawingTools';
 import SymbolLogo from './SymbolLogo';
 import { CandlestickLayer, OHLCLayer, HeikinAshiLayer, RenkoLayer, type ChartMode } from './CandlestickRenderer';
@@ -162,19 +254,37 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload;
+  const isForecast = d?.forecast !== undefined && d?.value === undefined;
   return (
     <div className="bg-navy-dark border border-gold/30 rounded px-3 py-2 shadow-lg">
-      <p className="text-[10px] text-marble/50 font-mono mb-1">{label}</p>
-      <p className="text-sm font-display text-gold-light font-semibold">
-        ${payload[0].value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+      <p className="text-[10px] text-marble/50 font-mono mb-1">
+        {label}
+        {isForecast && <span className="ml-1.5 text-[8px] text-purple-400 font-display tracking-wider">FORECAST</span>}
       </p>
-      {d && (
-        <div className="flex gap-2 mt-1 text-[10px] text-marble/40 font-mono">
-          <span>O: ${d.open?.toFixed(2)}</span>
-          <span>H: ${d.high?.toFixed(2)}</span>
-          <span>L: ${d.low?.toFixed(2)}</span>
-          <span>C: ${d.close?.toFixed(2)}</span>
-        </div>
+      {isForecast ? (
+        <>
+          <p className="text-sm font-display text-purple-300 font-semibold">
+            ${d.forecast?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <div className="flex gap-2 mt-1 text-[10px] text-marble/40 font-mono">
+            <span className="text-emerald-400/60">▲ ${d.forecastUpper?.toFixed(2)}</span>
+            <span className="text-red-400/60">▼ ${d.forecastLower?.toFixed(2)}</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-sm font-display text-gold-light font-semibold">
+            ${payload[0].value?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          {d && (
+            <div className="flex gap-2 mt-1 text-[10px] text-marble/40 font-mono">
+              <span>O: ${d.open?.toFixed(2)}</span>
+              <span>H: ${d.high?.toFixed(2)}</span>
+              <span>L: ${d.low?.toFixed(2)}</span>
+              <span>C: ${d.close?.toFixed(2)}</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -352,10 +462,37 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
   // Enrich with indicators (computed from the live candle data)
-  const chartData = useMemo(() => enrichChartData(liveCandles, activeIndicators), [liveCandles, activeIndicators]);
+  const enrichedData = useMemo(() => enrichChartData(liveCandles, activeIndicators), [liveCandles, activeIndicators]);
 
   const color = CATEGORY_COLORS[category] ?? 'hsl(43, 72%, 50%)';
   const gradientId = `prop-grad-${symbolKey}`;
+  const forecastGradId = `forecast-grad-${symbolKey}`;
+
+  // ═══ 2-HOUR FORECAST PROJECTION ═══
+  const forecastPoints = useMemo(() => {
+    const vals = liveCandles.map(d => d.value);
+    const his = liveCandles.map(d => d.high);
+    const los = liveCandles.map(d => d.low);
+    const cfg = tfConfigs[tf];
+    return computeForecastPoints(vals, his, los, price, tf, cfg.intervalMs, cfg.labelFn);
+  }, [liveCandles, price, tf]);
+
+  // Merge: real chart data + bridge point + forecast zone
+  const chartData = useMemo(() => {
+    if (forecastPoints.length === 0) return enrichedData;
+    // Add a bridge point: last real data with forecast value = price (connects the lines)
+    const lastReal = enrichedData[enrichedData.length - 1];
+    const bridge = lastReal ? {
+      ...lastReal,
+      forecast: lastReal.value,
+      forecastUpper: lastReal.value,
+      forecastLower: lastReal.value,
+    } : undefined;
+    const result = [...enrichedData];
+    if (bridge) result[result.length - 1] = bridge;
+    // Append forecast points (no main value so real chart stops)
+    return [...result, ...forecastPoints];
+  }, [enrichedData, forecastPoints]);
 
   const chartValues = liveCandles.map((d) => d.value);
   const chartHighs = liveCandles.map((d) => d.high);
@@ -421,7 +558,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   }, [activeTool, addDrawing, setActiveTool, pendingClick]);
 
   const indicatorLines = useMemo(() => getIndicatorLines(activeIndicators), [activeIndicators]);
-  const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData), [activeIndicators, chartData]);
+  const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData as ChartDataPoint[]), [activeIndicators, chartData]);
   const drawingRefLines = useMemo(() => getDrawingReferenceLines(drawings), [drawings]);
 
   // Symbol search results
@@ -726,6 +863,10 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                   <stop offset="0%" stopColor={color} stopOpacity={0.25} />
                   <stop offset="100%" stopColor={color} stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id={forecastGradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0} />
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(213, 28%, 24%)" />
               <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={{ stroke: 'hsl(213, 28%, 24%)' }} tickLine={false} interval="preserveStartEnd" />
@@ -785,6 +926,16 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                 </>
               )}
               {indicatorLines}
+              {/* ═══ 2HR FORECAST ZONE ═══ */}
+              {forecastPoints.length > 0 && (
+                <>
+                  <Area type="monotone" dataKey="forecastUpper" stroke="transparent" fill="transparent" dot={false} isAnimationActive={false} />
+                  <Area type="monotone" dataKey="forecastLower" stroke="transparent" fill={`url(#${forecastGradId})`} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="forecastUpper" stroke="hsl(262, 83%, 58%)" strokeWidth={1} strokeOpacity={0.25} strokeDasharray="4 3" dot={false} connectNulls isAnimationActive={false} />
+                  <Line type="monotone" dataKey="forecastLower" stroke="hsl(262, 83%, 58%)" strokeWidth={1} strokeOpacity={0.25} strokeDasharray="4 3" dot={false} connectNulls isAnimationActive={false} />
+                  <Line type="monotone" dataKey="forecast" stroke="hsl(262, 83%, 58%)" strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} activeDot={{ r: 3, fill: 'hsl(262,83%,58%)', stroke: 'hsl(213,32%,16%)', strokeWidth: 2 }} />
+                </>
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         )}
@@ -793,7 +944,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       {/* Oscillator Sub-Panel */}
       {hasActiveOscillators(activeIndicators) && chartData.length > 0 && (
         <div className="border-t border-gold/10 overflow-y-auto" style={{ flex: '0 0 auto', maxHeight: '30%' }}>
-          <OscillatorPanel data={chartData} activeIndicators={activeIndicators} />
+          <OscillatorPanel data={chartData as ChartDataPoint[]} activeIndicators={activeIndicators} />
         </div>
       )}
 
@@ -802,6 +953,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
         <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">
           {category} · {tf === 'RT' ? 'REALTIME' : tf}
           {tf === 'RT' && <span className="ml-1 text-emerald-400 animate-pulse">●</span>}
+          {forecastPoints.length > 0 && <span className="ml-2 text-purple-400/60 text-[8px] font-mono">2HR FORECAST · RSI+SMA+EMA+MACD+ATR+BB</span>}
         </span>
         <div className="flex items-center gap-3">
           {price > 0 && (
