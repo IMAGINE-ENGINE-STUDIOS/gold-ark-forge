@@ -259,7 +259,7 @@ const useLiveCandleEngine = (
   return candles;
 };
 
-const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
+const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [tf, setTf] = useState<Timeframe>('RT');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
@@ -729,11 +729,11 @@ const ProprietaryChart = ({ symbolKey, category, label, onSymbolChange }: Props)
           {activeIndicators.size > 0 && (
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
           )}
-          <span className="text-[9px] font-mono text-marble/15">GOLD ARROW PROPRIETARY</span>
+          <span className="text-[9px] font-mono text-marble/15">GOLD ARROW LIVE</span>
         </div>
       </div>
     </div>
   );
 };
 
-export default ProprietaryChart;
+export default GALiveChart;
