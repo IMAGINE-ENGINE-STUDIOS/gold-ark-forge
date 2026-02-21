@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -23,6 +23,9 @@ import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
 import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
 import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
+import GATimeSales from '@/components/ga-widgets/GATimeSales';
+import GATradeJournal from '@/components/ga-widgets/GATradeJournal';
+import OneClickTrading from '@/components/trading/OneClickTrading';
 import TradingPanel from '@/components/trading/TradingPanel';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
@@ -398,6 +401,10 @@ function TradeTabContent({
         <CollapsibleSection title="DEPTH OF MARKET" icon={BarChart3}>
           <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
         </CollapsibleSection>
+
+        <CollapsibleSection title="TIME & SALES" icon={Clock}>
+          <GATimeSales symbol={activeSymbol.ticker} price={activePrice} />
+        </CollapsibleSection>
       </div>
 
       {/* Column 2: Market Context */}
@@ -443,6 +450,7 @@ const TradingBridge = () => {
   const [symbolSearch, setSymbolSearch] = useState('');
   const [brokerDialogOpen, setBrokerDialogOpen] = useState(false);
   const [tradingMode, setTradingMode] = useState<'live' | 'paper'>('paper');
+  const [oneClickOpen, setOneClickOpen] = useState(false);
   const { data: connections } = useBrokerConnections();
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
@@ -841,8 +849,25 @@ const TradingBridge = () => {
         <div className="flex-1">
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel defaultSize={65} minSize={30}>
-              <div className="h-full">
+              <div className="h-full relative">
                 <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
+                {/* One-Click Trading Toggle */}
+                <button
+                  onClick={() => setOneClickOpen(!oneClickOpen)}
+                  className={`absolute top-2 right-2 z-40 flex items-center gap-1 px-2 py-1 rounded text-[8px] font-display tracking-wider transition-all ${
+                    oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40' : 'bg-navy-dark/80 text-marble/30 border border-gold/10 hover:text-gold'
+                  }`}
+                >
+                  <Zap className="w-3 h-3" /> 1-CLICK
+                </button>
+                {oneClickOpen && (
+                  <OneClickTrading
+                    symbol={activeSymbol.ticker}
+                    price={activePrice}
+                    paper={paper}
+                    onClose={() => setOneClickOpen(false)}
+                  />
+                )}
               </div>
             </ResizablePanel>
 
@@ -932,6 +957,13 @@ const TradingBridge = () => {
                     </div>
                   )}
                   {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+                  {bottomTab === 'book' && (
+                    <div className="mt-4 pt-4 border-t border-gold/10">
+                      <CollapsibleSection title="TRADE JOURNAL" icon={BookOpen} badge="LOG">
+                        <GATradeJournal />
+                      </CollapsibleSection>
+                    </div>
+                  )}
                   {bottomTab === 'automate' && (
                     <div className="space-y-4">
                       <SchedulePanel />
