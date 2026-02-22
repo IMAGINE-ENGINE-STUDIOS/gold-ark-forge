@@ -51,6 +51,30 @@ import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
 import GATimeSales from '@/components/ga-widgets/GATimeSales';
 import GATradeJournal from '@/components/ga-widgets/GATradeJournal';
+import GALiveTicker from '@/components/ga-widgets/GALiveTicker';
+import GACryptoHeatmap from '@/components/ga-widgets/GACryptoHeatmap';
+import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
+import GAPipCalculator from '@/components/ga-widgets/GAPipCalculator';
+import GAPerformanceDashboard from '@/components/ga-widgets/GAPerformanceDashboard';
+import GATradingSessions from '@/components/ga-widgets/GATradingSessions';
+
+// Oil & Gas Widgets
+import OGMultiTicker from '@/components/og-widgets/OGMultiTicker';
+import OGPriceCards from '@/components/og-widgets/OGPriceCards';
+import OGNewsFeed from '@/components/og-widgets/OGNewsFeed';
+import OGEnergyDashboard from '@/components/og-widgets/OGEnergyDashboard';
+import OGFuturesCurve from '@/components/og-widgets/OGFuturesCurve';
+import OGInventoryGauge from '@/components/og-widgets/OGInventoryGauge';
+import OGOPECTracker from '@/components/og-widgets/OGOPECTracker';
+import OGProductionMap from '@/components/og-widgets/OGProductionMap';
+import OGSupplyDemand from '@/components/og-widgets/OGSupplyDemand';
+import OGRigCount from '@/components/og-widgets/OGRigCount';
+import OGWtiBrentSpread from '@/components/og-widgets/OGWtiBrentSpread';
+import OGCrackSpreads from '@/components/og-widgets/OGCrackSpreads';
+import OGChokepoints from '@/components/og-widgets/OGChokepoints';
+import OGPipelineFlow from '@/components/og-widgets/OGPipelineFlow';
+import OGRiskAnalyzer from '@/components/og-widgets/OGRiskAnalyzer';
+
 import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 
 import {
@@ -85,7 +109,7 @@ const sections = [
   { id: 'sec', label: 'SEC', icon: FileText },
   // DeFi & Sentiment
   { id: 'crypto-market', label: 'COINS', icon: Layers },
-  { id: 'sentiment', label: 'SENTIMENT', icon: Gauge },
+  { id: 'crypto-heatmap', label: 'CRYPTO MAP', icon: LayoutGrid },
   { id: 'defi', label: 'DeFi TVL', icon: Layers },
   // Composite Tools
   { id: 'pulse', label: 'PULSE', icon: Zap },
@@ -101,6 +125,17 @@ const sections = [
   // Trading Tools
   { id: 'tape', label: 'TAPE', icon: Activity },
   { id: 'journal', label: 'JOURNAL', icon: BarChart3 },
+  { id: 'sessions', label: 'SESSIONS', icon: Globe },
+  { id: 'margin-calc', label: 'MARGIN', icon: SlidersHorizontal },
+  { id: 'pip-calc', label: 'PIP CALC', icon: DollarSign },
+  { id: 'performance', label: 'PERF', icon: TrendingUp },
+  // Oil & Gas
+  { id: 'og-energy', label: 'ENERGY', icon: Flame },
+  { id: 'og-futures', label: 'FUTURES', icon: LineChart },
+  { id: 'og-opec', label: 'OPEC', icon: Globe },
+  { id: 'og-supply', label: 'SUPPLY', icon: BarChart },
+  { id: 'og-rigs', label: 'RIGS', icon: Building2 },
+  { id: 'og-pipelines', label: 'PIPES', icon: Network },
 ];
 
 const SectionDivider = ({ label }: { label: string }) => (
@@ -176,6 +211,11 @@ const Intelligence = () => {
       {/* ═══════════════ TIER 1: MARKET DATA ═══════════════ */}
       <div className="container mx-auto px-6 py-12 space-y-12">
         <TierBanner label="MARKET DATA" sub="LIVE AUTO-REFRESH · FREE PUBLIC APIs · ZERO INTERMEDIARIES" />
+
+        <section id="live-ticker" className="mb-8">
+          <SectionDivider label="LIVE TICKER TAPE" />
+          <GALiveTicker />
+        </section>
 
         <section id="prices">
           <SectionDivider label="SPOT PRICES" />
@@ -331,6 +371,13 @@ const Intelligence = () => {
           <SectionDivider label="CRYPTO MARKET OVERVIEW" />
           <WidgetDocWrapper widgetId="crypto-market">
             <GACryptoMarket />
+          </WidgetDocWrapper>
+        </section>
+
+        <section id="crypto-heatmap">
+          <SectionDivider label="CRYPTO HEATMAP" />
+          <WidgetDocWrapper widgetId="crypto-heatmap">
+            <GACryptoHeatmap />
           </WidgetDocWrapper>
         </section>
 
@@ -510,6 +557,114 @@ const Intelligence = () => {
           <WidgetDocWrapper widgetId="journal">
             <GATradeJournal />
           </WidgetDocWrapper>
+        </section>
+
+        <section id="sessions">
+          <SectionDivider label="TRADING SESSIONS" />
+          <WidgetDocWrapper widgetId="sessions">
+            <GATradingSessions />
+          </WidgetDocWrapper>
+        </section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <section id="margin-calc">
+            <SectionDivider label="MARGIN CALCULATOR" />
+            <WidgetDocWrapper widgetId="margin-calc">
+              <GAMarginCalc />
+            </WidgetDocWrapper>
+          </section>
+          <section id="pip-calc">
+            <SectionDivider label="PIP CALCULATOR" />
+            <WidgetDocWrapper widgetId="pip-calc">
+              <GAPipCalculator />
+            </WidgetDocWrapper>
+          </section>
+        </div>
+
+        <section id="performance">
+          <SectionDivider label="PERFORMANCE DASHBOARD" />
+          <WidgetDocWrapper widgetId="performance">
+            <GAPerformanceDashboard />
+          </WidgetDocWrapper>
+        </section>
+      </div>
+
+      <div className="greek-key-border-rich h-2" />
+
+      {/* ═══════════════ OIL & GAS INTELLIGENCE ═══════════════ */}
+      <div className="container mx-auto px-6 py-12 space-y-12">
+        <TierBanner label="OIL & GAS INTELLIGENCE" sub="ENERGY SECTOR · INSTITUTIONAL ANALYTICS" />
+
+        <OGMultiTicker />
+
+        <section id="og-energy">
+          <SectionDivider label="ENERGY DASHBOARD" />
+          <OGPriceCards />
+          <div className="mt-6">
+            <OGEnergyDashboard />
+          </div>
+        </section>
+
+        <section id="og-futures">
+          <SectionDivider label="FUTURES CURVE" />
+          <OGFuturesCurve />
+        </section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <section>
+            <SectionDivider label="INVENTORY GAUGE" />
+            <OGInventoryGauge />
+          </section>
+          <section>
+            <SectionDivider label="WTI-BRENT SPREAD" />
+            <OGWtiBrentSpread />
+          </section>
+        </div>
+
+        <section id="og-opec">
+          <SectionDivider label="OPEC TRACKER" />
+          <OGOPECTracker />
+        </section>
+
+        <section id="og-supply">
+          <SectionDivider label="SUPPLY & DEMAND" />
+          <OGSupplyDemand />
+        </section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <section id="og-rigs">
+            <SectionDivider label="RIG COUNT" />
+            <OGRigCount />
+          </section>
+          <section>
+            <SectionDivider label="CRACK SPREADS" />
+            <OGCrackSpreads />
+          </section>
+        </div>
+
+        <section>
+          <SectionDivider label="PRODUCTION MAP" />
+          <OGProductionMap />
+        </section>
+
+        <section id="og-pipelines">
+          <SectionDivider label="PIPELINE FLOW" />
+          <OGPipelineFlow />
+        </section>
+
+        <section>
+          <SectionDivider label="CHOKEPOINTS" />
+          <OGChokepoints />
+        </section>
+
+        <section>
+          <SectionDivider label="RISK ANALYZER" />
+          <OGRiskAnalyzer />
+        </section>
+
+        <section>
+          <SectionDivider label="ENERGY NEWS" />
+          <OGNewsFeed />
         </section>
       </div>
 

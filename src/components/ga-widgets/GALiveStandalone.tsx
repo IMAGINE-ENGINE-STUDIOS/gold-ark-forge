@@ -6,6 +6,7 @@
  * Like TradingView / MetaTrader 5 would offer their charting product.
  */
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal } from 'lucide-react';
 import LivePulse from '@/components/ga-widgets/LivePulse';
@@ -307,13 +308,17 @@ const GALiveStandalone = () => {
   }, [sparklineData, tf, symbolKey, basePrice]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
-  const chartData = useMemo(() => enrichChartData(liveCandles, activeIndicators), [liveCandles, activeIndicators]);
+
+  // ═══ ZOOM THROUGH TIME ═══
+  const zoom = useChartZoom({ totalPoints: liveCandles.length, minVisible: 10, maxVisible: liveCandles.length * 3 });
+  const visibleCandles = useMemo(() => zoom.sliceData(liveCandles), [zoom.sliceData, liveCandles]);
+  const chartData = useMemo(() => enrichChartData(visibleCandles, activeIndicators), [visibleCandles, activeIndicators]);
 
   const color = CATEGORY_COLORS[category] ?? 'hsl(43, 72%, 50%)';
   const gradientId = `galive-grad-${symbolKey}`;
-  const chartValues = liveCandles.map((d) => d.value);
-  const chartHighs = liveCandles.map((d) => d.high);
-  const chartLows = liveCandles.map((d) => d.low);
+  const chartValues = visibleCandles.map((d) => d.value);
+  const chartHighs = visibleCandles.map((d) => d.high);
+  const chartLows = visibleCandles.map((d) => d.low);
 
   const headerStats = useMemo(() => {
     const rsiArr = computeRSIArray(chartValues);
@@ -537,7 +542,7 @@ const GALiveStandalone = () => {
         </div>
 
         {/* Chart Area */}
-        <div className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0 }}>
+        <div {...zoom.containerProps} className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0, touchAction: 'pan-x' }}>
           {price === 0 || liveCandles.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3">
               <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
@@ -612,7 +617,12 @@ const GALiveStandalone = () => {
             {activeIndicators.size > 0 && (
               <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
             )}
-            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {liveCandles.length} bars</span>
+            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
+            {zoom.zoomLabel !== 'FIT' && (
+              <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
+                🔍 {zoom.zoomLabel} · RESET
+              </button>
+            )}
             <span className="text-[9px] font-mono text-gold/40 tracking-wider">GOLD ARROW LIVE</span>
           </div>
         </div>
