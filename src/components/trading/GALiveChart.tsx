@@ -35,19 +35,32 @@ import ChartDrawingTools, { useDrawings, getDrawingReferenceLines } from './Char
 import SymbolLogo from './SymbolLogo';
 import { CandlestickLayer, OHLCLayer, type ChartMode } from './CandlestickRenderer';
 
-// ═══ FORECAST ENGINE ═══════════════════════════════════════
+// ═══ FORECAST ENGINE — Wave Function Simulation ═══════════
 interface ForecastPoint {
   time: string;
   forecast: number;
   forecastColor: string;
+  forecastHigh?: number;
+  forecastLow?: number;
   value?: undefined;
 }
+
+// Timeframe-aware projection config: more points for longer timeframes
+const FORECAST_DEPTH: Record<string, { points: number; label: string }> = {
+  'RT': { points: 12, label: '1 min' },
+  '1H': { points: 12, label: '1 hour' },
+  '4H': { points: 16, label: '~1.3 hours' },
+  '1D': { points: 24, label: '6 hours' },
+  '1W': { points: 20, label: '~40 hours' },
+  '1M': { points: 30, label: '~7.5 days' },
+};
 
 const computeForecastPoints = (
   values: number[], highs: number[], lows: number[],
   currentPrice: number, intervalMs: number, labelFn: (d: Date) => string, totalPoints: number,
+  timeframe: string,
 ): { points: ForecastPoint[]; bias: number } => {
-  if (values.length < 30 || currentPrice <= 0) return { points: [], bias: 0 };
+  if (values.length < 20 || currentPrice <= 0) return { points: [], bias: 0 };
 
   const rsiArr = computeRSIArray(values);
   const rsi = rsiArr[rsiArr.length - 1] ?? 50;
@@ -67,6 +80,7 @@ const computeForecastPoints = (
   const latestBollUpper = boll.upper[boll.upper.length - 1] ?? currentPrice;
   const latestBollLower = boll.lower[boll.lower.length - 1] ?? currentPrice;
 
+  // Composite bias from indicators
   const rsiSignal = rsi < 30 ? 0.6 : rsi > 70 ? -0.6 : (50 - rsi) / 100;
   const sma20Signal = (currentPrice - latestSMA20) / latestATR * 0.3;
   const sma50Signal = (currentPrice - latestSMA50) / latestATR * 0.2;
@@ -80,40 +94,111 @@ const computeForecastPoints = (
   const rawBias = rsiSignal + sma20Signal + sma50Signal + emaSignal + macdSignalVal + bollSignal;
   const bias = Math.max(-1, Math.min(1, rawBias));
 
-  const numPoints = Math.max(4, Math.ceil(totalPoints * 0.1));
+  // Detect dominant cycle frequency from recent price oscillations
+  const recentN = Math.min(values.length, 40);
+  const recentSlice = values.slice(-recentN);
+  let crossings = 0;
+  const mean = recentSlice.reduce((a, b) => a + b, 0) / recentSlice.length;
+  for (let i = 1; i < recentSlice.length; i++) {
+    if ((recentSlice[i - 1] - mean) * (recentSlice[i] - mean) < 0) crossings++;
+  }
+  const cycleFreq = crossings > 0 ? (Math.PI * crossings) / recentN : Math.PI * 0.3;
+
+  // Momentum (slope of last 5 prices)
+  const momSlice = values.slice(-5);
+  const momentum = momSlice.length >= 2
+    ? (momSlice[momSlice.length - 1] - momSlice[0]) / (momSlice.length - 1)
+    : 0;
+
+  // Forecast depth per timeframe
+  const depth = FORECAST_DEPTH[timeframe] ?? { points: 12 };
+  const numPoints = depth.points;
   const points: ForecastPoint[] = [];
   const now = Date.now();
-  const driftPerStep = (bias * latestATR * 0.15) / numPoints;
+
+  // Wave simulation: drift + damped sinusoidal oscillation + expanding confidence
+  const driftPerStep = (bias * latestATR * 0.08);
+  const waveAmplitude = latestATR * 0.3;
+  // Phase offset from recent momentum direction
+  const phaseOffset = momentum > 0 ? 0 : Math.PI;
 
   for (let i = 1; i <= numPoints; i++) {
-    const progress = i / numPoints;
-    const futurePrice = currentPrice + driftPerStep * i;
-    // Per-segment bias lerps from 0 to full bias
-    const segmentBias = bias * progress;
+    const t = i / numPoints; // 0→1 progress
+    const decay = Math.exp(-t * 0.5); // damping factor
+
+    // Core wave: drift + oscillation
+    const driftComponent = driftPerStep * i;
+    const waveComponent = waveAmplitude * decay * Math.sin(cycleFreq * i + phaseOffset);
+    const momentumComponent = momentum * i * 0.3 * decay;
+
+    const forecastPrice = currentPrice + driftComponent + waveComponent + momentumComponent;
+
+    // Expanding confidence band (widens into the future)
+    const bandWidth = latestATR * t * 1.5;
+    const forecastHigh = forecastPrice + bandWidth;
+    const forecastLow = forecastPrice - bandWidth;
+
+    // Per-segment rainbow color based on local slope
+    const prevPrice = i === 1 ? currentPrice :
+      currentPrice + driftPerStep * (i - 1) + waveAmplitude * Math.exp(-(i - 1) / numPoints * 0.5) * Math.sin(cycleFreq * (i - 1) + phaseOffset) + momentum * (i - 1) * 0.3 * Math.exp(-(i - 1) / numPoints * 0.5);
+    const localSlope = forecastPrice - prevPrice;
+    const slopeBias = Math.max(-1, Math.min(1, localSlope / (latestATR * 0.1)));
+
     const futureTime = new Date(now + i * intervalMs);
+    const decimals = currentPrice < 10 ? 4 : 2;
 
     points.push({
       time: labelFn(futureTime),
-      forecast: parseFloat(futurePrice.toFixed(currentPrice < 10 ? 4 : 2)),
-      forecastColor: biasToRainbowColor(segmentBias),
+      forecast: parseFloat(forecastPrice.toFixed(decimals)),
+      forecastHigh: parseFloat(forecastHigh.toFixed(decimals)),
+      forecastLow: parseFloat(forecastLow.toFixed(decimals)),
+      forecastColor: biasToRainbowColor(slopeBias),
     });
   }
 
   return { points, bias };
 };
 
-// Custom SVG renderer for rainbow-colored forecast line segments
+// Custom SVG renderer for rainbow-colored forecast wave with confidence band
 const ForecastRainbowLine = ({ data, xScale, yScale }: {
   data: any[];
   xScale: (i: number) => number;
   yScale: (v: number) => number;
 }) => {
-  // Find forecast points
   const forecastIndices: number[] = [];
   data.forEach((d, i) => { if (d.forecast !== undefined) forecastIndices.push(i); });
   if (forecastIndices.length < 2) return null;
 
-  const segments: React.ReactElement[] = [];
+  const elements: React.ReactElement[] = [];
+
+  // Confidence band (filled polygon from forecastHigh to forecastLow)
+  const bandPoints: string[] = [];
+  const bandPointsReverse: string[] = [];
+  for (const idx of forecastIndices) {
+    const d = data[idx];
+    const x = xScale(idx);
+    const yH = yScale(d.forecastHigh ?? d.forecast);
+    const yL = yScale(d.forecastLow ?? d.forecast);
+    if (isNaN(x) || isNaN(yH) || isNaN(yL)) continue;
+    bandPoints.push(`${x},${yH}`);
+    bandPointsReverse.unshift(`${x},${yL}`);
+  }
+  if (bandPoints.length > 1) {
+    elements.push(
+      <polygon
+        key="fc-band"
+        points={[...bandPoints, ...bandPointsReverse].join(' ')}
+        fill="hsl(270, 60%, 50%)"
+        fillOpacity={0.08}
+        stroke="hsl(270, 60%, 50%)"
+        strokeWidth={0.5}
+        strokeOpacity={0.15}
+        strokeDasharray="4 2"
+      />
+    );
+  }
+
+  // Wave line segments with per-segment rainbow color
   for (let j = 0; j < forecastIndices.length - 1; j++) {
     const i1 = forecastIndices[j];
     const i2 = forecastIndices[j + 1];
@@ -125,43 +210,46 @@ const ForecastRainbowLine = ({ data, xScale, yScale }: {
     const y2 = yScale(d2.forecast);
     if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
 
-    segments.push(
-      <line
-        key={`fc-${j}`}
-        x1={x1} y1={y1} x2={x2} y2={y2}
+    // Main line
+    elements.push(
+      <line key={`fc-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
         stroke={d2.forecastColor || 'hsl(60,80%,55%)'}
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        strokeDasharray="6 3"
-        opacity={0.85}
+        strokeWidth={2.5} strokeLinecap="round" strokeDasharray="6 3" opacity={0.85}
       />
     );
-    // Glow effect
-    segments.push(
-      <line
-        key={`fc-glow-${j}`}
-        x1={x1} y1={y1} x2={x2} y2={y2}
+    // Glow
+    elements.push(
+      <line key={`fc-glow-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
         stroke={d2.forecastColor || 'hsl(60,80%,55%)'}
-        strokeWidth={6}
-        strokeLinecap="round"
-        strokeDasharray="6 3"
-        opacity={0.15}
+        strokeWidth={7} strokeLinecap="round" strokeDasharray="6 3" opacity={0.12}
       />
     );
   }
 
-  // Endpoint dot
+  // Endpoint dot with pulse
   const lastIdx = forecastIndices[forecastIndices.length - 1];
   const lastD = data[lastIdx];
   const lx = xScale(lastIdx);
   const ly = yScale(lastD.forecast);
   if (!isNaN(lx) && !isNaN(ly)) {
-    segments.push(
+    elements.push(
+      <circle key="fc-dot-glow" cx={lx} cy={ly} r={8} fill={lastD.forecastColor} opacity={0.2}>
+        <animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.2;0.05;0.2" dur="2s" repeatCount="indefinite" />
+      </circle>
+    );
+    elements.push(
       <circle key="fc-dot" cx={lx} cy={ly} r={4} fill={lastD.forecastColor} stroke="hsl(213,32%,16%)" strokeWidth={2} />
+    );
+    // Price label at endpoint
+    elements.push(
+      <text key="fc-label" x={lx + 8} y={ly + 3} fontSize={9} fill={lastD.forecastColor} fontFamily="monospace" opacity={0.8}>
+        ${lastD.forecast?.toFixed(2)}
+      </text>
     );
   }
 
-  return <g>{segments}</g>;
+  return <g>{elements}</g>;
 };
 
 interface Props {
@@ -456,7 +544,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
     const vals = liveCandles.map(d => d.value);
     const his = liveCandles.map(d => d.high);
     const los = liveCandles.map(d => d.low);
-    const result = computeForecastPoints(vals, his, los, price, cfg.intervalMs, cfg.labelFn, cfg.points);
+    const result = computeForecastPoints(vals, his, los, price, cfg.intervalMs, cfg.labelFn, cfg.points, tf);
     return { forecastPoints: result.points, forecastBias: result.bias };
   }, [liveCandles, price, tf, showForecast, cfg]);
 
@@ -714,10 +802,10 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
               className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
                 showForecast ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
               }`}
-              title="Toggle forecast projection"
+              title={`Wave forecast — ${FORECAST_DEPTH[tf]?.label ?? tf} projection`}
             >
               <Crosshair className="w-3 h-3" />
-              <span className="hidden sm:inline">FORECAST</span>
+              <span className="hidden sm:inline">WAVE</span>
             </button>
           </div>
         </div>
