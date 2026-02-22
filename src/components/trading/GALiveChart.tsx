@@ -5,7 +5,8 @@
  */
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
+import { addForecastLogEntry, biasToRainbowColor, biasToAngle } from '@/lib/forecastLog';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -25,12 +26,142 @@ import {
   computeRSI as computeRSIArray,
   computeATR,
   computeMACD,
+  computeBollingerBands,
   type IndicatorKey,
   type ChartDataPoint,
 } from './IndicatorOverlay';
 import ChartDrawingTools, { useDrawings, getDrawingReferenceLines } from './ChartDrawingTools';
 import SymbolLogo from './SymbolLogo';
 import { CandlestickLayer, OHLCLayer, type ChartMode } from './CandlestickRenderer';
+
+// ═══ FORECAST ENGINE ═══════════════════════════════════════
+interface ForecastPoint {
+  time: string;
+  forecast: number;
+  forecastColor: string;
+  value?: undefined;
+}
+
+const computeForecastPoints = (
+  values: number[], highs: number[], lows: number[],
+  currentPrice: number, intervalMs: number, labelFn: (d: Date) => string, totalPoints: number,
+): { points: ForecastPoint[]; bias: number } => {
+  if (values.length < 30 || currentPrice <= 0) return { points: [], bias: 0 };
+
+  const rsiArr = computeRSIArray(values);
+  const rsi = rsiArr[rsiArr.length - 1] ?? 50;
+  const sma20 = computeSMA(values, 20);
+  const sma50 = computeSMA(values, 50);
+  const ema20 = computeEMA(values, 20);
+  const macdData = computeMACD(values);
+  const atrArr = computeATR(highs, lows, values);
+  const boll = computeBollingerBands(values, 20, 2);
+
+  const latestSMA20 = sma20[sma20.length - 1] ?? currentPrice;
+  const latestSMA50 = sma50[sma50.length - 1] ?? currentPrice;
+  const latestEMA20 = ema20[ema20.length - 1] ?? currentPrice;
+  const latestMACD = macdData.macd[macdData.macd.length - 1] ?? 0;
+  const latestSignal = macdData.signal[macdData.signal.length - 1] ?? 0;
+  const latestATR = atrArr[atrArr.length - 1] ?? currentPrice * 0.005;
+  const latestBollUpper = boll.upper[boll.upper.length - 1] ?? currentPrice;
+  const latestBollLower = boll.lower[boll.lower.length - 1] ?? currentPrice;
+
+  const rsiSignal = rsi < 30 ? 0.6 : rsi > 70 ? -0.6 : (50 - rsi) / 100;
+  const sma20Signal = (currentPrice - latestSMA20) / latestATR * 0.3;
+  const sma50Signal = (currentPrice - latestSMA50) / latestATR * 0.2;
+  const emaSignal = (currentPrice - latestEMA20) / latestATR * 0.2;
+  const macdSignalVal = isNaN(latestMACD) || isNaN(latestSignal) ? 0 :
+    Math.sign(latestMACD - latestSignal) * Math.min(Math.abs(latestMACD - latestSignal) / latestATR, 0.5) * 0.4;
+  const bollRange = latestBollUpper - latestBollLower;
+  const bollPos = bollRange > 0 ? (currentPrice - latestBollLower) / bollRange : 0.5;
+  const bollSignal = (0.5 - bollPos) * 0.3;
+
+  const rawBias = rsiSignal + sma20Signal + sma50Signal + emaSignal + macdSignalVal + bollSignal;
+  const bias = Math.max(-1, Math.min(1, rawBias));
+
+  const numPoints = Math.max(4, Math.ceil(totalPoints * 0.1));
+  const points: ForecastPoint[] = [];
+  const now = Date.now();
+  const driftPerStep = (bias * latestATR * 0.15) / numPoints;
+
+  for (let i = 1; i <= numPoints; i++) {
+    const progress = i / numPoints;
+    const futurePrice = currentPrice + driftPerStep * i;
+    // Per-segment bias lerps from 0 to full bias
+    const segmentBias = bias * progress;
+    const futureTime = new Date(now + i * intervalMs);
+
+    points.push({
+      time: labelFn(futureTime),
+      forecast: parseFloat(futurePrice.toFixed(currentPrice < 10 ? 4 : 2)),
+      forecastColor: biasToRainbowColor(segmentBias),
+    });
+  }
+
+  return { points, bias };
+};
+
+// Custom SVG renderer for rainbow-colored forecast line segments
+const ForecastRainbowLine = ({ data, xScale, yScale }: {
+  data: any[];
+  xScale: (i: number) => number;
+  yScale: (v: number) => number;
+}) => {
+  // Find forecast points
+  const forecastIndices: number[] = [];
+  data.forEach((d, i) => { if (d.forecast !== undefined) forecastIndices.push(i); });
+  if (forecastIndices.length < 2) return null;
+
+  const segments: React.ReactElement[] = [];
+  for (let j = 0; j < forecastIndices.length - 1; j++) {
+    const i1 = forecastIndices[j];
+    const i2 = forecastIndices[j + 1];
+    const d1 = data[i1];
+    const d2 = data[i2];
+    const x1 = xScale(i1);
+    const x2 = xScale(i2);
+    const y1 = yScale(d1.forecast);
+    const y2 = yScale(d2.forecast);
+    if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
+
+    segments.push(
+      <line
+        key={`fc-${j}`}
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={d2.forecastColor || 'hsl(60,80%,55%)'}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeDasharray="6 3"
+        opacity={0.85}
+      />
+    );
+    // Glow effect
+    segments.push(
+      <line
+        key={`fc-glow-${j}`}
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={d2.forecastColor || 'hsl(60,80%,55%)'}
+        strokeWidth={6}
+        strokeLinecap="round"
+        strokeDasharray="6 3"
+        opacity={0.15}
+      />
+    );
+  }
+
+  // Endpoint dot
+  const lastIdx = forecastIndices[forecastIndices.length - 1];
+  const lastD = data[lastIdx];
+  const lx = xScale(lastIdx);
+  const ly = yScale(lastD.forecast);
+  if (!isNaN(lx) && !isNaN(ly)) {
+    segments.push(
+      <circle key="fc-dot" cx={lx} cy={ly} r={4} fill={lastD.forecastColor} stroke="hsl(213,32%,16%)" strokeWidth={2} />
+    );
+  }
+
+  return <g>{segments}</g>;
+};
 
 interface Props {
   symbolKey: string;
@@ -262,6 +393,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const isMobile = useIsMobile();
   const { drawings, activeTool, setActiveTool, addDrawing, deleteDrawing, clearAll, showList, toggleList } = useDrawings();
   const [pendingClick, setPendingClick] = useState<number | null>(null);
+  const [showForecast, setShowForecast] = useState(false);
+  const lastLoggedForecastRef = useRef<string>('');
 
   const { data: metalPrices } = useMetalPrices();
   const { data: cryptoData } = useCryptoData(50);
@@ -309,7 +442,56 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   }, [sparklineData, tf, symbolKey, basePrice]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
-  const chartData = useMemo(() => enrichChartData(liveCandles, activeIndicators), [liveCandles, activeIndicators]);
+  const enrichedData = useMemo(() => enrichChartData(liveCandles, activeIndicators), [liveCandles, activeIndicators]);
+
+  // ═══ FORECAST PROJECTION ═══
+  const cfg = tfConfigs[tf];
+  const { forecastPoints, forecastBias } = useMemo(() => {
+    if (!showForecast) return { forecastPoints: [] as ForecastPoint[], forecastBias: 0 };
+    const vals = liveCandles.map(d => d.value);
+    const his = liveCandles.map(d => d.high);
+    const los = liveCandles.map(d => d.low);
+    const result = computeForecastPoints(vals, his, los, price, cfg.intervalMs, cfg.labelFn, cfg.points);
+    return { forecastPoints: result.points, forecastBias: result.bias };
+  }, [liveCandles, price, tf, showForecast, cfg]);
+
+  // Merge real + forecast data
+  const chartData = useMemo(() => {
+    if (forecastPoints.length === 0) return enrichedData;
+    const lastReal = enrichedData[enrichedData.length - 1];
+    const bridge = lastReal ? { ...lastReal, forecast: lastReal.value, forecastColor: biasToRainbowColor(0) } : undefined;
+    const result = [...enrichedData];
+    if (bridge) result[result.length - 1] = bridge;
+    return [...result, ...forecastPoints];
+  }, [enrichedData, forecastPoints]);
+
+  // Log forecast to registry when toggled on
+  useEffect(() => {
+    if (!showForecast || forecastPoints.length === 0 || price <= 0) return;
+    const logKey = `${symbolKey}:${tf}:${Math.floor(Date.now() / 30000)}`; // throttle to 30s
+    if (lastLoggedForecastRef.current === logKey) return;
+    lastLoggedForecastRef.current = logKey;
+    const lastForecast = forecastPoints[forecastPoints.length - 1];
+    addForecastLogEntry({
+      timestamp: new Date().toISOString(),
+      symbol: label,
+      category,
+      timeframe: tf,
+      currentPrice: price,
+      projectedPrice: lastForecast.forecast,
+      bias: forecastBias,
+      direction: forecastBias > 0.1 ? 'bullish' : forecastBias < -0.1 ? 'bearish' : 'neutral',
+      angle: biasToAngle(forecastBias),
+      color: biasToRainbowColor(forecastBias),
+      indicators: {
+        rsi: computeRSIArray(liveCandles.map(d => d.value)).at(-1) ?? 50,
+        sma20: computeSMA(liveCandles.map(d => d.value), 20).at(-1) ?? price,
+        ema20: computeEMA(liveCandles.map(d => d.value), 20).at(-1) ?? price,
+        macdCross: (() => { const m = computeMACD(liveCandles.map(d => d.value)); return (m.macd.at(-1) ?? 0) > (m.signal.at(-1) ?? 0) ? 'bullish' : 'bearish'; })(),
+        atr: computeATR(liveCandles.map(d => d.high), liveCandles.map(d => d.low), liveCandles.map(d => d.value)).at(-1) ?? 0,
+      },
+    });
+  }, [showForecast, forecastPoints, forecastBias, symbolKey, tf, price, label, category, liveCandles]);
 
   const color = CATEGORY_COLORS[category] ?? 'hsl(43, 72%, 50%)';
   const gradientId = `galive-grad-${symbolKey}`;
@@ -367,7 +549,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   }, [activeTool, addDrawing, setActiveTool, pendingClick]);
 
   const indicatorLines = useMemo(() => getIndicatorLines(activeIndicators), [activeIndicators]);
-  const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData), [activeIndicators, chartData]);
+  const fibLines = useMemo(() => getFibonacciLines(activeIndicators, chartData as ChartDataPoint[]), [activeIndicators, chartData]);
   const drawingRefLines = useMemo(() => getDrawingReferenceLines(drawings), [drawings]);
 
   const searchResults = useMemo(() => {
@@ -521,6 +703,17 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                 ))}
               </div>
             )}
+            {/* Forecast toggle */}
+            <button
+              onClick={() => setShowForecast(prev => !prev)}
+              className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
+                showForecast ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
+              }`}
+              title="Toggle forecast projection"
+            >
+              <Crosshair className="w-3 h-3" />
+              <span className="hidden sm:inline">FORECAST</span>
+            </button>
           </div>
         </div>
       </div>
@@ -584,6 +777,16 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
                 </>
               )}
               {indicatorLines}
+              {/* Rainbow Forecast Line */}
+              {showForecast && forecastPoints.length > 0 && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  return <ForecastRainbowLine data={chartData as any[]} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} />;
+                }} />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         )}
@@ -592,7 +795,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
       {/* Oscillator Sub-Panel */}
       {hasActiveOscillators(activeIndicators) && chartData.length > 0 && (
         <div className="border-t border-gold/10 overflow-y-auto" style={{ flex: '0 0 auto', maxHeight: '30%' }}>
-          <OscillatorPanel data={chartData} activeIndicators={activeIndicators} />
+          <OscillatorPanel data={chartData as ChartDataPoint[]} activeIndicators={activeIndicators} />
         </div>
       )}
 
