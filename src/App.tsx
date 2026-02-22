@@ -19,6 +19,7 @@ import Intelligence from "./pages/Intelligence";
 import OilGasIntelligence from "./pages/OilGasIntelligence";
 import TradingBridge from "./pages/TradingBridge";
 import LogRegistry from "./pages/LogRegistry";
+import LogRegistry2 from "./pages/LogRegistry2";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/oil-gas" element={<OilGasIntelligence />} />
             <Route path="/trading-bridge" element={<TradingBridge />} />
             <Route path="/log-registry" element={<LogRegistry />} />
+            <Route path="/log-registry-2" element={<LogRegistry2 />} />
             <Route path="/about" element={<About />} />
             <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
