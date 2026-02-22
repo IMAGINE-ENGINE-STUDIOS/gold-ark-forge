@@ -1,76 +1,143 @@
 
 
-# Chart Header Mobile Fix + Extended Timeframes
+# Admin Dashboard, Persistence, and Default Asset System
 
 ## Overview
-Two changes: (1) fix the header so it doesn't overflow on narrow screens, and (2) add longer timeframes (3M, 6M, 1Y, YTD, ALL) for all assets.
-
-## Part A: Header Mobile Responsiveness
-
-**Problem**: On mobile (390px), the header row crams: logo + symbol name + LIVE badge + price + change% + drawing tools + chart mode dropdown + timeframe dropdown -- all in one row. This causes overflow/clipping.
-
-**Solution**: Split the header into two compact rows on mobile:
-- **Row 1**: Symbol logo + ticker + LIVE badge + price + change% (essential info)
-- **Row 2**: Drawing tools + chart mode + timeframe dropdown (tool controls)
-
-On desktop (lg+), keep single row as-is.
-
-### Changes in `GALiveChart.tsx`:
-
-1. Wrap the header in a flex-col on mobile, flex-row on lg+
-2. Hide bid/ask and day range on mobile (already hidden via `hidden lg:flex` / `hidden xl:flex`)
-3. Move the right-side tools (drawing, mode, timeframe) into a second row on mobile with `flex lg:hidden` / `hidden lg:flex` pattern
-4. Ensure all dropdowns have `z-[60]` and solid `bg-navy-dark` backgrounds
-
-## Part B: Extended Timeframes
-
-Add 5 new timeframes to the chart: `3M`, `6M`, `1Y`, `YTD`, `ALL`
-
-### Changes:
-
-1. **Extend the `timeframes` tuple** (line 37): Add `'3M' | '6M' | '1Y' | 'YTD' | 'ALL'`
-2. **Add tfConfigs entries** for each:
-   - `3M`: 90 points, daily intervals, ~0.5% volatility, date labels
-   - `6M`: 120 points, 2-day intervals, ~0.8% volatility
-   - `1Y`: 120 points, 3-day intervals, ~1.2% volatility
-   - `YTD`: dynamic points based on current date, daily intervals
-   - `ALL`: 200 points, weekly intervals, ~2% volatility, year+month labels
-3. **Update the timeframe dropdown** (lines 681-687): Add a new "EXTENDED" group section below "DAILY+" containing `3M`, `6M`, `1Y`, `YTD`, `ALL`
+This plan covers four major areas: (1) creating a main admin account, (2) building a comprehensive admin dashboard, (3) implementing platform-wide persistence/caching, and (4) setting Gold/USD as the default trading asset.
 
 ---
 
+## 1. Admin Account for Ricardo Font
+
+- Create the admin user via the authentication system with email `ricardofont@gmail.com` and password `12345678`
+- Insert the admin role into `user_roles` table for this user
+- This will be done through database operations after the user signs up, or by seeding the account via an edge function
+
+**Note:** Since Lovable Cloud requires email verification by default, we will enable auto-confirm temporarily for this seed account, or create a dedicated edge function to provision the admin.
+
+---
+
+## 2. Admin Dashboard (Replaces current Admin page)
+
+The current `/admin` page only has Partners, Sites, and Certificates tabs. We will expand it into a full dashboard with these tabs:
+
+### Tab: Overview
+- Key platform metrics cards (total certificates, active partners, vault holdings summary, total users)
+- Recent activity feed from `audit_logs`
+- Quick-action buttons
+
+### Tab: Registries
+- Sub-tabs for: Forecast Log Registry 1, Forecast Log Registry 2, Audit Logs, Certificate Events
+- Embedded views pulling data from existing pages/localStorage
+
+### Tab: Performance
+- Platform performance dashboard: certificate issuance over time, transfer volume, reserve snapshot trends
+- Charts using Recharts (already installed)
+
+### Tab: API Keys
+- Form to configure broker API keys (Alpaca, Coinbase, IBKR)
+- Data feed API keys (EIA, metal prices, crypto feeds)
+- Reads/writes to `broker_connections` table for the admin
+- Secure secret management UI for edge function secrets
+
+### Tab: Partners (existing)
+### Tab: Sites (existing)
+### Tab: Certificates (existing)
+
+---
+
+## 3. Platform Persistence and Caching
+
+### 3a. User Preferences Table
+Create a new `user_preferences` table:
+```
+user_preferences
+- id (uuid, PK)
+- user_id (uuid, FK to auth.users, unique)
+- last_symbol_key (text) -- e.g. "gold"
+- last_timeframe (text) -- e.g. "1D"
+- default_symbol_key (text, default "gold")
+- platform_config (jsonb) -- general config blob
+- updated_at (timestamptz)
+```
+
+RLS: Users can read/update only their own row.
+
+### 3b. Paper Trading Persistence
+- Move paper trading state from `localStorage` to a `paper_portfolios` table:
+```
+paper_portfolios
+- id (uuid, PK)
+- user_id (uuid, FK)
+- cash (numeric, default 100000)
+- positions (jsonb)
+- orders (jsonb)
+- updated_at (timestamptz)
+```
+
+### 3c. Auto-Save System
+- Create a `useAutoSave` hook that debounces writes to `user_preferences` on changes
+- On page load, read preferences and restore last viewed symbol, timeframe, configurations
+- Falls back to localStorage for unauthenticated users
+
+### 3d. Cache Layer
+- Use React Query's built-in cache with `staleTime` and `gcTime` for API responses
+- Store last-known prices in localStorage as fallback for offline/startup
+
+---
+
+## 4. Default Asset: Gold/USD
+
+- `ALL_SYMBOLS[0]` is already `gold` (XAU/USD), so the Trading Bridge already defaults to it
+- Enhance: when user preferences exist, load `last_symbol_key` from preferences on mount
+- When no preferences exist, explicitly default to the gold entry
+- Save the user's last selected symbol whenever they switch assets
+
+---
+
+## Files to Create
+1. `src/pages/AdminDashboard.tsx` -- new comprehensive admin dashboard page
+2. `src/components/admin/AdminOverview.tsx` -- overview metrics tab
+3. `src/components/admin/AdminRegistries.tsx` -- all registries in one view
+4. `src/components/admin/AdminPerformance.tsx` -- performance charts
+5. `src/components/admin/AdminAPIKeys.tsx` -- API key configuration
+6. `src/hooks/useUserPreferences.ts` -- preferences CRUD hook
+7. `src/hooks/useAutoSave.ts` -- debounced auto-save hook
+8. `supabase/functions/seed-admin/index.ts` -- edge function to create the admin account
+
+## Files to Modify
+1. `src/App.tsx` -- update `/admin` route to use new dashboard
+2. `src/pages/TradingBridge.tsx` -- integrate preferences for default symbol, auto-save last symbol
+3. `src/hooks/usePaperTrading.ts` -- optionally sync to database for authenticated users
+4. `src/components/Header.tsx` -- add Admin Dashboard link for admin users
+
+## Database Migrations
+1. Create `user_preferences` table with RLS
+2. Create `paper_portfolios` table with RLS
+3. Seed admin user account
+
 ## Technical Details
 
-### File: `src/components/trading/GALiveChart.tsx`
-
-**Line 37** -- extend timeframes:
+### Admin Seeding Edge Function
 ```typescript
-const timeframes = ['RT','1m','5m','15m','30m','1H','2H','3H','4H','6H','8H','1D','1W','1M','3M','6M','1Y','YTD','ALL'] as const;
+// supabase/functions/seed-admin/index.ts
+// Uses service role to create user + assign admin role
+// POST with { email, password }
+// Creates auth user, inserts into user_roles with role='admin'
 ```
 
-**Lines 48-63** -- add new tfConfig entries:
+### Auto-Save Hook Pattern
 ```typescript
-'3M': { points: 90, intervalMs: 86_400_000, candleMs: 86_400_000, volatility: 0.005, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
-'6M': { points: 120, intervalMs: 2 * 86_400_000, candleMs: 2 * 86_400_000, volatility: 0.008, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
-'1Y': { points: 120, intervalMs: 3 * 86_400_000, candleMs: 3 * 86_400_000, volatility: 0.012, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
-'YTD': { points: Math.ceil((Date.now() - new Date(new Date().getFullYear(),0,1).getTime()) / 86_400_000), intervalMs: 86_400_000, candleMs: 86_400_000, volatility: 0.006, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
-'ALL': { points: 200, intervalMs: 7 * 86_400_000, candleMs: 7 * 86_400_000, volatility: 0.02, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+const useAutoSave = (key: string, value: any, delay = 2000) => {
+  // Debounce writes to user_preferences.platform_config[key]
+  // Falls back to localStorage for anonymous users
+};
 ```
 
-**Lines 516-692** -- restructure header:
-- Wrap in a container that uses `flex-col lg:flex-row`
-- First child: symbol info (logo, ticker, price, change)
-- Second child: tools row (drawing, mode, timeframe)
-- On mobile, second child drops below as a compact row
-
-**Lines 681-688** -- add EXTENDED group to timeframe dropdown:
+### Preferences Loading in TradingBridge
+```typescript
+const { data: prefs } = useUserPreferences();
+const defaultSymbol = ALL_SYMBOLS.find(s => s.key === prefs?.last_symbol_key) ?? ALL_SYMBOLS[0]; // gold
+const [activeSymbol, setActiveSymbol] = useState(defaultSymbol);
 ```
-EXTENDED section: 3M, 6M, 1Y, YTD, ALL
-```
-
-### Files Changed
-
-| File | Change |
-|------|--------|
-| `src/components/trading/GALiveChart.tsx` | Add 5 extended timeframes + mobile-responsive 2-row header |
 
