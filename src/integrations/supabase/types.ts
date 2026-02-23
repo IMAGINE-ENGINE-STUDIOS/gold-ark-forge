@@ -456,6 +456,33 @@ export type Database = {
           },
         ]
       }
+      paper_portfolios: {
+        Row: {
+          cash: number
+          id: string
+          orders: Json
+          positions: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cash?: number
+          id?: string
+          orders?: Json
+          positions?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cash?: number
+          id?: string
+          orders?: Json
+          positions?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       partner_sites: {
         Row: {
           address_text: string | null
@@ -701,6 +728,36 @@ export type Database = {
             referencedColumns: ["wallet_id"]
           },
         ]
+      }
+      user_preferences: {
+        Row: {
+          default_symbol_key: string | null
+          id: string
+          last_symbol_key: string | null
+          last_timeframe: string | null
+          platform_config: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          default_symbol_key?: string | null
+          id?: string
+          last_symbol_key?: string | null
+          last_timeframe?: string | null
+          platform_config?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          default_symbol_key?: string | null
+          id?: string
+          last_symbol_key?: string | null
+          last_timeframe?: string | null
+          platform_config?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

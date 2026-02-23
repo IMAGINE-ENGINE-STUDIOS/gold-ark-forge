@@ -52,6 +52,8 @@ import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { usePaperTrading } from '@/hooks/usePaperTrading';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
+import { useAutoSave } from '@/hooks/useAutoSave';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -445,7 +447,21 @@ function TradeTabContent({
 // ═══════════════════════════════════════════════════════════
 
 const TradingBridge = () => {
-  const [activeSymbol, setActiveSymbol] = useState(ALL_SYMBOLS[0]);
+  const { preferences, updatePrefs } = useUserPreferences();
+  const [activeSymbol, setActiveSymbol] = useState(() => {
+    // Default to gold (ALL_SYMBOLS[0]) or user's last symbol
+    const lastKey = preferences?.last_symbol_key;
+    if (lastKey) {
+      const found = ALL_SYMBOLS.find(s => s.key === lastKey);
+      if (found) return found;
+    }
+    return ALL_SYMBOLS[0]; // Gold/USD
+  });
+
+  // Auto-save last viewed symbol
+  useAutoSave(() => {
+    updatePrefs({ last_symbol_key: activeSymbol.key });
+  }, [activeSymbol.key]);
   const [bottomTab, setBottomTab] = useState<BottomTab>('trade');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
