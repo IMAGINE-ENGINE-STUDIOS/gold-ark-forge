@@ -12,7 +12,7 @@ import CertificateDetail from "./pages/CertificateDetail";
 import Vault from "./pages/Vault";
 import Certification from "./pages/Certification";
 import About from "./pages/About";
-import Admin from "./pages/Admin";
+import AdminDashboard from "./pages/AdminDashboard";
 import Verify from "./pages/Verify";
 import TradingViewShowroom from "./pages/TradingViewShowroom";
 import Intelligence from "./pages/Intelligence";
@@ -48,7 +48,7 @@ const App = () => (
             <Route path="/log-registry" element={<LogRegistry />} />
             <Route path="/log-registry-2" element={<LogRegistry2 />} />
             <Route path="/about" element={<About />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin" element={<AdminDashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

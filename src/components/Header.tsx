@@ -16,6 +16,7 @@ const Header = () => {
     { label: 'About Us', href: '/about' },
     { label: 'Oil & Gas', href: '/oil-gas' },
     { label: 'Insights', href: '/certification' },
+    { label: 'Admin', href: '/admin' },
   ];
 
   return (
