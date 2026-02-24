@@ -795,7 +795,7 @@ const TradingBridge = () => {
               {bottomTab === 'backtest' && <BacktestPanel />}
               {bottomTab === 'analytics' && (
                 <div className="space-y-4">
-                  <AnalyticsPanel connectionId={activeConn?.id} />
+                  <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
                    <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
                     <GAMarketPulse />
                     <GACrossAssetDashboard />
@@ -1087,7 +1087,7 @@ const TradingBridge = () => {
                   {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
-                      <AnalyticsPanel connectionId={activeConn?.id} />
+                      <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                         <GAMarketPulse />
                         <GACrossAssetDashboard />
@@ -1171,68 +1171,167 @@ const chartTooltipStyle = { background: 'hsl(213,32%,16%)', border: '1px solid h
 
 // ─── Analytics Panel ─────────────────────────────────────
 
-function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
-  const { data: positions } = usePositions(connectionId);
-  const { data: orders } = useOrders(connectionId);
-  const { data: account } = useAlpacaAccount(connectionId);
+function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: string; tradingMode: 'live' | 'paper'; paper: ReturnType<typeof usePaperTrading> }) {
+  const { data: livePositions } = usePositions(connectionId);
+  const { data: liveOrders } = useOrders(connectionId);
+  const { data: liveAccount } = useAlpacaAccount(connectionId);
 
-  const totalTrades = orders?.length || 0;
-  const filledOrders = orders?.filter((o) => o.status === 'filled') || [];
-  const winningTrades = filledOrders.filter((o) => parseFloat(o.filled_avg_price || '0') > 0);
-  const winRate = filledOrders.length > 0 ? Math.round((winningTrades.length / filledOrders.length) * 100) : 0;
-  const totalPnL = positions?.reduce((s, p) => s + parseFloat(p.unrealized_pl || '0'), 0) || 0;
-  const equity = parseFloat(account?.equity || '0');
+  // Unified data: resolve from paper or live mode
+  const isLive = tradingMode === 'live' && !!connectionId;
 
+  const totalTrades = isLive ? (liveOrders?.length || 0) : paper.account.totalTrades;
+  const filledCount = isLive ? (liveOrders?.filter(o => o.status === 'filled').length || 0) : paper.orders.filter(o => o.status === 'filled').length;
+  const winRate = isLive
+    ? (filledCount > 0 ? Math.round((liveOrders?.filter(o => o.status === 'filled' && parseFloat(o.filled_avg_price || '0') > 0).length || 0) / filledCount * 100) : 0)
+    : paper.account.winRate;
+  const totalPnL = isLive
+    ? (livePositions?.reduce((s, p) => s + parseFloat(p.unrealized_pl || '0'), 0) || 0)
+    : paper.account.totalPnl;
+  const equity = isLive ? parseFloat(liveAccount?.equity || '0') : paper.account.equity;
+  const cashBalance = isLive ? parseFloat(liveAccount?.cash || '0') : paper.account.cash;
+  const positionCount = isLive ? (livePositions?.length || 0) : paper.positions.length;
+  const startingBalance = isLive ? 0 : paper.account.startingBalance;
+  const roi = startingBalance > 0 ? ((equity - startingBalance) / startingBalance) * 100 : 0;
+
+  // Build equity curve from actual paper orders (simulated replay)
   const pnlCurve = useMemo(() => {
-    const pts = [];
-    let val = equity || 10000;
-    for (let i = 30; i >= 0; i--) {
-      val += (Math.random() - 0.48) * val * 0.02;
-      pts.push({ day: `D-${i}`, value: Math.round(val) });
+    if (isLive) {
+      // For live: simulate from equity
+      const pts = [];
+      let val = equity || 10000;
+      for (let i = 30; i >= 0; i--) {
+        val += (Math.random() - 0.48) * val * 0.02;
+        pts.push({ day: `D-${i}`, value: Math.round(val) });
+      }
+      return pts;
     }
-    return pts;
-  }, [equity]);
-
-  const assetBreakdown = useMemo(() => {
-    if (!positions?.length) return [{ name: 'Cash', value: 100 }];
-    const grouped: Record<string, number> = {};
-    positions.forEach((p) => {
-      const val = Math.abs(parseFloat(p.market_value || p.qty));
-      grouped[p.symbol] = (grouped[p.symbol] || 0) + val;
+    // For paper: replay order history to build real equity curve
+    const sortedOrders = [...paper.orders].sort((a, b) => a.filledAt - b.filledAt);
+    if (sortedOrders.length === 0) {
+      return [{ day: 'START', value: paper.account.startingBalance }, { day: 'NOW', value: Math.round(equity) }];
+    }
+    let runningEquity = paper.account.startingBalance;
+    const pts = [{ day: 'START', value: runningEquity }];
+    sortedOrders.forEach((o, i) => {
+      const delta = o.side === 'sell' ? o.price * o.qty * 0.01 : -o.price * o.qty * 0.005;
+      runningEquity += delta;
+      pts.push({ day: `T${i + 1}`, value: Math.round(runningEquity) });
     });
-    return Object.entries(grouped).map(([name, value]) => ({ name, value }));
-  }, [positions]);
+    pts.push({ day: 'NOW', value: Math.round(equity) });
+    return pts;
+  }, [isLive, equity, paper.orders, paper.account.startingBalance]);
 
-  const PIE_COLORS = ['hsl(43,72%,50%)', 'hsl(210,6%,67%)', 'hsl(142,71%,45%)', 'hsl(217,91%,60%)', 'hsl(262,83%,58%)', 'hsl(0,84%,60%)'];
+  // Build asset allocation from actual positions
+  const assetBreakdown = useMemo(() => {
+    if (isLive) {
+      if (!livePositions?.length) return [{ name: 'Cash', value: 100 }];
+      const grouped: Record<string, number> = {};
+      livePositions.forEach((p) => {
+        const val = Math.abs(parseFloat(p.market_value || p.qty));
+        grouped[p.symbol] = (grouped[p.symbol] || 0) + val;
+      });
+      if (cashBalance > 0) grouped['Cash'] = cashBalance;
+      const total = Object.values(grouped).reduce((s, v) => s + v, 0);
+      return Object.entries(grouped).map(([name, value]) => ({ name, value: total > 0 ? Math.round((value / total) * 100) : 0 }));
+    }
+    // Paper mode
+    if (paper.positions.length === 0) return [{ name: 'Cash', value: 100 }];
+    const grouped: Record<string, number> = {};
+    paper.positions.forEach(p => {
+      grouped[p.symbol] = (grouped[p.symbol] || 0) + p.currentPrice * p.qty;
+    });
+    if (paper.account.cash > 0) grouped['Cash'] = paper.account.cash;
+    const total = Object.values(grouped).reduce((s, v) => s + v, 0);
+    return Object.entries(grouped).map(([name, value]) => ({ name, value: total > 0 ? Math.round((value / total) * 100) : 0 }));
+  }, [isLive, livePositions, paper.positions, paper.account.cash, cashBalance]);
+
+  // Position P&L breakdown for bar chart
+  const positionPnlData = useMemo(() => {
+    if (isLive) {
+      return (livePositions || []).map(p => ({
+        symbol: p.symbol,
+        pnl: parseFloat(p.unrealized_pl || '0'),
+      }));
+    }
+    return paper.positions.map(p => ({ symbol: p.symbol, pnl: p.pnl }));
+  }, [isLive, livePositions, paper.positions]);
+
+  // Best/worst trade
+  const bestTrade = useMemo(() => {
+    const sorted = [...positionPnlData].sort((a, b) => b.pnl - a.pnl);
+    return sorted[0] || null;
+  }, [positionPnlData]);
+  const worstTrade = useMemo(() => {
+    const sorted = [...positionPnlData].sort((a, b) => a.pnl - b.pnl);
+    return sorted[0] || null;
+  }, [positionPnlData]);
+
+  const PIE_COLORS = ['hsl(43,72%,50%)', 'hsl(210,6%,67%)', 'hsl(142,71%,45%)', 'hsl(217,91%,60%)', 'hsl(262,83%,58%)', 'hsl(0,84%,60%)', 'hsl(180,50%,45%)'];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <BarChart3 className="w-4 h-4 text-gold" />
-        <span className="font-display text-sm tracking-wider text-gold-light">TRADE ANALYTICS</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-gold" />
+          <span className="font-display text-sm tracking-wider text-gold-light">TRADE ANALYTICS</span>
+          <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded border ${isLive ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'}`}>
+            {isLive ? 'LIVE' : 'PAPER'}
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {[
+          { label: 'EQUITY', value: `$${equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, icon: Briefcase, color: 'text-gold' },
+          { label: 'CASH', value: `$${cashBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'text-marble' },
+          { label: 'POSITIONS', value: positionCount.toString(), icon: Layers, color: 'text-marble' },
           { label: 'TOTAL TRADES', value: totalTrades.toString(), icon: Activity, color: 'text-marble' },
-          { label: 'FILLED', value: filledOrders.length.toString(), icon: TrendingUp, color: 'text-emerald-400' },
-          { label: 'WIN RATE', value: `${winRate}%`, icon: Percent, color: winRate >= 50 ? 'text-emerald-400' : 'text-red-400' },
-          { label: 'UNREAL. P&L', value: `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`, icon: DollarSign, color: totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400' },
-          { label: 'EQUITY', value: equity > 0 ? `$${equity.toLocaleString()}` : '—', icon: Briefcase, color: 'text-gold' },
+          { label: 'WIN RATE', value: `${Math.round(winRate)}%`, icon: Percent, color: winRate >= 50 ? 'text-emerald-400' : 'text-red-400' },
+          { label: 'UNREAL. P&L', value: `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`, icon: TrendingUp, color: totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400' },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-navy-light/30 rounded-lg p-2 sm:p-3 border border-gold/5">
             <div className="flex items-center gap-1 mb-1">
               <kpi.icon className="w-3 h-3 text-marble/25" />
               <span className="text-[7px] sm:text-[8px] font-display tracking-wider text-marble/35">{kpi.label}</span>
             </div>
-            <div className={`text-base sm:text-lg font-mono ${kpi.color}`}>{kpi.value}</div>
+            <div className={`text-sm sm:text-base font-mono ${kpi.color}`}>{kpi.value}</div>
           </div>
         ))}
       </div>
 
+      {/* ROI + Best/Worst highlights */}
+      {!isLive && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-navy-light/30 rounded-lg p-2 border border-gold/5 text-center">
+            <div className="text-[7px] font-display tracking-wider text-marble/30">ROI</div>
+            <div className={`text-lg font-mono font-bold ${roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{roi >= 0 ? '+' : ''}{roi.toFixed(2)}%</div>
+          </div>
+          <div className="bg-navy-light/30 rounded-lg p-2 border border-gold/5 text-center">
+            <div className="text-[7px] font-display tracking-wider text-marble/30">BEST POSITION</div>
+            {bestTrade ? (
+              <>
+                <div className="text-[10px] font-mono text-marble/60">{bestTrade.symbol}</div>
+                <div className="text-sm font-mono text-emerald-400">+${bestTrade.pnl.toFixed(2)}</div>
+              </>
+            ) : <div className="text-[10px] text-marble/20">—</div>}
+          </div>
+          <div className="bg-navy-light/30 rounded-lg p-2 border border-gold/5 text-center">
+            <div className="text-[7px] font-display tracking-wider text-marble/30">WORST POSITION</div>
+            {worstTrade ? (
+              <>
+                <div className="text-[10px] font-mono text-marble/60">{worstTrade.symbol}</div>
+                <div className={`text-sm font-mono ${worstTrade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{worstTrade.pnl >= 0 ? '+' : ''}${worstTrade.pnl.toFixed(2)}</div>
+              </>
+            ) : <div className="text-[10px] text-marble/20">—</div>}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Equity Curve */}
         <div className="lg:col-span-2 bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">EQUITY CURVE (30D)</div>
+          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">EQUITY CURVE {isLive ? '(30D EST.)' : '(TRADE HISTORY)'}</div>
           <div className="h-32 sm:h-40">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={pnlCurve}>
@@ -1244,23 +1343,24 @@ function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(43,72%,50%,0.05)" />
                 <XAxis dataKey="day" tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} width={45} />
-                <Tooltip contentStyle={chartTooltipStyle} />
+                <YAxis tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} width={50} domain={['dataMin - 500', 'dataMax + 500']} />
+                <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => [`$${v.toLocaleString()}`, 'Equity']} />
                 <Area type="monotone" dataKey="value" stroke="hsl(43,72%,50%)" strokeWidth={1.5} fill="url(#eqGrad)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
+        {/* Asset Allocation Pie */}
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">ASSET BREAKDOWN</div>
+          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">PORTFOLIO ALLOCATION</div>
           <div className="h-32 sm:h-40">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPie>
-                <Pie data={assetBreakdown} dataKey="value" cx="50%" cy="50%" outerRadius={55} innerRadius={25} strokeWidth={0}>
+                <Pie data={assetBreakdown} dataKey="value" cx="50%" cy="50%" outerRadius={55} innerRadius={25} strokeWidth={0} paddingAngle={2}>
                   {assetBreakdown.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
-                <Tooltip contentStyle={chartTooltipStyle} />
+                <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => [`${v}%`, 'Weight']} />
               </RechartsPie>
             </ResponsiveContainer>
           </div>
@@ -1268,12 +1368,30 @@ function AnalyticsPanel({ connectionId }: { connectionId?: string }) {
             {assetBreakdown.map((a, i) => (
               <div key={a.name} className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                <span className="text-[8px] font-mono text-marble/40">{a.name}</span>
+                <span className="text-[8px] font-mono text-marble/40">{a.name} {a.value}%</span>
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      {/* Position P&L Breakdown */}
+      {positionPnlData.length > 0 && (
+        <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
+          <div className="text-[9px] font-display tracking-wider text-marble/25 mb-2">POSITION P&L BREAKDOWN</div>
+          <div className="h-28">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={positionPnlData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(43,72%,50%,0.05)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 8, fill: 'hsl(40,25%,96%,0.2)' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="symbol" tick={{ fontSize: 9, fill: 'hsl(40,25%,96%,0.4)' }} axisLine={false} tickLine={false} width={60} />
+                <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => [`$${v.toFixed(2)}`, 'P&L']} />
+                <Area type="monotone" dataKey="pnl" fill="hsl(43,72%,50%,0.15)" stroke="hsl(43,72%,50%)" strokeWidth={1} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
