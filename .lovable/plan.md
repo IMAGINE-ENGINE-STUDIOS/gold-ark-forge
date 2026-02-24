@@ -1,88 +1,105 @@
 
 
-# Swap Terminal — Comprehensive Audit & Rename Plan
+# Swap Terminal: Advanced Analytics + Beginner & Pro Feature Gaps
 
-## Overview
-Rename "Trading Bridge" to "Swap" across the entire platform, fix identified bugs, and ensure full integration between all tabs and the GA infrastructure.
+## 1. Add Sharpe Ratio & Max Drawdown to Analytics KPI Row
 
----
+Currently the Analytics KPI row shows 6 metrics: Equity, Cash, Positions, Total Trades, Win Rate, and Unrealized P&L. We will add two new computed KPIs:
 
-## Issues Found
+- **Sharpe Ratio** -- computed from the equity curve data points (daily returns standard deviation vs. mean, annualized). For paper mode this replays the order ledger; for live mode it shows "--" until enough data exists.
+- **Max Drawdown** -- tracks the largest peak-to-trough decline across the equity curve history. Displayed as a negative percentage in red.
 
-### 1. Naming: "Trading Bridge" appears in multiple files
-- `src/components/Header.tsx` line 12: nav label
-- `src/pages/TradingBridge.tsx` line 885: desktop top bar title
-- `src/pages/LogRegistry.tsx` lines 85, 101: references
-- `src/pages/LogRegistry2.tsx` line 157: reference
-- `src/components/trading/GALiveChart.tsx` lines 2-4, 543: comments
-- `src/App.tsx` line 47: route path `/trading-bridge` (keep path, update import alias)
-
-### 2. Duplicate INTELLIGENCE link in desktop top bar
-Line 895-896 has the INTELLIGENCE link duplicated twice.
-
-### 3. Equity curve uses fake delta calculation
-In `AnalyticsPanel` (lines 1253-1257), the paper equity curve replay uses an arbitrary formula (`o.side === 'sell' ? o.price * o.qty * 0.01 : -o.price * o.qty * 0.005`) instead of tracking actual cash flow. This produces inaccurate equity history.
-
-### 4. Live mode equity curve is fully randomized
-Lines 1237-1244 generate random data points for the live equity curve instead of using actual Alpaca account data.
-
-### 5. Social Panel uses hardcoded mock traders
-The `SocialPanel` component (line 1700+) displays static mock data. This is acceptable as a "coming soon" feature but should be clearly labeled.
-
-### 6. Risk Panel correlation matrix and exposure data are static
-The `RiskPanel` uses hardcoded correlation and exposure values, not derived from actual portfolio data.
-
-### 7. Mobile PORTFOLIO tab doesn't show paper positions
-Line 704-709: The mobile "portfolio" tab only shows live broker data (`PortfolioSummary`, `PositionsPanel`), ignoring paper mode entirely.
+The KPI grid expands from `grid-cols-6` to `grid-cols-4 lg:grid-cols-8` to accommodate both new cards cleanly on all screen sizes.
 
 ---
 
-## Implementation Plan
+## 2. Five Missing Features for Beginners
 
-### Step 1: Rename "Trading Bridge" to "Swap" everywhere
-**Files to edit:**
-- `src/components/Header.tsx` — Change nav label from "Trading Bridge" to "Swap"
-- `src/pages/TradingBridge.tsx` — Change desktop title from "TRADING BRIDGE" to "SWAP"
-- `src/pages/LogRegistry.tsx` — Update button text and description references
-- `src/pages/LogRegistry2.tsx` — Update description reference
-- `src/components/trading/GALiveChart.tsx` — Update comments only
+After auditing the full Swap terminal, these are the gaps that would trip up anyone new to trading:
 
-Route path `/trading-bridge` will remain unchanged for URL stability; only display labels change.
+| # | Feature | What It Solves |
+|---|---------|---------------|
+| B1 | **Glossary Tooltips** | Hover any KPI label (Sharpe, Drawdown, P&L, Win Rate, etc.) to see a plain-English explanation. Beginners don't know what "Sortino" means. |
+| B2 | **Trade Recap Card** | After every paper trade fills, show a summary card: "You bought 5 shares of XAU at $2,340. Your cost was $11,700. Here's what to watch." Currently there's zero post-trade feedback. |
+| B3 | **Risk Thermometer** | A simple visual gauge (green/yellow/red) in the TRADE tab showing "Your portfolio risk level" based on concentration and position size vs. account. Beginners over-concentrate. |
+| B4 | **Guided First Trade** | A one-time onboarding overlay on the Swap page: "1. Pick an asset, 2. Set quantity, 3. Click BUY." Currently the UI is dense with no guidance for first-time users. |
+| B5 | **P&L Explainer Row** | Below each position in the BOOK tab, show a single line: "You're up $12.50 because XAU rose from $2,340 to $2,342.50 (x5 shares)." Beginners can't mentally connect price movement to dollar P&L. |
 
-### Step 2: Fix duplicate INTELLIGENCE link
-Remove the duplicate `<Link to="/intelligence">` on line 896.
+---
 
-### Step 3: Fix paper equity curve to use real cash flow tracking
-Replace the arbitrary delta formula with actual position-value tracking:
-- Walk through sorted orders chronologically
-- For buys: deduct `price * qty` from running cash
-- For sells: add `price * qty` to running cash
-- At each point, compute equity = cash + estimated positions value
-- This produces an accurate equity history from the order ledger
+## 3. Five Missing Features for Pros
 
-### Step 4: Fix live equity curve
-Instead of random data, show a single "current equity" point if no historical data is available, with a clear "Connect broker for historical data" note. Remove the fake random curve generation.
+| # | Feature | What It Solves |
+|---|---------|---------------|
+| P1 | **Sortino Ratio + Calmar Ratio** | Add alongside Sharpe in the KPI row. Pros need downside-only risk metrics, not just symmetric volatility. |
+| P2 | **Drawdown Chart** | A dedicated underwater equity chart below the equity curve showing drawdown depth over time. Pros monitor recovery speed. |
+| P3 | **Trade Log Export (CSV)** | A download button on the Analytics tab that exports all orders, positions, and P&L to CSV. Pros need this for tax reporting and external analysis. |
+| P4 | **Correlation-Aware Position Sizer** | The Risk tab's Position Sizer ignores portfolio correlation. It should warn when adding a position highly correlated to existing holdings. |
+| P5 | **Session Performance Breakdown** | Split P&L by trading session (Asia/London/NY) in Analytics. Pros optimize around session-specific volatility patterns. |
 
-### Step 5: Fix mobile PORTFOLIO tab for paper mode
-Add paper position rendering to the mobile `portfolio` tab (line 704+), mirroring the desktop BOOK tab's paper position display with real-time price coloring and SELL buttons.
+---
 
-### Step 6: Label placeholder panels clearly
-Add "COMING SOON" badges to the Social and Strategies panels since they use static/mock data, making it clear these are preview features.
+## 4. Implementation Plan
+
+### Step 1: Sharpe Ratio & Max Drawdown KPIs (AnalyticsPanel)
+- Compute from `pnlCurve` data array: calculate sequential returns, derive mean, std dev, max peak-to-trough
+- Add two new KPI cards to the grid
+- Expand grid from `lg:grid-cols-6` to `lg:grid-cols-8`
+
+### Step 2: Sortino + Calmar Ratios (Pro)
+- Compute alongside Sharpe using only negative returns for downside deviation
+- Calmar = annualized return / max drawdown
+- Add as additional KPI cards
+
+### Step 3: Drawdown Chart (Pro)
+- New chart section below equity curve showing underwater drawdown as a red-filled area
+- Computed from the same equity curve data
+
+### Step 4: Glossary Tooltips (Beginner)
+- Wrap each KPI label in a Tooltip component with beginner-friendly explanations
+- Use existing Radix tooltip from the UI library
+
+### Step 5: Trade Recap Card (Beginner)
+- After `paper.submitOrder` succeeds, show a toast-style recap card with entry price, total cost, and asset context
+- Integrated into the existing toast system
+
+### Step 6: Risk Thermometer (Beginner)
+- Simple gauge component in TRADE tab sidebar
+- Calculates concentration (largest position / equity) and colors accordingly
+
+### Step 7: P&L Explainer Row (Beginner)
+- Add a subtitle line under each BOOK position showing the math breakdown
+
+### Step 8: Guided First Trade Overlay (Beginner)
+- Conditional overlay shown once (localStorage flag) with 3-step walkthrough
+- Dismissable, never shown again
+
+### Step 9: Trade Log CSV Export (Pro)
+- Button in Analytics tab header
+- Generates CSV from paper.orders array with all fields
+
+### Step 10: Session Performance Breakdown (Pro)
+- Categorize each order by UTC hour into Asia/London/NY sessions
+- Show P&L breakdown per session as a small grouped bar chart
 
 ---
 
 ## Technical Details
 
-### Files Modified (6 files)
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `src/components/trading/RiskThermometer.tsx` | Visual risk gauge for beginners |
+| `src/components/trading/TradeRecapToast.tsx` | Post-trade summary card |
+| `src/components/trading/FirstTradeGuide.tsx` | One-time onboarding overlay |
+| `src/components/trading/DrawdownChart.tsx` | Underwater equity chart for pros |
+| `src/components/trading/SessionBreakdown.tsx` | Session P&L analysis for pros |
 
+### Files to Modify
 | File | Changes |
 |------|---------|
-| `src/components/Header.tsx` | Rename "Trading Bridge" to "Swap" in nav |
-| `src/pages/TradingBridge.tsx` | Rename title, fix duplicate link, fix equity curve, fix mobile portfolio tab, label placeholders |
-| `src/pages/LogRegistry.tsx` | Rename references to "Swap" |
-| `src/pages/LogRegistry2.tsx` | Rename reference to "Swap" |
-| `src/components/trading/GALiveChart.tsx` | Update comments |
+| `src/pages/TradingBridge.tsx` | Add Sharpe/Sortino/Calmar/MaxDD KPIs to AnalyticsPanel, glossary tooltips on all KPI labels, P&L explainer in BOOK, CSV export button, integrate new components, first-trade guide |
 
 ### No database changes required
-### No new dependencies required
+### No new dependencies required -- uses existing Recharts, Radix Tooltip, and sonner toast
 
