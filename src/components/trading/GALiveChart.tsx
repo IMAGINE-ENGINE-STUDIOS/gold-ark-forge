@@ -53,6 +53,12 @@ const FORECAST_DEPTH: Record<string, { points: number; label: string }> = {
   '1D': { points: 24, label: '6 hours' },
   '1W': { points: 20, label: '~40 hours' },
   '1M': { points: 30, label: '~7.5 days' },
+  '3M': { points: 30, label: '~22 days' },
+  '6M': { points: 30, label: '~45 days' },
+  '1Y': { points: 36, label: '~3 months' },
+  '2Y': { points: 36, label: '~6 months' },
+  '5Y': { points: 40, label: '~1 year' },
+  'ALL': { points: 48, label: '~2 years' },
 };
 
 const computeForecastPoints = (
@@ -259,7 +265,9 @@ interface Props {
   onSymbolChange?: (sym: WatchlistSymbol) => void;
 }
 
-const timeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
+const shortTimeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
+const longTimeframes = ['3M', '6M', '1Y', '2Y', '5Y', 'ALL'] as const;
+const timeframes = [...shortTimeframes, ...longTimeframes] as const;
 type Timeframe = (typeof timeframes)[number];
 
 interface TFConfig {
@@ -277,6 +285,12 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   '1D': { points: 96, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1W': { points: 84, intervalMs: 2 * 3_600_000, candleMs: 2 * 3_600_000, volatility: 0.0015, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
   '1M': { points: 120, intervalMs: 6 * 3_600_000, candleMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '3M': { points: 90, intervalMs: 24 * 3_600_000, candleMs: 24 * 3_600_000, volatility: 0.005, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '6M': { points: 120, intervalMs: 2 * 24 * 3_600_000, candleMs: 2 * 24 * 3_600_000, volatility: 0.008, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '1Y': { points: 120, intervalMs: 3 * 24 * 3_600_000, candleMs: 3 * 24 * 3_600_000, volatility: 0.012, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+  '2Y': { points: 120, intervalMs: 6 * 24 * 3_600_000, candleMs: 6 * 24 * 3_600_000, volatility: 0.018, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+  '5Y': { points: 150, intervalMs: 12 * 24 * 3_600_000, candleMs: 12 * 24 * 3_600_000, volatility: 0.025, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) },
+  'ALL': { points: 180, intervalMs: 30 * 24 * 3_600_000, candleMs: 30 * 24 * 3_600_000, volatility: 0.035, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) },
 };
 
 const seededRandom = (seed: number) => {
@@ -425,6 +439,49 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
   return candles;
 };
 
+// ─── Long Timeframe Dropdown ────────────────────────────
+const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isLongActive = (longTimeframes as readonly string[]).includes(tf);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 border ${
+          isLongActive ? 'bg-gold/15 text-gold border-gold/30' : 'text-marble/30 hover:text-marble/60 border-transparent'
+        }`}
+      >
+        {isLongActive ? tf : 'MORE'}
+        <MoreHorizontal className="w-3 h-3" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+          {longTimeframes.map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTf(t); setOpen(false); }}
+              className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                tf === t ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
+              }`}
+            >
+              {t === 'ALL' ? 'ALL (Lifetime)' : t}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Mobile Timeframe Dropdown ───────────────────────────
 const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
   const [open, setOpen] = useState(false);
@@ -450,7 +507,8 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
-          {timeframes.map((t) => (
+          <div className="px-3 py-1 text-[8px] font-display tracking-wider text-marble/30 bg-navy-dark/80 border-b border-gold/10">SHORT</div>
+          {shortTimeframes.map((t) => (
             <button
               key={t}
               onClick={() => { setTf(t); setOpen(false); }}
@@ -461,6 +519,18 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
               }`}
             >
               {t} {t === 'RT' && '●'}
+            </button>
+          ))}
+          <div className="px-3 py-1 text-[8px] font-display tracking-wider text-marble/30 bg-navy-dark/80 border-b border-gold/10 border-t border-gold/10">LONG</div>
+          {longTimeframes.map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTf(t); setOpen(false); }}
+              className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${
+                tf === t ? 'bg-gold/10 text-gold' : 'text-marble/50 hover:bg-gold/5 hover:text-marble'
+              }`}
+            >
+              {t === 'ALL' ? 'ALL (Lifetime)' : t}
             </button>
           ))}
         </div>
@@ -786,14 +856,15 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
             {isMobile ? (
               <MobileTimeframeMenu tf={tf} setTf={setTf} />
             ) : (
-              <div className="flex gap-0.5">
-                {timeframes.map((t) => (
+              <div className="flex gap-0.5 items-center">
+                {shortTimeframes.map((t) => (
                   <button key={t} onClick={() => setTf(t)}
                     className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all ${
                       tf === t ? t === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
                       : 'text-marble/30 hover:text-marble/60 border border-transparent'
                     }`}>{t}</button>
                 ))}
+                <LongTimeframeDropdown tf={tf} setTf={setTf} />
               </div>
             )}
             {/* Forecast toggle */}
