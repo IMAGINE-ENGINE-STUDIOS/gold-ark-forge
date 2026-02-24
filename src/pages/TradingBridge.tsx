@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -318,20 +318,28 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
       {paper.positions.length > 0 && (
         <div className="space-y-1">
           <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
-          {paper.positions.map(pos => (
-            <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
-              <div>
-                <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
-                <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)} · MV: ${(pos.currentPrice * pos.qty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-              </div>
-              <div className="text-right">
-                <div className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+          {paper.positions.map(pos => {
+            const isProfit = pos.currentPrice >= pos.entryPrice;
+            return (
+              <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
+                <div>
+                  <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
+                  <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</div>
                 </div>
-                <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[7px] text-marble/25 hover:text-red-400 transition-colors">CLOSE</button>
+                <div className="text-right flex items-center gap-2">
+                  <div>
+                    <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                      ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className={`text-[9px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+                    </div>
+                  </div>
+                  <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">SELL</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -511,6 +519,40 @@ const TradingBridge = () => {
     return sp?.p ?? 100;
   }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
 
+  // Build a price map for all held paper positions and keep them updated
+  const resolvePriceForTicker = useCallback((ticker: string): number => {
+    // Find the symbol definition matching this ticker
+    const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
+    if (!sym) return 0;
+    if (sym.cat === 'metals') {
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', copper: 'gold' };
+      const key = metalMap[sym.key];
+      return key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
+    }
+    if (sym.cat === 'crypto') {
+      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
+      return coin?.current_price ?? 0;
+    }
+    if (sym.cat === 'energy') {
+      const oilMap: Record<string, string> = { oil: 'WTI', brent: 'BRENT', natgas: 'NG', rbob: 'RBOB' };
+      const feed = oilPricesData?.find(p => p.symbol === oilMap[sym.key]);
+      return feed?.price ?? 0;
+    }
+    const sp = SYNTHETIC_PRICES[sym.key];
+    return sp?.p ?? 0;
+  }, [metalPricesData, cryptoDataAll, oilPricesData]);
+
+  // Keep paper position prices synced with live data
+  useEffect(() => {
+    if (paper.positions.length === 0) return;
+    const priceMap: Record<string, number> = {};
+    paper.positions.forEach(pos => {
+      const price = resolvePriceForTicker(pos.symbol);
+      if (price > 0) priceMap[pos.symbol] = price;
+    });
+    if (Object.keys(priceMap).length > 0) paper.updatePrices(priceMap);
+  }, [paper.positions.length, resolvePriceForTicker, activePrice]);
+
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
     <div className="flex items-center gap-0.5 bg-navy-light/50 rounded-lg p-0.5 border border-gold/10">
@@ -687,7 +729,53 @@ const TradingBridge = () => {
                   activeConn={activeConn} 
                 />
               )}
-              {bottomTab === 'book' && activeConn && (
+              {bottomTab === 'book' && tradingMode === 'paper' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS</span>
+                  </div>
+                  {paper.positions.length > 0 ? (
+                    <div className="space-y-1">
+                      {paper.positions.map(pos => {
+                        const isProfit = pos.currentPrice >= pos.entryPrice;
+                        return (
+                          <div key={pos.id} className="flex items-center justify-between p-2.5 bg-navy-light/20 rounded border border-gold/5">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
+                              <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
+                              <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                                ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                              <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+                              </span>
+                              <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[9px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20">SELL</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : <EmptyState text="No open paper positions" />}
+                  {paper.orders.length > 0 && (
+                    <div className="border-t border-gold/10 pt-3 space-y-1">
+                      <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
+                      {paper.orders.slice(0, 10).map(o => (
+                        <div key={o.id} className="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono text-marble/30 border-b border-gold/5">
+                          <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
+                          <span>{o.qty} {o.symbol}</span>
+                          <span>${o.price.toFixed(2)}</span>
+                          <span className="text-marble/15">{new Date(o.filledAt).toLocaleTimeString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
                 <div className="space-y-4">
                   <PositionsPanel connectionId={activeConn.id} />
                   <div className="border-t border-gold/10 pt-4">
@@ -695,7 +783,7 @@ const TradingBridge = () => {
                   </div>
                 </div>
               )}
-              {bottomTab === 'book' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+              {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
               {bottomTab === 'automate' && (
                 <div className="space-y-4">
                   <SchedulePanel />
@@ -933,22 +1021,27 @@ const TradingBridge = () => {
                       </div>
                       {paper.positions.length > 0 ? (
                         <div className="space-y-1">
-                          {paper.positions.map(pos => (
-                            <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
-                                <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
-                                <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                          {paper.positions.map(pos => {
+                            const isProfit = pos.currentPrice >= pos.entryPrice;
+                            return (
+                              <div key={pos.id} className="flex items-center justify-between p-2.5 bg-navy-light/20 rounded border border-gold/5">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
+                                  <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
+                                  <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+                                  </span>
+                                  <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[9px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20">SELL</button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-[9px] font-mono text-marble/30">MV: ${(pos.currentPrice * pos.qty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                                <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
-                                </span>
-                                <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] text-marble/25 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded border border-gold/10">CLOSE</button>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : <EmptyState text="No open paper positions" />}
                       {paper.orders.length > 0 && (
