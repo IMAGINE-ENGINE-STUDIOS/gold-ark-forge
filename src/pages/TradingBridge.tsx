@@ -67,6 +67,7 @@ import { showTradeRecap } from '@/components/trading/TradeRecapToast';
 import FirstTradeGuide from '@/components/trading/FirstTradeGuide';
 import DrawdownChart from '@/components/trading/DrawdownChart';
 import SessionBreakdown from '@/components/trading/SessionBreakdown';
+import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 
 // ─── Collapsible Section Component ───────────────────────
@@ -731,28 +732,23 @@ const TradingBridge = () => {
                   </div>
                   {/* Paper Positions */}
                   {paper.positions.length > 0 ? (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <div className="text-[8px] font-display tracking-wider text-emerald-400/60">PAPER POSITIONS ({paper.positions.length})</div>
-                      {paper.positions.map(pos => {
-                        const isProfit = pos.pnl >= 0;
-                        return (
-                          <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
-                            <div>
-                              <span className="text-[10px] font-mono text-marble">{pos.symbol}</span>
-                              <span className="text-[8px] text-marble/25 ml-1">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-mono ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {isProfit ? '+' : ''}${pos.pnl.toFixed(2)}
-                              </span>
-                              <button
-                                onClick={() => paper.closePosition(pos.id, pos.currentPrice)}
-                                className="text-[7px] font-display tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400/70 border border-red-500/15 hover:bg-red-500/20"
-                              >SELL</button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {paper.positions.map(pos => (
+                        <PositionMiniCard
+                          key={pos.id}
+                          posId={pos.id}
+                          symbol={pos.symbol}
+                          side={pos.side}
+                          qty={pos.qty}
+                          entryPrice={pos.entryPrice}
+                          currentPrice={pos.currentPrice}
+                          pnl={pos.pnl}
+                          pnlPercent={pos.pnlPercent}
+                          onClose={(id, price) => paper.closePosition(id, price)}
+                          onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                        />
+                      ))}
                     </div>
                   ) : (
                     <div className="text-center py-4 text-marble/20 text-[10px] font-display tracking-wider">NO OPEN PAPER POSITIONS</div>
@@ -829,30 +825,25 @@ const TradingBridge = () => {
                     />
                   </div>
                   {paper.positions.length > 0 ? (
-                    <div className="space-y-1">
-                      {paper.positions.map(pos => {
-                        const isProfit = pos.currentPrice >= pos.entryPrice;
-                        return (
-                          <div key={pos.id} className="flex items-center justify-between p-2.5 bg-navy-light/20 rounded border border-gold/5">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
-                              <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
-                              <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                              <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
-                              </span>
-                              <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[9px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20">SELL</button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-2">
+                      {paper.positions.map(pos => (
+                        <PositionMiniCard
+                          key={pos.id}
+                          posId={pos.id}
+                          symbol={pos.symbol}
+                          side={pos.side}
+                          qty={pos.qty}
+                          entryPrice={pos.entryPrice}
+                          currentPrice={pos.currentPrice}
+                          pnl={pos.pnl}
+                          pnlPercent={pos.pnlPercent}
+                          onClose={(id, price) => paper.closePosition(id, price)}
+                          onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                        />
+                      ))}
                     </div>
                   ) : <EmptyState text="No open paper positions" />}
+                  
                   {paper.orders.length > 0 && (
                     <div className="border-t border-gold/10 pt-3 space-y-1">
                       <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
@@ -1123,33 +1114,25 @@ const TradingBridge = () => {
                         />
                       </div>
                       {paper.positions.length > 0 ? (
-                        <div className="space-y-1">
-                          {paper.positions.map(pos => {
-                            const isProfit = pos.currentPrice >= pos.entryPrice;
-                            return (
-                              <div key={pos.id} className="p-2.5 bg-navy-light/20 rounded border border-gold/5">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
-                                    <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
-                                    <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                      ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                    <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                      {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
-                                    </span>
-                                    <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[9px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20">SELL</button>
-                                  </div>
-                                </div>
-                                <PnlExplainer pos={pos} />
-                              </div>
-                            );
-                          })}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                          {paper.positions.map(pos => (
+                            <PositionMiniCard
+                              key={pos.id}
+                              posId={pos.id}
+                              symbol={pos.symbol}
+                              side={pos.side}
+                              qty={pos.qty}
+                              entryPrice={pos.entryPrice}
+                              currentPrice={pos.currentPrice}
+                              pnl={pos.pnl}
+                              pnlPercent={pos.pnlPercent}
+                              onClose={(id, price) => paper.closePosition(id, price)}
+                              onNavigate={(sym) => setActiveSymbol(sym)}
+                            />
+                          ))}
                         </div>
                       ) : <EmptyState text="No open paper positions" />}
+                      
                       {paper.orders.length > 0 && (
                         <div className="border-t border-gold/10 pt-3 space-y-1">
                           <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
