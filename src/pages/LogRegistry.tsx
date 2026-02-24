@@ -82,7 +82,7 @@ const LogRegistry = () => {
               to="/trading-bridge"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-gold/20 text-marble/50 hover:text-gold hover:border-gold/40 transition-all text-[10px] font-display tracking-wider"
             >
-              <BarChart3 className="w-3 h-3" /> TRADING BRIDGE
+              <BarChart3 className="w-3 h-3" /> SWAP
             </Link>
             <button onClick={refresh} className="flex items-center gap-1 px-3 py-1.5 rounded border border-gold/20 text-marble/50 hover:text-gold hover:border-gold/40 transition-all text-[10px] font-display tracking-wider">
               <RefreshCw className="w-3 h-3" /> REFRESH
@@ -98,7 +98,7 @@ const LogRegistry = () => {
           <div className="text-center py-20">
             <BarChart3 className="w-12 h-12 text-gold/20 mx-auto mb-4" />
             <p className="text-marble/30 font-display text-sm tracking-wider">NO FORECAST ENTRIES YET</p>
-            <p className="text-marble/15 text-xs font-mono mt-2">Toggle the FORECAST button on the Trading Bridge chart to generate entries</p>
+            <p className="text-marble/15 text-xs font-mono mt-2">Toggle the FORECAST button on the Swap chart to generate entries</p>
           </div>
         ) : (
           <div className="rounded-lg border border-gold/15 overflow-hidden">

@@ -703,9 +703,74 @@ const TradingBridge = () => {
 
           {mobileTab === 'portfolio' && (
             <div className="p-3 space-y-4">
-              <PortfolioSummary />
-              {activeConn ? <PositionsPanel connectionId={activeConn.id} /> : <EmptyState text="Connect a broker to view positions" />}
-              {activeConn ? <OrderHistory connectionId={activeConn.id} /> : null}
+              {tradingMode === 'paper' ? (
+                <>
+                  {/* Paper Account Summary */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+                      <div className="text-[7px] text-marble/30 font-display tracking-wider">EQUITY</div>
+                      <div className="text-xs font-mono text-marble">${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                    </div>
+                    <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+                      <div className="text-[7px] text-marble/30 font-display tracking-wider">CASH</div>
+                      <div className="text-xs font-mono text-marble">${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                    </div>
+                    <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+                      <div className="text-[7px] text-marble/30 font-display tracking-wider">P&L</div>
+                      <div className={`text-xs font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {paper.account.totalPnl >= 0 ? '+' : ''}${paper.account.totalPnl.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Paper Positions */}
+                  {paper.positions.length > 0 ? (
+                    <div className="space-y-1">
+                      <div className="text-[8px] font-display tracking-wider text-emerald-400/60">PAPER POSITIONS ({paper.positions.length})</div>
+                      {paper.positions.map(pos => {
+                        const isProfit = pos.pnl >= 0;
+                        return (
+                          <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
+                            <div>
+                              <span className="text-[10px] font-mono text-marble">{pos.symbol}</span>
+                              <span className="text-[8px] text-marble/25 ml-1">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-mono ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {isProfit ? '+' : ''}${pos.pnl.toFixed(2)}
+                              </span>
+                              <button
+                                onClick={() => paper.closePosition(pos.id, pos.currentPrice)}
+                                className="text-[7px] font-display tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400/70 border border-red-500/15 hover:bg-red-500/20"
+                              >SELL</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-marble/20 text-[10px] font-display tracking-wider">NO OPEN PAPER POSITIONS</div>
+                  )}
+                  {/* Paper Order History */}
+                  {paper.orders.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[8px] font-display tracking-wider text-marble/30">RECENT ORDERS ({paper.orders.length})</div>
+                      {paper.orders.slice(0, 10).map(o => (
+                        <div key={o.id} className="flex items-center justify-between p-1.5 bg-navy-light/10 rounded text-[9px] font-mono">
+                          <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
+                          <span className="text-marble/40">{o.symbol}</span>
+                          <span className="text-marble/30">{o.qty} @ ${o.price.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <PortfolioSummary />
+                  {activeConn ? <PositionsPanel connectionId={activeConn.id} /> : <EmptyState text="Connect a broker to view positions" />}
+                  {activeConn ? <OrderHistory connectionId={activeConn.id} /> : null}
+                </>
+              )}
             </div>
           )}
 
@@ -882,7 +947,7 @@ const TradingBridge = () => {
             GOLD ARROW
           </Link>
           <span className="text-gold/20">|</span>
-          <span className="font-display text-xs tracking-[0.2em] text-marble/40">TRADING BRIDGE</span>
+          <span className="font-display text-xs tracking-[0.2em] text-marble/40">SWAP</span>
           <ModeToggle />
           <button
             onClick={() => setBrokerDialogOpen(true)}
@@ -892,7 +957,6 @@ const TradingBridge = () => {
           </button>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
@@ -1234,26 +1298,23 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
   // Build equity curve from actual paper orders (simulated replay)
   const pnlCurve = useMemo(() => {
     if (isLive) {
-      // For live: simulate from equity
-      const pts = [];
-      let val = equity || 10000;
-      for (let i = 30; i >= 0; i--) {
-        val += (Math.random() - 0.48) * val * 0.02;
-        pts.push({ day: `D-${i}`, value: Math.round(val) });
+      // Live mode: show current equity point only (no fake data)
+      if (equity > 0) {
+        return [{ day: 'NOW', value: Math.round(equity) }];
       }
-      return pts;
+      return [{ day: 'NOW', value: 0 }];
     }
-    // For paper: replay order history to build real equity curve
+    // Paper mode: replay order history with real cash flow tracking
     const sortedOrders = [...paper.orders].sort((a, b) => a.filledAt - b.filledAt);
     if (sortedOrders.length === 0) {
       return [{ day: 'START', value: paper.account.startingBalance }, { day: 'NOW', value: Math.round(equity) }];
     }
-    let runningEquity = paper.account.startingBalance;
-    const pts = [{ day: 'START', value: runningEquity }];
+    let runningCash = paper.account.startingBalance;
+    const pts = [{ day: 'START', value: runningCash }];
     sortedOrders.forEach((o, i) => {
-      const delta = o.side === 'sell' ? o.price * o.qty * 0.01 : -o.price * o.qty * 0.005;
-      runningEquity += delta;
-      pts.push({ day: `T${i + 1}`, value: Math.round(runningEquity) });
+      const tradeValue = o.price * o.qty;
+      runningCash += o.side === 'sell' ? tradeValue : -tradeValue;
+      pts.push({ day: `T${i + 1}`, value: Math.round(runningCash) });
     });
     pts.push({ day: 'NOW', value: Math.round(equity) });
     return pts;
@@ -1588,6 +1649,7 @@ function StrategiesPanel() {
       <div className="flex items-center gap-2">
         <Bot className="w-4 h-4 text-gold" />
         <span className="font-display text-sm tracking-wider text-gold-light">STRATEGY AUTOMATION</span>
+        <span className="text-[7px] font-display tracking-[0.2em] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/20">COMING SOON</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1711,6 +1773,7 @@ function SocialPanel() {
       <div className="flex items-center gap-2">
         <Users className="w-4 h-4 text-gold" />
         <span className="font-display text-sm tracking-wider text-gold-light">SOCIAL TRADING</span>
+        <span className="text-[7px] font-display tracking-[0.2em] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/20">COMING SOON</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

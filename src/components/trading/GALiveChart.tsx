@@ -1,7 +1,7 @@
 /**
- * Gold Arrow LIVE — Trading Bridge Chart
+ * Gold Arrow LIVE — Swap Terminal Chart
  * Based on the clean GALiveStandalone widget with prop interface
- * for symbol sync with the Trading Bridge panel.
+ * for symbol sync with the Swap terminal panel.
  */
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useChartZoom } from '@/hooks/useChartZoom';
@@ -540,7 +540,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
 };
 
 // ═══════════════════════════════════════════════════════════
-// GOLD ARROW LIVE — Trading Bridge Chart
+// GOLD ARROW LIVE — Swap Terminal Chart
 // ═══════════════════════════════════════════════════════════
 const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
   const [tf, setTf] = useState<Timeframe>('RT');
