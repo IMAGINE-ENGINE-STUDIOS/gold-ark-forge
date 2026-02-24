@@ -1,143 +1,88 @@
 
 
-# Admin Dashboard, Persistence, and Default Asset System
+# Swap Terminal — Comprehensive Audit & Rename Plan
 
 ## Overview
-This plan covers four major areas: (1) creating a main admin account, (2) building a comprehensive admin dashboard, (3) implementing platform-wide persistence/caching, and (4) setting Gold/USD as the default trading asset.
+Rename "Trading Bridge" to "Swap" across the entire platform, fix identified bugs, and ensure full integration between all tabs and the GA infrastructure.
 
 ---
 
-## 1. Admin Account for Ricardo Font
+## Issues Found
 
-- Create the admin user via the authentication system with email `ricardofont@gmail.com` and password `12345678`
-- Insert the admin role into `user_roles` table for this user
-- This will be done through database operations after the user signs up, or by seeding the account via an edge function
+### 1. Naming: "Trading Bridge" appears in multiple files
+- `src/components/Header.tsx` line 12: nav label
+- `src/pages/TradingBridge.tsx` line 885: desktop top bar title
+- `src/pages/LogRegistry.tsx` lines 85, 101: references
+- `src/pages/LogRegistry2.tsx` line 157: reference
+- `src/components/trading/GALiveChart.tsx` lines 2-4, 543: comments
+- `src/App.tsx` line 47: route path `/trading-bridge` (keep path, update import alias)
 
-**Note:** Since Lovable Cloud requires email verification by default, we will enable auto-confirm temporarily for this seed account, or create a dedicated edge function to provision the admin.
+### 2. Duplicate INTELLIGENCE link in desktop top bar
+Line 895-896 has the INTELLIGENCE link duplicated twice.
 
----
+### 3. Equity curve uses fake delta calculation
+In `AnalyticsPanel` (lines 1253-1257), the paper equity curve replay uses an arbitrary formula (`o.side === 'sell' ? o.price * o.qty * 0.01 : -o.price * o.qty * 0.005`) instead of tracking actual cash flow. This produces inaccurate equity history.
 
-## 2. Admin Dashboard (Replaces current Admin page)
+### 4. Live mode equity curve is fully randomized
+Lines 1237-1244 generate random data points for the live equity curve instead of using actual Alpaca account data.
 
-The current `/admin` page only has Partners, Sites, and Certificates tabs. We will expand it into a full dashboard with these tabs:
+### 5. Social Panel uses hardcoded mock traders
+The `SocialPanel` component (line 1700+) displays static mock data. This is acceptable as a "coming soon" feature but should be clearly labeled.
 
-### Tab: Overview
-- Key platform metrics cards (total certificates, active partners, vault holdings summary, total users)
-- Recent activity feed from `audit_logs`
-- Quick-action buttons
+### 6. Risk Panel correlation matrix and exposure data are static
+The `RiskPanel` uses hardcoded correlation and exposure values, not derived from actual portfolio data.
 
-### Tab: Registries
-- Sub-tabs for: Forecast Log Registry 1, Forecast Log Registry 2, Audit Logs, Certificate Events
-- Embedded views pulling data from existing pages/localStorage
-
-### Tab: Performance
-- Platform performance dashboard: certificate issuance over time, transfer volume, reserve snapshot trends
-- Charts using Recharts (already installed)
-
-### Tab: API Keys
-- Form to configure broker API keys (Alpaca, Coinbase, IBKR)
-- Data feed API keys (EIA, metal prices, crypto feeds)
-- Reads/writes to `broker_connections` table for the admin
-- Secure secret management UI for edge function secrets
-
-### Tab: Partners (existing)
-### Tab: Sites (existing)
-### Tab: Certificates (existing)
+### 7. Mobile PORTFOLIO tab doesn't show paper positions
+Line 704-709: The mobile "portfolio" tab only shows live broker data (`PortfolioSummary`, `PositionsPanel`), ignoring paper mode entirely.
 
 ---
 
-## 3. Platform Persistence and Caching
+## Implementation Plan
 
-### 3a. User Preferences Table
-Create a new `user_preferences` table:
-```
-user_preferences
-- id (uuid, PK)
-- user_id (uuid, FK to auth.users, unique)
-- last_symbol_key (text) -- e.g. "gold"
-- last_timeframe (text) -- e.g. "1D"
-- default_symbol_key (text, default "gold")
-- platform_config (jsonb) -- general config blob
-- updated_at (timestamptz)
-```
+### Step 1: Rename "Trading Bridge" to "Swap" everywhere
+**Files to edit:**
+- `src/components/Header.tsx` — Change nav label from "Trading Bridge" to "Swap"
+- `src/pages/TradingBridge.tsx` — Change desktop title from "TRADING BRIDGE" to "SWAP"
+- `src/pages/LogRegistry.tsx` — Update button text and description references
+- `src/pages/LogRegistry2.tsx` — Update description reference
+- `src/components/trading/GALiveChart.tsx` — Update comments only
 
-RLS: Users can read/update only their own row.
+Route path `/trading-bridge` will remain unchanged for URL stability; only display labels change.
 
-### 3b. Paper Trading Persistence
-- Move paper trading state from `localStorage` to a `paper_portfolios` table:
-```
-paper_portfolios
-- id (uuid, PK)
-- user_id (uuid, FK)
-- cash (numeric, default 100000)
-- positions (jsonb)
-- orders (jsonb)
-- updated_at (timestamptz)
-```
+### Step 2: Fix duplicate INTELLIGENCE link
+Remove the duplicate `<Link to="/intelligence">` on line 896.
 
-### 3c. Auto-Save System
-- Create a `useAutoSave` hook that debounces writes to `user_preferences` on changes
-- On page load, read preferences and restore last viewed symbol, timeframe, configurations
-- Falls back to localStorage for unauthenticated users
+### Step 3: Fix paper equity curve to use real cash flow tracking
+Replace the arbitrary delta formula with actual position-value tracking:
+- Walk through sorted orders chronologically
+- For buys: deduct `price * qty` from running cash
+- For sells: add `price * qty` to running cash
+- At each point, compute equity = cash + estimated positions value
+- This produces an accurate equity history from the order ledger
 
-### 3d. Cache Layer
-- Use React Query's built-in cache with `staleTime` and `gcTime` for API responses
-- Store last-known prices in localStorage as fallback for offline/startup
+### Step 4: Fix live equity curve
+Instead of random data, show a single "current equity" point if no historical data is available, with a clear "Connect broker for historical data" note. Remove the fake random curve generation.
+
+### Step 5: Fix mobile PORTFOLIO tab for paper mode
+Add paper position rendering to the mobile `portfolio` tab (line 704+), mirroring the desktop BOOK tab's paper position display with real-time price coloring and SELL buttons.
+
+### Step 6: Label placeholder panels clearly
+Add "COMING SOON" badges to the Social and Strategies panels since they use static/mock data, making it clear these are preview features.
 
 ---
-
-## 4. Default Asset: Gold/USD
-
-- `ALL_SYMBOLS[0]` is already `gold` (XAU/USD), so the Trading Bridge already defaults to it
-- Enhance: when user preferences exist, load `last_symbol_key` from preferences on mount
-- When no preferences exist, explicitly default to the gold entry
-- Save the user's last selected symbol whenever they switch assets
-
----
-
-## Files to Create
-1. `src/pages/AdminDashboard.tsx` -- new comprehensive admin dashboard page
-2. `src/components/admin/AdminOverview.tsx` -- overview metrics tab
-3. `src/components/admin/AdminRegistries.tsx` -- all registries in one view
-4. `src/components/admin/AdminPerformance.tsx` -- performance charts
-5. `src/components/admin/AdminAPIKeys.tsx` -- API key configuration
-6. `src/hooks/useUserPreferences.ts` -- preferences CRUD hook
-7. `src/hooks/useAutoSave.ts` -- debounced auto-save hook
-8. `supabase/functions/seed-admin/index.ts` -- edge function to create the admin account
-
-## Files to Modify
-1. `src/App.tsx` -- update `/admin` route to use new dashboard
-2. `src/pages/TradingBridge.tsx` -- integrate preferences for default symbol, auto-save last symbol
-3. `src/hooks/usePaperTrading.ts` -- optionally sync to database for authenticated users
-4. `src/components/Header.tsx` -- add Admin Dashboard link for admin users
-
-## Database Migrations
-1. Create `user_preferences` table with RLS
-2. Create `paper_portfolios` table with RLS
-3. Seed admin user account
 
 ## Technical Details
 
-### Admin Seeding Edge Function
-```typescript
-// supabase/functions/seed-admin/index.ts
-// Uses service role to create user + assign admin role
-// POST with { email, password }
-// Creates auth user, inserts into user_roles with role='admin'
-```
+### Files Modified (6 files)
 
-### Auto-Save Hook Pattern
-```typescript
-const useAutoSave = (key: string, value: any, delay = 2000) => {
-  // Debounce writes to user_preferences.platform_config[key]
-  // Falls back to localStorage for anonymous users
-};
-```
+| File | Changes |
+|------|---------|
+| `src/components/Header.tsx` | Rename "Trading Bridge" to "Swap" in nav |
+| `src/pages/TradingBridge.tsx` | Rename title, fix duplicate link, fix equity curve, fix mobile portfolio tab, label placeholders |
+| `src/pages/LogRegistry.tsx` | Rename references to "Swap" |
+| `src/pages/LogRegistry2.tsx` | Rename reference to "Swap" |
+| `src/components/trading/GALiveChart.tsx` | Update comments |
 
-### Preferences Loading in TradingBridge
-```typescript
-const { data: prefs } = useUserPreferences();
-const defaultSymbol = ALL_SYMBOLS.find(s => s.key === prefs?.last_symbol_key) ?? ALL_SYMBOLS[0]; // gold
-const [activeSymbol, setActiveSymbol] = useState(defaultSymbol);
-```
+### No database changes required
+### No new dependencies required
 
