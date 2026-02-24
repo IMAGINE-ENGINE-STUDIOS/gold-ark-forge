@@ -154,7 +154,7 @@ const LogRegistry2 = () => {
           <div className="text-center py-20">
             <BarChart3 className="w-12 h-12 text-gold/20 mx-auto mb-4" />
             <p className="text-marble/30 font-display text-sm tracking-wider">NO FORECAST ENTRIES YET</p>
-            <p className="text-marble/15 text-xs font-mono mt-2">Toggle the WAVE button on the Trading Bridge chart to generate entries</p>
+            <p className="text-marble/15 text-xs font-mono mt-2">Toggle the WAVE button on the Swap chart to generate entries</p>
           </div>
         ) : (
           <div className="rounded-lg border border-gold/15 overflow-hidden">
