@@ -61,6 +61,13 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import OrderConfirmationDialog, { OrderConfirmationData } from '@/components/trading/OrderConfirmationDialog';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import RiskThermometer from '@/components/trading/RiskThermometer';
+import { showTradeRecap } from '@/components/trading/TradeRecapToast';
+import FirstTradeGuide from '@/components/trading/FirstTradeGuide';
+import DrawdownChart from '@/components/trading/DrawdownChart';
+import SessionBreakdown from '@/components/trading/SessionBreakdown';
+import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 
 // ─── Collapsible Section Component ───────────────────────
 function CollapsibleSection({ 
@@ -163,10 +170,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         price: activePrice,
         limitPrice: orderType === 'limit' || orderType === 'stop_limit' ? parseFloat(limitPrice) : undefined,
       });
-      toast({
-        title: `Paper ${side.toUpperCase()} Filled`,
-        description: `${qty} ${activeSymbol.ticker} @ $${activePrice.toLocaleString()}`,
-      });
+      showTradeRecap({ side, qty: parseFloat(qty), symbol: activeSymbol.ticker, price: activePrice });
       setQty('');
     } catch (err) {
       toast({ title: 'Order Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
@@ -437,6 +441,9 @@ function TradeTabContent({
 
       {/* Column 3: Portfolio */}
       <div className="space-y-3">
+        {tradingMode === 'paper' && (
+          <RiskThermometer positions={paper.positions} equity={paper.account.equity} />
+        )}
         <CollapsibleSection title="PORTFOLIO" icon={Briefcase} defaultOpen>
           <PortfolioSummary />
         </CollapsibleSection>
@@ -933,6 +940,7 @@ const TradingBridge = () => {
           ))}
         </div>
         <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
+        <FirstTradeGuide />
       </div>
     );
   }
@@ -1119,21 +1127,24 @@ const TradingBridge = () => {
                           {paper.positions.map(pos => {
                             const isProfit = pos.currentPrice >= pos.entryPrice;
                             return (
-                              <div key={pos.id} className="flex items-center justify-between p-2.5 bg-navy-light/20 rounded border border-gold/5">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
-                                  <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
-                                  <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                              <div key={pos.id} className="p-2.5 bg-navy-light/20 rounded border border-gold/5">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${pos.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>{pos.side.toUpperCase()}</span>
+                                    <span className="text-[11px] font-mono text-marble/70">{pos.symbol}</span>
+                                    <span className="text-[9px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                                      ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                      {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+                                    </span>
+                                    <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[9px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20">SELL</button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <span className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </span>
-                                  <span className={`text-[10px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
-                                  </span>
-                                  <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[9px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20">SELL</button>
-                                </div>
+                                <PnlExplainer pos={pos} />
                               </div>
                             );
                           })}
@@ -1259,6 +1270,7 @@ const TradingBridge = () => {
         </div>
       </div>
       <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
+      <FirstTradeGuide />
     </div>
   );
 };
@@ -1367,6 +1379,69 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
 
   const PIE_COLORS = ['hsl(43,72%,50%)', 'hsl(210,6%,67%)', 'hsl(142,71%,45%)', 'hsl(217,91%,60%)', 'hsl(262,83%,58%)', 'hsl(0,84%,60%)', 'hsl(180,50%,45%)'];
 
+  // ─── Advanced Metrics ───────────────────────────────
+  const { sharpe, sortino, calmar, maxDrawdown } = useMemo(() => {
+    if (pnlCurve.length < 3) return { sharpe: 0, sortino: 0, calmar: 0, maxDrawdown: 0 };
+    const values = pnlCurve.map(p => p.value);
+    const returns = values.slice(1).map((v, i) => values[i] > 0 ? (v - values[i]) / values[i] : 0);
+    if (returns.length === 0) return { sharpe: 0, sortino: 0, calmar: 0, maxDrawdown: 0 };
+
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    const sharpe = stdDev > 0 ? (mean / stdDev) * Math.sqrt(252) : 0;
+
+    // Sortino: downside deviation only
+    const negReturns = returns.filter(r => r < 0);
+    const downVar = negReturns.length > 0 ? negReturns.reduce((s, r) => s + r ** 2, 0) / negReturns.length : 0;
+    const downDev = Math.sqrt(downVar);
+    const sortino = downDev > 0 ? (mean / downDev) * Math.sqrt(252) : 0;
+
+    // Max Drawdown
+    let peak = values[0];
+    let maxDD = 0;
+    values.forEach(v => {
+      if (v > peak) peak = v;
+      const dd = peak > 0 ? (v - peak) / peak : 0;
+      if (dd < maxDD) maxDD = dd;
+    });
+
+    // Calmar = annualized return / |max drawdown|
+    const totalReturn = values.length > 1 ? (values[values.length - 1] - values[0]) / values[0] : 0;
+    const calmar = Math.abs(maxDD) > 0 ? (totalReturn * (252 / Math.max(returns.length, 1))) / Math.abs(maxDD) : 0;
+
+    return { sharpe, sortino, calmar, maxDrawdown: maxDD * 100 };
+  }, [pnlCurve]);
+
+  // CSV export
+  const exportCSV = useCallback(() => {
+    const orders = isLive ? [] : paper.orders;
+    if (orders.length === 0) return;
+    const header = 'ID,Symbol,Side,Qty,Type,Price,Status,FilledAt\n';
+    const rows = orders.map(o =>
+      `${o.id},${o.symbol},${o.side},${o.qty},${o.type},${o.price},${o.status},${new Date(o.filledAt).toISOString()}`
+    ).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `trade-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }, [isLive, paper.orders]);
+
+  // Glossary definitions
+  const glossary: Record<string, string> = {
+    'EQUITY': 'Total value of your account including cash and all open positions.',
+    'CASH': 'Available cash not currently invested in any position.',
+    'POSITIONS': 'Number of assets you currently hold.',
+    'TOTAL TRADES': 'Total number of orders you have executed.',
+    'WIN RATE': 'Percentage of trades that were profitable.',
+    'UNREAL. P&L': 'Unrealized profit or loss on open positions — gains/losses not yet locked in.',
+    'SHARPE': 'Risk-adjusted return. Higher is better. Measures return per unit of total volatility.',
+    'MAX DD': 'Maximum peak-to-trough decline. Shows worst-case loss from highest point.',
+    'SORTINO': 'Like Sharpe but only penalizes downside volatility. Better for asymmetric returns.',
+    'CALMAR': 'Annualized return divided by max drawdown. Higher means better recovery from losses.',
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1377,27 +1452,46 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
             {isLive ? 'LIVE' : 'PAPER'}
           </span>
         </div>
+        {!isLive && paper.orders.length > 0 && (
+          <button onClick={exportCSV} className="flex items-center gap-1 text-[8px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors border border-gold/10 rounded px-2 py-1 hover:border-gold/30">
+            <Download className="w-3 h-3" /> EXPORT CSV
+          </button>
+        )}
       </div>
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {[
-          { label: 'EQUITY', value: `$${equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, icon: Briefcase, color: 'text-gold' },
-          { label: 'CASH', value: `$${cashBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'text-marble' },
-          { label: 'POSITIONS', value: positionCount.toString(), icon: Layers, color: 'text-marble' },
-          { label: 'TOTAL TRADES', value: totalTrades.toString(), icon: Activity, color: 'text-marble' },
-          { label: 'WIN RATE', value: `${Math.round(winRate)}%`, icon: Percent, color: winRate >= 50 ? 'text-emerald-400' : 'text-red-400' },
-          { label: 'UNREAL. P&L', value: `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`, icon: TrendingUp, color: totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400' },
-        ].map((kpi) => (
-          <div key={kpi.label} className="bg-navy-light/30 rounded-lg p-2 sm:p-3 border border-gold/5">
-            <div className="flex items-center gap-1 mb-1">
-              <kpi.icon className="w-3 h-3 text-marble/25" />
-              <span className="text-[7px] sm:text-[8px] font-display tracking-wider text-marble/35">{kpi.label}</span>
-            </div>
-            <div className={`text-sm sm:text-base font-mono ${kpi.color}`}>{kpi.value}</div>
-          </div>
-        ))}
-      </div>
+      {/* KPI Row with Glossary Tooltips */}
+      <TooltipProvider delayDuration={200}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-2">
+          {[
+            { label: 'EQUITY', value: `$${equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, icon: Briefcase, color: 'text-gold' },
+            { label: 'CASH', value: `$${cashBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'text-marble' },
+            { label: 'POSITIONS', value: positionCount.toString(), icon: Layers, color: 'text-marble' },
+            { label: 'TOTAL TRADES', value: totalTrades.toString(), icon: Activity, color: 'text-marble' },
+            { label: 'WIN RATE', value: `${Math.round(winRate)}%`, icon: Percent, color: winRate >= 50 ? 'text-emerald-400' : 'text-red-400' },
+            { label: 'UNREAL. P&L', value: `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`, icon: TrendingUp, color: totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400' },
+            { label: 'SHARPE', value: pnlCurve.length < 3 ? '—' : sharpe.toFixed(2), icon: BarChart2, color: sharpe > 1 ? 'text-emerald-400' : sharpe > 0 ? 'text-marble' : 'text-red-400' },
+            { label: 'MAX DD', value: pnlCurve.length < 3 ? '—' : `${maxDrawdown.toFixed(1)}%`, icon: TrendingDown, color: 'text-red-400' },
+            { label: 'SORTINO', value: pnlCurve.length < 3 ? '—' : sortino.toFixed(2), icon: Shield, color: sortino > 1 ? 'text-emerald-400' : sortino > 0 ? 'text-marble' : 'text-red-400' },
+            { label: 'CALMAR', value: pnlCurve.length < 3 ? '—' : calmar.toFixed(2), icon: Award, color: calmar > 1 ? 'text-emerald-400' : calmar > 0 ? 'text-marble' : 'text-red-400' },
+          ].map((kpi) => (
+            <RadixTooltip key={kpi.label}>
+              <TooltipTrigger asChild>
+                <div className="bg-navy-light/30 rounded-lg p-2 sm:p-3 border border-gold/5 cursor-help">
+                  <div className="flex items-center gap-1 mb-1">
+                    <kpi.icon className="w-3 h-3 text-marble/25" />
+                    <span className="text-[7px] sm:text-[8px] font-display tracking-wider text-marble/35">{kpi.label}</span>
+                    <HelpCircle className="w-2.5 h-2.5 text-marble/15" />
+                  </div>
+                  <div className={`text-sm sm:text-base font-mono ${kpi.color}`}>{kpi.value}</div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px]">
+                <p className="text-xs">{glossary[kpi.label] || kpi.label}</p>
+              </TooltipContent>
+            </RadixTooltip>
+          ))}
+        </div>
+      </TooltipProvider>
 
       {/* ROI + Best/Worst highlights */}
       {!isLive && (
@@ -1474,6 +1568,12 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
         </div>
       </div>
 
+      {/* Drawdown Chart (Pro) */}
+      <DrawdownChart equityCurve={pnlCurve} />
+
+      {/* Session Breakdown (Pro) */}
+      {!isLive && <SessionBreakdown orders={paper.orders} />}
+
       {/* Position P&L Breakdown */}
       {positionPnlData.length > 0 && (
         <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
@@ -1491,6 +1591,18 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── P&L Explainer Helper ─────────────────────────────────
+function PnlExplainer({ pos }: { pos: { entryPrice: number; currentPrice: number; qty: number; side: string } }) {
+  const diff = pos.side === 'buy' ? pos.currentPrice - pos.entryPrice : pos.entryPrice - pos.currentPrice;
+  const pnl = diff * pos.qty;
+  const direction = diff >= 0 ? 'rose' : 'fell';
+  return (
+    <div className="text-[8px] font-mono text-marble/25 mt-0.5">
+      {pnl >= 0 ? '↑' : '↓'} Price {direction} from ${pos.entryPrice.toFixed(2)} to ${pos.currentPrice.toFixed(2)} × {pos.qty} = {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
     </div>
   );
 }
