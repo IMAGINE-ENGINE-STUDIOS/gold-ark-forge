@@ -5,6 +5,7 @@ import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tool
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
+import GALivePriceNotice from '@/components/ga-widgets/GALivePriceNotice';
 
 import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
@@ -498,11 +499,11 @@ const TradingBridge = () => {
     })).filter(cat => cat.items.length > 0);
   }, [symbolSearch]);
 
-  // Resolve current price for DOM widget
-  const activePrice = useMemo(() => {
-    const sym = activeSymbol;
+  // ─── Unified Price Resolver ──────────────────────────
+  // Single source of truth for price resolution across ALL tabs
+  const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
     if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', copper: 'gold' };
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
       const key = metalMap[sym.key];
       return key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
     }
@@ -511,47 +512,57 @@ const TradingBridge = () => {
       return coin?.current_price ?? 0;
     }
     if (sym.cat === 'energy') {
-      const oilMap: Record<string, string> = { oil: 'WTI', brent: 'BRENT', natgas: 'NG', rbob: 'RBOB' };
-      const feed = oilPricesData?.find(p => p.symbol === oilMap[sym.key]);
-      return feed?.price ?? 0;
-    }
-    const sp = SYNTHETIC_PRICES[sym.key];
-    return sp?.p ?? 100;
-  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
-
-  // Build a price map for all held paper positions and keep them updated
-  const resolvePriceForTicker = useCallback((ticker: string): number => {
-    // Find the symbol definition matching this ticker
-    const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
-    if (!sym) return 0;
-    if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', copper: 'gold' };
-      const key = metalMap[sym.key];
-      return key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
-    }
-    if (sym.cat === 'crypto') {
-      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
-      return coin?.current_price ?? 0;
-    }
-    if (sym.cat === 'energy') {
-      const oilMap: Record<string, string> = { oil: 'WTI', brent: 'BRENT', natgas: 'NG', rbob: 'RBOB' };
-      const feed = oilPricesData?.find(p => p.symbol === oilMap[sym.key]);
-      return feed?.price ?? 0;
+      // Match directly by ticker to API symbol (CL, BZ, NG, HO, RB)
+      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
+      if (feed) return feed.price;
+      // Fallback to synthetic
     }
     const sp = SYNTHETIC_PRICES[sym.key];
     return sp?.p ?? 0;
   }, [metalPricesData, cryptoDataAll, oilPricesData]);
 
-  // Keep paper position prices synced with live data
+  // Resolve current price for active symbol
+  const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
+
+  // Resolve change % for active symbol
+  const activeChange = useMemo(() => {
+    const sym = activeSymbol;
+    if (sym.cat === 'metals') {
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
+      const key = metalMap[sym.key];
+      return key ? (metalPricesData?.[key]?.change_24h ?? 0) : 0;
+    }
+    if (sym.cat === 'crypto') {
+      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
+      return coin?.price_change_percentage_24h ?? 0;
+    }
+    if (sym.cat === 'energy') {
+      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
+      if (feed) return feed.change;
+    }
+    return SYNTHETIC_PRICES[sym.key]?.c ?? 0;
+  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
+
+  // Build a price map for all held paper positions and keep them updated
+  const resolvePriceForTicker = useCallback((ticker: string): number => {
+    const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
+    if (!sym) return 0;
+    return resolveSymbolPrice(sym);
+  }, [resolveSymbolPrice]);
+
+  // Keep paper position prices synced with live data on every data tick
   useEffect(() => {
     if (paper.positions.length === 0) return;
     const priceMap: Record<string, number> = {};
     paper.positions.forEach(pos => {
-      const price = resolvePriceForTicker(pos.symbol);
-      if (price > 0) priceMap[pos.symbol] = price;
+      const sym = ALL_SYMBOLS.find(s => s.ticker === pos.symbol);
+      if (sym) {
+        const price = resolveSymbolPrice(sym);
+        if (price > 0) priceMap[pos.symbol] = price;
+      }
     });
     if (Object.keys(priceMap).length > 0) paper.updatePrices(priceMap);
-  }, [paper.positions.length, resolvePriceForTicker, activePrice]);
+  }, [paper.positions.length, resolveSymbolPrice, metalPricesData, cryptoDataAll, oilPricesData]);
 
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
@@ -731,9 +742,19 @@ const TradingBridge = () => {
               )}
               {bottomTab === 'book' && tradingMode === 'paper' && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS</span>
+                    </div>
+                    <GALivePriceNotice
+                      price={activePrice}
+                      symbol={activeSymbol.ticker}
+                      label={activeSymbol.label}
+                      change={activeChange}
+                      category={activeSymbol.cat}
+                      size="sm"
+                    />
                   </div>
                   {paper.positions.length > 0 ? (
                     <div className="space-y-1">
@@ -1015,9 +1036,19 @@ const TradingBridge = () => {
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS & ORDERS</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS & ORDERS</span>
+                        </div>
+                        <GALivePriceNotice
+                          price={activePrice}
+                          symbol={activeSymbol.ticker}
+                          label={activeSymbol.label}
+                          change={activeChange}
+                          category={activeSymbol.cat}
+                          size="sm"
+                        />
                       </div>
                       {paper.positions.length > 0 ? (
                         <div className="space-y-1">
@@ -1130,30 +1161,37 @@ const TradingBridge = () => {
         </div>
       </div>
 
-      {/* Status Bar */}
-      <div className="h-6 flex items-center justify-between px-3 bg-navy-dark border-t border-gold/10 flex-shrink-0">
-        <div className="flex items-center gap-4">
+      {/* Status Bar with Live Price Notice */}
+      <div className="h-8 flex items-center justify-between px-3 bg-navy-dark border-t border-gold/10 flex-shrink-0">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className={`w-1.5 h-1.5 rounded-full ${tradingMode === 'paper' ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
             <span className={`text-[9px] font-mono ${tradingMode === 'paper' ? 'text-emerald-400/50' : 'text-red-400/50'}`}>
-              {tradingMode === 'paper' ? 'PAPER MODE' : 'LIVE MODE'}
+              {tradingMode === 'paper' ? 'PAPER' : 'LIVE'}
             </span>
           </div>
-          <span className="text-[9px] font-mono text-marble/20">{activeSymbol.label}</span>
-          <span className="text-[9px] font-mono text-marble/15 uppercase">{activeSymbol.cat}</span>
+          {/* GA Live Price Notice — real-time targeted asset price */}
+          <GALivePriceNotice
+            price={activePrice}
+            symbol={activeSymbol.ticker}
+            label={activeSymbol.label}
+            change={activeChange}
+            category={activeSymbol.cat}
+            size="sm"
+          />
           {activePrice > 0 && (
-            <span className="text-[9px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
+            <span className="text-[8px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
           )}
-          <span className="text-[9px] font-mono text-marble/15">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
+          <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {tradingMode === 'paper' && (
-            <span className="text-[9px] font-mono text-emerald-400/30">
-              PAPER: ${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })} · {paper.positions.length} pos
+            <span className="text-[8px] font-mono text-emerald-400/30">
+              EQ: ${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })} · {paper.positions.length} pos
             </span>
           )}
-          <span className="text-[9px] font-mono text-marble/20">NON-CUSTODIAL</span>
-          <span className="text-[9px] font-mono text-marble/20">GOLD ARROW v3.0</span>
+          <span className="text-[8px] font-mono text-marble/15">NON-CUSTODIAL</span>
+          <span className="text-[8px] font-mono text-marble/15">GA v3.0</span>
         </div>
       </div>
       <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
