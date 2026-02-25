@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface PaperPosition {
   id: string;
@@ -35,7 +36,7 @@ export interface PaperAccount {
 
 const STARTING_BALANCE = 100_000;
 
-const loadState = () => {
+const loadLocal = () => {
   try {
     const raw = localStorage.getItem('ga_paper_trading');
     if (raw) return JSON.parse(raw);
@@ -43,21 +44,66 @@ const loadState = () => {
   return null;
 };
 
-const saveState = (positions: PaperPosition[], orders: PaperOrder[], cash: number) => {
+const saveLocal = (positions: PaperPosition[], orders: PaperOrder[], cash: number) => {
   try {
     localStorage.setItem('ga_paper_trading', JSON.stringify({ positions, orders, cash }));
   } catch { /* ignore */ }
 };
 
-export const usePaperTrading = () => {
-  const saved = loadState();
+export const usePaperTrading = (userId?: string | null) => {
+  const saved = loadLocal();
   const [positions, setPositions] = useState<PaperPosition[]>(saved?.positions ?? []);
   const [orders, setOrders] = useState<PaperOrder[]>(saved?.orders ?? []);
   const [cash, setCash] = useState<number>(saved?.cash ?? STARTING_BALANCE);
+  const [cloudLoaded, setCloudLoaded] = useState(false);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load from cloud on mount if authenticated
+  useEffect(() => {
+    if (!userId) { setCloudLoaded(true); return; }
+    const load = async () => {
+      try {
+        const { data } = await supabase
+          .from('paper_portfolios')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (data) {
+          const cloudPositions = (data.positions as any[]) ?? [];
+          const cloudOrders = (data.orders as any[]) ?? [];
+          const cloudCash = Number(data.cash) || STARTING_BALANCE;
+          setPositions(cloudPositions);
+          setOrders(cloudOrders);
+          setCash(cloudCash);
+          saveLocal(cloudPositions, cloudOrders, cloudCash);
+        }
+      } catch { /* fallback to local */ }
+      setCloudLoaded(true);
+    };
+    load();
+  }, [userId]);
+
+  // Debounced cloud sync
+  const syncToCloud = useCallback((p: PaperPosition[], o: PaperOrder[], c: number) => {
+    if (!userId) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(async () => {
+      try {
+        await supabase.from('paper_portfolios').upsert({
+          user_id: userId,
+          positions: p as any,
+          orders: o as any,
+          cash: c,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      } catch { /* silent */ }
+    }, 2000);
+  }, [userId]);
 
   const persist = useCallback((p: PaperPosition[], o: PaperOrder[], c: number) => {
-    saveState(p, o, c);
-  }, []);
+    saveLocal(p, o, c);
+    syncToCloud(p, o, c);
+  }, [syncToCloud]);
 
   const submitOrder = useCallback((params: {
     symbol: string;
@@ -70,7 +116,6 @@ export const usePaperTrading = () => {
     const fillPrice = params.type === 'market' ? params.price : (params.limitPrice ?? params.price);
     const cost = fillPrice * params.qty;
 
-    // Check buying power
     if (params.side === 'buy' && cost > cash) {
       throw new Error(`Insufficient funds: need $${cost.toFixed(2)}, have $${cash.toFixed(2)}`);
     }
@@ -87,7 +132,6 @@ export const usePaperTrading = () => {
       filledAt: Date.now(),
     };
 
-    // Check if closing existing position
     const existingIdx = positions.findIndex(
       p => p.symbol === params.symbol && p.side !== params.side
     );
@@ -109,11 +153,10 @@ export const usePaperTrading = () => {
         newPositions[existingIdx] = { ...existing, qty: existing.qty - closeQty };
       }
     } else {
-      // Open new position
       if (params.side === 'buy') {
         newCash -= cost;
       } else {
-        newCash += cost; // Short sale proceeds
+        newCash += cost;
       }
 
       const existingSame = newPositions.findIndex(
@@ -172,12 +215,23 @@ export const usePaperTrading = () => {
     });
   }, [positions, submitOrder]);
 
-  const resetAccount = useCallback(() => {
+  const resetAccount = useCallback(async () => {
     setPositions([]);
     setOrders([]);
     setCash(STARTING_BALANCE);
     localStorage.removeItem('ga_paper_trading');
-  }, []);
+    if (userId) {
+      try {
+        await supabase.from('paper_portfolios').upsert({
+          user_id: userId,
+          positions: [] as any,
+          orders: [] as any,
+          cash: STARTING_BALANCE,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      } catch { /* silent */ }
+    }
+  }, [userId]);
 
   const account = useMemo<PaperAccount>(() => {
     const positionsValue = positions.reduce((s, p) => {
@@ -211,5 +265,6 @@ export const usePaperTrading = () => {
     closePosition,
     resetAccount,
     isPaper: true as const,
+    cloudLoaded,
   };
 };

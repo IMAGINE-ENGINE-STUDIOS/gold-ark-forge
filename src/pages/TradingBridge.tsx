@@ -53,6 +53,7 @@ import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { usePaperTrading } from '@/hooks/usePaperTrading';
+import { useAuth } from '@/hooks/useAuth';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { Link } from 'react-router-dom';
@@ -341,7 +342,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
                       {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
                     </div>
                   </div>
-                  <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">SELL</button>
+                  <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
                 </div>
               </div>
             );
@@ -495,7 +496,8 @@ const TradingBridge = () => {
   const { data: oilPricesData } = useOilGasPrices();
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
-  const paper = usePaperTrading();
+  const { user } = useAuth();
+  const paper = usePaperTrading(user?.id);
 
   // Filter watchlist by search
   const filteredCategories = useMemo(() => {
@@ -571,6 +573,21 @@ const TradingBridge = () => {
     });
     if (Object.keys(priceMap).length > 0) paper.updatePrices(priceMap);
   }, [paper.positions.length, resolveSymbolPrice, metalPricesData, cryptoDataAll, oilPricesData]);
+
+  // ─── Close Position with Notification ──────────────
+  const { toast } = useToast();
+  const handleClosePosition = useCallback((posId: string, price: number) => {
+    const pos = paper.positions.find(p => p.id === posId);
+    if (!pos) return;
+    const pnl = (price - pos.entryPrice) * pos.qty * (pos.side === 'buy' ? 1 : -1);
+    const pnlPct = pos.entryPrice > 0 ? ((pnl / (pos.entryPrice * pos.qty)) * 100) : 0;
+    paper.closePosition(posId, price);
+    showTradeRecap({ side: pos.side === 'buy' ? 'sell' : 'buy', qty: pos.qty, symbol: pos.symbol, price });
+    toast({
+      title: pnl >= 0 ? '🟢 Position Closed — Profit' : '🔴 Position Closed — Loss',
+      description: `${pos.symbol}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPct.toFixed(2)}%)`,
+    });
+  }, [paper.positions, paper.closePosition, toast]);
 
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
@@ -745,7 +762,8 @@ const TradingBridge = () => {
                           currentPrice={pos.currentPrice}
                           pnl={pos.pnl}
                           pnlPercent={pos.pnlPercent}
-                          onClose={(id, price) => paper.closePosition(id, price)}
+                          resolvedPrice={resolvePriceForTicker(pos.symbol)}
+                          onClose={(id, price) => handleClosePosition(id, price)}
                           onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
                         />
                       ))}
@@ -837,7 +855,8 @@ const TradingBridge = () => {
                           currentPrice={pos.currentPrice}
                           pnl={pos.pnl}
                           pnlPercent={pos.pnlPercent}
-                          onClose={(id, price) => paper.closePosition(id, price)}
+                          resolvedPrice={resolvePriceForTicker(pos.symbol)}
+                          onClose={(id, price) => handleClosePosition(id, price)}
                           onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
                         />
                       ))}
@@ -1126,7 +1145,8 @@ const TradingBridge = () => {
                               currentPrice={pos.currentPrice}
                               pnl={pos.pnl}
                               pnlPercent={pos.pnlPercent}
-                              onClose={(id, price) => paper.closePosition(id, price)}
+                              resolvedPrice={resolvePriceForTicker(pos.symbol)}
+                              onClose={(id, price) => handleClosePosition(id, price)}
                               onNavigate={(sym) => setActiveSymbol(sym)}
                             />
                           ))}
