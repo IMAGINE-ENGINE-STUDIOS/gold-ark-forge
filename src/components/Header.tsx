@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogIn, LogOut } from 'lucide-react';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
+import { useAuth } from '@/hooks/useAuth';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+  const { user, signOut } = useAuth();
   const navItems = [
     { label: 'Marketplace', href: '/marketplace' },
     { label: 'Markets', href: '/markets' },
@@ -62,7 +63,16 @@ const Header = () => {
             </Link>
 
             {/* Wallet Auth - Desktop */}
-            <div className="hidden md:flex items-center">
+            <div className="hidden md:flex items-center gap-3">
+              {user ? (
+                <button onClick={signOut} className="flex items-center gap-1 text-gold/60 hover:text-gold text-xs font-display tracking-wider transition-colors">
+                  <LogOut className="w-3.5 h-3.5" /> Sign Out
+                </button>
+              ) : (
+                <Link to="/login" className="flex items-center gap-1 text-gold/60 hover:text-gold text-xs font-display tracking-wider transition-colors">
+                  <LogIn className="w-3.5 h-3.5" /> Sign In
+                </Link>
+              )}
               <ConnectWalletButton />
             </div>
 
@@ -116,7 +126,16 @@ const Header = () => {
                 {item.label}
               </Link>
             ))}
-            <div className="pt-4">
+            <div className="pt-4 flex flex-col gap-3">
+              {user ? (
+                <button onClick={() => { signOut(); setIsMenuOpen(false); }} className="flex items-center gap-1 text-gold/60 hover:text-gold text-sm font-display tracking-wider transition-colors">
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              ) : (
+                <Link to="/login" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-1 text-gold/60 hover:text-gold text-sm font-display tracking-wider transition-colors">
+                  <LogIn className="w-4 h-4" /> Sign In
+                </Link>
+              )}
               <ConnectWalletButton />
             </div>
           </nav>
