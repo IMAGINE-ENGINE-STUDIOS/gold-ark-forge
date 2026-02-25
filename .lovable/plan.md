@@ -1,86 +1,86 @@
 
 
-# Swap Terminal: Advanced Analytics + Beginner & Pro Feature Gaps
+# Swap Terminal: Auth, Cloud Persistence, Sell Notifications & Live Position Pricing
 
-## 1. Add Sharpe Ratio & Max Drawdown to Analytics KPI Row
+## Problem Summary
 
-Currently the Analytics KPI row shows 6 metrics: Equity, Cash, Positions, Total Trades, Win Rate, and Unrealized P&L. We will add two new computed KPIs:
+1. **No login/register for paper accounts** -- Paper trading data is stored only in `localStorage`. There is no auth gate or user account system for the Swap terminal. The `paper_portfolios` table exists in the database with RLS but is never used.
 
-- **Sharpe Ratio** -- computed from the equity curve data points (daily returns standard deviation vs. mean, annualized). For paper mode this replays the order ledger; for live mode it shows "--" until enough data exists.
-- **Max Drawdown** -- tracks the largest peak-to-trough decline across the equity curve history. Displayed as a negative percentage in red.
+2. **Paper positions not persisted to cloud** -- `usePaperTrading` reads/writes `localStorage` only. If the user clears their browser or switches devices, all positions and order history are lost.
 
-The KPI grid expands from `grid-cols-6` to `grid-cols-4 lg:grid-cols-8` to accommodate both new cards cleanly on all screen sizes.
+3. **No sell notification** -- When closing a position via the SELL button on `PositionMiniCard`, `paper.closePosition()` calls `submitOrder()` but the sell path never calls `showTradeRecap()`. Only the `PaperTradingPanel` form calls `showTradeRecap()` after buy/sell, but direct position closes skip it entirely.
 
----
-
-## 2. Five Missing Features for Beginners
-
-After auditing the full Swap terminal, these are the gaps that would trip up anyone new to trading:
-
-| # | Feature | What It Solves |
-|---|---------|---------------|
-| B1 | **Glossary Tooltips** | Hover any KPI label (Sharpe, Drawdown, P&L, Win Rate, etc.) to see a plain-English explanation. Beginners don't know what "Sortino" means. |
-| B2 | **Trade Recap Card** | After every paper trade fills, show a summary card: "You bought 5 shares of XAU at $2,340. Your cost was $11,700. Here's what to watch." Currently there's zero post-trade feedback. |
-| B3 | **Risk Thermometer** | A simple visual gauge (green/yellow/red) in the TRADE tab showing "Your portfolio risk level" based on concentration and position size vs. account. Beginners over-concentrate. |
-| B4 | **Guided First Trade** | A one-time onboarding overlay on the Swap page: "1. Pick an asset, 2. Set quantity, 3. Click BUY." Currently the UI is dense with no guidance for first-time users. |
-| B5 | **P&L Explainer Row** | Below each position in the BOOK tab, show a single line: "You're up $12.50 because XAU rose from $2,340 to $2,342.50 (x5 shares)." Beginners can't mentally connect price movement to dollar P&L. |
+4. **PositionMiniCard prices are not truly live** -- For non-crypto assets, the card uses `useSimulatedStream` which applies random 0.03% jitter to the `currentPrice` prop. This is not the real resolved price from the metal/energy/forex feeds. The card should use the same price infrastructure as the Intelligence page (`GALivePriceNotice` widget pattern) rather than synthetic noise.
 
 ---
 
-## 3. Five Missing Features for Pros
+## Implementation Plan
 
-| # | Feature | What It Solves |
-|---|---------|---------------|
-| P1 | **Sortino Ratio + Calmar Ratio** | Add alongside Sharpe in the KPI row. Pros need downside-only risk metrics, not just symmetric volatility. |
-| P2 | **Drawdown Chart** | A dedicated underwater equity chart below the equity curve showing drawdown depth over time. Pros monitor recovery speed. |
-| P3 | **Trade Log Export (CSV)** | A download button on the Analytics tab that exports all orders, positions, and P&L to CSV. Pros need this for tax reporting and external analysis. |
-| P4 | **Correlation-Aware Position Sizer** | The Risk tab's Position Sizer ignores portfolio correlation. It should warn when adding a position highly correlated to existing holdings. |
-| P5 | **Session Performance Breakdown** | Split P&L by trading session (Asia/London/NY) in Analytics. Pros optimize around session-specific volatility patterns. |
+### Step 1: Create Auth Pages (Login & Register)
 
----
+Create a `/login` page with email/password login and registration forms. This uses the existing Supabase auth system (profiles table + `handle_new_user` trigger already exist).
 
-## 4. Implementation Plan
+- **New file: `src/pages/Login.tsx`** -- A dual-mode form (Sign In / Register) styled in the Gold Arrow aesthetic (navy/gold). Includes email + password fields, toggle between modes, and error display.
+- **Edit `src/App.tsx`** -- Add `/login` route. No forced redirect; the Swap page itself will gate paper trading behind authentication.
+- **Edit `src/components/Header.tsx`** -- Add a "Sign In" link in the nav when not authenticated.
 
-### Step 1: Sharpe Ratio & Max Drawdown KPIs (AnalyticsPanel)
-- Compute from `pnlCurve` data array: calculate sequential returns, derive mean, std dev, max peak-to-trough
-- Add two new KPI cards to the grid
-- Expand grid from `lg:grid-cols-6` to `lg:grid-cols-8`
+Authentication uses standard email/password via `supabase.auth.signUp()` and `supabase.auth.signInWithPassword()`. The existing `handle_new_user` trigger auto-creates a profile and assigns the `user` role.
 
-### Step 2: Sortino + Calmar Ratios (Pro)
-- Compute alongside Sharpe using only negative returns for downside deviation
-- Calmar = annualized return / max drawdown
-- Add as additional KPI cards
+**Note:** Email confirmation will be required (not auto-confirmed) per security guidelines.
 
-### Step 3: Drawdown Chart (Pro)
-- New chart section below equity curve showing underwater drawdown as a red-filled area
-- Computed from the same equity curve data
+### Step 2: Persist Paper Portfolios to Cloud
 
-### Step 4: Glossary Tooltips (Beginner)
-- Wrap each KPI label in a Tooltip component with beginner-friendly explanations
-- Use existing Radix tooltip from the UI library
+Upgrade `usePaperTrading` to sync with the existing `paper_portfolios` table (which has `user_id`, `cash`, `positions` (jsonb), `orders` (jsonb) columns with proper RLS).
 
-### Step 5: Trade Recap Card (Beginner)
-- After `paper.submitOrder` succeeds, show a toast-style recap card with entry price, total cost, and asset context
-- Integrated into the existing toast system
+- **Edit `src/hooks/usePaperTrading.ts`**:
+  - Accept an optional `userId` parameter
+  - On mount, if authenticated, load from `paper_portfolios` table (falling back to localStorage)
+  - On every state change (after `persist()`), debounce-upsert to the `paper_portfolios` table
+  - Keep localStorage as a fast local cache and offline fallback
+  - Use `useAutoSave` pattern (already in the codebase) for the cloud sync debounce
 
-### Step 6: Risk Thermometer (Beginner)
-- Simple gauge component in TRADE tab sidebar
-- Calculates concentration (largest position / equity) and colors accordingly
+### Step 3: Gate Paper Trading Behind Auth in Swap
 
-### Step 7: P&L Explainer Row (Beginner)
-- Add a subtitle line under each BOOK position showing the math breakdown
+- **Edit `src/pages/TradingBridge.tsx`**:
+  - Import Supabase auth state via `supabase.auth.getUser()` or a new `useAuth` hook
+  - Pass the user ID to `usePaperTrading`
+  - When not authenticated and trying to trade, show a prompt: "Sign in to save your paper trading progress" with a link to `/login`
+  - Still allow viewing the charts and market data without auth
 
-### Step 8: Guided First Trade Overlay (Beginner)
-- Conditional overlay shown once (localStorage flag) with 3-step walkthrough
-- Dismissable, never shown again
+### Step 4: Add Sell Notification on Position Close
 
-### Step 9: Trade Log CSV Export (Pro)
-- Button in Analytics tab header
-- Generates CSV from paper.orders array with all fields
+- **Edit `src/pages/TradingBridge.tsx`**:
+  - Wrap the `paper.closePosition()` calls (in both desktop BOOK tab and mobile PORTFOLIO/BOOK) with a notification:
+    ```typescript
+    const handleClosePosition = (posId: string, price: number) => {
+      const pos = paper.positions.find(p => p.id === posId);
+      paper.closePosition(posId, price);
+      if (pos) {
+        const pnl = (price - pos.entryPrice) * pos.qty * (pos.side === 'buy' ? 1 : -1);
+        showTradeRecap({ side: pos.side === 'buy' ? 'sell' : 'buy', qty: pos.qty, symbol: pos.symbol, price });
+        toast({
+          title: pnl >= 0 ? '🟢 Position Closed — Profit' : '🔴 Position Closed — Loss',
+          description: `${pos.symbol}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${((pnl / (pos.entryPrice * pos.qty)) * 100).toFixed(2)}%)`,
+        });
+      }
+    };
+    ```
+  - Replace all `onClose={(id, price) => paper.closePosition(id, price)}` with `onClose={handleClosePosition}`
 
-### Step 10: Session Performance Breakdown (Pro)
-- Categorize each order by UTC hour into Asia/London/NY sessions
-- Show P&L breakdown per session as a small grouped bar chart
+### Step 5: Fix PositionMiniCard to Use Real Live Prices
+
+The current `PositionMiniCard` uses `useSimulatedStream` (random jitter) for non-crypto and only uses WebSocket for crypto. Instead, it should accept a `resolvedPrice` prop from the parent (which already has the unified price resolver) and use `GALivePriceNotice` styling for the price display.
+
+- **Edit `src/components/trading/PositionMiniCard.tsx`**:
+  - Add a new prop `resolvedPrice: number` -- the real price from the parent's `resolveSymbolPrice()` function
+  - Remove `useSimulatedStream` usage entirely
+  - For crypto: keep the WebSocket integration (it works correctly)
+  - For non-crypto: use `resolvedPrice` as the live price instead of simulated jitter
+  - Replace the plain price text with an inline `GALivePriceNotice` component (size="sm") showing the real-time price with tick-flash animations (green/red on change)
+  - Keep the sparkline but seed it from real price ticks, not simulated noise
+
+- **Edit `src/pages/TradingBridge.tsx`**:
+  - Pass `resolvedPrice={resolvePriceForTicker(pos.symbol)}` to every `PositionMiniCard` instance (desktop BOOK, mobile BOOK, mobile PORTFOLIO)
 
 ---
 
@@ -89,17 +89,20 @@ After auditing the full Swap terminal, these are the gaps that would trip up any
 ### Files to Create
 | File | Purpose |
 |------|---------|
-| `src/components/trading/RiskThermometer.tsx` | Visual risk gauge for beginners |
-| `src/components/trading/TradeRecapToast.tsx` | Post-trade summary card |
-| `src/components/trading/FirstTradeGuide.tsx` | One-time onboarding overlay |
-| `src/components/trading/DrawdownChart.tsx` | Underwater equity chart for pros |
-| `src/components/trading/SessionBreakdown.tsx` | Session P&L analysis for pros |
+| `src/pages/Login.tsx` | Email/password auth page (sign in + register) |
+| `src/hooks/useAuth.ts` | Lightweight auth state hook wrapping Supabase session |
 
 ### Files to Modify
 | File | Changes |
 |------|---------|
-| `src/pages/TradingBridge.tsx` | Add Sharpe/Sortino/Calmar/MaxDD KPIs to AnalyticsPanel, glossary tooltips on all KPI labels, P&L explainer in BOOK, CSV export button, integrate new components, first-trade guide |
+| `src/App.tsx` | Add `/login` route |
+| `src/components/Header.tsx` | Add Sign In nav link |
+| `src/hooks/usePaperTrading.ts` | Add cloud persistence via `paper_portfolios` table, accept userId |
+| `src/pages/TradingBridge.tsx` | Auth gate for trading, sell notification wrapper, pass resolvedPrice to cards |
+| `src/components/trading/PositionMiniCard.tsx` | Accept `resolvedPrice` prop, remove simulated stream, embed `GALivePriceNotice` |
 
-### No database changes required
-### No new dependencies required -- uses existing Recharts, Radix Tooltip, and sonner toast
+### Database
+No schema changes needed -- `paper_portfolios` table already exists with correct columns and RLS policies.
+
+### No new dependencies required
 
