@@ -327,7 +327,22 @@ const BOT_SETTINGS_KEY = 'ga_bot_settings_v2';
 function loadBotConfig(): BotConfig {
   try {
     const raw = localStorage.getItem(BOT_SETTINGS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<BotConfig>;
+      const normalized: BotConfig = {
+        enabled: Boolean(parsed.enabled),
+        strategy: parsed.strategy ?? 'micro',
+        // Force legacy ASK configs to AUTO so bot actually trades by default
+        mode: 'auto',
+        scanIntervalSec: parsed.scanIntervalSec ?? 10,
+        maxPositions: parsed.maxPositions ?? 8,
+        riskPerTradePct: parsed.riskPerTradePct ?? 1,
+        stopLossAtrMult: parsed.stopLossAtrMult ?? 1.0,
+        takeProfitAtrMult: parsed.takeProfitAtrMult ?? 1.5,
+        botBudget: parsed.botBudget ?? 25000,
+      };
+      return normalized;
+    }
   } catch { /* ignore */ }
   return {
     enabled: false,
