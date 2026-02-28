@@ -43,7 +43,7 @@ import RuleBuilder from '@/components/trading/RuleBuilder';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
-import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES } from '@/data/tradingSymbols';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import SymbolLogo from '@/components/trading/SymbolLogo';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
@@ -578,7 +578,8 @@ const TradingBridge = () => {
   }, [paper.positions.length, resolveSymbolPrice, metalPricesData, cryptoDataAll, oilPricesData]);
 
   // ─── Trading Bot ────────────────────────────────────
-  const watchlistTickers = useMemo(() => ALL_SYMBOLS.map(s => s.ticker), []);
+  // Bot only scans symbols with REAL live price feeds (no synthetic data)
+  const watchlistTickers = useMemo(() => REAL_FEED_SYMBOLS.map(s => s.ticker), []);
   const peakEquityRef = useRef(paper.account.equity);
   if (paper.account.equity > peakEquityRef.current) peakEquityRef.current = paper.account.equity;
 
@@ -611,27 +612,10 @@ const TradingBridge = () => {
       }
     }
 
-    // Need minimum 30 real ticks for indicators
+    // Need minimum 30 real ticks for indicators — return null if insufficient
+    // NO synthetic/random data bootstrap. Bot waits for real data accumulation.
     if (history.prices.length < 30) {
-      // Bootstrap with synthetic data based on current price to allow immediate scanning
-      const sp = SYNTHETIC_PRICES[sym.key];
-      const change = sp?.c ?? 0;
-      const points = 60;
-      const startPrice = price / (1 + change / 100);
-      const drift = (price - startPrice) / points;
-      const closes: number[] = [];
-      const highs: number[] = [];
-      const lows: number[] = [];
-      let walk = startPrice;
-      for (let i = 0; i < points; i++) {
-        walk += drift + (Math.random() - 0.5) * walk * 0.001;
-        const spread = Math.abs(walk * 0.001);
-        closes.push(walk);
-        highs.push(walk + spread);
-        lows.push(walk - spread);
-      }
-      closes[closes.length - 1] = price;
-      return { closes, highs, lows };
+      return null;
     }
 
     // Build OHLC from real accumulated ticks

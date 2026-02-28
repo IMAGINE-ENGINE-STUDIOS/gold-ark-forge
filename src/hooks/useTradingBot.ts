@@ -6,10 +6,11 @@ import {
   computeAlligator, computeStdDev, computeForceIndex, computeADLine, computeCMF,
   computeDonchian, computeKeltner,
 } from '@/components/trading/IndicatorOverlay';
+import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 
 // ─── Types ───────────────────────────────────────────────
 
-export type StrategyPreset = 'conservative' | 'balanced' | 'aggressive' | 'wave_first';
+export type StrategyPreset = 'conservative' | 'balanced' | 'aggressive' | 'wave_first' | 'micro';
 export type BotMode = 'auto' | 'ask';
 
 export interface BotConfig {
@@ -56,6 +57,8 @@ export interface BotStats {
   totalFees: number;
   winCount: number;
   lossCount: number;
+  scannedSymbols: number;
+  tradableSymbols: number;
 }
 
 // ─── Strategy Presets ────────────────────────────────────
@@ -66,6 +69,7 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
   exitThreshold: number;
   positionSizeMult: number;
   weights: { trend: number; momentum: number; volatility: number; volume: number; wave: number };
+  description: string;
 }> = {
   conservative: {
     entryThreshold: 0.65,
@@ -73,6 +77,7 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
     exitThreshold: -0.3,
     positionSizeMult: 0.5,
     weights: { trend: 0.30, momentum: 0.25, volatility: 0.15, volume: 0.15, wave: 0.15 },
+    description: 'Only trades on strong confirmed signals. Tight stops, small positions. Best for capital preservation.',
   },
   balanced: {
     entryThreshold: 0.55,
@@ -80,6 +85,7 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
     exitThreshold: -0.25,
     positionSizeMult: 1.0,
     weights: { trend: 0.30, momentum: 0.25, volatility: 0.15, volume: 0.15, wave: 0.15 },
+    description: 'Default strategy. Moderate entry thresholds with standard risk sizing.',
   },
   aggressive: {
     entryThreshold: 0.35,
@@ -87,6 +93,7 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
     exitThreshold: -0.15,
     positionSizeMult: 1.5,
     weights: { trend: 0.30, momentum: 0.25, volatility: 0.15, volume: 0.15, wave: 0.15 },
+    description: 'Trades on weaker signals with larger positions. Higher risk, higher potential.',
   },
   wave_first: {
     entryThreshold: 0.50,
@@ -94,6 +101,15 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
     exitThreshold: -0.20,
     positionSizeMult: 1.0,
     weights: { trend: 0.18, momentum: 0.15, volatility: 0.12, volume: 0.15, wave: 0.40 },
+    description: 'Heavily weights the WAVE forecast engine (40%). Best when forecast is accurate.',
+  },
+  micro: {
+    entryThreshold: 0.40,
+    weakEntryThreshold: 0.20,
+    exitThreshold: -0.10,
+    positionSizeMult: 0.25,
+    weights: { trend: 0.25, momentum: 0.30, volatility: 0.15, volume: 0.15, wave: 0.15 },
+    description: 'Micro-transactions: many small trades for incremental gains. Low risk per trade, high frequency. Exits quickly on reversal.',
   },
 };
 
@@ -295,7 +311,7 @@ function calculatePositionSize(
 
 // ─── Bot Settings Persistence ────────────────────────────
 
-const BOT_SETTINGS_KEY = 'ga_bot_settings';
+const BOT_SETTINGS_KEY = 'ga_bot_settings_v2';
 
 function loadBotConfig(): BotConfig {
   try {
@@ -304,13 +320,13 @@ function loadBotConfig(): BotConfig {
   } catch { /* ignore */ }
   return {
     enabled: false,
-    strategy: 'balanced',
+    strategy: 'micro',
     mode: 'ask',
     scanIntervalSec: 10,
-    maxPositions: 5,
-    riskPerTradePct: 3,
-    stopLossAtrMult: 1.5,
-    takeProfitAtrMult: 2.5,
+    maxPositions: 8,
+    riskPerTradePct: 1,
+    stopLossAtrMult: 1.0,
+    takeProfitAtrMult: 1.5,
   };
 }
 
@@ -319,6 +335,9 @@ function saveBotConfig(config: BotConfig) {
     localStorage.setItem(BOT_SETTINGS_KEY, JSON.stringify(config));
   } catch { /* ignore */ }
 }
+
+// ─── Real-feed symbol tickers ────────────────────────────
+const REAL_FEED_TICKERS = new Set(REAL_FEED_SYMBOLS.map(s => s.ticker));
 
 // ─── Main Hook ───────────────────────────────────────────
 
@@ -345,11 +364,16 @@ export function useTradingBot(params: UseTradingBotParams) {
   const [config, setConfig] = useState<BotConfig>(loadBotConfig);
   const [activityLog, setActivityLog] = useState<BotDecision[]>([]);
   const [pendingProposals, setPendingProposals] = useState<BotDecision[]>([]);
-  const [botOrderIds, setBotOrderIds] = useState<Set<string>>(new Set());
   const cooldowns = useRef<Record<string, number>>({});
   const scanRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const strategyConfig = useMemo(() => STRATEGY_CONFIGS[config.strategy], [config.strategy]);
+
+  // Only scan symbols with real live feeds
+  const tradableSymbols = useMemo(() => 
+    watchlistSymbols.filter(t => REAL_FEED_TICKERS.has(t)),
+    [watchlistSymbols]
+  );
 
   // Bot-specific stats
   const stats = useMemo<BotStats>(() => {
@@ -361,10 +385,15 @@ export function useTradingBot(params: UseTradingBotParams) {
     let winCount = 0;
     let lossCount = 0;
     exits.forEach(e => {
-      // Estimate P&L from exit decisions
-      const pnl = (e.price || 0) * (e.qty || 0) * (e.signal.composite > 0 ? 0.01 : -0.01);
-      if (pnl >= 0) winCount++; else lossCount++;
-      realizedPnl += pnl;
+      const pnl = e.estimatedFees ? -(e.estimatedFees) : 0;
+      // Use the actual closed P&L from the entry/exit pair
+      const entry = activityLog.find(a => a.symbol === e.symbol && (a.action === 'BUY' || a.action === 'SELL') && a.executed && a.timestamp < e.timestamp);
+      if (entry && entry.price && e.price && entry.qty) {
+        const direction = entry.action === 'BUY' ? 1 : -1;
+        const tradePnl = (e.price - entry.price) * direction * entry.qty;
+        realizedPnl += tradePnl;
+        if (tradePnl >= 0) winCount++; else lossCount++;
+      }
     });
 
     return {
@@ -377,8 +406,10 @@ export function useTradingBot(params: UseTradingBotParams) {
       totalFees,
       winCount,
       lossCount,
+      scannedSymbols: tradableSymbols.length,
+      tradableSymbols: tradableSymbols.length,
     };
-  }, [activityLog, positions, config.enabled, totalFees]);
+  }, [activityLog, positions, config.enabled, totalFees, tradableSymbols]);
 
   // Persist config changes
   const updateConfig = useCallback((patch: Partial<BotConfig>) => {
@@ -389,9 +420,9 @@ export function useTradingBot(params: UseTradingBotParams) {
     });
   }, []);
 
-  // Kill switch: close all positions
+  // Kill switch: close all bot positions
   const killAll = useCallback(() => {
-    positions.forEach(pos => {
+    positions.filter(p => p.botSource).forEach(pos => {
       const price = resolvePrice(pos.symbol);
       if (price > 0) closePosition(pos.id, price, true);
     });
@@ -408,7 +439,7 @@ export function useTradingBot(params: UseTradingBotParams) {
 
     try {
       if (proposal.action === 'EXIT') {
-        const pos = positions.find(p => p.symbol === proposal.symbol);
+        const pos = positions.find(p => p.symbol === proposal.symbol && p.botSource);
         if (pos) closePosition(pos.id, currentPrice, true);
       } else {
         submitOrder({
@@ -423,7 +454,7 @@ export function useTradingBot(params: UseTradingBotParams) {
       proposal.executed = true;
       proposal.status = 'approved';
       proposal.price = currentPrice;
-      setActivityLog(prev => [proposal, ...prev].slice(0, 50));
+      setActivityLog(prev => [proposal, ...prev].slice(0, 100));
     } catch { /* ignore */ }
 
     setPendingProposals(prev => prev.filter(p => p.id !== proposalId));
@@ -436,7 +467,7 @@ export function useTradingBot(params: UseTradingBotParams) {
     proposal.status = 'rejected';
     proposal.reason += ' — rejected by user';
     proposal.executed = false;
-    setActivityLog(prev => [proposal, ...prev].slice(0, 50));
+    setActivityLog(prev => [proposal, ...prev].slice(0, 100));
     setPendingProposals(prev => prev.filter(p => p.id !== proposalId));
   }, [pendingProposals]);
 
@@ -451,16 +482,16 @@ export function useTradingBot(params: UseTradingBotParams) {
         executeFn();
         decision.executed = true;
         decision.status = 'executed';
-        setActivityLog(prev => [decision, ...prev].slice(0, 50));
+        setActivityLog(prev => [decision, ...prev].slice(0, 100));
       } catch {
         decision.executed = false;
         decision.reason += ' (execution failed)';
-        setActivityLog(prev => [decision, ...prev].slice(0, 50));
+        setActivityLog(prev => [decision, ...prev].slice(0, 100));
       }
     }
   }, [config.mode]);
 
-  // Core scan function
+  // Core scan function — ONLY scans real-feed symbols
   const scan = useCallback(() => {
     if (!config.enabled) return;
 
@@ -473,23 +504,26 @@ export function useTradingBot(params: UseTradingBotParams) {
         symbol: '*',
         signal: { trend: 0, momentum: 0, volatility: 0, volume: 0, wave: 0, composite: 0 },
         action: 'HOLD',
-        reason: `⚠️ CIRCUIT BREAKER: Drawdown ${drawdownPct.toFixed(1)}% exceeds -10% limit. Bot disabled.`,
+        reason: `⚠️ CIRCUIT BREAKER: Drawdown ${drawdownPct.toFixed(1)}% exceeds -10% limit. Bot paused.`,
         executed: false,
       };
-      setActivityLog(prev => [decision, ...prev].slice(0, 50));
+      setActivityLog(prev => [decision, ...prev].slice(0, 100));
       updateConfig({ enabled: false });
       return;
     }
 
     const now = Date.now();
-    const openSymbols = new Set(positions.map(p => p.symbol));
+    const botPositionSymbols = new Set(positions.filter(p => p.botSource).map(p => p.symbol));
+    const isMicro = config.strategy === 'micro';
+    const cooldownMs = isMicro ? 15_000 : 30_000; // Micro trades more frequently
 
-    for (const ticker of watchlistSymbols) {
+    // ONLY scan tradable (real-feed) symbols
+    for (const ticker of tradableSymbols) {
       const price = resolvePrice(ticker);
-      if (price <= 0) continue;
+      if (price <= 0) continue; // Skip symbols with no live price
 
       const candleData = getCandleData(ticker);
-      if (!candleData || candleData.closes.length < 30) continue;
+      if (!candleData || candleData.closes.length < 30) continue; // Need real data
 
       const waveBias = getWaveBias(ticker);
       const signal = computeCompositeSignal(
@@ -498,22 +532,40 @@ export function useTradingBot(params: UseTradingBotParams) {
       );
 
       const lastTrade = cooldowns.current[ticker] || 0;
-      const coolingDown = (now - lastTrade) < 30_000;
+      const coolingDown = (now - lastTrade) < cooldownMs;
 
-      // Existing position? Check for exit
-      const existingPos = positions.find(p => p.symbol === ticker);
+      // Existing bot position? Check for exit
+      const existingPos = positions.find(p => p.symbol === ticker && p.botSource);
       if (existingPos) {
         const exitThreshold = strategyConfig.exitThreshold;
         const shouldExit = existingPos.side === 'buy' ? signal.composite < exitThreshold : signal.composite > -exitThreshold;
 
-        if (shouldExit && !coolingDown) {
+        // For micro strategy, also exit on profit target (ATR-based)
+        const atrArr = computeATR(candleData.highs, candleData.lows, candleData.closes);
+        const atr = atrArr[atrArr.length - 1] || price * 0.01;
+        const profitTarget = atr * config.takeProfitAtrMult;
+        const stopLoss = atr * config.stopLossAtrMult;
+        const currentPnl = existingPos.side === 'buy' 
+          ? (price - existingPos.entryPrice) * existingPos.qty
+          : (existingPos.entryPrice - price) * existingPos.qty;
+        const priceDiff = Math.abs(price - existingPos.entryPrice);
+        const hitTP = priceDiff >= profitTarget;
+        const hitSL = priceDiff >= stopLoss && currentPnl < 0;
+
+        if ((shouldExit || hitTP || hitSL) && !coolingDown) {
+          const reason = hitTP 
+            ? `✅ Take profit hit: +$${currentPnl.toFixed(2)} (${priceDiff.toFixed(2)} >= TP ${profitTarget.toFixed(2)})`
+            : hitSL 
+            ? `🛑 Stop loss hit: -$${Math.abs(currentPnl).toFixed(2)} (${priceDiff.toFixed(2)} >= SL ${stopLoss.toFixed(2)})`
+            : `Exit signal: composite ${signal.composite.toFixed(2)} crossed threshold ${exitThreshold}`;
+
           const decision: BotDecision = {
             id: crypto.randomUUID(),
             timestamp: now,
             symbol: ticker,
             signal,
             action: 'EXIT',
-            reason: `Exit signal: composite ${signal.composite.toFixed(2)} crossed threshold ${exitThreshold}. P&L: $${existingPos.pnl.toFixed(2)}`,
+            reason: `${reason}. P&L: $${currentPnl.toFixed(2)}`,
             executed: false,
             qty: existingPos.qty,
             price,
@@ -528,7 +580,8 @@ export function useTradingBot(params: UseTradingBotParams) {
       }
 
       // No position — check for entry
-      if (positions.length >= config.maxPositions) continue;
+      const botPositionCount = positions.filter(p => p.botSource).length;
+      if (botPositionCount >= config.maxPositions) continue;
       if (coolingDown) continue;
 
       const absScore = Math.abs(signal.composite);
@@ -542,19 +595,26 @@ export function useTradingBot(params: UseTradingBotParams) {
       const atr = atrArr[atrArr.length - 1] || price * 0.01;
       const sizeMult = isWeakEntry ? strategyConfig.positionSizeMult * 0.5 : strategyConfig.positionSizeMult;
 
-      const totalExposure = positions.reduce((s, p) => s + p.currentPrice * p.qty, 0);
+      const totalExposure = positions.filter(p => p.botSource).reduce((s, p) => s + p.currentPrice * p.qty, 0);
       const maxTotalExposure = equity * 0.80;
       if (totalExposure >= maxTotalExposure) continue;
 
       const qty = calculatePositionSize(
         equity, price, config.riskPerTradePct, atr,
-        config.stopLossAtrMult, sizeMult, 0.25
+        config.stopLossAtrMult, sizeMult, isMicro ? 0.10 : 0.25 // Micro uses smaller max exposure
       );
 
       if (qty <= 0 || price * qty > cash) continue;
 
-      // Estimate fees
-      const estimatedFees = (price * qty * 7 / 10000) + 1.50; // spread + slippage + commission
+      // Estimate fees accurately
+      const estimatedFees = (price * qty * 7 / 10000) + 1.50; // spread(5bps) + slippage(2bps) + commission
+
+      // For micro, ensure potential profit exceeds fees
+      if (isMicro) {
+        const expectedMove = atr * 0.5; // Conservative expected move
+        const potentialProfit = expectedMove * qty;
+        if (potentialProfit < estimatedFees * 2) continue; // Need at least 2x fees potential
+      }
 
       const decision: BotDecision = {
         id: crypto.randomUUID(),
@@ -562,7 +622,7 @@ export function useTradingBot(params: UseTradingBotParams) {
         symbol: ticker,
         signal,
         action: side === 'buy' ? 'BUY' : 'SELL',
-        reason: `${isStrongEntry ? 'Strong' : 'Weak'} ${side} signal: composite ${signal.composite.toFixed(2)}. Est. fees: $${estimatedFees.toFixed(2)}`,
+        reason: `${isStrongEntry ? 'Strong' : 'Weak'} ${side} signal: composite ${signal.composite.toFixed(2)}. Est. fees: $${estimatedFees.toFixed(2)}. ${isMicro ? '[MICRO]' : ''}`,
         executed: false,
         qty,
         price,
@@ -576,7 +636,8 @@ export function useTradingBot(params: UseTradingBotParams) {
     }
   }, [
     config.enabled, config.maxPositions, config.riskPerTradePct, config.stopLossAtrMult,
-    watchlistSymbols, resolvePrice, getCandleData, getWaveBias,
+    config.takeProfitAtrMult, config.strategy,
+    tradableSymbols, resolvePrice, getCandleData, getWaveBias,
     submitOrder, closePosition, positions, equity, cash, peakEquity,
     strategyConfig, updateConfig, executeOrPropose,
   ]);
