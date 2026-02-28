@@ -435,6 +435,16 @@ export function useTradingBot(params: UseTradingBotParams) {
   const cooldowns = useRef<Record<string, number>>({});
   const scanRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ─── Stable refs for values scan reads but shouldn't trigger recreation ───
+  const activityLogRef = useRef(activityLog);
+  const positionsRef = useRef(positions);
+  const cashRef = useRef(cash);
+  const equityRef = useRef(equity);
+  useEffect(() => { activityLogRef.current = activityLog; }, [activityLog]);
+  useEffect(() => { positionsRef.current = positions; }, [positions]);
+  useEffect(() => { cashRef.current = cash; }, [cash]);
+  useEffect(() => { equityRef.current = equity; }, [equity]);
+
   const strategyConfig = useMemo(() => STRATEGY_CONFIGS[config.strategy], [config.strategy]);
 
   // Only scan symbols with real live feeds
@@ -605,10 +615,14 @@ export function useTradingBot(params: UseTradingBotParams) {
   }, [config.mode]);
 
   // Core scan function — ONLY scans real-feed symbols
+  // Uses refs for activityLog/positions to avoid recreating scan on every log change
   const scan = useCallback(async () => {
     if (!config.enabled) return;
 
     const now = Date.now();
+    const positions = positionsRef.current;
+    const activityLog = activityLogRef.current;
+    const cash = cashRef.current;
 
     // ─── BUDGET-BASED 10% DRAWDOWN CIRCUIT BREAKER ───
     // Bot CANNOT lose more than 10% of botBudget. Hard stop.
@@ -925,8 +939,8 @@ export function useTradingBot(params: UseTradingBotParams) {
     config.enabled, config.maxPositions, config.riskPerTradePct, config.stopLossAtrMult,
     config.takeProfitAtrMult, config.strategy, config.botBudget, config.scanIntervalSec,
     tradableSymbols, resolvePrice, getCandleData, getWaveBias,
-    submitOrder, closePosition, positions, equity, cash, peakEquity,
-    strategyConfig, updateConfig, executeOrPropose, activityLog,
+    submitOrder, closePosition,
+    strategyConfig, updateConfig, executeOrPropose,
   ]);
 
   // Scan loop
