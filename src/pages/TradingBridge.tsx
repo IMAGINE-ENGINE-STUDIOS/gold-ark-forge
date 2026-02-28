@@ -347,8 +347,8 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
                     <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
                       ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    <div className={`text-[9px] font-mono ${pos.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)} ({pos.pnlPercent.toFixed(1)}%)
+                    <div className={`text-[9px] font-mono ${(pos.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(pos.pnl ?? 0) >= 0 ? '+' : ''}${(pos.pnl ?? 0).toFixed(2)} ({(pos.pnlPercent ?? 0).toFixed(1)}%)
                     </div>
                   </div>
                   <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
@@ -865,8 +865,8 @@ const TradingBridge = () => {
                           qty={pos.qty}
                           entryPrice={pos.entryPrice}
                           currentPrice={pos.currentPrice}
-                          pnl={pos.pnl}
-                          pnlPercent={pos.pnlPercent}
+                          pnl={pos.pnl ?? 0}
+                          pnlPercent={pos.pnlPercent ?? 0}
                           resolvedPrice={resolvePriceForTicker(pos.symbol)}
                           onClose={(id, price) => handleClosePosition(id, price)}
                           onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
