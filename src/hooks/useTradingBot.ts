@@ -135,7 +135,7 @@ export function computeCompositeSignal(
   waveBias: number,
   weights: { trend: number; momentum: number; volatility: number; volume: number; wave: number },
 ): SignalBreakdown {
-  if (closes.length < 52) {
+  if (closes.length < 30) {
     return { trend: 0, momentum: 0, volatility: 0, volume: 0, wave: waveBias, composite: waveBias * weights.wave };
   }
 
@@ -143,7 +143,7 @@ export function computeCompositeSignal(
 
   // ── TREND GROUP ──
   const sma20 = computeSMA(closes, 20);
-  const sma50 = computeSMA(closes, 50);
+  const sma50 = closes.length >= 50 ? computeSMA(closes, 50) : computeSMA(closes, Math.min(closes.length, 20));
   const ema20 = computeEMA(closes, 20);
   const ichimoku = computeIchimoku(highs, lows);
   const alligator = computeAlligator(highs, lows);
@@ -202,7 +202,7 @@ export function computeCompositeSignal(
   const macdSig = macd.signal[macd.signal.length - 1] ?? 0;
   const macdHist = macd.histogram[macd.histogram.length - 1] ?? 0;
   const atr14 = computeATR(highs, lows, closes);
-  const latestAtr = atr14[atr14.length - 1] || last * 0.01;
+  const latestAtr = Math.max(atr14[atr14.length - 1] || last * 0.01, last * 0.002); // ATR floor
   const macdSignal2 = clamp((macdVal - macdSig) / latestAtr, -1, 1) * 0.6 + (macdHist > 0 ? 0.2 : -0.2);
 
   const latestCci = cci[cci.length - 1] ?? 0;
@@ -311,7 +311,9 @@ function calculatePositionSize(
   sizeMult: number,
   maxExposurePct: number,
 ): number {
-  if (price <= 0 || equity <= 0 || atr <= 0) return 0;
+  if (price <= 0 || equity <= 0) return 0;
+  // ATR floor: ensure minimum 0.2% of price to prevent zero position sizes
+  atr = Math.max(atr, price * 0.002);
   const stopDistance = atr * stopMultiplier;
   const riskAmount = equity * (riskPct / 100);
   const kellyQty = riskAmount / stopDistance;
@@ -655,7 +657,7 @@ export function useTradingBot(params: UseTradingBotParams) {
 
         // For micro strategy, also exit on profit target (ATR-based)
         const atrArr = computeATR(candleData.highs, candleData.lows, candleData.closes);
-        const atr = atrArr[atrArr.length - 1] || price * 0.01;
+        const atr = Math.max(atrArr[atrArr.length - 1] || price * 0.01, price * 0.002); // ATR floor
         const profitTarget = atr * config.takeProfitAtrMult;
         const stopLoss = atr * config.stopLossAtrMult;
         const currentPnl = existingPos.side === 'buy' 
@@ -722,7 +724,7 @@ export function useTradingBot(params: UseTradingBotParams) {
       // ─── REGIME DETECTION ───
       // ADX-style: is market trending or ranging?
       const atrArr = computeATR(candleData.highs, candleData.lows, candleData.closes);
-      const atr = atrArr[atrArr.length - 1] || price * 0.01;
+      const atr = Math.max(atrArr[atrArr.length - 1] || price * 0.01, price * 0.002); // ATR floor
       const recentCloses = candleData.closes.slice(-20);
       const priceRange = recentCloses.length > 0 ? Math.max(...recentCloses) - Math.min(...recentCloses) : 0;
       const atrNorm = atr / price;
