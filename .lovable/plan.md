@@ -1,78 +1,44 @@
 
 
-# Replace Non-GA Inline Components with Existing GA Widgets in Trading Bridge
+# Add Missing Bot Controls: Trade Button, Investment Budget, Real-Time Position Tracking
 
-## Problem Identified
+## What's Missing
 
-The Trading Bridge tabs contain several **inline-built, non-GA panels** that duplicate or could be replaced by the proprietary GA widgets already built for the Intelligence and Oil & Gas pages. Here's the mapping:
-
----
-
-## Tab-by-Tab Audit
-
-### TRADE tab
-- **DepthOfMarket** — Custom component using `Math.random()` for bid/ask volumes. No GA equivalent exists (keep but label as SIMULATED).
-- **Inline equity/cash/P&L cards** — Custom 3-column grid. Could use **GAPerformanceDashboard** instead.
-
-### BOOK tab
-- ✅ Already uses `GALivePriceNotice`, `GATradeJournal` — GOOD.
-- **Missing**: No market context widgets. Should add **GATopMovers** and **GACryptoPriceCards** for real-time position context.
-
-### BOT tab
-- ✅ Custom BotControlPanel — Appropriate (no GA equivalent). GOOD.
-
-### BACKTEST tab
-- **BacktestPanel** — Uses `Math.random()` random walk for price simulation. Non-GA, fake data. Should label as SIMULATED.
-
-### ANALYTICS tab
-- ✅ Uses `GAMarketPulse`, `GACrossAssetDashboard`, `GAPerformanceDashboard`, `GATradingSessions`, `GAAssetOverview`, `GAMiniCharts` — GOOD.
-- **Inline AnalyticsPanel** — Custom equity curve chart, asset allocation pie, position P&L breakdown, advanced metrics (Sharpe, Sortino, Calmar). These are custom portfolio analytics specific to paper trading data — appropriate to keep inline since they consume paper account state.
-- **DrawdownChart** — Custom but uses real paper equity data. Keep.
-- **SessionBreakdown** — Custom but uses real paper order data. Keep.
-- **Missing**: **GAPortfolioAllocator** (from Intelligence page) not used here — would complement the allocation pie.
-
-### RISK tab
-- ✅ Uses `GAVolatilityMatrix`, `GAGoldRatio`, `GAPipCalculator`, `GAMarginCalc`, `GABullionHeatmap` — GOOD.
-- **Inline RiskPanel** — Has hardcoded correlation matrix (`[-0.2, 1.0, 0.6...]`) and static exposure limits. Could use **GACommodityRadar** for live cross-asset analysis.
-- **Missing**: **GAForexWarRoom** (from Intelligence) — provides strength index relevant to risk assessment.
-
-### MARKET tab
-- ✅ Uses `GAMarketHeatmap`, `GACryptoHeatmap`, `GAForexMatrix`, `GAEconomicCalendar`, `GAMarketQuotes`, `GAMarketSummary` — GOOD.
-- **Missing**: **GACryptoMarket** (full crypto dashboard), **GACryptoPriceCards** (live price cards with sparklines), **GANewsFeed** (real-time news), **GATopMovers** — all exist on Intelligence but absent here.
-
-### STRATEGIES tab
-- **StrategiesPanel** — Entirely custom with "COMING SOON" badge. Placeholder UI with disabled buttons. Not replaceable but should have **GATechnicalGauge** added for strategy context.
-
-### SOCIAL tab
-- **SocialPanel** — Entirely mock data (`mockTraders` array with hardcoded names/returns). Not replaceable by GA widgets but should be labeled as COMING SOON (already is).
-
----
+1. **No "Start Trading" button** — The bot has an on/off switch but no prominent action button to begin trading
+2. **No investment amount selector** — User cannot choose how much capital the bot should use (it uses the full $100k paper balance)
+3. **No real-time bot positions view inside BOT tab** — Bot positions exist in paper.positions (with `botSource: true`) but are only visible in the BOOK tab, not the BOT tab itself
+4. **No quick manual trade from BOT tab** — No way to manually execute a trade on the bot's recommended symbol
 
 ## Implementation Plan
 
-### Step 1: Enhance MARKET tab with missing Intelligence widgets
-Add `GACryptoMarket`, `GACryptoPriceCards`, `GANewsFeed`, `GATopMovers` to the MARKET tab (desktop + mobile).
+### Step 1: Add `botBudget` to BotConfig and useTradingBot
 
-### Step 2: Enhance RISK tab with cross-asset GA widgets
-Add `GACommodityRadar` and `GAForexWarRoom` to the RISK tab alongside existing risk widgets.
+**File: `src/hooks/useTradingBot.ts`**
+- Add `botBudget: number` to `BotConfig` (default: 25000 — 25% of $100k)
+- Use `botBudget` instead of `equity` when computing position sizes in the scan function
+- Cap total bot exposure to `botBudget` instead of `equity * 0.80`
+- Pass `botBudget` through to `BotControlPanel`
 
-### Step 3: Enhance ANALYTICS tab with portfolio allocator
-Add `GAPortfolioAllocator` to the ANALYTICS tab widget grid.
+### Step 2: Enhance BotControlPanel with missing features
 
-### Step 4: Enhance BOOK tab with real-time market context widgets
-Add `GATopMovers`, `GACryptoPriceCards` below positions for real-time market context.
+**File: `src/components/trading/BotControlPanel.tsx`**
+- Add new props: `botPositions` (filtered `PaperPosition[]` where `botSource === true`), `onClosePosition`, `onNavigate`, `resolvePrice`
+- **Investment Budget slider**: Add a prominent slider (e.g. $1,000 – $100,000) above the strategy selector to control `botBudget`
+- **START TRADING button**: Large green button when bot is off, replaces the small switch as the primary action
+- **Bot Positions section**: After the P&L summary, render `PositionMiniCard` for each bot position (`botSource === true`) with live sparklines, P&L, and close buttons
+- **Quick stats**: Show "Budget Used" vs "Budget Available" alongside existing stats
 
-### Step 5: Enhance STRATEGIES tab with technical context
-Add `GATechnicalGauge` for strategy decision support.
+### Step 3: Pass bot positions from TradingBridge to BotControlPanel
 
-### Step 6: Add missing imports
-Import `GACryptoMarket`, `GACryptoPriceCards`, `GACommodityRadar`, `GAForexWarRoom`, `GAPortfolioAllocator` into TradingBridge.
+**File: `src/pages/TradingBridge.tsx`**
+- Filter `paper.positions.filter(p => p.botSource)` and pass as `botPositions` prop
+- Pass `resolvePriceForTicker`, `handleClosePosition`, and symbol navigation callback to BotControlPanel
+- Do this for both desktop and mobile bot tab renders
 
 ## Files to Modify
 | File | Changes |
 |---|---|
-| `src/pages/TradingBridge.tsx` | Add missing GA widget imports; enhance MARKET, RISK, ANALYTICS, BOOK, and STRATEGIES tabs with existing GA widgets |
-
-## No new files needed
-## No database changes needed
+| `src/hooks/useTradingBot.ts` | Add `botBudget` to config, use it for position sizing cap |
+| `src/components/trading/BotControlPanel.tsx` | Add budget slider, START TRADING button, live bot positions list with PositionMiniCard |
+| `src/pages/TradingBridge.tsx` | Pass filtered bot positions + callbacks to BotControlPanel |
 
