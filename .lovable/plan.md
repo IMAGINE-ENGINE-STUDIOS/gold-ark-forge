@@ -1,97 +1,78 @@
 
 
-# Trading Bot Redesign — Professional, Accurate, Production-Ready
+# Replace Non-GA Inline Components with Existing GA Widgets in Trading Bridge
 
-## Problems Identified
+## Problem Identified
 
-1. **UI is incomprehensible** -- Tiny 6-7px text, cryptic signal bars (T/M/V/$/W), no clear explanation of what the bot is doing or why
-2. **Candle data is synthetic noise** -- `getCandleData()` generates 60 random walk points seeded from a single price + change%. The bot's 30+ indicators are computing signals on fake data, making all decisions meaningless
-3. **WAVE bias is a simplified proxy** -- `getWaveBias()` just normalizes the symbol's change% to -1..1, not the actual WAVE forecast engine
-4. **No AUTO vs ASK mode** -- Bot only runs in full-auto. No confirmation step before executing trades
-5. **No fee simulation** -- No spread, commission, or slippage deducted from trades. P&L is unrealistic
-6. **Bot scans ALL symbols** -- Scans every symbol in the watchlist indiscriminately instead of analyzing viability
-7. **No clear profit/loss accounting** -- Bot P&L not tracked separately from manual trades
+The Trading Bridge tabs contain several **inline-built, non-GA panels** that duplicate or could be replaced by the proprietary GA widgets already built for the Intelligence and Oil & Gas pages. Here's the mapping:
+
+---
+
+## Tab-by-Tab Audit
+
+### TRADE tab
+- **DepthOfMarket** — Custom component using `Math.random()` for bid/ask volumes. No GA equivalent exists (keep but label as SIMULATED).
+- **Inline equity/cash/P&L cards** — Custom 3-column grid. Could use **GAPerformanceDashboard** instead.
+
+### BOOK tab
+- ✅ Already uses `GALivePriceNotice`, `GATradeJournal` — GOOD.
+- **Missing**: No market context widgets. Should add **GATopMovers** and **GACryptoPriceCards** for real-time position context.
+
+### BOT tab
+- ✅ Custom BotControlPanel — Appropriate (no GA equivalent). GOOD.
+
+### BACKTEST tab
+- **BacktestPanel** — Uses `Math.random()` random walk for price simulation. Non-GA, fake data. Should label as SIMULATED.
+
+### ANALYTICS tab
+- ✅ Uses `GAMarketPulse`, `GACrossAssetDashboard`, `GAPerformanceDashboard`, `GATradingSessions`, `GAAssetOverview`, `GAMiniCharts` — GOOD.
+- **Inline AnalyticsPanel** — Custom equity curve chart, asset allocation pie, position P&L breakdown, advanced metrics (Sharpe, Sortino, Calmar). These are custom portfolio analytics specific to paper trading data — appropriate to keep inline since they consume paper account state.
+- **DrawdownChart** — Custom but uses real paper equity data. Keep.
+- **SessionBreakdown** — Custom but uses real paper order data. Keep.
+- **Missing**: **GAPortfolioAllocator** (from Intelligence page) not used here — would complement the allocation pie.
+
+### RISK tab
+- ✅ Uses `GAVolatilityMatrix`, `GAGoldRatio`, `GAPipCalculator`, `GAMarginCalc`, `GABullionHeatmap` — GOOD.
+- **Inline RiskPanel** — Has hardcoded correlation matrix (`[-0.2, 1.0, 0.6...]`) and static exposure limits. Could use **GACommodityRadar** for live cross-asset analysis.
+- **Missing**: **GAForexWarRoom** (from Intelligence) — provides strength index relevant to risk assessment.
+
+### MARKET tab
+- ✅ Uses `GAMarketHeatmap`, `GACryptoHeatmap`, `GAForexMatrix`, `GAEconomicCalendar`, `GAMarketQuotes`, `GAMarketSummary` — GOOD.
+- **Missing**: **GACryptoMarket** (full crypto dashboard), **GACryptoPriceCards** (live price cards with sparklines), **GANewsFeed** (real-time news), **GATopMovers** — all exist on Intelligence but absent here.
+
+### STRATEGIES tab
+- **StrategiesPanel** — Entirely custom with "COMING SOON" badge. Placeholder UI with disabled buttons. Not replaceable but should have **GATechnicalGauge** added for strategy context.
+
+### SOCIAL tab
+- **SocialPanel** — Entirely mock data (`mockTraders` array with hardcoded names/returns). Not replaceable by GA widgets but should be labeled as COMING SOON (already is).
+
+---
 
 ## Implementation Plan
 
-### Step 1: Redesign BotControlPanel UI for clarity
+### Step 1: Enhance MARKET tab with missing Intelligence widgets
+Add `GACryptoMarket`, `GACryptoPriceCards`, `GANewsFeed`, `GATopMovers` to the MARKET tab (desktop + mobile).
 
-Completely rewrite `BotControlPanel.tsx`:
+### Step 2: Enhance RISK tab with cross-asset GA widgets
+Add `GACommodityRadar` and `GAForexWarRoom` to the RISK tab alongside existing risk widgets.
 
-- **Header section**: Large status badge (ACTIVE/PAUSED/OFF) with bot P&L in big readable text
-- **Mode selector**: Two clear modes:
-  - **AUTO** -- Bot executes trades automatically
-  - **ASK** -- Bot proposes trades, user confirms/rejects via approve/dismiss buttons on each proposal
-- **Strategy cards**: Replace 2x2 grid of tiny buttons with vertically stacked cards, each with a description of what it does in plain English
-- **Pending approvals queue** (ASK mode): Show proposed trades as actionable cards with signal reasoning, expected entry/exit, estimated profit/loss, and approve/reject buttons
-- **Live dashboard**: Replace tiny signal bars with a clear horizontal gauge per indicator group (Trend, Momentum, Volatility, Volume, Wave) with color gradient and percentage labels
-- **Activity log**: Increase text size from 7-9px to 11-12px, add clear icons, color-code BUY/SELL/EXIT rows, show dollar amounts prominently
-- **Bot P&L card**: Separate bot-only P&L from manual trades -- show bot entry count, exit count, total realized P&L, unrealized P&L
-- **Fee disclosure**: Show simulated fees deducted per trade
+### Step 3: Enhance ANALYTICS tab with portfolio allocator
+Add `GAPortfolioAllocator` to the ANALYTICS tab widget grid.
 
-### Step 2: Add fee simulation to paper trading
+### Step 4: Enhance BOOK tab with real-time market context widgets
+Add `GATopMovers`, `GACryptoPriceCards` below positions for real-time market context.
 
-Edit `usePaperTrading.ts`:
+### Step 5: Enhance STRATEGIES tab with technical context
+Add `GATechnicalGauge` for strategy decision support.
 
-- Add configurable fee structure: `{ spreadBps: 5, commissionPerTrade: 1.50, slippageBps: 2 }`
-- On every `submitOrder()`, deduct:
-  - Spread cost: `price * qty * spreadBps / 10000`
-  - Commission: flat $1.50 per trade
-  - Slippage: `price * qty * slippageBps / 10000`
-- Actual fill price adjusted by slippage (buy slightly higher, sell slightly lower)
-- Track cumulative fees paid in account stats
-- This ensures P&L is realistic and comparable to real broker execution
-
-### Step 3: Fix candle data to use real price history
-
-Edit `TradingBridge.tsx` `getCandleData()`:
-
-- Maintain a `candleHistoryRef` map that accumulates real price ticks over time per symbol
-- On each scan, push the current resolved price as a new data point with timestamp
-- Build OHLC from real ticks at the configured timeframe
-- Only compute indicators when sufficient real data has accumulated (minimum 30 real ticks)
-- This replaces the random walk generator with actual observed prices
-
-### Step 4: Connect real WAVE forecast bias
-
-Edit `TradingBridge.tsx` `getWaveBias()`:
-
-- Import `computeForecastPoints` from the GALIVE chart engine
-- Feed it the real accumulated candle data for the symbol
-- Extract the forecast bias (-1 to +1) from the projected direction and confidence
-- Fall back to 0 (neutral) if insufficient data
-
-### Step 5: Add AUTO/ASK execution modes to bot engine
-
-Edit `useTradingBot.ts`:
-
-- Add `mode: 'auto' | 'ask'` to `BotConfig`
-- Add `pendingProposals: BotDecision[]` state for ASK mode
-- In ASK mode, instead of calling `submitOrder()`, push the decision to `pendingProposals` with status `'pending'`
-- Add `approveProposal(id)` and `rejectProposal(id)` callbacks
-- On approve, execute the trade at the current live price (re-validate it's still viable)
-- On reject, move to activity log as "rejected by user"
-- Add `botSource: boolean` tag to orders so bot trades are distinguishable
-
-### Step 6: Accurate bot P&L tracking
-
-Edit `useTradingBot.ts`:
-
-- Track `botOrders: string[]` -- IDs of orders placed by the bot
-- Compute bot-specific realized P&L by cross-referencing bot entry/exit pairs
-- Expose `botStats: { realizedPnl, unrealizedPnl, totalFees, winCount, lossCount, avgHoldTime }`
-
-## Files to Create
-None
+### Step 6: Add missing imports
+Import `GACryptoMarket`, `GACryptoPriceCards`, `GACommodityRadar`, `GAForexWarRoom`, `GAPortfolioAllocator` into TradingBridge.
 
 ## Files to Modify
 | File | Changes |
 |---|---|
-| `src/components/trading/BotControlPanel.tsx` | Complete UI redesign -- readable layout, AUTO/ASK mode, pending approvals, fee display, bot P&L card |
-| `src/hooks/useTradingBot.ts` | Add ASK mode with pending proposals, approve/reject flow, bot-specific P&L tracking |
-| `src/hooks/usePaperTrading.ts` | Add fee simulation (spread + commission + slippage) to submitOrder |
-| `src/pages/TradingBridge.tsx` | Replace synthetic candle data with real price accumulation, connect real WAVE bias |
+| `src/pages/TradingBridge.tsx` | Add missing GA widget imports; enhance MARKET, RISK, ANALYTICS, BOOK, and STRATEGIES tabs with existing GA widgets |
 
-## No database changes required
-## No new dependencies required
+## No new files needed
+## No database changes needed
 
