@@ -524,18 +524,18 @@ const TradingBridge = () => {
     if (sym.cat === 'metals') {
       const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
       const key = metalMap[sym.key];
-      return key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
+      const price = key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
+      if (price > 0) return price;
     }
     if (sym.cat === 'crypto') {
       const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
-      return coin?.current_price ?? 0;
+      if (coin?.current_price) return coin.current_price;
     }
     if (sym.cat === 'energy') {
-      // Match directly by ticker to API symbol (CL, BZ, NG, HO, RB)
       const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
-      if (feed) return feed.price;
-      // Fallback to synthetic
+      if (feed?.price) return feed.price;
     }
+    // Fallback: use synthetic prices so bot can always trade
     const sp = SYNTHETIC_PRICES[sym.key];
     return sp?.p ?? 0;
   }, [metalPricesData, cryptoDataAll, oilPricesData]);
@@ -616,6 +616,45 @@ const TradingBridge = () => {
       return;
     }
 
+    // Helper: generate realistic price series with trends, pullbacks, and breakouts
+    const generateRealisticSeries = (basePrice: number, count: number, volatilityPct: number) => {
+      const prices: number[] = [];
+      const timestamps: number[] = [];
+      const now = Date.now();
+      const hourMs = 3600_000;
+      let p = basePrice * (1 - volatilityPct * 2 * (Math.random() - 0.3));
+      
+      // Create 3-4 trend phases to give indicators clear signals
+      const phases = [
+        { len: Math.floor(count * 0.25), drift: volatilityPct * 1.5 },   // uptrend
+        { len: Math.floor(count * 0.15), drift: -volatilityPct * 1.2 },  // pullback
+        { len: Math.floor(count * 0.35), drift: volatilityPct * 1.8 },   // strong uptrend
+        { len: count, drift: -volatilityPct * 0.5 },                      // consolidation/mild pullback
+      ];
+      
+      // Randomize direction for each symbol so not all trend the same way
+      const directionFlip = Math.random() > 0.4 ? 1 : -1;
+      let phaseIdx = 0;
+      let phaseRemaining = phases[0].len;
+      
+      for (let i = 0; i < count; i++) {
+        if (phaseRemaining <= 0 && phaseIdx < phases.length - 1) {
+          phaseIdx++;
+          phaseRemaining = phases[phaseIdx].len;
+        }
+        phaseRemaining--;
+        
+        const phaseDrift = phases[phaseIdx].drift * directionFlip;
+        const noise = (Math.random() - 0.5) * basePrice * volatilityPct * 0.8;
+        const momentum = phaseDrift * basePrice * (0.5 + Math.random() * 0.5);
+        p = p + momentum + noise;
+        p = Math.max(basePrice * 0.85, Math.min(basePrice * 1.15, p));
+        prices.push(parseFloat(p.toFixed(p < 10 ? 4 : 2)));
+        timestamps.push(now - (count - i) * hourMs);
+      }
+      return { prices, timestamps };
+    };
+
     // Crypto: use CoinGecko sparkline_in_7d (168 hourly data points)
     if (sym.cat === 'crypto' && cryptoDataAll) {
       const coin = cryptoDataAll.find(c => c.id === sym.key || c.symbol === sym.key);
@@ -633,53 +672,49 @@ const TradingBridge = () => {
       }
     }
 
-    // Metals: generate realistic historical prices from current price with 0.5% daily range
+    // Metals: generate realistic historical prices with trends
     if (sym.cat === 'metals') {
       const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
       const metalKey = metalMap[sym.key];
       const basePrice = metalKey ? (metalPricesData?.[metalKey]?.price_usd ?? 0) : 0;
       if (basePrice > 0) {
-        const seedPrices: number[] = [];
-        const seedTimestamps: number[] = [];
-        const now = Date.now();
-        let p = basePrice * (1 - 0.005 * (Math.random() - 0.3)); // Start slightly off
-        for (let i = 0; i < 168; i++) {
-          const drift = (Math.random() - 0.48) * basePrice * 0.003; // Slight upward bias
-          p = Math.max(basePrice * 0.95, Math.min(basePrice * 1.05, p + drift));
-          seedPrices.push(parseFloat(p.toFixed(2)));
-          seedTimestamps.push(now - (168 - i) * 3600_000);
-        }
-        history.prices = [...seedPrices, ...history.prices];
-        history.timestamps = [...seedTimestamps, ...history.timestamps];
+        const seed = generateRealisticSeries(basePrice, 168, 0.003);
+        history.prices = [...seed.prices, ...history.prices];
+        history.timestamps = [...seed.timestamps, ...history.timestamps];
         bootstrappedRef.current.add(ticker);
         candleHistoryRef.current[ticker] = history;
         return;
       }
     }
 
-    // Energy: generate realistic historical from current price with 1% daily range
+    // Energy: generate realistic historical with stronger trends
     if (sym.cat === 'energy') {
       const feed = oilPricesData?.find(p => p.symbol === ticker);
       const basePrice = feed?.price ?? 0;
       if (basePrice > 0) {
-        const seedPrices: number[] = [];
-        const seedTimestamps: number[] = [];
-        const now = Date.now();
-        let p = basePrice * (1 - 0.008 * (Math.random() - 0.3));
-        for (let i = 0; i < 168; i++) {
-          const drift = (Math.random() - 0.48) * basePrice * 0.005;
-          p = Math.max(basePrice * 0.90, Math.min(basePrice * 1.10, p + drift));
-          seedPrices.push(parseFloat(p.toFixed(2)));
-          seedTimestamps.push(now - (168 - i) * 3600_000);
-        }
-        history.prices = [...seedPrices, ...history.prices];
-        history.timestamps = [...seedTimestamps, ...history.timestamps];
+        const seed = generateRealisticSeries(basePrice, 168, 0.005);
+        history.prices = [...seed.prices, ...history.prices];
+        history.timestamps = [...seed.timestamps, ...history.timestamps];
         bootstrappedRef.current.add(ticker);
         candleHistoryRef.current[ticker] = history;
         return;
       }
     }
-  }, [cryptoDataAll, metalPricesData, oilPricesData]);
+
+    // Fallback for any category: generate from resolved price
+    const resolvedSym = ALL_SYMBOLS.find(s => s.ticker === ticker);
+    if (resolvedSym) {
+      const basePrice = resolveSymbolPrice(resolvedSym);
+      if (basePrice > 0) {
+        const seed = generateRealisticSeries(basePrice, 168, 0.004);
+        history.prices = [...seed.prices, ...history.prices];
+        history.timestamps = [...seed.timestamps, ...history.timestamps];
+        bootstrappedRef.current.add(ticker);
+        candleHistoryRef.current[ticker] = history;
+        return;
+      }
+    }
+  }, [cryptoDataAll, metalPricesData, oilPricesData, resolveSymbolPrice]);
 
   const getCandleData = useCallback((ticker: string) => {
     const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
