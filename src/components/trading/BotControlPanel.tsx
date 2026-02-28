@@ -1,186 +1,205 @@
-import { Bot, Power, Skull, Zap, Activity, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { Bot, Power, Skull, Zap, Activity, TrendingUp, TrendingDown, Clock, Check, X, AlertTriangle, DollarSign, BarChart3 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import type { BotConfig, BotDecision, BotStats, StrategyPreset } from '@/hooks/useTradingBot';
+import type { BotConfig, BotDecision, BotStats, StrategyPreset, BotMode } from '@/hooks/useTradingBot';
+import { STRATEGY_CONFIGS } from '@/hooks/useTradingBot';
 
 interface Props {
   config: BotConfig;
   updateConfig: (patch: Partial<BotConfig>) => void;
   activityLog: BotDecision[];
+  pendingProposals: BotDecision[];
   stats: BotStats;
   killAll: () => void;
+  approveProposal: (id: string) => void;
+  rejectProposal: (id: string) => void;
   positionCount: number;
   equity: number;
 }
 
 const STRATEGY_LABELS: Record<StrategyPreset, { label: string; desc: string; color: string }> = {
-  conservative: { label: 'CONSERVATIVE', desc: 'Strong signals only', color: 'text-blue-400' },
-  balanced: { label: 'BALANCED', desc: 'Default thresholds', color: 'text-gold' },
-  aggressive: { label: 'AGGRESSIVE', desc: 'Wider entries', color: 'text-red-400' },
-  wave_first: { label: 'WAVE-FIRST', desc: '40% forecast weight', color: 'text-purple-400' },
+  conservative: { label: 'CONSERVATIVE', desc: 'Only trades on strong confirmed signals. Tight stops, small positions. Best for capital preservation.', color: 'text-blue-400' },
+  balanced: { label: 'BALANCED', desc: 'Default strategy. Moderate entry thresholds with standard risk sizing. Good all-around performance.', color: 'text-gold' },
+  aggressive: { label: 'AGGRESSIVE', desc: 'Trades on weaker signals with larger positions and wider stops. Higher risk, higher potential reward.', color: 'text-red-400' },
+  wave_first: { label: 'WAVE-FIRST', desc: 'Heavily weights the WAVE forecast engine (40%). Best when forecast model has high accuracy.', color: 'text-purple-400' },
 };
 
-export default function BotControlPanel({ config, updateConfig, activityLog, stats, killAll, positionCount, equity }: Props) {
+export default function BotControlPanel({ config, updateConfig, activityLog, pendingProposals, stats, killAll, approveProposal, rejectProposal, positionCount, equity }: Props) {
   const isOn = config.enabled;
 
   return (
-    <div className="space-y-3">
-      {/* Master Toggle */}
-      <div className="flex items-center justify-between bg-navy-light/30 rounded-lg p-3 border border-gold/10">
-        <div className="flex items-center gap-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${isOn ? 'bg-emerald-500 animate-pulse' : 'bg-red-500/60'}`} />
-          <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">
-            {isOn ? 'BOT ACTIVE' : 'BOT OFFLINE'}
-          </span>
+    <div className="space-y-4">
+      {/* ─── Status Header ─── */}
+      <div className="bg-navy-light/40 rounded-xl p-4 border border-gold/10">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${isOn ? 'bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/30' : 'bg-red-500/60'}`} />
+            <span className={`text-sm font-display tracking-[0.1em] ${isOn ? 'text-emerald-400' : 'text-marble/40'}`}>
+              {isOn ? 'BOT ACTIVE' : 'BOT OFFLINE'}
+            </span>
+          </div>
+          <Switch checked={isOn} onCheckedChange={(v) => updateConfig({ enabled: v })} />
         </div>
-        <Switch checked={isOn} onCheckedChange={(v) => updateConfig({ enabled: v })} />
+
+        {/* Bot P&L Summary */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-navy-dark/50 rounded-lg p-3 border border-gold/5">
+            <div className="text-[10px] text-marble/40 font-display tracking-wider mb-1">BOT P&L</div>
+            <div className={`text-lg font-mono font-bold ${stats.botPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {stats.botPnl >= 0 ? '+' : ''}${stats.botPnl.toFixed(2)}
+            </div>
+          </div>
+          <div className="bg-navy-dark/50 rounded-lg p-3 border border-gold/5">
+            <div className="text-[10px] text-marble/40 font-display tracking-wider mb-1">TOTAL FEES</div>
+            <div className="text-lg font-mono font-bold text-amber-400/80">
+              -${stats.totalFees.toFixed(2)}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-4 gap-2 mt-3">
+          <StatBox label="TRADES" value={stats.totalExecutions} />
+          <StatBox label="WINS" value={stats.winCount} color="text-emerald-400" />
+          <StatBox label="LOSSES" value={stats.lossCount} color="text-red-400" />
+          <StatBox label="OPEN" value={positionCount} />
+        </div>
+
+        {stats.activeSince && (
+          <div className="text-[10px] text-marble/30 font-mono text-center mt-2 flex items-center justify-center gap-1">
+            <Clock className="w-3 h-3" />
+            Active since {new Date(stats.activeSince).toLocaleTimeString()}
+          </div>
+        )}
       </div>
 
-      {/* Strategy Preset */}
+      {/* ─── Mode Selector ─── */}
       <div>
-        <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-1.5">STRATEGY</div>
-        <div className="grid grid-cols-2 gap-1">
+        <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2">EXECUTION MODE</div>
+        <div className="grid grid-cols-2 gap-2">
+          <ModeCard
+            mode="auto"
+            currentMode={config.mode}
+            label="AUTO"
+            desc="Bot executes trades automatically without confirmation"
+            icon={<Zap className="w-4 h-4" />}
+            onSelect={() => updateConfig({ mode: 'auto' })}
+          />
+          <ModeCard
+            mode="ask"
+            currentMode={config.mode}
+            label="ASK"
+            desc="Bot proposes trades — you approve or reject each one"
+            icon={<AlertTriangle className="w-4 h-4" />}
+            onSelect={() => updateConfig({ mode: 'ask' })}
+          />
+        </div>
+      </div>
+
+      {/* ─── Pending Proposals (ASK mode) ─── */}
+      {pendingProposals.length > 0 && (
+        <div>
+          <div className="text-[10px] font-display tracking-[0.15em] text-amber-400/70 mb-2 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            PENDING APPROVALS ({pendingProposals.length})
+          </div>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto watchlist-scroll">
+            {pendingProposals.map(p => (
+              <ProposalCard key={p.id} proposal={p} onApprove={approveProposal} onReject={rejectProposal} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Strategy Selector ─── */}
+      <div>
+        <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2">STRATEGY</div>
+        <div className="space-y-2">
           {(Object.entries(STRATEGY_LABELS) as [StrategyPreset, typeof STRATEGY_LABELS[StrategyPreset]][]).map(([key, { label, desc, color }]) => (
             <button
               key={key}
               onClick={() => updateConfig({ strategy: key })}
-              className={`p-2 rounded text-left border transition-all ${
+              className={`w-full p-3 rounded-lg text-left border transition-all ${
                 config.strategy === key
                   ? 'bg-gold/10 border-gold/30'
                   : 'bg-navy-light/20 border-gold/5 hover:border-gold/15'
               }`}
             >
-              <div className={`text-[9px] font-display tracking-wider ${config.strategy === key ? color : 'text-marble/40'}`}>{label}</div>
-              <div className="text-[7px] text-marble/20 mt-0.5">{desc}</div>
+              <div className={`text-xs font-display tracking-wider ${config.strategy === key ? color : 'text-marble/40'}`}>{label}</div>
+              <div className="text-[10px] text-marble/30 mt-1 leading-relaxed">{desc}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Scan Interval */}
-      <div>
-        <div className="flex justify-between mb-1">
-          <span className="text-[8px] font-display tracking-[0.2em] text-marble/30">SCAN INTERVAL</span>
-          <span className="text-[9px] font-mono text-gold/60">{config.scanIntervalSec}s</span>
-        </div>
-        <Slider
-          value={[config.scanIntervalSec]}
-          onValueChange={([v]) => updateConfig({ scanIntervalSec: v })}
+      {/* ─── Risk Parameters ─── */}
+      <div className="space-y-3">
+        <div className="text-[10px] font-display tracking-[0.15em] text-marble/40">RISK PARAMETERS</div>
+
+        <SliderRow
+          label="SCAN INTERVAL"
+          value={config.scanIntervalSec}
+          unit="s"
           min={5} max={60} step={5}
-          className="w-full"
+          onChange={(v) => updateConfig({ scanIntervalSec: v })}
         />
-      </div>
-
-      {/* Max Positions */}
-      <div>
-        <div className="flex justify-between mb-1">
-          <span className="text-[8px] font-display tracking-[0.2em] text-marble/30">MAX POSITIONS</span>
-          <span className="text-[9px] font-mono text-gold/60">{config.maxPositions}</span>
-        </div>
-        <Slider
-          value={[config.maxPositions]}
-          onValueChange={([v]) => updateConfig({ maxPositions: v })}
+        <SliderRow
+          label="MAX POSITIONS"
+          value={config.maxPositions}
           min={1} max={10} step={1}
-          className="w-full"
+          onChange={(v) => updateConfig({ maxPositions: v })}
         />
-      </div>
-
-      {/* Risk Per Trade */}
-      <div>
-        <div className="flex justify-between mb-1">
-          <span className="text-[8px] font-display tracking-[0.2em] text-marble/30">RISK / TRADE</span>
-          <span className="text-[9px] font-mono text-gold/60">{config.riskPerTradePct}%</span>
-        </div>
-        <Slider
-          value={[config.riskPerTradePct]}
-          onValueChange={([v]) => updateConfig({ riskPerTradePct: v })}
+        <SliderRow
+          label="RISK PER TRADE"
+          value={config.riskPerTradePct}
+          unit="%"
           min={1} max={10} step={0.5}
-          className="w-full"
+          onChange={(v) => updateConfig({ riskPerTradePct: v })}
         />
       </div>
 
-      {/* Running Stats */}
-      <div className="grid grid-cols-3 gap-1.5">
-        <div className="bg-navy-light/20 rounded p-1.5 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/20 font-display tracking-wider">DECISIONS</div>
-          <div className="text-[10px] font-mono text-marble/60">{stats.totalDecisions}</div>
-        </div>
-        <div className="bg-navy-light/20 rounded p-1.5 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/20 font-display tracking-wider">EXECUTIONS</div>
-          <div className="text-[10px] font-mono text-emerald-400/60">{stats.totalExecutions}</div>
-        </div>
-        <div className="bg-navy-light/20 rounded p-1.5 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/20 font-display tracking-wider">POSITIONS</div>
-          <div className="text-[10px] font-mono text-marble/60">{positionCount}</div>
-        </div>
-      </div>
-
-      {stats.activeSince && (
-        <div className="text-[8px] text-marble/20 font-mono text-center flex items-center justify-center gap-1">
-          <Clock className="w-2.5 h-2.5" />
-          Active since {new Date(stats.activeSince).toLocaleTimeString()}
+      {/* ─── Signal Gauges ─── */}
+      {activityLog.length > 0 && activityLog[0].signal && (
+        <div>
+          <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2">LAST SIGNAL BREAKDOWN</div>
+          <div className="space-y-2">
+            <SignalGauge label="Trend" value={activityLog[0].signal.trend} desc="SMA/EMA cross, Ichimoku, SAR" />
+            <SignalGauge label="Momentum" value={activityLog[0].signal.momentum} desc="RSI, MACD, Stoch RSI, CCI" />
+            <SignalGauge label="Volatility" value={activityLog[0].signal.volatility} desc="Bollinger, ATR, Keltner" />
+            <SignalGauge label="Volume" value={activityLog[0].signal.volume} desc="OBV, MFI, CMF, A/D Line" />
+            <SignalGauge label="WAVE" value={activityLog[0].signal.wave} desc="Forecast bias & confidence" />
+            <div className="border-t border-gold/10 pt-2">
+              <SignalGauge label="COMPOSITE" value={activityLog[0].signal.composite} desc="Weighted aggregate" isComposite />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Kill Switch */}
+      {/* ─── Kill Switch ─── */}
       {positionCount > 0 && (
         <Button
           variant="destructive"
           onClick={killAll}
-          className="w-full text-[10px] font-display tracking-[0.15em] h-8"
+          className="w-full text-xs font-display tracking-[0.1em] h-10"
         >
-          <Skull className="w-3.5 h-3.5 mr-1" /> KILL ALL — CLOSE {positionCount} POSITIONS
+          <Skull className="w-4 h-4 mr-2" /> KILL ALL — CLOSE {positionCount} POSITIONS
         </Button>
       )}
 
-      {/* Activity Log */}
+      {/* ─── Activity Log ─── */}
       <div>
-        <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-1.5 flex items-center gap-1">
-          <Activity className="w-3 h-3" /> ACTIVITY LOG
+        <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2 flex items-center gap-1.5">
+          <Activity className="w-3.5 h-3.5" /> ACTIVITY LOG
         </div>
-        <div className="space-y-1 max-h-[200px] overflow-y-auto watchlist-scroll">
+        <div className="space-y-1.5 max-h-[300px] overflow-y-auto watchlist-scroll">
           {activityLog.length === 0 && (
-            <div className="text-[9px] text-marble/15 text-center py-3 font-display tracking-wider">
-              {isOn ? 'Scanning...' : 'Enable bot to start'}
+            <div className="text-xs text-marble/20 text-center py-6 font-display tracking-wider">
+              {isOn ? 'Scanning market...' : 'Enable bot to start scanning'}
             </div>
           )}
           {activityLog.map(d => (
-            <div key={d.id} className="bg-navy-light/15 rounded p-1.5 border border-gold/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  {d.action === 'BUY' && <TrendingUp className="w-2.5 h-2.5 text-emerald-400" />}
-                  {d.action === 'SELL' && <TrendingDown className="w-2.5 h-2.5 text-red-400" />}
-                  {d.action === 'EXIT' && <Zap className="w-2.5 h-2.5 text-amber-400" />}
-                  {d.action === 'HOLD' && <Power className="w-2.5 h-2.5 text-marble/20" />}
-                  <span className={`text-[9px] font-mono ${
-                    d.action === 'BUY' ? 'text-emerald-400' :
-                    d.action === 'SELL' ? 'text-red-400' :
-                    d.action === 'EXIT' ? 'text-amber-400' :
-                    'text-marble/30'
-                  }`}>
-                    {d.action} {d.symbol}
-                  </span>
-                </div>
-                <span className="text-[7px] font-mono text-marble/15">
-                  {new Date(d.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <div className="text-[7px] text-marble/20 mt-0.5 font-mono">{d.reason}</div>
-              {/* Signal breakdown mini-bar */}
-              <div className="flex gap-0.5 mt-1">
-                <SignalBar label="T" value={d.signal.trend} />
-                <SignalBar label="M" value={d.signal.momentum} />
-                <SignalBar label="V" value={d.signal.volatility} />
-                <SignalBar label="$" value={d.signal.volume} />
-                <SignalBar label="W" value={d.signal.wave} />
-                <div className="ml-auto text-[7px] font-mono text-marble/30">
-                  Σ <span className={d.signal.composite > 0 ? 'text-emerald-400' : d.signal.composite < 0 ? 'text-red-400' : 'text-marble/30'}>
-                    {d.signal.composite > 0 ? '+' : ''}{d.signal.composite.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <ActivityRow key={d.id} decision={d} />
           ))}
         </div>
       </div>
@@ -188,18 +207,204 @@ export default function BotControlPanel({ config, updateConfig, activityLog, sta
   );
 }
 
-function SignalBar({ label, value }: { label: string; value: number }) {
-  const w = Math.abs(value) * 100;
-  const color = value > 0.3 ? 'bg-emerald-500' : value < -0.3 ? 'bg-red-500' : 'bg-marble/20';
+// ─── Sub-Components ──────────────────────────────────────
+
+function StatBox({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
-    <div className="flex items-center gap-0.5" title={`${label}: ${value.toFixed(2)}`}>
-      <span className="text-[6px] text-marble/20 w-2">{label}</span>
-      <div className="w-8 h-1 bg-navy-dark/50 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${Math.min(w, 100)}%`, marginLeft: value < 0 ? `${100 - w}%` : undefined }}
-        />
+    <div className="bg-navy-dark/40 rounded-lg p-2 text-center border border-gold/5">
+      <div className="text-[8px] text-marble/25 font-display tracking-wider">{label}</div>
+      <div className={`text-sm font-mono ${color || 'text-marble/70'}`}>{value}</div>
+    </div>
+  );
+}
+
+function ModeCard({ mode, currentMode, label, desc, icon, onSelect }: {
+  mode: BotMode; currentMode: BotMode; label: string; desc: string; icon: React.ReactNode; onSelect: () => void;
+}) {
+  const active = mode === currentMode;
+  return (
+    <button
+      onClick={onSelect}
+      className={`p-3 rounded-lg text-left border transition-all ${
+        active ? 'bg-gold/10 border-gold/30' : 'bg-navy-light/20 border-gold/5 hover:border-gold/15'
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className={active ? 'text-gold' : 'text-marble/30'}>{icon}</span>
+        <span className={`text-xs font-display tracking-wider ${active ? 'text-gold' : 'text-marble/40'}`}>{label}</span>
       </div>
+      <div className="text-[10px] text-marble/25 leading-relaxed">{desc}</div>
+    </button>
+  );
+}
+
+function ProposalCard({ proposal, onApprove, onReject }: {
+  proposal: BotDecision; onApprove: (id: string) => void; onReject: (id: string) => void;
+}) {
+  const isBuy = proposal.action === 'BUY';
+  const isExit = proposal.action === 'EXIT';
+  return (
+    <div className={`rounded-lg p-3 border ${
+      isExit ? 'bg-amber-500/5 border-amber-500/20' :
+      isBuy ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'
+    }`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {isBuy && <TrendingUp className="w-4 h-4 text-emerald-400" />}
+          {!isBuy && !isExit && <TrendingDown className="w-4 h-4 text-red-400" />}
+          {isExit && <Zap className="w-4 h-4 text-amber-400" />}
+          <span className={`text-sm font-mono font-bold ${
+            isBuy ? 'text-emerald-400' : isExit ? 'text-amber-400' : 'text-red-400'
+          }`}>
+            {proposal.action} {proposal.symbol}
+          </span>
+        </div>
+        <span className="text-[10px] font-mono text-marble/30">
+          {new Date(proposal.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+
+      <div className="text-[11px] text-marble/50 mb-2 leading-relaxed">{proposal.reason}</div>
+
+      <div className="flex items-center gap-2 text-[10px] font-mono text-marble/40 mb-3">
+        {proposal.qty && <span>Qty: {proposal.qty}</span>}
+        {proposal.price && <span>@ ${proposal.price < 10 ? proposal.price.toFixed(4) : proposal.price.toLocaleString()}</span>}
+        {proposal.estimatedFees && <span className="text-amber-400/60">Fees: ~${proposal.estimatedFees.toFixed(2)}</span>}
+      </div>
+
+      {/* Signal breakdown */}
+      <div className="grid grid-cols-5 gap-1 mb-3">
+        <MiniGauge label="TRD" value={proposal.signal.trend} />
+        <MiniGauge label="MOM" value={proposal.signal.momentum} />
+        <MiniGauge label="VOL" value={proposal.signal.volatility} />
+        <MiniGauge label="VOL$" value={proposal.signal.volume} />
+        <MiniGauge label="WAVE" value={proposal.signal.wave} />
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          onClick={() => onApprove(proposal.id)}
+          className="flex-1 h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+        >
+          <Check className="w-3.5 h-3.5 mr-1" /> APPROVE
+        </Button>
+        <Button
+          onClick={() => onReject(proposal.id)}
+          variant="outline"
+          className="flex-1 h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+        >
+          <X className="w-3.5 h-3.5 mr-1" /> REJECT
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MiniGauge({ label, value }: { label: string; value: number }) {
+  const pct = Math.abs(value) * 100;
+  const color = value > 0.3 ? 'bg-emerald-500' : value < -0.3 ? 'bg-red-500' : 'bg-marble/30';
+  return (
+    <div className="text-center">
+      <div className="text-[8px] text-marble/30 font-mono mb-0.5">{label}</div>
+      <div className="h-1.5 bg-navy-dark/60 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      <div className={`text-[8px] font-mono mt-0.5 ${value > 0 ? 'text-emerald-400/60' : value < 0 ? 'text-red-400/60' : 'text-marble/20'}`}>
+        {value > 0 ? '+' : ''}{value.toFixed(2)}
+      </div>
+    </div>
+  );
+}
+
+function SignalGauge({ label, value, desc, isComposite }: { label: string; value: number; desc: string; isComposite?: boolean }) {
+  const pctFromCenter = value * 50 + 50; // -1 → 0%, 0 → 50%, +1 → 100%
+  const color = value > 0.3 ? 'text-emerald-400' : value < -0.3 ? 'text-red-400' : 'text-marble/50';
+  const barColor = value > 0.3 ? 'bg-emerald-500' : value < -0.3 ? 'bg-red-500' : 'bg-marble/30';
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-20 flex-shrink-0">
+        <div className={`text-[11px] font-display tracking-wider ${isComposite ? 'text-gold font-bold' : 'text-marble/50'}`}>{label}</div>
+        <div className="text-[9px] text-marble/20">{desc}</div>
+      </div>
+      <div className="flex-1 relative">
+        <div className="h-2 bg-navy-dark/60 rounded-full overflow-hidden">
+          {/* Center line */}
+          <div className="absolute left-1/2 top-0 w-px h-full bg-marble/10 z-10" />
+          {/* Fill from center */}
+          <div
+            className={`absolute top-0 h-full rounded-full ${barColor} transition-all duration-300`}
+            style={{
+              left: value >= 0 ? '50%' : `${pctFromCenter}%`,
+              width: `${Math.abs(value) * 50}%`,
+            }}
+          />
+        </div>
+      </div>
+      <span className={`text-xs font-mono w-12 text-right ${color}`}>
+        {value > 0 ? '+' : ''}{(value * 100).toFixed(0)}%
+      </span>
+    </div>
+  );
+}
+
+function SliderRow({ label, value, unit, min, max, step, onChange }: {
+  label: string; value: number; unit?: string; min: number; max: number; step: number; onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex justify-between mb-1.5">
+        <span className="text-[10px] font-display tracking-[0.15em] text-marble/40">{label}</span>
+        <span className="text-xs font-mono text-gold/70">{value}{unit || ''}</span>
+      </div>
+      <Slider
+        value={[value]}
+        onValueChange={([v]) => onChange(v)}
+        min={min} max={max} step={step}
+        className="w-full"
+      />
+    </div>
+  );
+}
+
+function ActivityRow({ decision }: { decision: BotDecision }) {
+  const d = decision;
+  const actionColor =
+    d.action === 'BUY' ? 'text-emerald-400' :
+    d.action === 'SELL' ? 'text-red-400' :
+    d.action === 'EXIT' ? 'text-amber-400' :
+    'text-marble/30';
+
+  const statusBadge = d.status === 'rejected'
+    ? <span className="text-[8px] px-1 py-0.5 rounded bg-red-500/10 text-red-400/60 border border-red-500/20">REJECTED</span>
+    : d.status === 'approved'
+    ? <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400/60 border border-emerald-500/20">APPROVED</span>
+    : null;
+
+  return (
+    <div className="bg-navy-light/20 rounded-lg p-2.5 border border-gold/5">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          {d.action === 'BUY' && <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />}
+          {d.action === 'SELL' && <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+          {d.action === 'EXIT' && <Zap className="w-3.5 h-3.5 text-amber-400" />}
+          {d.action === 'HOLD' && <Power className="w-3.5 h-3.5 text-marble/20" />}
+          <span className={`text-xs font-mono font-bold ${actionColor}`}>
+            {d.action} {d.symbol}
+          </span>
+          {statusBadge}
+        </div>
+        <span className="text-[9px] font-mono text-marble/20">
+          {new Date(d.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+      <div className="text-[11px] text-marble/40 leading-relaxed">{d.reason}</div>
+      {d.price && d.qty && (
+        <div className="text-[10px] font-mono text-marble/30 mt-1">
+          {d.qty} × ${d.price < 10 ? d.price.toFixed(4) : d.price.toLocaleString()} = ${(d.qty * d.price).toFixed(2)}
+          {d.estimatedFees && <span className="text-amber-400/50 ml-2">fees ~${d.estimatedFees.toFixed(2)}</span>}
+        </div>
+      )}
     </div>
   );
 }
