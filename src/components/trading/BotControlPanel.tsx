@@ -180,6 +180,22 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
         )}
       </div>
 
+      {/* ══════ REAL-TIME PROGRESS TRACKER ══════ */}
+      <div className="rounded-xl p-3 border border-gold/10 bg-navy-dark/30">
+        <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2">📡 PROGRESS TRACKER</div>
+        <div className="grid grid-cols-4 gap-2">
+          <MiniStat label="Scanned" value={stats.tradableSymbols} />
+          <MiniStat label="Signals" value={stats.totalDecisions} />
+          <MiniStat label="Executed" value={stats.totalExecutions} />
+          <MiniStat label="Open" value={botPositions.length} />
+        </div>
+        <div className="mt-2 text-[9px] font-mono text-marble/25">
+          {activityLog[0]
+            ? `Last: ${activityLog[0].action} ${activityLog[0].symbol} at ${new Date(activityLog[0].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'No decisions yet — bot will post entries/exits here in realtime.'}
+        </div>
+      </div>
+
       {/* ══════ PENDING APPROVALS (ASK mode only) ══════ */}
       {pendingProposals.length > 0 && (
         <div className="rounded-xl p-3 border border-amber-500/20 bg-amber-500/5">
@@ -210,21 +226,26 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
       )}
 
       {/* ══════ LIVE POSITIONS ══════ */}
-      {botPositions.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-display tracking-[0.15em] text-marble/40">
-              📊 LIVE POSITIONS ({botPositions.length})
-            </span>
-            {botPositions.length > 0 && (
-              <button
-                onClick={killAll}
-                className="text-[9px] font-display tracking-wider text-red-400/60 hover:text-red-400 transition-colors"
-              >
-                <Skull className="w-3 h-3 inline mr-1" />CLOSE ALL
-              </button>
-            )}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-display tracking-[0.15em] text-marble/40">
+            📊 LIVE POSITIONS ({botPositions.length})
+          </span>
+          {botPositions.length > 0 && (
+            <button
+              onClick={killAll}
+              className="text-[9px] font-display tracking-wider text-red-400/60 hover:text-red-400 transition-colors"
+            >
+              <Skull className="w-3 h-3 inline mr-1" />CLOSE ALL
+            </button>
+          )}
+        </div>
+
+        {botPositions.length === 0 ? (
+          <div className="rounded-lg p-3 border border-gold/5 bg-navy-dark/30 text-[10px] text-marble/35 font-mono">
+            No bot positions yet. When the bot opens trades, they appear here in realtime with live P&L and close controls.
           </div>
+        ) : (
           <div className="space-y-2 max-h-[400px] overflow-y-auto watchlist-scroll">
             {botPositions.map(pos => (
               <PositionMiniCard
@@ -243,8 +264,8 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
               />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ══════ RECENT TRADES — collapsed by default ══════ */}
       {activityLog.length > 0 && (
