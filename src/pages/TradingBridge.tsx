@@ -569,19 +569,30 @@ const TradingBridge = () => {
     return resolveSymbolPrice(sym);
   }, [resolveSymbolPrice]);
 
-  // Keep paper position prices synced with live data on every data tick
+  // Keep paper position prices synced with live data every second via stable interval
+  const paperPositionsRef = useRef(paper.positions);
+  const updatePricesRef = useRef(paper.updatePrices);
+  const resolveSymbolPriceRef = useRef(resolveSymbolPrice);
+  useEffect(() => { paperPositionsRef.current = paper.positions; }, [paper.positions]);
+  useEffect(() => { updatePricesRef.current = paper.updatePrices; }, [paper.updatePrices]);
+  useEffect(() => { resolveSymbolPriceRef.current = resolveSymbolPrice; }, [resolveSymbolPrice]);
+
   useEffect(() => {
-    if (paper.positions.length === 0) return;
-    const priceMap: Record<string, number> = {};
-    paper.positions.forEach(pos => {
-      const sym = ALL_SYMBOLS.find(s => s.ticker === pos.symbol);
-      if (sym) {
-        const price = resolveSymbolPrice(sym);
-        if (price > 0) priceMap[pos.symbol] = price;
-      }
-    });
-    if (Object.keys(priceMap).length > 0) paper.updatePrices(priceMap);
-  }, [paper.positions.length, resolveSymbolPrice, metalPricesData, cryptoDataAll, oilPricesData]);
+    const interval = setInterval(() => {
+      const positions = paperPositionsRef.current;
+      if (positions.length === 0) return;
+      const priceMap: Record<string, number> = {};
+      positions.forEach(pos => {
+        const sym = ALL_SYMBOLS.find(s => s.ticker === pos.symbol);
+        if (sym) {
+          const price = resolveSymbolPriceRef.current(sym);
+          if (price > 0) priceMap[pos.symbol] = price;
+        }
+      });
+      if (Object.keys(priceMap).length > 0) updatePricesRef.current(priceMap);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ─── Trading Bot ────────────────────────────────────
   // Bot only scans symbols with REAL live price feeds (no synthetic data)
