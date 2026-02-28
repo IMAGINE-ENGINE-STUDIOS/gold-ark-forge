@@ -275,30 +275,52 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
             className="flex items-center gap-1.5 text-[10px] font-display tracking-[0.15em] text-marble/30 hover:text-marble/50 transition-colors w-full"
           >
             {showLog ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            RECENT TRADES ({activityLog.filter(d => d.executed).length})
+            RECENT ACTIVITY ({activityLog.filter(d => d.executed || d.aiValidated === false).length})
           </button>
           {showLog && (
             <div className="space-y-1 mt-2 max-h-[250px] overflow-y-auto watchlist-scroll">
-              {activityLog.filter(d => d.executed).slice(0, 20).map(d => (
-                <div key={d.id} className="flex items-center justify-between bg-navy-dark/30 rounded px-2.5 py-1.5 border border-gold/5">
-                  <div className="flex items-center gap-2">
-                    {d.action === 'BUY' && <TrendingUp className="w-3 h-3 text-emerald-400" />}
-                    {d.action === 'SELL' && <TrendingDown className="w-3 h-3 text-red-400" />}
-                    {d.action === 'EXIT' && <Zap className="w-3 h-3 text-amber-400" />}
-                    <span className={`text-[10px] font-mono font-bold ${
-                      d.action === 'BUY' ? 'text-emerald-400' : d.action === 'EXIT' ? 'text-amber-400' : 'text-red-400'
-                    }`}>
-                      {d.action} {d.symbol}
-                    </span>
-                    {d.qty && d.price && (
-                      <span className="text-[9px] text-marble/20 font-mono">
-                        {d.qty} @ ${d.price < 10 ? d.price.toFixed(4) : d.price.toFixed(2)}
+              {activityLog.filter(d => d.executed || d.aiValidated === false).slice(0, 20).map(d => (
+                <div key={d.id} className="bg-navy-dark/30 rounded px-2.5 py-1.5 border border-gold/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {d.action === 'BUY' && <TrendingUp className="w-3 h-3 text-emerald-400" />}
+                      {d.action === 'SELL' && <TrendingDown className="w-3 h-3 text-red-400" />}
+                      {d.action === 'EXIT' && <Zap className="w-3 h-3 text-amber-400" />}
+                      {d.action === 'HOLD' && <AlertTriangle className="w-3 h-3 text-marble/30" />}
+                      <span className={`text-[10px] font-mono font-bold ${
+                        d.action === 'BUY' ? 'text-emerald-400' : d.action === 'EXIT' ? 'text-amber-400' : d.action === 'HOLD' ? 'text-marble/40' : 'text-red-400'
+                      }`}>
+                        {d.action} {d.symbol}
                       </span>
-                    )}
+                      {d.qty && d.price && (
+                        <span className="text-[9px] text-marble/20 font-mono">
+                          {d.qty} @ ${d.price < 10 ? d.price.toFixed(4) : d.price.toFixed(2)}
+                        </span>
+                      )}
+                      {d.aiValidated && (
+                        <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded-full ${
+                          (d.aiConfidence ?? 0) >= 80 ? 'bg-emerald-500/15 text-emerald-400' :
+                          (d.aiConfidence ?? 0) >= 60 ? 'bg-amber-500/15 text-amber-400' :
+                          'bg-red-500/15 text-red-400'
+                        }`}>
+                          🧠 {d.aiConfidence}%
+                        </span>
+                      )}
+                      {d.aiValidated === false && d.aiConfidence !== undefined && (
+                        <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400/60">
+                          🧠 SKIP
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[8px] font-mono text-marble/15">
+                      {new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
-                  <span className="text-[8px] font-mono text-marble/15">
-                    {new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  {d.aiReasoning && (
+                    <div className="text-[8px] text-marble/25 font-mono mt-1 pl-5 leading-relaxed">
+                      {d.aiReasoning}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
