@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -32,6 +32,8 @@ import GAPipCalculator from '@/components/ga-widgets/GAPipCalculator';
 import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
 import OneClickTrading from '@/components/trading/OneClickTrading';
 import TradingPanel from '@/components/trading/TradingPanel';
+import BotControlPanel from '@/components/trading/BotControlPanel';
+import { useTradingBot } from '@/hooks/useTradingBot';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
@@ -123,6 +125,7 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 const BOTTOM_TABS = [
   { key: 'trade', label: 'TRADE', icon: ArrowUpDown },
   { key: 'book', label: 'BOOK', icon: Briefcase },
+  { key: 'bot', label: 'BOT', icon: Bot },
   { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
   { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
   { key: 'market', label: 'MARKET', icon: Layers },
@@ -574,6 +577,60 @@ const TradingBridge = () => {
     if (Object.keys(priceMap).length > 0) paper.updatePrices(priceMap);
   }, [paper.positions.length, resolveSymbolPrice, metalPricesData, cryptoDataAll, oilPricesData]);
 
+  // ─── Trading Bot ────────────────────────────────────
+  const watchlistTickers = useMemo(() => ALL_SYMBOLS.map(s => s.ticker), []);
+  const peakEquityRef = useRef(paper.account.equity);
+  if (paper.account.equity > peakEquityRef.current) peakEquityRef.current = paper.account.equity;
+
+  const getCandleData = useCallback((ticker: string) => {
+    // Generate synthetic candle data for signal computation
+    const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
+    if (!sym) return null;
+    const price = resolveSymbolPrice(sym);
+    if (price <= 0) return null;
+    const sp = SYNTHETIC_PRICES[sym.key];
+    const change = sp?.c ?? 0;
+    // Build a 60-point price series for indicator computation
+    const points = 60;
+    const startPrice = price / (1 + change / 100);
+    const drift = (price - startPrice) / points;
+    const closes: number[] = [];
+    const highs: number[] = [];
+    const lows: number[] = [];
+    let walk = startPrice;
+    for (let i = 0; i < points; i++) {
+      walk += drift + (Math.random() - 0.5) * walk * 0.003;
+      const spread = Math.abs((Math.random() - 0.5) * walk * 0.002);
+      closes.push(walk);
+      highs.push(walk + spread);
+      lows.push(walk - spread);
+    }
+    closes[closes.length - 1] = price; // Ensure last close is live price
+    return { closes, highs, lows };
+  }, [resolveSymbolPrice]);
+
+  const getWaveBias = useCallback((_ticker: string) => {
+    // Simplified wave bias: use active symbol's change as proxy
+    const sym = ALL_SYMBOLS.find(s => s.ticker === _ticker);
+    if (!sym) return 0;
+    const sp = SYNTHETIC_PRICES[sym.key];
+    const change = sp?.c ?? 0;
+    return Math.max(-1, Math.min(1, change / 5)); // Normalize change% to -1..1
+  }, []);
+
+  const bot = useTradingBot({
+    watchlistSymbols: watchlistTickers,
+    resolvePrice: resolvePriceForTicker,
+    getCandleData,
+    getWaveBias,
+    submitOrder: paper.submitOrder,
+    closePosition: paper.closePosition,
+    positions: paper.positions,
+    equity: paper.account.equity,
+    cash: paper.account.cash,
+    peakEquity: peakEquityRef.current,
+  });
+
   // ─── Close Position with Notification ──────────────
   const { toast } = useToast();
   const handleClosePosition = useCallback((posId: string, price: number) => {
@@ -887,6 +944,17 @@ const TradingBridge = () => {
                 </div>
               )}
               {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+              {bottomTab === 'bot' && (
+                <BotControlPanel
+                  config={bot.config}
+                  updateConfig={bot.updateConfig}
+                  activityLog={bot.activityLog}
+                  stats={bot.stats}
+                  killAll={bot.killAll}
+                  positionCount={paper.positions.length}
+                  equity={paper.account.equity}
+                />
+              )}
               {bottomTab === 'automate' && (
                 <div className="space-y-4">
                   <SchedulePanel />
@@ -1185,6 +1253,17 @@ const TradingBridge = () => {
                       </CollapsibleSection>
                     </div>
                   )}
+                  {bottomTab === 'bot' && (
+                    <BotControlPanel
+                      config={bot.config}
+                      updateConfig={bot.updateConfig}
+                      activityLog={bot.activityLog}
+                      stats={bot.stats}
+                      killAll={bot.killAll}
+                      positionCount={paper.positions.length}
+                      equity={paper.account.equity}
+                    />
+                  )}
                   {bottomTab === 'automate' && (
                     <div className="space-y-4">
                       <SchedulePanel />
@@ -1261,6 +1340,12 @@ const TradingBridge = () => {
             <span className="text-[8px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
           )}
           <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
+          {bot.config.enabled && (
+            <span className="text-[8px] font-mono text-purple-400/60 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+              BOT
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {tradingMode === 'paper' && (
