@@ -1,4 +1,5 @@
-import { Bot, Power, Skull, Zap, Activity, TrendingUp, TrendingDown, Clock, Check, X, AlertTriangle, DollarSign, BarChart3, Crosshair, Wallet, Play } from 'lucide-react';
+import { Bot, Power, Skull, Zap, Activity, TrendingUp, TrendingDown, Clock, Check, X, AlertTriangle, DollarSign, BarChart3, Crosshair, Wallet, Play, Shield, Target } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -132,6 +133,58 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
           <StatBox label="WIN %" value={stats.winCount + stats.lossCount > 0 ? Math.round((stats.winCount / (stats.winCount + stats.lossCount)) * 100) : 0} suffix="%" />
           <StatBox label="OPEN" value={botPosCount} />
         </div>
+
+        {/* ─── BUDGET LOSS PROTECTION GAUGE ─── */}
+        <div className={`mt-3 rounded-lg p-3 border ${stats.budgetHalted ? 'bg-red-500/10 border-red-500/30' : stats.budgetDrawdownPct > 5 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-navy-dark/40 border-gold/5'}`}>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Shield className={`w-3.5 h-3.5 ${stats.budgetHalted ? 'text-red-400' : stats.budgetDrawdownPct > 5 ? 'text-amber-400' : 'text-emerald-400/60'}`} />
+              <span className="text-[10px] font-display tracking-[0.12em] text-marble/40">
+                {stats.budgetHalted ? '🚨 10% LOSS LIMIT REACHED' : 'LOSS PROTECTION (10% MAX)'}
+              </span>
+            </div>
+            <span className={`text-[10px] font-mono ${stats.budgetDrawdownPct > 5 ? 'text-red-400' : 'text-marble/30'}`}>
+              -${stats.budgetLossUsed.toFixed(0)} / -${stats.budgetMaxLoss.toFixed(0)}
+            </span>
+          </div>
+          <div className="h-2 bg-navy-dark/60 rounded-full overflow-hidden mb-1">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                stats.budgetDrawdownPct > 8 ? 'bg-red-500 animate-pulse' : stats.budgetDrawdownPct > 5 ? 'bg-amber-500' : 'bg-emerald-500/60'
+              }`}
+              style={{ width: `${Math.min(stats.budgetDrawdownPct * 10, 100)}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[8px] font-mono text-marble/20">
+            <span>0%</span>
+            <span className="text-amber-400/30">5%</span>
+            <span className="text-red-400/40">10% HALT</span>
+          </div>
+          {stats.budgetHalted && (
+            <div className="mt-2 text-[9px] text-red-400/70 font-mono text-center">
+              Bot auto-halted. Increase budget or manually restart to resume.
+            </div>
+          )}
+        </div>
+
+        {/* ─── ADVANCED PERFORMANCE METRICS ─── */}
+        <div className="grid grid-cols-4 gap-1.5 mt-3">
+          <StatBox label="P.FACTOR" value={parseFloat(stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(1))} color={stats.profitFactor >= 1.5 ? 'text-emerald-400' : stats.profitFactor >= 1 ? 'text-gold' : 'text-red-400'} />
+          <StatBox label="SHARPE" value={parseFloat(stats.sharpeEstimate.toFixed(2))} color={stats.sharpeEstimate >= 1 ? 'text-emerald-400' : stats.sharpeEstimate >= 0 ? 'text-gold' : 'text-red-400'} />
+          <StatBox label="AVG WIN" value={parseFloat(stats.avgWin.toFixed(0))} color="text-emerald-400" prefix="$" />
+          <StatBox label="AVG LOSS" value={parseFloat(stats.avgLoss.toFixed(0))} color="text-red-400" prefix="$" />
+        </div>
+
+        {/* Streak indicator */}
+        {(stats.consecutiveWins > 1 || stats.consecutiveLosses > 1) && (
+          <div className={`mt-2 text-center text-[9px] font-mono rounded py-1 ${
+            stats.consecutiveWins > 1 ? 'bg-emerald-500/10 text-emerald-400/70 border border-emerald-500/15' : 'bg-red-500/10 text-red-400/70 border border-red-500/15'
+          }`}>
+            {stats.consecutiveWins > 1
+              ? `🔥 ${stats.consecutiveWins} consecutive wins`
+              : `⚠️ ${stats.consecutiveLosses} consecutive losses — position sizing reduced`}
+          </div>
+        )}
 
         {stats.activeSince && (
           <div className="text-[10px] text-marble/30 font-mono text-center mt-2 flex items-center justify-center gap-1">
@@ -330,11 +383,11 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
 
 // ─── Sub-Components ──────────────────────────────────────
 
-function StatBox({ label, value, color, suffix }: { label: string; value: number; color?: string; suffix?: string }) {
+function StatBox({ label, value, color, suffix, prefix }: { label: string; value: number | string; color?: string; suffix?: string; prefix?: string }) {
   return (
     <div className="bg-navy-dark/40 rounded-lg p-2 text-center border border-gold/5">
       <div className="text-[8px] text-marble/25 font-display tracking-wider">{label}</div>
-      <div className={`text-sm font-mono ${color || 'text-marble/70'}`}>{value}{suffix || ''}</div>
+      <div className={`text-sm font-mono ${color || 'text-marble/70'}`}>{prefix || ''}{value}{suffix || ''}</div>
     </div>
   );
 }

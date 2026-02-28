@@ -60,6 +60,16 @@ export interface BotStats {
   lossCount: number;
   scannedSymbols: number;
   tradableSymbols: number;
+  budgetDrawdownPct: number;
+  budgetMaxLoss: number;
+  budgetLossUsed: number;
+  budgetHalted: boolean;
+  consecutiveWins: number;
+  consecutiveLosses: number;
+  avgWin: number;
+  avgLoss: number;
+  profitFactor: number;
+  sharpeEstimate: number;
 }
 
 // ─── Strategy Presets ────────────────────────────────────
@@ -386,22 +396,57 @@ export function useTradingBot(params: UseTradingBotParams) {
     let realizedPnl = 0;
     let winCount = 0;
     let lossCount = 0;
+    const winAmounts: number[] = [];
+    const lossAmounts: number[] = [];
+    let consecutiveWins = 0;
+    let consecutiveLosses = 0;
+    let currentStreak = 0;
+
     exits.forEach(e => {
-      const pnl = e.estimatedFees ? -(e.estimatedFees) : 0;
-      // Use the actual closed P&L from the entry/exit pair
       const entry = activityLog.find(a => a.symbol === e.symbol && (a.action === 'BUY' || a.action === 'SELL') && a.executed && a.timestamp < e.timestamp);
       if (entry && entry.price && e.price && entry.qty) {
         const direction = entry.action === 'BUY' ? 1 : -1;
         const tradePnl = (e.price - entry.price) * direction * entry.qty;
         realizedPnl += tradePnl;
-        if (tradePnl >= 0) winCount++; else lossCount++;
+        if (tradePnl >= 0) {
+          winCount++;
+          winAmounts.push(tradePnl);
+          if (currentStreak >= 0) currentStreak++; else currentStreak = 1;
+        } else {
+          lossCount++;
+          lossAmounts.push(Math.abs(tradePnl));
+          if (currentStreak <= 0) currentStreak--; else currentStreak = -1;
+        }
       }
     });
+
+    consecutiveWins = currentStreak > 0 ? currentStreak : 0;
+    consecutiveLosses = currentStreak < 0 ? Math.abs(currentStreak) : 0;
+
+    const avgWin = winAmounts.length > 0 ? winAmounts.reduce((a, b) => a + b, 0) / winAmounts.length : 0;
+    const avgLoss = lossAmounts.length > 0 ? lossAmounts.reduce((a, b) => a + b, 0) / lossAmounts.length : 0;
+    const grossWins = winAmounts.reduce((a, b) => a + b, 0);
+    const grossLosses = lossAmounts.reduce((a, b) => a + b, 0);
+    const profitFactor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0;
+
+    // Sharpe estimate from trade returns
+    const allReturns = [...winAmounts, ...lossAmounts.map(l => -l)];
+    const meanReturn = allReturns.length > 0 ? allReturns.reduce((a, b) => a + b, 0) / allReturns.length : 0;
+    const variance = allReturns.length > 1 ? allReturns.reduce((s, r) => s + (r - meanReturn) ** 2, 0) / (allReturns.length - 1) : 0;
+    const stdDev = Math.sqrt(variance);
+    const sharpeEstimate = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0;
+
+    // Budget-based drawdown (10% hard limit)
+    const totalBotPnl = unrealizedPnl + realizedPnl;
+    const budgetMaxLoss = config.botBudget * 0.10; // 10% of budget
+    const budgetLossUsed = totalBotPnl < 0 ? Math.abs(totalBotPnl) : 0;
+    const budgetDrawdownPct = config.botBudget > 0 ? (budgetLossUsed / config.botBudget) * 100 : 0;
+    const budgetHalted = budgetLossUsed >= budgetMaxLoss;
 
     return {
       totalDecisions: activityLog.length,
       totalExecutions: executedLog.length,
-      botPnl: unrealizedPnl + realizedPnl,
+      botPnl: totalBotPnl,
       activeSince: config.enabled ? (activityLog.length > 0 ? activityLog[activityLog.length - 1]?.timestamp : Date.now()) : null,
       realizedPnl,
       unrealizedPnl,
@@ -410,8 +455,18 @@ export function useTradingBot(params: UseTradingBotParams) {
       lossCount,
       scannedSymbols: tradableSymbols.length,
       tradableSymbols: tradableSymbols.length,
+      budgetDrawdownPct,
+      budgetMaxLoss,
+      budgetLossUsed,
+      budgetHalted,
+      consecutiveWins,
+      consecutiveLosses,
+      avgWin,
+      avgLoss,
+      profitFactor,
+      sharpeEstimate,
     };
-  }, [activityLog, positions, config.enabled, totalFees, tradableSymbols]);
+  }, [activityLog, positions, config.enabled, config.botBudget, totalFees, tradableSymbols]);
 
   // Persist config changes
   const updateConfig = useCallback((patch: Partial<BotConfig>) => {
@@ -497,16 +552,36 @@ export function useTradingBot(params: UseTradingBotParams) {
   const scan = useCallback(() => {
     if (!config.enabled) return;
 
-    // Drawdown circuit breaker
-    const drawdownPct = peakEquity > 0 ? ((equity - peakEquity) / peakEquity) * 100 : 0;
-    if (drawdownPct < -10) {
+    const now = Date.now();
+
+    // ─── BUDGET-BASED 10% DRAWDOWN CIRCUIT BREAKER ───
+    // Bot CANNOT lose more than 10% of botBudget. Hard stop.
+    const botPositions = positions.filter(p => p.botSource);
+    const unrealizedPnl = botPositions.reduce((s, p) => s + p.pnl, 0);
+    const executedExits = activityLog.filter(d => d.executed && d.action === 'EXIT');
+    let sessionRealizedPnl = 0;
+    executedExits.forEach(e => {
+      const entry = activityLog.find(a => a.symbol === e.symbol && (a.action === 'BUY' || a.action === 'SELL') && a.executed && a.timestamp < e.timestamp);
+      if (entry?.price && e.price && entry.qty) {
+        sessionRealizedPnl += (e.price - entry.price) * (entry.action === 'BUY' ? 1 : -1) * entry.qty;
+      }
+    });
+    const totalBotPnl = unrealizedPnl + sessionRealizedPnl;
+    const budgetMaxLoss = config.botBudget * 0.10;
+
+    if (totalBotPnl <= -budgetMaxLoss) {
+      // EMERGENCY: close all bot positions and halt
+      botPositions.forEach(pos => {
+        const price = resolvePrice(pos.symbol);
+        if (price > 0) closePosition(pos.id, price, true);
+      });
       const decision: BotDecision = {
         id: crypto.randomUUID(),
         timestamp: Date.now(),
         symbol: '*',
         signal: { trend: 0, momentum: 0, volatility: 0, volume: 0, wave: 0, composite: 0 },
         action: 'HOLD',
-        reason: `⚠️ CIRCUIT BREAKER: Drawdown ${drawdownPct.toFixed(1)}% exceeds -10% limit. Bot paused.`,
+        reason: `🚨 BUDGET PROTECTION: Lost $${Math.abs(totalBotPnl).toFixed(2)} (${((Math.abs(totalBotPnl) / config.botBudget) * 100).toFixed(1)}% of $${config.botBudget.toLocaleString()} budget). 10% max loss reached. Bot halted — adjust budget to resume.`,
         executed: false,
       };
       setActivityLog(prev => [decision, ...prev].slice(0, 100));
@@ -514,10 +589,31 @@ export function useTradingBot(params: UseTradingBotParams) {
       return;
     }
 
-    const now = Date.now();
-    const botPositionSymbols = new Set(positions.filter(p => p.botSource).map(p => p.symbol));
+    // Additional safety: if approaching 8% loss, reduce position sizes by 50%
+    const isNearLimit = totalBotPnl <= -(config.botBudget * 0.08);
+    const drawdownSizeMult = isNearLimit ? 0.5 : 1.0;
+
+    // ─── CONSECUTIVE LOSS COOLDOWN ───
+    // After 3 consecutive losses, pause for 2 scan intervals
+    const recentExits = activityLog.filter(d => d.executed && d.action === 'EXIT').slice(0, 5);
+    let recentConsecLosses = 0;
+    for (const e of recentExits) {
+      const entry = activityLog.find(a => a.symbol === e.symbol && (a.action === 'BUY' || a.action === 'SELL') && a.executed && a.timestamp < e.timestamp);
+      if (entry?.price && e.price && entry.qty) {
+        const pnl = (e.price - entry.price) * (entry.action === 'BUY' ? 1 : -1) * entry.qty;
+        if (pnl < 0) recentConsecLosses++; else break;
+      } else break;
+    }
+    if (recentConsecLosses >= 3) {
+      const lastExit = recentExits[0];
+      if (lastExit && (now - lastExit.timestamp) < config.scanIntervalSec * 2000) {
+        return; // Cool down after losing streak
+      }
+    }
+
+    const botPositionSymbols = new Set(botPositions.map(p => p.symbol));
     const isMicro = config.strategy === 'micro';
-    const cooldownMs = isMicro ? 15_000 : 30_000; // Micro trades more frequently
+    const cooldownMs = isMicro ? 15_000 : 30_000;
 
     // ONLY scan tradable (real-feed) symbols
     for (const ticker of tradableSymbols) {
@@ -582,7 +678,7 @@ export function useTradingBot(params: UseTradingBotParams) {
       }
 
       // No position — check for entry
-      const botPositionCount = positions.filter(p => p.botSource).length;
+      const botPositionCount = botPositions.length;
       if (botPositionCount >= config.maxPositions) continue;
       if (coolingDown) continue;
 
@@ -592,31 +688,94 @@ export function useTradingBot(params: UseTradingBotParams) {
 
       if (!isStrongEntry && !isWeakEntry) continue;
 
-      const side: 'buy' | 'sell' = signal.composite > 0 ? 'buy' : 'sell';
+      // ─── MULTI-TIMEFRAME CONFLUENCE ───
+      // Compute signal on shorter window (last 30 bars) vs full window for confirmation
+      const shortCloses = candleData.closes.slice(-30);
+      const shortHighs = candleData.highs.slice(-30);
+      const shortLows = candleData.lows.slice(-30);
+      let confluenceBonus = 0;
+      if (shortCloses.length >= 30) {
+        const shortSignal = computeCompositeSignal(shortCloses, shortHighs, shortLows, waveBias, strategyConfig.weights);
+        // Both timeframes agree on direction = stronger signal
+        if (Math.sign(shortSignal.composite) === Math.sign(signal.composite)) {
+          confluenceBonus = 0.1; // +10% confidence boost
+        } else {
+          confluenceBonus = -0.15; // Disagreement = penalty
+        }
+      }
+
+      // ─── REGIME DETECTION ───
+      // ADX-style: is market trending or ranging?
       const atrArr = computeATR(candleData.highs, candleData.lows, candleData.closes);
       const atr = atrArr[atrArr.length - 1] || price * 0.01;
+      const recentCloses = candleData.closes.slice(-20);
+      const priceRange = recentCloses.length > 0 ? Math.max(...recentCloses) - Math.min(...recentCloses) : 0;
+      const atrNorm = atr / price;
+      const isTrending = priceRange > atr * 3; // Price moved more than 3x ATR = trending
+      const isHighVol = atrNorm > 0.025;
+
+      // In ranging markets, require stronger signals
+      const regimeAdjust = isTrending ? 0 : 0.05;
+      const adjustedScore = absScore + confluenceBonus - regimeAdjust;
+
+      if (adjustedScore < (isWeakEntry ? strategyConfig.weakEntryThreshold : strategyConfig.entryThreshold)) continue;
+
+      // ─── MOMENTUM DIVERGENCE CHECK ───
+      // If price making new highs but RSI declining = bearish divergence (skip buy)
+      const rsiArr = computeRSI(candleData.closes);
+      if (rsiArr.length >= 5 && recentCloses.length >= 5) {
+        const priceUp = recentCloses[recentCloses.length - 1] > recentCloses[recentCloses.length - 5];
+        const rsiDown = rsiArr[rsiArr.length - 1] < rsiArr[rsiArr.length - 5];
+        const priceDown = recentCloses[recentCloses.length - 1] < recentCloses[recentCloses.length - 5];
+        const rsiUp = rsiArr[rsiArr.length - 1] > rsiArr[rsiArr.length - 5];
+        const bearishDiv = priceUp && rsiDown && signal.composite > 0;
+        const bullishDiv = priceDown && rsiUp && signal.composite < 0;
+        if (bearishDiv || bullishDiv) continue; // Skip divergent signals
+      }
+
+      const side: 'buy' | 'sell' = signal.composite > 0 ? 'buy' : 'sell';
       const sizeMult = isWeakEntry ? strategyConfig.positionSizeMult * 0.5 : strategyConfig.positionSizeMult;
 
-      const totalExposure = positions.filter(p => p.botSource).reduce((s, p) => s + p.currentPrice * p.qty, 0);
+      // ─── ADAPTIVE POSITION SIZING ───
+      // Scale down after losses, scale up after wins
+      const streakMult = recentConsecLosses >= 2 ? 0.5 : recentConsecLosses >= 1 ? 0.75 : 1.0;
+      const volMult = isHighVol ? 0.7 : 1.0; // Reduce size in high-vol regimes
+
+      const totalExposure = botPositions.reduce((s, p) => s + p.currentPrice * p.qty, 0);
       const maxTotalExposure = config.botBudget;
       if (totalExposure >= maxTotalExposure) continue;
 
+      // Remaining budget constraint: don't risk more than remaining budget allows
+      const remainingBudget = config.botBudget - totalExposure;
+      const budgetForTrade = Math.min(remainingBudget, config.botBudget * (isMicro ? 0.10 : 0.25));
+
       const qty = calculatePositionSize(
-        config.botBudget, price, config.riskPerTradePct, atr,
-        config.stopLossAtrMult, sizeMult, isMicro ? 0.10 : 0.25 // Micro uses smaller max exposure
+        budgetForTrade, price, config.riskPerTradePct, atr,
+        config.stopLossAtrMult, sizeMult * drawdownSizeMult * streakMult * volMult,
+        isMicro ? 0.10 : 0.25
       );
 
       if (qty <= 0 || price * qty > cash) continue;
 
       // Estimate fees accurately
-      const estimatedFees = (price * qty * 7 / 10000) + 1.50; // spread(5bps) + slippage(2bps) + commission
+      const estimatedFees = (price * qty * 7 / 10000) + 1.50;
 
       // For micro, ensure potential profit exceeds fees
       if (isMicro) {
-        const expectedMove = atr * 0.5; // Conservative expected move
+        const expectedMove = atr * 0.5;
         const potentialProfit = expectedMove * qty;
-        if (potentialProfit < estimatedFees * 2) continue; // Need at least 2x fees potential
+        if (potentialProfit < estimatedFees * 2) continue;
       }
+
+      // ─── RISK-REWARD CHECK ───
+      // Only enter if R:R >= 1.5
+      const stopDist = atr * config.stopLossAtrMult;
+      const targetDist = atr * config.takeProfitAtrMult;
+      const riskReward = targetDist / (stopDist || 1);
+      if (riskReward < 1.5) continue;
+
+      const regimeLabel = isTrending ? 'TREND' : 'RANGE';
+      const confluenceLabel = confluenceBonus > 0 ? '✓MTF' : confluenceBonus < 0 ? '✗MTF' : '';
 
       const decision: BotDecision = {
         id: crypto.randomUUID(),
@@ -624,7 +783,7 @@ export function useTradingBot(params: UseTradingBotParams) {
         symbol: ticker,
         signal,
         action: side === 'buy' ? 'BUY' : 'SELL',
-        reason: `${isStrongEntry ? 'Strong' : 'Weak'} ${side} signal: composite ${signal.composite.toFixed(2)}. Est. fees: $${estimatedFees.toFixed(2)}. ${isMicro ? '[MICRO]' : ''}`,
+        reason: `${isStrongEntry ? '🟢 Strong' : '🟡 Weak'} ${side} | composite ${signal.composite.toFixed(2)} | R:R ${riskReward.toFixed(1)} | ${regimeLabel} ${confluenceLabel} | Fees: $${estimatedFees.toFixed(2)}${isMicro ? ' [MICRO]' : ''}${isNearLimit ? ' ⚠️REDUCED SIZE' : ''}`,
         executed: false,
         qty,
         price,
@@ -638,10 +797,10 @@ export function useTradingBot(params: UseTradingBotParams) {
     }
   }, [
     config.enabled, config.maxPositions, config.riskPerTradePct, config.stopLossAtrMult,
-    config.takeProfitAtrMult, config.strategy,
+    config.takeProfitAtrMult, config.strategy, config.botBudget, config.scanIntervalSec,
     tradableSymbols, resolvePrice, getCandleData, getWaveBias,
     submitOrder, closePosition, positions, equity, cash, peakEquity,
-    strategyConfig, updateConfig, executeOrPropose,
+    strategyConfig, updateConfig, executeOrPropose, activityLog,
   ]);
 
   // Scan loop
