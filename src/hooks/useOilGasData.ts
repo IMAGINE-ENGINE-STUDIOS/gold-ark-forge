@@ -107,13 +107,8 @@ const fetchLiveCommodityPrices = async (): Promise<OilGasPrice[]> => {
     }
     throw new Error('No live data returned');
   } catch (err) {
-    console.warn('[OG] Live fetch failed, using fallback with drift:', err);
-    // Fallback with realistic drift
-    const now = Date.now();
-    return FALLBACK_PRICES.map((p) => {
-      const seed = Math.sin(now / 60000 + p.symbol.charCodeAt(0)) * 0.02;
-      return { ...p, price: Math.round((p.price * (1 + seed)) * 100) / 100, change: Math.round((p.change + (Math.random() - 0.5) * 0.3) * 100) / 100 };
-    });
+    console.warn('[OG] Live fetch failed, using static fallback:', err);
+    return FALLBACK_PRICES;
   }
 };
 
@@ -123,8 +118,8 @@ export const useOilGasPrices = () =>
   useQuery({
     queryKey: ['oil-gas-prices'],
     queryFn: fetchLiveCommodityPrices,
-    refetchInterval: 30000,
-    staleTime: 15000,
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 
 export const useEIAInventory = () =>
@@ -153,16 +148,8 @@ export const useOPECData = () =>
 export const useSpreads = () =>
   useQuery({
     queryKey: ['oil-spreads'],
-    queryFn: async () => {
-      const now = Date.now();
-      return {
-        wtiBrent: Math.round((FALLBACK_SPREADS.wtiBrent + Math.sin(now / 120000) * 0.4) * 100) / 100,
-        crack321: Math.round((FALLBACK_SPREADS.crack321 + Math.sin(now / 90000) * 1.5) * 100) / 100,
-        sparkSpread: Math.round((FALLBACK_SPREADS.sparkSpread + Math.sin(now / 100000) * 0.3) * 100) / 100,
-        heatCrack: Math.round((FALLBACK_SPREADS.heatCrack + Math.sin(now / 110000) * 1.2) * 100) / 100,
-      };
-    },
-    refetchInterval: 30000,
+    queryFn: async () => FALLBACK_SPREADS,
+    refetchInterval: 10000,
   });
 
 export interface SpreadDataPoint {
@@ -210,8 +197,8 @@ export const useWtiBrentSpreadHistory = () =>
   useQuery({
     queryKey: ['wti-brent-spread-history'],
     queryFn: fetchSpreadHistory,
-    refetchInterval: 30000,
-    staleTime: 15000,
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 
 export const useFuturesCurve = () =>

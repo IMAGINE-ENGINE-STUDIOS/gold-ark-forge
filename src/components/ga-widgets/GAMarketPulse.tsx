@@ -2,7 +2,7 @@ import { Gauge, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import LivePulse from './LivePulse';
 import { useMemo } from 'react';
 
@@ -14,9 +14,9 @@ const GAMarketPulse = () => {
   const { data: oil } = useOilGasPrices();
   const wsPrices = useWebSocketPrices(CRYPTO_WS_KEYS);
 
-  // Live metal prices
-  const { price: goldLive } = useSimulatedStream(metals?.gold?.price_usd ?? 0, metals?.gold?.change_24h ?? 0, 'gold');
-  const { price: silverLive } = useSimulatedStream(metals?.silver?.price_usd ?? 0, metals?.silver?.change_24h ?? 0, 'silver');
+  // Live metal prices (raw API, no simulation)
+  const goldLive = metals?.gold?.price_usd ?? 0;
+  const silverLive = metals?.silver?.price_usd ?? 0;
 
   const fearGreed = useMemo(() => {
     if (!crypto?.length) return 50;
