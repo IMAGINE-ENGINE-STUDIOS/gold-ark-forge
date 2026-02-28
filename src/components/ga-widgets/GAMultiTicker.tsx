@@ -1,7 +1,6 @@
 import { useCryptoData, CryptoAsset } from '@/hooks/useCryptoData';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import LivePulse from './LivePulse';
@@ -14,17 +13,16 @@ interface TickerItem {
   color: string;
 }
 
-// Sub-component for live metal ticker item
+// Metal ticker item using raw API price (no simulation)
 const LiveMetalTick = ({ basePrice, change, symbol, label, color, itemWidth }: {
   basePrice: number; change: number; symbol: string; label: string; color: string; itemWidth: number;
 }) => {
-  const { price } = useSimulatedStream(basePrice, change, symbol);
   return (
     <div className="flex items-center gap-3 px-5 h-full border-r border-gold/10" style={{ minWidth: itemWidth }}>
       <div className={`w-2.5 h-2.5 rounded-full ${color} flex-shrink-0`} />
       <span className="font-display text-[10px] tracking-[0.2em] text-marble/50 w-10">{symbol}</span>
       <span className="font-display text-sm text-marble font-semibold">
-        ${price < 1 ? price.toFixed(4) : price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        ${basePrice < 1 ? basePrice.toFixed(4) : basePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </span>
       <div className={`flex items-center gap-0.5 text-[11px] font-medium ${
         change > 0 ? 'text-emerald-400' : change < 0 ? 'text-red-400' : 'text-marble/40'

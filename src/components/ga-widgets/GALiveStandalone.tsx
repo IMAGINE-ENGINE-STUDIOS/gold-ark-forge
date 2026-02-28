@@ -14,7 +14,7 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
@@ -288,10 +288,9 @@ const GALiveStandalone = () => {
     return { basePrice: sp.p, baseChange: sp.c };
   }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
 
-  const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
   const isWsLive = !!wsData && wsData.price > 0;
-  const price = isWsLive ? wsData.price : streamedPrice;
-  const change = isWsLive ? wsData.change24h : streamedChange;
+  const price = isWsLive ? wsData.price : basePrice;
+  const change = isWsLive ? wsData.change24h : baseChange;
 
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
