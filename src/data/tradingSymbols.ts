@@ -191,13 +191,20 @@ export const WATCHLIST_CATEGORIES: WatchlistCategory[] = [
 
 export const ALL_SYMBOLS = WATCHLIST_CATEGORIES.flatMap((c) => c.items);
 
+// ─── Symbols with REAL live price feeds (no synthetic data) ───
+// These are the ONLY symbols the bot should trade
+export const REAL_FEED_CATEGORIES = new Set(['crypto', 'metals', 'energy']);
+
+export const REAL_FEED_SYMBOLS = ALL_SYMBOLS.filter(s => REAL_FEED_CATEGORIES.has(s.cat));
+
 // ─── Comprehensive synthetic price map ───────────────────
-// Provides base prices for all non-API-sourced symbols
+// WARNING: These are STATIC approximations for DISPLAY ONLY on symbols without live feeds.
+// The bot MUST NOT trade symbols that rely on this data.
 
 export const SYNTHETIC_PRICES: Record<string, { p: number; c: number }> = {
-  // Metals
+  // Metals (palladium/copper don't have dedicated feeds)
   palladium: { p: 985, c: -0.45 },
-  // Energy
+  // Energy (some don't have EIA feeds)
   heating_oil: { p: 2.385, c: -0.41 }, coal: { p: 135, c: 0.8 }, uranium: { p: 92, c: 1.2 }, ethanol: { p: 2.15, c: -0.3 },
   // Oil & Gas Companies
   cop: { p: 108, c: -0.32 }, eog: { p: 125, c: 0.15 }, slb: { p: 42, c: -0.55 },

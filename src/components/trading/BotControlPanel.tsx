@@ -1,4 +1,4 @@
-import { Bot, Power, Skull, Zap, Activity, TrendingUp, TrendingDown, Clock, Check, X, AlertTriangle, DollarSign, BarChart3 } from 'lucide-react';
+import { Bot, Power, Skull, Zap, Activity, TrendingUp, TrendingDown, Clock, Check, X, AlertTriangle, DollarSign, BarChart3, Crosshair } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -18,15 +18,17 @@ interface Props {
   equity: number;
 }
 
-const STRATEGY_LABELS: Record<StrategyPreset, { label: string; desc: string; color: string }> = {
-  conservative: { label: 'CONSERVATIVE', desc: 'Only trades on strong confirmed signals. Tight stops, small positions. Best for capital preservation.', color: 'text-blue-400' },
-  balanced: { label: 'BALANCED', desc: 'Default strategy. Moderate entry thresholds with standard risk sizing. Good all-around performance.', color: 'text-gold' },
-  aggressive: { label: 'AGGRESSIVE', desc: 'Trades on weaker signals with larger positions and wider stops. Higher risk, higher potential reward.', color: 'text-red-400' },
-  wave_first: { label: 'WAVE-FIRST', desc: 'Heavily weights the WAVE forecast engine (40%). Best when forecast model has high accuracy.', color: 'text-purple-400' },
+const STRATEGY_LABELS: Record<StrategyPreset, { label: string; color: string; icon: string }> = {
+  conservative: { label: 'CONSERVATIVE', color: 'text-blue-400', icon: '🛡️' },
+  balanced: { label: 'BALANCED', color: 'text-gold', icon: '⚖️' },
+  aggressive: { label: 'AGGRESSIVE', color: 'text-red-400', icon: '🔥' },
+  wave_first: { label: 'WAVE-FIRST', color: 'text-purple-400', icon: '🌊' },
+  micro: { label: 'MICRO', color: 'text-cyan-400', icon: '⚡' },
 };
 
 export default function BotControlPanel({ config, updateConfig, activityLog, pendingProposals, stats, killAll, approveProposal, rejectProposal, positionCount, equity }: Props) {
   const isOn = config.enabled;
+  const botPositions = positionCount;
 
   return (
     <div className="space-y-4">
@@ -42,12 +44,23 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
           <Switch checked={isOn} onCheckedChange={(v) => updateConfig({ enabled: v })} />
         </div>
 
+        {/* Real-feed notice */}
+        <div className="text-[9px] font-mono text-cyan-400/60 bg-cyan-500/5 rounded px-2 py-1 mb-3 border border-cyan-500/10">
+          📡 Scanning {stats.tradableSymbols} real-feed symbols (Crypto + Metals + Energy) — No synthetic data
+        </div>
+
         {/* Bot P&L Summary */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           <div className="bg-navy-dark/50 rounded-lg p-3 border border-gold/5">
             <div className="text-[10px] text-marble/40 font-display tracking-wider mb-1">BOT P&L</div>
             <div className={`text-lg font-mono font-bold ${stats.botPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {stats.botPnl >= 0 ? '+' : ''}${stats.botPnl.toFixed(2)}
+            </div>
+          </div>
+          <div className="bg-navy-dark/50 rounded-lg p-3 border border-gold/5">
+            <div className="text-[10px] text-marble/40 font-display tracking-wider mb-1">REALIZED</div>
+            <div className={`text-lg font-mono font-bold ${stats.realizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {stats.realizedPnl >= 0 ? '+' : ''}${stats.realizedPnl.toFixed(2)}
             </div>
           </div>
           <div className="bg-navy-dark/50 rounded-lg p-3 border border-gold/5">
@@ -59,11 +72,12 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-2 mt-3">
+        <div className="grid grid-cols-5 gap-1.5 mt-3">
           <StatBox label="TRADES" value={stats.totalExecutions} />
           <StatBox label="WINS" value={stats.winCount} color="text-emerald-400" />
           <StatBox label="LOSSES" value={stats.lossCount} color="text-red-400" />
-          <StatBox label="OPEN" value={positionCount} />
+          <StatBox label="WIN %" value={stats.winCount + stats.lossCount > 0 ? Math.round((stats.winCount / (stats.winCount + stats.lossCount)) * 100) : 0} suffix="%" />
+          <StatBox label="OPEN" value={botPositions} />
         </div>
 
         {stats.activeSince && (
@@ -116,20 +130,27 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
       <div>
         <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2">STRATEGY</div>
         <div className="space-y-2">
-          {(Object.entries(STRATEGY_LABELS) as [StrategyPreset, typeof STRATEGY_LABELS[StrategyPreset]][]).map(([key, { label, desc, color }]) => (
-            <button
-              key={key}
-              onClick={() => updateConfig({ strategy: key })}
-              className={`w-full p-3 rounded-lg text-left border transition-all ${
-                config.strategy === key
-                  ? 'bg-gold/10 border-gold/30'
-                  : 'bg-navy-light/20 border-gold/5 hover:border-gold/15'
-              }`}
-            >
-              <div className={`text-xs font-display tracking-wider ${config.strategy === key ? color : 'text-marble/40'}`}>{label}</div>
-              <div className="text-[10px] text-marble/30 mt-1 leading-relaxed">{desc}</div>
-            </button>
-          ))}
+          {(Object.entries(STRATEGY_LABELS) as [StrategyPreset, typeof STRATEGY_LABELS[StrategyPreset]][]).map(([key, { label, color, icon }]) => {
+            const cfg = STRATEGY_CONFIGS[key];
+            return (
+              <button
+                key={key}
+                onClick={() => updateConfig({ strategy: key })}
+                className={`w-full p-3 rounded-lg text-left border transition-all ${
+                  config.strategy === key
+                    ? 'bg-gold/10 border-gold/30'
+                    : 'bg-navy-light/20 border-gold/5 hover:border-gold/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span>{icon}</span>
+                  <span className={`text-xs font-display tracking-wider ${config.strategy === key ? color : 'text-marble/40'}`}>{label}</span>
+                  {key === 'micro' && <span className="text-[7px] font-mono px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400/60 border border-cyan-500/15">RECOMMENDED</span>}
+                </div>
+                <div className="text-[10px] text-marble/30 leading-relaxed">{cfg.description}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -147,15 +168,29 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
         <SliderRow
           label="MAX POSITIONS"
           value={config.maxPositions}
-          min={1} max={10} step={1}
+          min={1} max={15} step={1}
           onChange={(v) => updateConfig({ maxPositions: v })}
         />
         <SliderRow
           label="RISK PER TRADE"
           value={config.riskPerTradePct}
           unit="%"
-          min={1} max={10} step={0.5}
+          min={0.5} max={10} step={0.5}
           onChange={(v) => updateConfig({ riskPerTradePct: v })}
+        />
+        <SliderRow
+          label="STOP LOSS (ATR×)"
+          value={config.stopLossAtrMult}
+          unit="×"
+          min={0.5} max={3} step={0.25}
+          onChange={(v) => updateConfig({ stopLossAtrMult: v })}
+        />
+        <SliderRow
+          label="TAKE PROFIT (ATR×)"
+          value={config.takeProfitAtrMult}
+          unit="×"
+          min={0.5} max={5} step={0.25}
+          onChange={(v) => updateConfig({ takeProfitAtrMult: v })}
         />
       </div>
 
@@ -177,25 +212,44 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
       )}
 
       {/* ─── Kill Switch ─── */}
-      {positionCount > 0 && (
+      {botPositions > 0 && (
         <Button
           variant="destructive"
           onClick={killAll}
           className="w-full text-xs font-display tracking-[0.1em] h-10"
         >
-          <Skull className="w-4 h-4 mr-2" /> KILL ALL — CLOSE {positionCount} POSITIONS
+          <Skull className="w-4 h-4 mr-2" /> KILL ALL — CLOSE {botPositions} BOT POSITIONS
         </Button>
       )}
+
+      {/* ─── Fee Disclosure ─── */}
+      <div className="bg-navy-dark/30 rounded-lg p-3 border border-gold/5">
+        <div className="text-[9px] font-display tracking-wider text-marble/30 mb-1.5">FEE SIMULATION (per trade)</div>
+        <div className="grid grid-cols-3 gap-2 text-[9px] font-mono">
+          <div className="text-center">
+            <div className="text-marble/20">Spread</div>
+            <div className="text-amber-400/60">5 bps</div>
+          </div>
+          <div className="text-center">
+            <div className="text-marble/20">Slippage</div>
+            <div className="text-amber-400/60">2 bps</div>
+          </div>
+          <div className="text-center">
+            <div className="text-marble/20">Commission</div>
+            <div className="text-amber-400/60">$1.50</div>
+          </div>
+        </div>
+      </div>
 
       {/* ─── Activity Log ─── */}
       <div>
         <div className="text-[10px] font-display tracking-[0.15em] text-marble/40 mb-2 flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5" /> ACTIVITY LOG
+          <Activity className="w-3.5 h-3.5" /> ACTIVITY LOG ({activityLog.length})
         </div>
-        <div className="space-y-1.5 max-h-[300px] overflow-y-auto watchlist-scroll">
+        <div className="space-y-1.5 max-h-[400px] overflow-y-auto watchlist-scroll">
           {activityLog.length === 0 && (
             <div className="text-xs text-marble/20 text-center py-6 font-display tracking-wider">
-              {isOn ? 'Scanning market...' : 'Enable bot to start scanning'}
+              {isOn ? 'Scanning real-feed markets...' : 'Enable bot to start scanning'}
             </div>
           )}
           {activityLog.map(d => (
@@ -209,11 +263,11 @@ export default function BotControlPanel({ config, updateConfig, activityLog, pen
 
 // ─── Sub-Components ──────────────────────────────────────
 
-function StatBox({ label, value, color }: { label: string; value: number; color?: string }) {
+function StatBox({ label, value, color, suffix }: { label: string; value: number; color?: string; suffix?: string }) {
   return (
     <div className="bg-navy-dark/40 rounded-lg p-2 text-center border border-gold/5">
       <div className="text-[8px] text-marble/25 font-display tracking-wider">{label}</div>
-      <div className={`text-sm font-mono ${color || 'text-marble/70'}`}>{value}</div>
+      <div className={`text-sm font-mono ${color || 'text-marble/70'}`}>{value}{suffix || ''}</div>
     </div>
   );
 }
@@ -317,7 +371,7 @@ function MiniGauge({ label, value }: { label: string; value: number }) {
 }
 
 function SignalGauge({ label, value, desc, isComposite }: { label: string; value: number; desc: string; isComposite?: boolean }) {
-  const pctFromCenter = value * 50 + 50; // -1 → 0%, 0 → 50%, +1 → 100%
+  const pctFromCenter = value * 50 + 50;
   const color = value > 0.3 ? 'text-emerald-400' : value < -0.3 ? 'text-red-400' : 'text-marble/50';
   const barColor = value > 0.3 ? 'bg-emerald-500' : value < -0.3 ? 'bg-red-500' : 'bg-marble/30';
 
@@ -329,9 +383,7 @@ function SignalGauge({ label, value, desc, isComposite }: { label: string; value
       </div>
       <div className="flex-1 relative">
         <div className="h-2 bg-navy-dark/60 rounded-full overflow-hidden">
-          {/* Center line */}
           <div className="absolute left-1/2 top-0 w-px h-full bg-marble/10 z-10" />
-          {/* Fill from center */}
           <div
             className={`absolute top-0 h-full rounded-full ${barColor} transition-all duration-300`}
             style={{
@@ -379,6 +431,8 @@ function ActivityRow({ decision }: { decision: BotDecision }) {
     ? <span className="text-[8px] px-1 py-0.5 rounded bg-red-500/10 text-red-400/60 border border-red-500/20">REJECTED</span>
     : d.status === 'approved'
     ? <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400/60 border border-emerald-500/20">APPROVED</span>
+    : d.status === 'executed'
+    ? <span className="text-[8px] px-1 py-0.5 rounded bg-gold/10 text-gold/60 border border-gold/20">AUTO</span>
     : null;
 
   return (
@@ -399,10 +453,11 @@ function ActivityRow({ decision }: { decision: BotDecision }) {
         </span>
       </div>
       <div className="text-[11px] text-marble/40 leading-relaxed">{d.reason}</div>
-      {d.price && d.qty && (
-        <div className="text-[10px] font-mono text-marble/30 mt-1">
-          {d.qty} × ${d.price < 10 ? d.price.toFixed(4) : d.price.toLocaleString()} = ${(d.qty * d.price).toFixed(2)}
-          {d.estimatedFees && <span className="text-amber-400/50 ml-2">fees ~${d.estimatedFees.toFixed(2)}</span>}
+      {d.price && (
+        <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-marble/30">
+          <span>@ ${d.price < 10 ? d.price.toFixed(4) : d.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          {d.qty && <span>× {d.qty}</span>}
+          {d.estimatedFees && <span className="text-amber-400/40">fees: ${d.estimatedFees.toFixed(2)}</span>}
         </div>
       )}
     </div>

@@ -26,6 +26,8 @@ export interface PaperOrder {
   filledAt: number;
   fees: number;
   botSource?: boolean;
+  // Track entry/exit pairs for accurate win rate
+  closedPnl?: number;
 }
 
 export interface FeeStructure {
@@ -42,6 +44,9 @@ export interface PaperAccount {
   winRate: number;
   totalTrades: number;
   totalFees: number;
+  realizedPnl: number;
+  winCount: number;
+  lossCount: number;
 }
 
 const DEFAULT_FEES: FeeStructure = { spreadBps: 5, commissionPerTrade: 1.50, slippageBps: 2 };
@@ -49,15 +54,15 @@ const STARTING_BALANCE = 100_000;
 
 const loadLocal = () => {
   try {
-    const raw = localStorage.getItem('ga_paper_trading');
+    const raw = localStorage.getItem('ga_paper_trading_v2');
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return null;
 };
 
-const saveLocal = (positions: PaperPosition[], orders: PaperOrder[], cash: number, totalFees: number) => {
+const saveLocal = (positions: PaperPosition[], orders: PaperOrder[], cash: number, totalFees: number, realizedPnl: number, winCount: number, lossCount: number) => {
   try {
-    localStorage.setItem('ga_paper_trading', JSON.stringify({ positions, orders, cash, totalFees }));
+    localStorage.setItem('ga_paper_trading_v2', JSON.stringify({ positions, orders, cash, totalFees, realizedPnl, winCount, lossCount }));
   } catch { /* ignore */ }
 };
 
@@ -67,6 +72,9 @@ export const usePaperTrading = (userId?: string | null) => {
   const [orders, setOrders] = useState<PaperOrder[]>(saved?.orders ?? []);
   const [cash, setCash] = useState<number>(saved?.cash ?? STARTING_BALANCE);
   const [totalFees, setTotalFees] = useState<number>(saved?.totalFees ?? 0);
+  const [realizedPnl, setRealizedPnl] = useState<number>(saved?.realizedPnl ?? 0);
+  const [winCount, setWinCount] = useState<number>(saved?.winCount ?? 0);
+  const [lossCount, setLossCount] = useState<number>(saved?.lossCount ?? 0);
   const [feeConfig] = useState<FeeStructure>(DEFAULT_FEES);
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,7 +96,7 @@ export const usePaperTrading = (userId?: string | null) => {
           setPositions(cloudPositions);
           setOrders(cloudOrders);
           setCash(cloudCash);
-          saveLocal(cloudPositions, cloudOrders, cloudCash, 0);
+          saveLocal(cloudPositions, cloudOrders, cloudCash, 0, 0, 0, 0);
         }
       } catch { /* fallback to local */ }
       setCloudLoaded(true);
@@ -113,8 +121,8 @@ export const usePaperTrading = (userId?: string | null) => {
     }, 2000);
   }, [userId]);
 
-  const persist = useCallback((p: PaperPosition[], o: PaperOrder[], c: number, f: number) => {
-    saveLocal(p, o, c, f);
+  const persist = useCallback((p: PaperPosition[], o: PaperOrder[], c: number, f: number, rPnl: number, wc: number, lc: number) => {
+    saveLocal(p, o, c, f, rPnl, wc, lc);
     syncToCloud(p, o, c);
   }, [syncToCloud]);
 
@@ -152,19 +160,7 @@ export const usePaperTrading = (userId?: string | null) => {
       throw new Error(`Insufficient funds: need $${cost.toFixed(2)}, have $${cash.toFixed(2)}`);
     }
 
-    const order: PaperOrder = {
-      id: crypto.randomUUID(),
-      symbol: params.symbol,
-      side: params.side,
-      qty: params.qty,
-      type: params.type,
-      price: fillPrice,
-      limitPrice: params.limitPrice,
-      status: 'filled',
-      filledAt: Date.now(),
-      fees,
-      botSource: params.botSource,
-    };
+    let closedPnl: number | undefined;
 
     const existingIdx = positions.findIndex(
       p => p.symbol === params.symbol && p.side !== params.side
@@ -173,6 +169,9 @@ export const usePaperTrading = (userId?: string | null) => {
     let newPositions = [...positions];
     let newCash = cash;
     let newTotalFees = totalFees + fees;
+    let newRealizedPnl = realizedPnl;
+    let newWinCount = winCount;
+    let newLossCount = lossCount;
 
     if (existingIdx >= 0) {
       const existing = newPositions[existingIdx];
@@ -180,6 +179,14 @@ export const usePaperTrading = (userId?: string | null) => {
       const pnl = params.side === 'sell'
         ? (fillPrice - existing.entryPrice) * closeQty
         : (existing.entryPrice - fillPrice) * closeQty;
+      const netPnl = pnl - fees;
+      closedPnl = netPnl;
+
+      // Track wins/losses accurately
+      if (netPnl >= 0) newWinCount++;
+      else newLossCount++;
+      newRealizedPnl += netPnl;
+
       // Return capital + P&L minus fees
       newCash += existing.entryPrice * closeQty + pnl - fees;
 
@@ -220,15 +227,33 @@ export const usePaperTrading = (userId?: string | null) => {
       }
     }
 
-    const newOrders = [order, ...orders].slice(0, 100);
+    const order: PaperOrder = {
+      id: crypto.randomUUID(),
+      symbol: params.symbol,
+      side: params.side,
+      qty: params.qty,
+      type: params.type,
+      price: fillPrice,
+      limitPrice: params.limitPrice,
+      status: 'filled',
+      filledAt: Date.now(),
+      fees,
+      botSource: params.botSource,
+      closedPnl,
+    };
+
+    const newOrders = [order, ...orders].slice(0, 200);
     setPositions(newPositions);
     setOrders(newOrders);
     setCash(newCash);
     setTotalFees(newTotalFees);
-    persist(newPositions, newOrders, newCash, newTotalFees);
+    setRealizedPnl(newRealizedPnl);
+    setWinCount(newWinCount);
+    setLossCount(newLossCount);
+    persist(newPositions, newOrders, newCash, newTotalFees, newRealizedPnl, newWinCount, newLossCount);
 
     return order;
-  }, [positions, orders, cash, totalFees, persist, computeFees]);
+  }, [positions, orders, cash, totalFees, realizedPnl, winCount, lossCount, persist, computeFees]);
 
   const updatePrices = useCallback((priceMap: Record<string, number>) => {
     setPositions(prev => prev.map(p => {
@@ -259,6 +284,10 @@ export const usePaperTrading = (userId?: string | null) => {
     setOrders([]);
     setCash(STARTING_BALANCE);
     setTotalFees(0);
+    setRealizedPnl(0);
+    setWinCount(0);
+    setLossCount(0);
+    localStorage.removeItem('ga_paper_trading_v2');
     localStorage.removeItem('ga_paper_trading');
     if (userId) {
       try {
@@ -279,23 +308,22 @@ export const usePaperTrading = (userId?: string | null) => {
     }, 0);
     const equity = cash + positionsValue;
     const totalPnl = equity - STARTING_BALANCE;
-    const filledOrders = orders.filter(o => o.status === 'filled');
-    const wins = filledOrders.filter((o, i) => {
-      if (i === 0) return false;
-      return o.price > filledOrders[i - 1]?.price;
-    }).length;
-    const winRate = filledOrders.length > 1 ? (wins / (filledOrders.length - 1)) * 100 : 0;
+    const totalClosedTrades = winCount + lossCount;
+    const accurateWinRate = totalClosedTrades > 0 ? (winCount / totalClosedTrades) * 100 : 0;
 
     return {
       startingBalance: STARTING_BALANCE,
       cash,
       equity,
       totalPnl,
-      winRate,
-      totalTrades: filledOrders.length,
+      winRate: accurateWinRate,
+      totalTrades: orders.filter(o => o.status === 'filled').length,
       totalFees,
+      realizedPnl,
+      winCount,
+      lossCount,
     };
-  }, [positions, orders, cash, totalFees]);
+  }, [positions, orders, cash, totalFees, realizedPnl, winCount, lossCount]);
 
   return {
     positions,
