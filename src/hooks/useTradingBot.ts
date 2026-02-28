@@ -332,7 +332,7 @@ function loadBotConfig(): BotConfig {
   return {
     enabled: false,
     strategy: 'micro',
-    mode: 'ask',
+    mode: 'auto',
     scanIntervalSec: 10,
     maxPositions: 8,
     riskPerTradePct: 1,
