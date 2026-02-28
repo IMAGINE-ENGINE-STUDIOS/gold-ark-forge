@@ -1,37 +1,64 @@
 
 
-# Fix: Bot Not Trading and No Real-Time P&L
+# Replace Old Bot with WAVE Forecast Trading Engine
 
-## Root Cause
+## What Changes
 
-Two interconnected bugs prevent the bot from showing gains/losses in real-time:
+1. **Archive old bot** — Move `useTradingBot.ts` and `BotControlPanel.tsx` to an `/old-bots` archive page
+2. **Build new WAVE bot** — A simple, direct trading engine that uses `computeForecastPoints` (the existing WAVE forecast function) to decide trades every 80 seconds
+3. **Real-time accuracy tracking** — Every trade is logged with the forecast prediction; after the position closes, we compare predicted vs actual direction and measure accuracy live
+4. **Tunable WAVE parameters** — Expose drift multiplier, wave amplitude, damping factor, cycle sensitivity as sliders so users can tune the forecast toward 100% accuracy
 
-### Bug 1: Scan loop resets infinitely (no trades execute)
-`scan` is in the dependency array of the `useEffect` that creates `setInterval`. But `scan` depends on `activityLog`, which changes every time the scan logs a decision. This creates a loop: scan runs → logs a decision → `activityLog` changes → `scan` recreated → `useEffect` clears and restarts interval → scan runs again from scratch. The `async` nature compounds this — multiple scans can overlap.
+## Architecture
 
-**Fix**: Remove `activityLog` from `scan`'s dependency array. Use refs for values that `scan` reads but shouldn't trigger recreation (activityLog, positions). Stabilize the interval.
+```text
+WAVE Forecast (computeForecastPoints)
+  ↓ every 80s
+  bias > +0.15 → BUY
+  bias < -0.15 → SELL
+  else → HOLD
+  ↓
+  Paper Trading Engine (existing usePaperTrading)
+  ↓
+  Live P&L + Accuracy Tracker
+```
 
-### Bug 2: Position P&L not updating in real-time
-The `updatePrices` effect (line 573) depends on `paper.positions.length` instead of a price tick counter. When position count stays the same, changes in `metalPricesData`/`cryptoDataAll`/`oilPricesData` should still trigger updates — but the `resolveSymbolPrice` callback reference is memoized with `useCallback` and may not change when underlying query data changes. Need to add a tick counter or depend on the raw price data objects directly.
+No AI edge function. No 30-indicator engine. Pure WAVE forecast → trade → measure → tune.
 
-**Fix**: Add a 1-second interval that calls `updatePrices` with freshly resolved prices for all open positions. This guarantees real-time P&L regardless of data dependency chain issues.
+## Files
 
-## Files to Modify
+| File | Action |
+|---|---|
+| `src/pages/OldBots.tsx` | **Create** — Archive page displaying old bot code reference |
+| `src/hooks/useWaveBot.ts` | **Create** — New hook: 80s interval, reads WAVE bias, opens/closes positions via paper trading, tracks accuracy per trade |
+| `src/components/trading/WaveBotPanel.tsx` | **Create** — New UI: start/stop, live accuracy %, P&L, tunable WAVE parameters (drift, amplitude, damping, cycle), trade log with predicted vs actual |
+| `src/App.tsx` | **Modify** — Add `/old-bots` route |
+| `src/pages/TradingBridge.tsx` | **Modify** — Replace `BotControlPanel` + `useTradingBot` with `WaveBotPanel` + `useWaveBot` in the BOT tab |
 
-### `src/hooks/useTradingBot.ts`
-- Move `activityLog` and `positions` reads inside `scan` to use refs instead of closure state
-- Add `activityLogRef` and `positionsRef` that stay synced via `useEffect`
-- Remove `activityLog` and `positions` from `scan`'s dependency array
-- This stabilizes the scan interval so it actually runs continuously
+## New Hook: `useWaveBot`
 
-### `src/pages/TradingBridge.tsx`
-- Add a 1-second `setInterval` that calls `paper.updatePrices()` with current resolved prices for all open positions
-- This ensures P&L updates in real-time regardless of React dependency chain issues
-- Replace the existing `useEffect` (line 573-584) with a stable interval-based approach
+- Config: `{ enabled, budget, interval (default 80s), entryThreshold (0.15), exitThreshold (-0.10), maxPositions, waveDrift, waveAmplitude, waveDamping, cycleSensitivity }`
+- Every interval: for each tradable symbol, call a local version of `computeForecastPoints` with tunable params → get bias
+- If bias > threshold and no position → BUY; if bias < -threshold → SELL
+- Track each trade: `{ predictedDirection, entryPrice, forecastPrice, actualExitPrice, correct: boolean }`
+- Accuracy = correct / total trades, displayed live
+- Uses `usePaperTrading.submitOrder` / `closePosition` directly
 
-## Expected Result
-- Bot scan runs stably every 10 seconds without resetting
-- Trades execute and appear in the activity log with AI badges
-- Open positions show live P&L updating every second
-- Total P&L in the dashboard card updates in real-time
+## WAVE Parameter Tuning
+
+Expose these as sliders in the panel:
+- **Drift multiplier** (0.01–0.20, default 0.08) — controls trend-following strength
+- **Wave amplitude** (0.1–0.8, default 0.3) — controls oscillation size
+- **Damping** (0.1–1.5, default 0.5) — how quickly oscillation fades
+- **Cycle sensitivity** (0.1–1.0, default 0.3) — base frequency when no cycles detected
+- **Entry threshold** (0.05–0.50, default 0.15) — minimum bias to enter
+
+## Accuracy Measurement
+
+Each trade records:
+- Forecast bias direction at entry (bullish/bearish)
+- Forecast projected price
+- Actual price at exit
+- `correct = (predicted bullish && exitPrice > entryPrice) || (predicted bearish && exitPrice < entryPrice)`
+- Running accuracy displayed as a percentage with color coding
 
