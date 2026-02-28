@@ -7,6 +7,41 @@ import {
   computeDonchian, computeKeltner,
 } from '@/components/trading/IndicatorOverlay';
 import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { supabase } from '@/integrations/supabase/client';
+
+// ─── AI Analysis ─────────────────────────────────────────
+
+interface AIAnalysisResult {
+  fallback: boolean;
+  confidence?: number;
+  action?: 'ENTER' | 'SKIP';
+  reasoning?: string;
+  riskLevel?: 'low' | 'medium' | 'high';
+  error?: string;
+}
+
+async function requestAIAnalysis(payload: Record<string, unknown>): Promise<AIAnalysisResult> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+    const { data, error } = await supabase.functions.invoke('bot-ai-analysis', {
+      body: payload,
+    });
+
+    clearTimeout(timeout);
+
+    if (error) {
+      console.warn('[Bot AI] Edge function error:', error);
+      return { fallback: true, error: 'invoke_error' };
+    }
+
+    return data as AIAnalysisResult;
+  } catch (e) {
+    console.warn('[Bot AI] Request failed, falling back to indicators:', e);
+    return { fallback: true, error: 'network_error' };
+  }
+}
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -46,6 +81,10 @@ export interface BotDecision {
   price?: number;
   estimatedFees?: number;
   status?: 'pending' | 'approved' | 'rejected' | 'executed';
+  aiConfidence?: number;
+  aiReasoning?: string;
+  aiRiskLevel?: 'low' | 'medium' | 'high';
+  aiValidated?: boolean;
 }
 
 export interface BotStats {
@@ -566,7 +605,7 @@ export function useTradingBot(params: UseTradingBotParams) {
   }, [config.mode]);
 
   // Core scan function — ONLY scans real-feed symbols
-  const scan = useCallback(() => {
+  const scan = useCallback(async () => {
     if (!config.enabled) return;
 
     const now = Date.now();
@@ -794,17 +833,87 @@ export function useTradingBot(params: UseTradingBotParams) {
       const regimeLabel = isTrending ? 'TREND' : 'RANGE';
       const confluenceLabel = confluenceBonus > 0 ? '✓MTF' : confluenceBonus < 0 ? '✗MTF' : '';
 
+      // ─── AI ANALYSIS GATE ───
+      // Ask AI to validate the trade before executing
+      const rsiArr2 = computeRSI(candleData.closes);
+      const macdData = computeMACD(candleData.closes);
+      const latestRsi2 = rsiArr2[rsiArr2.length - 1] ?? 50;
+      const macdVal2 = macdData.macd[macdData.macd.length - 1] ?? 0;
+      const macdSig2 = macdData.signal[macdData.signal.length - 1] ?? 0;
+
+      let aiConfidence: number | undefined;
+      let aiReasoning: string | undefined;
+      let aiRiskLevel: 'low' | 'medium' | 'high' | undefined;
+      let aiValidated = false;
+      let aiSkipped = false;
+
+      try {
+        const aiResult = await requestAIAnalysis({
+          symbol: ticker,
+          side,
+          compositeScore: signal.composite,
+          signalBreakdown: signal,
+          recentCloses: candleData.closes.slice(-20),
+          currentPrice: price,
+          atr,
+          rsi: latestRsi2,
+          macdValue: macdVal2,
+          macdSignal: macdSig2,
+          regime: regimeLabel,
+          strategy: config.strategy,
+          riskReward,
+          confluenceLabel,
+        });
+
+        if (!aiResult.fallback) {
+          aiConfidence = aiResult.confidence;
+          aiReasoning = aiResult.reasoning;
+          aiRiskLevel = aiResult.riskLevel;
+
+          if (aiResult.action === 'SKIP' || (aiResult.confidence !== undefined && aiResult.confidence < 60)) {
+            aiSkipped = true;
+            // Log the AI skip decision
+            const skipDecision: BotDecision = {
+              id: crypto.randomUUID(),
+              timestamp: now,
+              symbol: ticker,
+              signal,
+              action: 'HOLD',
+              reason: `🧠 AI SKIP (${aiResult.confidence}%): ${aiResult.reasoning || 'Low confidence'}`,
+              executed: false,
+              aiConfidence: aiResult.confidence,
+              aiReasoning: aiResult.reasoning,
+              aiRiskLevel: aiResult.riskLevel,
+              aiValidated: false,
+            };
+            setActivityLog(prev => [skipDecision, ...prev].slice(0, 100));
+            continue;
+          }
+          aiValidated = true;
+        }
+        // If fallback, proceed without AI (indicator-only mode)
+      } catch {
+        // AI unavailable — fall back to indicator-only mode
+        console.warn('[Bot] AI analysis unavailable, using indicators only');
+      }
+
+      const aiLabel = aiValidated ? ` | 🧠 AI ${aiConfidence}%` : '';
+
       const decision: BotDecision = {
         id: crypto.randomUUID(),
         timestamp: now,
         symbol: ticker,
         signal,
         action: side === 'buy' ? 'BUY' : 'SELL',
-        reason: `${isStrongEntry ? '🟢 Strong' : '🟡 Weak'} ${side} | composite ${signal.composite.toFixed(2)} | R:R ${riskReward.toFixed(1)} | ${regimeLabel} ${confluenceLabel} | Fees: $${estimatedFees.toFixed(2)}${isMicro ? ' [MICRO]' : ''}${isNearLimit ? ' ⚠️REDUCED SIZE' : ''}`,
+        reason: `${isStrongEntry ? '🟢 Strong' : '🟡 Weak'} ${side} | composite ${signal.composite.toFixed(2)} | R:R ${riskReward.toFixed(1)} | ${regimeLabel} ${confluenceLabel}${aiLabel} | Fees: $${estimatedFees.toFixed(2)}${isMicro ? ' [MICRO]' : ''}${isNearLimit ? ' ⚠️REDUCED SIZE' : ''}`,
         executed: false,
         qty,
         price,
         estimatedFees,
+        aiConfidence,
+        aiReasoning,
+        aiRiskLevel,
+        aiValidated,
       };
 
       executeOrPropose(decision, () => {
