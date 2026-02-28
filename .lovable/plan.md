@@ -1,108 +1,132 @@
 
 
-# Swap Terminal: Auth, Cloud Persistence, Sell Notifications & Live Position Pricing
+# Gold Arrow Trading Bot — AI-Powered Autonomous Trading Engine
 
-## Problem Summary
+## Overview
 
-1. **No login/register for paper accounts** -- Paper trading data is stored only in `localStorage`. There is no auth gate or user account system for the Swap terminal. The `paper_portfolios` table exists in the database with RLS but is never used.
+Build an autonomous trading bot that runs inside the Swap terminal, consuming all 30+ proprietary indicators, the WAVE forecast engine, and real-time price feeds to generate, execute, and manage paper trading positions with optimal entry/exit timing.
 
-2. **Paper positions not persisted to cloud** -- `usePaperTrading` reads/writes `localStorage` only. If the user clears their browser or switches devices, all positions and order history are lost.
+## Architecture
 
-3. **No sell notification** -- When closing a position via the SELL button on `PositionMiniCard`, `paper.closePosition()` calls `submitOrder()` but the sell path never calls `showTradeRecap()`. Only the `PaperTradingPanel` form calls `showTradeRecap()` after buy/sell, but direct position closes skip it entirely.
+```text
+┌─────────────────────────────────────────────────┐
+│              TradingBridge.tsx                   │
+│  ┌───────────────────────────────────────────┐  │
+│  │         useTradingBot() hook               │  │
+│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐ │  │
+│  │  │ Signal  │→│ Decision │→│ Executor │ │  │
+│  │  │ Engine  │  │ Matrix   │  │          │ │  │
+│  │  └─────────┘  └──────────┘  └──────────┘ │  │
+│  │       ↑              ↑            ↓       │  │
+│  │  All 30+        Risk Mgmt   paper.submit  │  │
+│  │  Indicators     + Sizing    Order()       │  │
+│  │  + WAVE bias                              │  │
+│  └───────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────┐  │
+│  │       BotControlPanel.tsx (UI)             │  │
+│  │  ON/OFF · Strategy · Risk · Activity Log  │  │
+│  └───────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────┘
+```
 
-4. **PositionMiniCard prices are not truly live** -- For non-crypto assets, the card uses `useSimulatedStream` which applies random 0.03% jitter to the `currentPrice` prop. This is not the real resolved price from the metal/energy/forex feeds. The card should use the same price infrastructure as the Intelligence page (`GALivePriceNotice` widget pattern) rather than synthetic noise.
+## Signal Engine — Multi-Indicator Consensus
 
----
+The bot computes a composite signal score from **all existing indicator functions** in `IndicatorOverlay.tsx`:
+
+| Signal Group | Indicators Used | Weight |
+|---|---|---|
+| **Trend** | SMA20/50 cross, EMA20, Ichimoku cloud position, Alligator, Parabolic SAR | 30% |
+| **Momentum** | RSI, Stoch RSI, MACD cross + histogram, CCI, Momentum, Awesome Oscillator | 25% |
+| **Volatility** | Bollinger position, ATR, Keltner channel, Std Dev, Donchian breakout | 15% |
+| **Volume** | OBV trend, MFI, CMF, A/D Line, Force Index | 15% |
+| **Forecast** | WAVE bias (-1 to +1), forecast direction, confidence band width | 15% |
+
+Each group produces a normalized score from -1 (strong sell) to +1 (strong buy). The weighted composite determines the action:
+- **> +0.55**: Strong BUY signal
+- **+0.25 to +0.55**: Weak BUY (reduced position size)
+- **-0.25 to +0.25**: HOLD / no action
+- **-0.55 to -0.25**: Weak SELL
+- **< -0.55**: Strong SELL signal
+
+## Risk Management Layer
+
+- **Position sizing**: Kelly Criterion based on win rate and avg win/loss ratio from order history
+- **Max exposure**: Never exceed 25% of equity per position, 80% total
+- **Stop-loss**: Auto-set at 1.5x ATR below entry (configurable)
+- **Take-profit**: Auto-set at 2.5x ATR above entry (risk-reward ratio ≥ 1.67)
+- **Cooldown**: Minimum 30 seconds between trades on same symbol to prevent whipsaw
+- **Drawdown circuit breaker**: Pause bot if account drawdown exceeds 10% from peak
+
+## Strategy Presets
+
+1. **Conservative** — Only trades on strong signals (> 0.65), tight stops, low position size
+2. **Balanced** — Default thresholds, moderate sizing
+3. **Aggressive** — Trades on weak signals too, larger positions, wider stops
+4. **WAVE-First** — Heavily weights the forecast engine (40% WAVE, 60% indicators)
+
+## Bot Control Panel UI
+
+A new collapsible section in the Swap terminal sidebar with:
+- Master ON/OFF toggle with pulsing green/red indicator
+- Strategy preset selector (Conservative / Balanced / Aggressive / WAVE-First)
+- Scan interval slider (5s to 60s)
+- Max concurrent positions limit (1-10)
+- Risk per trade % slider (1-10%)
+- Live activity log showing signal scores, decisions, and executions
+- Running P&L since bot activation
+- Kill switch (close all positions immediately)
+
+## Execution Loop
+
+Every scan cycle (default 10s):
+1. For each symbol in the active watchlist, compute all indicator values from current candle data
+2. Run the WAVE forecast engine (`computeForecastPoints`) to get bias and projected price
+3. Aggregate into composite signal score
+4. Check against existing positions (don't double-enter, check for exit signals on open positions)
+5. Apply risk management filters (sizing, exposure, cooldown, drawdown)
+6. Execute via `paper.submitOrder()` with calculated stop-loss and take-profit
+7. Log decision to activity feed with full indicator snapshot
 
 ## Implementation Plan
 
-### Step 1: Create Auth Pages (Login & Register)
+### Step 1: Create Signal Engine hook
+New file `src/hooks/useTradingBot.ts` containing:
+- `computeCompositeSignal()` — runs all 30+ indicators on a price array, returns -1 to +1 score with breakdown
+- `calculatePositionSize()` — Kelly Criterion + max exposure constraints
+- `shouldEnter()` / `shouldExit()` — decision logic with cooldown and drawdown checks
+- Main `useEffect` loop with `setInterval` for the scan cycle
+- Activity log state (last 50 decisions with timestamps and scores)
 
-Create a `/login` page with email/password login and registration forms. This uses the existing Supabase auth system (profiles table + `handle_new_user` trigger already exist).
+### Step 2: Create Bot Control Panel UI
+New file `src/components/trading/BotControlPanel.tsx`:
+- ON/OFF toggle, strategy selector, risk sliders
+- Live signal score display per scanned symbol (color-coded)
+- Activity log with indicator breakdown tooltips
+- Running stats: trades made, win rate since activation, P&L
+- Kill switch button
 
-- **New file: `src/pages/Login.tsx`** -- A dual-mode form (Sign In / Register) styled in the Gold Arrow aesthetic (navy/gold). Includes email + password fields, toggle between modes, and error display.
-- **Edit `src/App.tsx`** -- Add `/login` route. No forced redirect; the Swap page itself will gate paper trading behind authentication.
-- **Edit `src/components/Header.tsx`** -- Add a "Sign In" link in the nav when not authenticated.
+### Step 3: Integrate into TradingBridge
+Edit `src/pages/TradingBridge.tsx`:
+- Add new "BOT" tab icon (Bot icon) to the sidebar tabs
+- Wire `useTradingBot` hook with `paper.submitOrder`, `paper.closePosition`, and the price resolver
+- Pass current candle data from GALiveChart to the bot engine
+- Show bot status indicator in the header bar
 
-Authentication uses standard email/password via `supabase.auth.signUp()` and `supabase.auth.signInWithPassword()`. The existing `handle_new_user` trigger auto-creates a profile and assigns the `user` role.
+### Step 4: Bot activity persistence
+- Save bot settings (strategy, risk params, on/off state) to `localStorage`
+- Log bot trades with a `source: 'bot'` tag in the paper order for analytics filtering
 
-**Note:** Email confirmation will be required (not auto-confirmed) per security guidelines.
-
-### Step 2: Persist Paper Portfolios to Cloud
-
-Upgrade `usePaperTrading` to sync with the existing `paper_portfolios` table (which has `user_id`, `cash`, `positions` (jsonb), `orders` (jsonb) columns with proper RLS).
-
-- **Edit `src/hooks/usePaperTrading.ts`**:
-  - Accept an optional `userId` parameter
-  - On mount, if authenticated, load from `paper_portfolios` table (falling back to localStorage)
-  - On every state change (after `persist()`), debounce-upsert to the `paper_portfolios` table
-  - Keep localStorage as a fast local cache and offline fallback
-  - Use `useAutoSave` pattern (already in the codebase) for the cloud sync debounce
-
-### Step 3: Gate Paper Trading Behind Auth in Swap
-
-- **Edit `src/pages/TradingBridge.tsx`**:
-  - Import Supabase auth state via `supabase.auth.getUser()` or a new `useAuth` hook
-  - Pass the user ID to `usePaperTrading`
-  - When not authenticated and trying to trade, show a prompt: "Sign in to save your paper trading progress" with a link to `/login`
-  - Still allow viewing the charts and market data without auth
-
-### Step 4: Add Sell Notification on Position Close
-
-- **Edit `src/pages/TradingBridge.tsx`**:
-  - Wrap the `paper.closePosition()` calls (in both desktop BOOK tab and mobile PORTFOLIO/BOOK) with a notification:
-    ```typescript
-    const handleClosePosition = (posId: string, price: number) => {
-      const pos = paper.positions.find(p => p.id === posId);
-      paper.closePosition(posId, price);
-      if (pos) {
-        const pnl = (price - pos.entryPrice) * pos.qty * (pos.side === 'buy' ? 1 : -1);
-        showTradeRecap({ side: pos.side === 'buy' ? 'sell' : 'buy', qty: pos.qty, symbol: pos.symbol, price });
-        toast({
-          title: pnl >= 0 ? '🟢 Position Closed — Profit' : '🔴 Position Closed — Loss',
-          description: `${pos.symbol}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${((pnl / (pos.entryPrice * pos.qty)) * 100).toFixed(2)}%)`,
-        });
-      }
-    };
-    ```
-  - Replace all `onClose={(id, price) => paper.closePosition(id, price)}` with `onClose={handleClosePosition}`
-
-### Step 5: Fix PositionMiniCard to Use Real Live Prices
-
-The current `PositionMiniCard` uses `useSimulatedStream` (random jitter) for non-crypto and only uses WebSocket for crypto. Instead, it should accept a `resolvedPrice` prop from the parent (which already has the unified price resolver) and use `GALivePriceNotice` styling for the price display.
-
-- **Edit `src/components/trading/PositionMiniCard.tsx`**:
-  - Add a new prop `resolvedPrice: number` -- the real price from the parent's `resolveSymbolPrice()` function
-  - Remove `useSimulatedStream` usage entirely
-  - For crypto: keep the WebSocket integration (it works correctly)
-  - For non-crypto: use `resolvedPrice` as the live price instead of simulated jitter
-  - Replace the plain price text with an inline `GALivePriceNotice` component (size="sm") showing the real-time price with tick-flash animations (green/red on change)
-  - Keep the sparkline but seed it from real price ticks, not simulated noise
-
-- **Edit `src/pages/TradingBridge.tsx`**:
-  - Pass `resolvedPrice={resolvePriceForTicker(pos.symbol)}` to every `PositionMiniCard` instance (desktop BOOK, mobile BOOK, mobile PORTFOLIO)
-
----
-
-## Technical Details
-
-### Files to Create
+## Files to Create
 | File | Purpose |
-|------|---------|
-| `src/pages/Login.tsx` | Email/password auth page (sign in + register) |
-| `src/hooks/useAuth.ts` | Lightweight auth state hook wrapping Supabase session |
+|---|---|
+| `src/hooks/useTradingBot.ts` | Signal engine, risk management, execution loop |
+| `src/components/trading/BotControlPanel.tsx` | Bot configuration and monitoring UI |
 
-### Files to Modify
+## Files to Modify
 | File | Changes |
-|------|---------|
-| `src/App.tsx` | Add `/login` route |
-| `src/components/Header.tsx` | Add Sign In nav link |
-| `src/hooks/usePaperTrading.ts` | Add cloud persistence via `paper_portfolios` table, accept userId |
-| `src/pages/TradingBridge.tsx` | Auth gate for trading, sell notification wrapper, pass resolvedPrice to cards |
-| `src/components/trading/PositionMiniCard.tsx` | Accept `resolvedPrice` prop, remove simulated stream, embed `GALivePriceNotice` |
+|---|---|
+| `src/pages/TradingBridge.tsx` | Add BOT tab, integrate hook, wire price data |
 
-### Database
-No schema changes needed -- `paper_portfolios` table already exists with correct columns and RLS policies.
-
-### No new dependencies required
+## No database changes required
+## No new dependencies required
 
