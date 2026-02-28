@@ -8,6 +8,7 @@ export interface WaveBotConfig {
   intervalSec: number;
   entryThreshold: number;
   maxPositions: number;
+  maxHoldSec: number;
   // Tunable WAVE parameters
   waveDrift: number;
   waveAmplitude: number;
@@ -24,6 +25,7 @@ export interface WaveTradeRecord {
   entryPrice: number;
   forecastPrice: number;
   exitPrice?: number;
+  currentPrice?: number;
   correct?: boolean;
   openedAt: number;
   closedAt?: number;
@@ -45,7 +47,8 @@ const DEFAULT_CONFIG: WaveBotConfig = {
   budget: 25000,
   intervalSec: 80,
   entryThreshold: 0.15,
-  maxPositions: 5,
+  maxPositions: 500,
+  maxHoldSec: 320,
   waveDrift: 0.08,
   waveAmplitude: 0.3,
   waveDamping: 0.5,
@@ -76,7 +79,7 @@ function loadTrades(): WaveTradeRecord[] {
 }
 
 function saveTrades(t: WaveTradeRecord[]) {
-  try { localStorage.setItem(TRADES_KEY, JSON.stringify(t.slice(0, 200))); } catch { /* */ }
+  try { localStorage.setItem(TRADES_KEY, JSON.stringify(t.slice(0, 1000))); } catch { /* */ }
 }
 
 // ─── WAVE Bias Computation (tunable) ─────────────────────
@@ -84,24 +87,21 @@ function saveTrades(t: WaveTradeRecord[]) {
 function computeWaveBias(
   prices: number[],
   config: WaveBotConfig,
-): { bias: number; forecastPrice: number } {
-  if (prices.length < 20) return { bias: 0, forecastPrice: prices[prices.length - 1] || 0 };
+): { bias: number; forecastPrice: number; atr: number } {
+  if (prices.length < 20) return { bias: 0, forecastPrice: prices[prices.length - 1] || 0, atr: 0 };
 
   const len = prices.length;
   const current = prices[len - 1];
 
-  // Simple moving averages
   const sma5 = prices.slice(-5).reduce((a, b) => a + b, 0) / 5;
   const sma20 = prices.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, len);
 
-  // ATR proxy
   let atrSum = 0;
   for (let i = Math.max(1, len - 14); i < len; i++) {
     atrSum += Math.abs(prices[i] - prices[i - 1]);
   }
   const atr = atrSum / Math.min(13, len - 1) || current * 0.005;
 
-  // RSI (14-period)
   let gains = 0, losses = 0;
   const rsiPeriod = Math.min(14, len - 1);
   for (let i = len - rsiPeriod; i < len; i++) {
@@ -114,7 +114,6 @@ function computeWaveBias(
   const rs = avgGain / avgLoss;
   const rsi = 100 - (100 / (1 + rs));
 
-  // Detect cycle frequency
   const recentN = Math.min(len, 40);
   const recentSlice = prices.slice(-recentN);
   const mean = recentSlice.reduce((a, b) => a + b, 0) / recentSlice.length;
@@ -126,20 +125,17 @@ function computeWaveBias(
     ? (Math.PI * crossings) / recentN
     : Math.PI * config.cycleSensitivity;
 
-  // Momentum
   const momSlice = prices.slice(-5);
   const momentum = momSlice.length >= 2
     ? (momSlice[momSlice.length - 1] - momSlice[0]) / (momSlice.length - 1)
     : 0;
 
-  // Composite bias signals
   const rsiSignal = rsi < 30 ? 0.6 : rsi > 70 ? -0.6 : (50 - rsi) / 100;
   const maSignal = (sma5 - sma20) / atr * 0.5;
 
   const rawBias = rsiSignal + maSignal;
   const bias = Math.max(-1, Math.min(1, rawBias));
 
-  // Forecast price using tunable wave parameters
   const driftPerStep = bias * atr * config.waveDrift;
   const waveAmp = atr * config.waveAmplitude;
   const phaseOffset = momentum > 0 ? 0 : Math.PI;
@@ -147,7 +143,7 @@ function computeWaveBias(
 
   const forecastPrice = current + driftPerStep + waveAmp * decay * Math.sin(cycleFreq + phaseOffset) + momentum * 0.3 * decay;
 
-  return { bias, forecastPrice };
+  return { bias, forecastPrice, atr };
 }
 
 // ─── Main Hook ───────────────────────────────────────────
@@ -173,7 +169,6 @@ export function useWaveBot(params: UseWaveBotParams) {
   const [trades, setTrades] = useState<WaveTradeRecord[]>(loadTrades);
   const scanRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Stable refs
   const positionsRef = useRef(positions);
   const cashRef = useRef(cash);
   const equityRef = useRef(equity);
@@ -193,35 +188,28 @@ export function useWaveBot(params: UseWaveBotParams) {
     });
   }, []);
 
-  // Check open trade exits every cycle
-  const checkExits = useCallback(() => {
-    const openTrades = tradesRef.current.filter(t => !t.closedAt && t.positionId);
-    const currentPositions = positionsRef.current;
+  // Close a trade and record accuracy
+  const closeTrade = useCallback((trade: WaveTradeRecord, exitPrice: number, pos: { id: string; qty: number } | undefined) => {
+    const qty = pos?.qty ?? 1;
+    const pnl = trade.side === 'buy'
+      ? (exitPrice - trade.entryPrice) * qty
+      : (trade.entryPrice - exitPrice) * qty;
+    const correct = trade.predictedDirection === 'bullish'
+      ? exitPrice > trade.entryPrice
+      : exitPrice < trade.entryPrice;
 
-    for (const trade of openTrades) {
-      const pos = currentPositions.find(p => p.id === trade.positionId);
-      if (!pos) {
-        // Position was closed externally — record the exit
-        const exitPrice = resolvePrice(trade.symbol);
-        if (exitPrice > 0) {
-          const pnl = trade.side === 'buy'
-            ? (exitPrice - trade.entryPrice) * (pos?.qty ?? 1)
-            : (trade.entryPrice - exitPrice) * (pos?.qty ?? 1);
-          const correct = trade.predictedDirection === 'bullish'
-            ? exitPrice > trade.entryPrice
-            : exitPrice < trade.entryPrice;
-
-          setTrades(prev => {
-            const updated = prev.map(t => t.id === trade.id ? {
-              ...t, exitPrice, correct, closedAt: Date.now(), pnl,
-            } : t);
-            saveTrades(updated);
-            return updated;
-          });
-        }
-      }
+    if (pos) {
+      closePosition(pos.id, exitPrice, true);
     }
-  }, [resolvePrice]);
+
+    setTrades(prev => {
+      const updated = prev.map(t => t.id === trade.id ? {
+        ...t, exitPrice, correct, closedAt: Date.now(), pnl,
+      } : t);
+      saveTrades(updated);
+      return updated;
+    });
+  }, [closePosition]);
 
   // Main scan loop
   const scan = useCallback(() => {
@@ -230,41 +218,86 @@ export function useWaveBot(params: UseWaveBotParams) {
 
     const currentPositions = positionsRef.current;
     const botPositions = currentPositions.filter(p => p.botSource);
+    const now = Date.now();
+
+    // ── Phase 1: Update current prices on open trades ──
+    setTrades(prev => {
+      let changed = false;
+      const updated = prev.map(t => {
+        if (t.closedAt) return t;
+        const price = resolvePrice(t.symbol);
+        if (price > 0 && price !== t.currentPrice) {
+          changed = true;
+          return { ...t, currentPrice: price };
+        }
+        return t;
+      });
+      if (changed) { saveTrades(updated); return updated; }
+      return prev;
+    });
+
+    // ── Phase 2: Check exits on open trades ──
+    const openTrades = tradesRef.current.filter(t => !t.closedAt);
+
+    for (const trade of openTrades) {
+      const pos = botPositions.find(p => p.id === trade.positionId);
+      const price = resolvePrice(trade.symbol);
+      if (price <= 0) continue;
+
+      // Position was closed externally
+      if (trade.positionId && !pos) {
+        closeTrade(trade, price, undefined);
+        continue;
+      }
+
+      const history = getCandleHistory(trade.symbol);
+      const atr = history && history.length >= 20
+        ? computeWaveBias(history, cfg).atr
+        : Math.abs(trade.forecastPrice - trade.entryPrice) || trade.entryPrice * 0.005;
+
+      const timeHeld = (now - trade.openedAt) / 1000;
+      const priceMove = trade.side === 'buy' ? price - trade.entryPrice : trade.entryPrice - price;
+      const tpDistance = atr * 1.2;
+      const slDistance = atr * 0.8;
+
+      let shouldClose = false;
+
+      // Time-based exit
+      if (timeHeld >= cfg.maxHoldSec) shouldClose = true;
+
+      // Take-profit
+      if (priceMove >= tpDistance) shouldClose = true;
+
+      // Stop-loss
+      if (priceMove <= -slDistance) shouldClose = true;
+
+      // Bias reversal (relaxed threshold)
+      if (history && history.length >= 20) {
+        const { bias } = computeWaveBias(history, cfg);
+        const reversed = trade.side === 'buy' ? bias < -cfg.entryThreshold * 0.3 : bias > cfg.entryThreshold * 0.3;
+        if (reversed) shouldClose = true;
+      }
+
+      if (shouldClose && pos) {
+        closeTrade(trade, price, pos);
+      }
+    }
+
+    // ── Phase 3: Open new positions ──
+    const refreshedBotPositions = positionsRef.current.filter(p => p.botSource);
+    if (refreshedBotPositions.length >= cfg.maxPositions) return;
+
     const openTradeSymbols = new Set(
       tradesRef.current.filter(t => !t.closedAt).map(t => t.symbol)
     );
 
-    // First, check for exits on open trades
-    checkExits();
-
-    // Check if any open positions should be closed (opposite bias)
-    for (const pos of botPositions) {
-      const history = getCandleHistory(pos.symbol);
-      if (!history || history.length < 20) continue;
-      const { bias } = computeWaveBias(history, cfg);
-      
-      // Close if bias reversed significantly
-      const shouldClose = pos.side === 'buy' ? bias < -cfg.entryThreshold * 0.5 : bias > cfg.entryThreshold * 0.5;
-      if (shouldClose) {
-        const price = resolvePrice(pos.symbol);
-        if (price > 0) {
-          closePosition(pos.id, price, true);
-        }
-      }
-    }
-
-    // Don't open more if at max
-    if (botPositions.length >= cfg.maxPositions) return;
-
-    // Budget check
-    const budgetUsed = botPositions.reduce((s, p) => s + p.currentPrice * p.qty, 0);
+    const budgetUsed = refreshedBotPositions.reduce((s, p) => s + p.currentPrice * p.qty, 0);
     const budgetFree = Math.max(0, cfg.budget - budgetUsed);
     if (budgetFree < 100) return;
 
-    // Scan for new entries
     for (const ticker of watchlistSymbols) {
       if (openTradeSymbols.has(ticker)) continue;
-      if (botPositions.length >= cfg.maxPositions) break;
+      if (refreshedBotPositions.length >= cfg.maxPositions) break;
 
       const price = resolvePrice(ticker);
       if (price <= 0) continue;
@@ -273,14 +306,12 @@ export function useWaveBot(params: UseWaveBotParams) {
       if (!history || history.length < 20) continue;
 
       const { bias, forecastPrice } = computeWaveBias(history, cfg);
-
       if (Math.abs(bias) < cfg.entryThreshold) continue;
 
       const side: 'buy' | 'sell' = bias > 0 ? 'buy' : 'sell';
       const predictedDirection: 'bullish' | 'bearish' = bias > 0 ? 'bullish' : 'bearish';
 
-      // Position sizing: allocate fraction of remaining budget
-      const allocationPerTrade = budgetFree / Math.max(1, cfg.maxPositions - botPositions.length);
+      const allocationPerTrade = budgetFree / Math.max(1, cfg.maxPositions - refreshedBotPositions.length);
       let qty = allocationPerTrade / price;
       if (price >= 100) qty = parseFloat(qty.toFixed(4));
       else if (price >= 10) qty = parseFloat(qty.toFixed(2));
@@ -288,16 +319,8 @@ export function useWaveBot(params: UseWaveBotParams) {
       if (qty <= 0) continue;
 
       try {
-        const order = submitOrder({
-          symbol: ticker,
-          side,
-          qty,
-          type: 'market',
-          price,
-          botSource: true,
-        });
+        submitOrder({ symbol: ticker, side, qty, type: 'market', price, botSource: true });
 
-        // Find the created position
         const newTrade: WaveTradeRecord = {
           id: crypto.randomUUID(),
           symbol: ticker,
@@ -306,17 +329,18 @@ export function useWaveBot(params: UseWaveBotParams) {
           forecastBias: parseFloat(bias.toFixed(3)),
           entryPrice: price,
           forecastPrice: parseFloat(forecastPrice.toFixed(price < 10 ? 4 : 2)),
+          currentPrice: price,
           openedAt: Date.now(),
-          positionId: undefined, // Will be matched on next check
+          positionId: undefined,
         };
 
         setTrades(prev => {
-          const updated = [newTrade, ...prev].slice(0, 200);
+          const updated = [newTrade, ...prev].slice(0, 1000);
           saveTrades(updated);
           return updated;
         });
 
-        // Try to find matching position
+        // Match position
         setTimeout(() => {
           const pos = positionsRef.current.find(
             p => p.symbol === ticker && p.botSource && !tradesRef.current.some(t => t.positionId === p.id)
@@ -329,12 +353,11 @@ export function useWaveBot(params: UseWaveBotParams) {
             });
           }
         }, 100);
-
       } catch (err) {
         console.warn('[WaveBot] Order failed:', ticker, err);
       }
     }
-  }, [watchlistSymbols, resolvePrice, getCandleHistory, submitOrder, closePosition, checkExits]);
+  }, [watchlistSymbols, resolvePrice, getCandleHistory, submitOrder, closeTrade]);
 
   // Start/stop scan interval
   useEffect(() => {
@@ -344,7 +367,6 @@ export function useWaveBot(params: UseWaveBotParams) {
     }
 
     if (config.enabled) {
-      // Run immediately
       scan();
       scanRef.current = setInterval(scan, config.intervalSec * 1000);
     }
