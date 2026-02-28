@@ -38,6 +38,7 @@ import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
 import OneClickTrading from '@/components/trading/OneClickTrading';
 import TradingPanel from '@/components/trading/TradingPanel';
 import BotControlPanel from '@/components/trading/BotControlPanel';
+import GABotScanner from '@/components/ga-widgets/GABotScanner';
 import { useTradingBot } from '@/hooks/useTradingBot';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
@@ -996,22 +997,31 @@ const TradingBridge = () => {
               )}
               {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
               {bottomTab === 'bot' && (
-                <BotControlPanel
-                  config={bot.config}
-                  updateConfig={bot.updateConfig}
-                  activityLog={bot.activityLog}
-                  pendingProposals={bot.pendingProposals}
-                  stats={bot.stats}
-                  killAll={bot.killAll}
-                  approveProposal={bot.approveProposal}
-                  rejectProposal={bot.rejectProposal}
-                  positionCount={paper.positions.filter(p => p.botSource).length}
-                  equity={paper.account.equity}
-                  botPositions={paper.positions.filter(p => p.botSource)}
-                  resolvePrice={resolvePriceForTicker}
-                  onClosePosition={(id, price) => handleClosePosition(id, price)}
-                  onNavigate={(sym) => setActiveSymbol(sym)}
-                />
+                <div className="space-y-4">
+                  <BotControlPanel
+                    config={bot.config}
+                    updateConfig={bot.updateConfig}
+                    activityLog={bot.activityLog}
+                    pendingProposals={bot.pendingProposals}
+                    stats={bot.stats}
+                    killAll={bot.killAll}
+                    approveProposal={bot.approveProposal}
+                    rejectProposal={bot.rejectProposal}
+                    positionCount={paper.positions.filter(p => p.botSource).length}
+                    equity={paper.account.equity}
+                    botPositions={paper.positions.filter(p => p.botSource)}
+                    resolvePrice={resolvePriceForTicker}
+                    onClosePosition={(id, price) => handleClosePosition(id, price)}
+                    onNavigate={(sym) => setActiveSymbol(sym)}
+                  />
+                  <GABotScanner
+                    resolvePrice={resolvePriceForTicker}
+                    getCandleData={getCandleData}
+                    getWaveBias={getWaveBias}
+                    onNavigate={(sym) => setActiveSymbol(sym)}
+                    botBudget={bot.config.botBudget}
+                  />
+                </div>
               )}
               {bottomTab === 'automate' && (
                 <div className="space-y-4">
@@ -1332,22 +1342,31 @@ const TradingBridge = () => {
                     </div>
                   )}
                   {bottomTab === 'bot' && (
-                    <BotControlPanel
-                      config={bot.config}
-                      updateConfig={bot.updateConfig}
-                      activityLog={bot.activityLog}
-                      pendingProposals={bot.pendingProposals}
-                      stats={bot.stats}
-                      killAll={bot.killAll}
-                      approveProposal={bot.approveProposal}
-                      rejectProposal={bot.rejectProposal}
-                      positionCount={paper.positions.filter(p => p.botSource).length}
-                      equity={paper.account.equity}
-                      botPositions={paper.positions.filter(p => p.botSource)}
-                      resolvePrice={resolvePriceForTicker}
-                      onClosePosition={(id, price) => handleClosePosition(id, price)}
-                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                    />
+                    <div className="space-y-4">
+                      <BotControlPanel
+                        config={bot.config}
+                        updateConfig={bot.updateConfig}
+                        activityLog={bot.activityLog}
+                        pendingProposals={bot.pendingProposals}
+                        stats={bot.stats}
+                        killAll={bot.killAll}
+                        approveProposal={bot.approveProposal}
+                        rejectProposal={bot.rejectProposal}
+                        positionCount={paper.positions.filter(p => p.botSource).length}
+                        equity={paper.account.equity}
+                        botPositions={paper.positions.filter(p => p.botSource)}
+                        resolvePrice={resolvePriceForTicker}
+                        onClosePosition={(id, price) => handleClosePosition(id, price)}
+                        onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                      />
+                      <GABotScanner
+                        resolvePrice={resolvePriceForTicker}
+                        getCandleData={getCandleData}
+                        getWaveBias={getWaveBias}
+                        onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                        botBudget={bot.config.botBudget}
+                      />
+                    </div>
                   )}
                   {bottomTab === 'automate' && (
                     <div className="space-y-4">
