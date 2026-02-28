@@ -6,6 +6,11 @@ import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GALivePriceNotice from '@/components/ga-widgets/GALivePriceNotice';
+import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
+import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
+import GACommodityRadar from '@/components/ga-widgets/GACommodityRadar';
+import GAForexWarRoom from '@/components/ga-widgets/GAForexWarRoom';
+import GAPortfolioAllocator from '@/components/ga-widgets/GAPortfolioAllocator';
 
 import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
@@ -975,6 +980,10 @@ const TradingBridge = () => {
                       ))}
                     </div>
                   )}
+                  <div className="border-t border-gold/10 pt-3 space-y-3">
+                    <GATopMovers />
+                    <GACryptoPriceCards />
+                  </div>
                 </div>
               )}
               {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
@@ -1017,6 +1026,7 @@ const TradingBridge = () => {
                     <GACrossAssetDashboard />
                     <GAAssetOverview />
                     <GAMiniCharts />
+                    <GAPortfolioAllocator />
                   </div>
                 </div>
               )}
@@ -1028,6 +1038,8 @@ const TradingBridge = () => {
                     <GAVolatilityMatrix />
                     <GAGoldRatio />
                     <GABullionHeatmap />
+                    <GACommodityRadar />
+                    <GAForexWarRoom />
                   </div>
                 </>
               )}
@@ -1039,9 +1051,20 @@ const TradingBridge = () => {
                   <GAEconomicCalendar />
                   <GAMarketQuotes />
                   <GAMarketSummary />
+                  <GACryptoMarket />
+                  <GACryptoPriceCards />
+                  <GATopMovers />
+                  <GANewsFeed />
                 </div>
               )}
-              {bottomTab === 'strategies' && <StrategiesPanel />}
+              {bottomTab === 'strategies' && (
+                <div className="space-y-4">
+                  <StrategiesPanel />
+                  <div className="border-t border-gold/10 pt-4">
+                    <GATechnicalGauge />
+                  </div>
+                </div>
+              )}
               {bottomTab === 'social' && <SocialPanel />}
             </div>
           )}
@@ -1292,9 +1315,15 @@ const TradingBridge = () => {
                   )}
                   {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
                   {bottomTab === 'book' && (
-                    <div className="mt-4 pt-4 border-t border-gold/10">
+                    <div className="mt-4 pt-4 border-t border-gold/10 space-y-3">
                       <CollapsibleSection title="TRADE JOURNAL" icon={BookOpen} badge="LOG">
                         <GATradeJournal />
+                      </CollapsibleSection>
+                      <CollapsibleSection title="TOP MOVERS" icon={Flame} badge="LIVE">
+                        <GATopMovers />
+                      </CollapsibleSection>
+                      <CollapsibleSection title="CRYPTO PRICES" icon={TrendingUp} badge="LIVE">
+                        <GACryptoPriceCards />
                       </CollapsibleSection>
                     </div>
                   )}
@@ -1331,6 +1360,7 @@ const TradingBridge = () => {
                         <GATradingSessions />
                         <GAAssetOverview />
                         <GAMiniCharts />
+                        <div className="lg:col-span-2"><GAPortfolioAllocator /></div>
                       </div>
                     </div>
                   )}
@@ -1343,6 +1373,8 @@ const TradingBridge = () => {
                         <GAGoldRatio />
                         <GAPipCalculator />
                         <GAMarginCalc />
+                        <GACommodityRadar />
+                        <GAForexWarRoom />
                         <div className="lg:col-span-2"><GABullionHeatmap /></div>
                       </div>
                     </>
@@ -1355,9 +1387,20 @@ const TradingBridge = () => {
                       <GAEconomicCalendar />
                       <GAMarketQuotes />
                       <GAMarketSummary />
+                      <div className="lg:col-span-2"><GACryptoMarket /></div>
+                      <GACryptoPriceCards />
+                      <GATopMovers />
+                      <div className="lg:col-span-2"><GANewsFeed /></div>
                     </div>
                   )}
-                  {bottomTab === 'strategies' && <StrategiesPanel />}
+                  {bottomTab === 'strategies' && (
+                    <div className="space-y-4">
+                      <StrategiesPanel />
+                      <div className="border-t border-gold/10 pt-4">
+                        <GATechnicalGauge />
+                      </div>
+                    </div>
+                  )}
                   {bottomTab === 'social' && <SocialPanel />}
                 </div>
               </div>
