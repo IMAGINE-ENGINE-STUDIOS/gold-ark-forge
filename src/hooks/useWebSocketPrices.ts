@@ -31,6 +31,8 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 10;
 
   const connect = useCallback(() => {
     // Only connect for crypto symbols that have Binance streams
@@ -39,6 +41,12 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
       .map(k => `${BINANCE_STREAMS[k]}@miniTicker`);
 
     if (streams.length === 0) return;
+
+    // Stop retrying after max attempts
+    if (retryCountRef.current >= MAX_RETRIES) {
+      console.warn('[WS] Max retries reached, falling back to polling-only mode');
+      return;
+    }
 
     const streamParam = streams.join('/');
     const url = `${BINANCE_WS}/${streamParam.length > 1 ? streamParam : streams[0]}`;
@@ -51,17 +59,17 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
 
       ws.onopen = () => {
         console.log('[WS] Connected to Binance price stream');
+        retryCountRef.current = 0; // Reset on successful connect
       };
 
       ws.onmessage = (event) => {
         if (!mountedRef.current) return;
         try {
           const raw = JSON.parse(event.data);
-          const data = raw.data || raw; // Combined stream wraps in { stream, data }
+          const data = raw.data || raw;
 
           if (data.e === '24hrMiniTicker') {
             const symbol = data.s?.toLowerCase().replace('usdt', '');
-            // Reverse-map back to our key
             const key = Object.entries(BINANCE_STREAMS).find(([_, v]) => v === `${symbol}usdt`)?.[0];
             if (key) {
               const price = parseFloat(data.c);
@@ -90,20 +98,27 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
       };
 
       ws.onclose = () => {
-        if (mountedRef.current) {
-          reconnectTimer.current = setTimeout(connect, 3000);
+        if (mountedRef.current && retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current++;
+          // Exponential backoff: 3s → 6s → 12s → ... max 30s
+          const delay = Math.min(3000 * Math.pow(2, retryCountRef.current - 1), 30000);
+          console.log(`[WS] Reconnecting in ${(delay / 1000).toFixed(0)}s (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
+          reconnectTimer.current = setTimeout(connect, delay);
         }
       };
 
       wsRef.current = ws;
     } catch (e) {
       console.warn('[WS] Failed to create WebSocket:', e);
-      reconnectTimer.current = setTimeout(connect, 5000);
+      retryCountRef.current++;
+      const delay = Math.min(5000 * Math.pow(2, retryCountRef.current - 1), 30000);
+      reconnectTimer.current = setTimeout(connect, delay);
     }
   }, [symbolKeys]);
 
   useEffect(() => {
     mountedRef.current = true;
+    retryCountRef.current = 0;
     connect();
 
     return () => {
