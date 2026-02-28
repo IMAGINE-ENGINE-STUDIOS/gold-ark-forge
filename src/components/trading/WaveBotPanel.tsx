@@ -168,9 +168,12 @@ export default function WaveBotPanel({
           <ParamSlider label="Entry Threshold" value={config.entryThreshold} min={0.05} max={0.50} step={0.01}
             description="Minimum bias to enter a trade"
             onChange={v => updateConfig({ entryThreshold: v })} />
-          <ParamSlider label="Max Positions" value={config.maxPositions} min={1} max={15} step={1}
+          <ParamSlider label="Max Positions" value={config.maxPositions} min={1} max={500} step={1}
             description="Maximum concurrent positions"
             onChange={v => updateConfig({ maxPositions: v })} />
+          <ParamSlider label="Max Hold Time" value={config.maxHoldSec} min={60} max={1200} step={20}
+            description="Auto-close after this many seconds"
+            onChange={v => updateConfig({ maxHoldSec: v })} />
         </div>
       )}
 
@@ -227,42 +230,57 @@ export default function WaveBotPanel({
           </div>
           {showLog && (
             <div className="space-y-1 mt-2 max-h-[300px] overflow-y-auto watchlist-scroll">
-              {trades.slice(0, 50).map(t => (
-                <div key={t.id} className="bg-navy-dark/30 rounded px-2.5 py-1.5 border border-gold/5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {t.side === 'buy' ? <TrendingUp className="w-3 h-3 text-emerald-400" /> : <TrendingDown className="w-3 h-3 text-red-400" />}
-                      <span className={`text-[10px] font-mono font-bold ${t.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {t.side.toUpperCase()} {t.symbol}
-                      </span>
-                      <span className="text-[8px] font-mono text-marble/20">
-                        bias: {t.forecastBias > 0 ? '+' : ''}{t.forecastBias.toFixed(3)}
-                      </span>
+              {trades.slice(0, 50).map(t => {
+                const holdSec = t.closedAt
+                  ? Math.round((t.closedAt - t.openedAt) / 1000)
+                  : Math.round((Date.now() - t.openedAt) / 1000);
+                const holdMin = Math.floor(holdSec / 60);
+                const holdRemSec = holdSec % 60;
+                const livePrice = t.closedAt ? t.exitPrice : (t.currentPrice || resolvePrice(t.symbol));
+                const livePnl = livePrice && !t.closedAt
+                  ? (t.side === 'buy' ? livePrice - t.entryPrice : t.entryPrice - livePrice)
+                  : t.pnl;
+
+                return (
+                  <div key={t.id} className="bg-navy-dark/30 rounded px-2.5 py-1.5 border border-gold/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {t.side === 'buy' ? <TrendingUp className="w-3 h-3 text-emerald-400" /> : <TrendingDown className="w-3 h-3 text-red-400" />}
+                        <span className={`text-[10px] font-mono font-bold ${t.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {t.side.toUpperCase()} {t.symbol}
+                        </span>
+                        <span className="text-[8px] font-mono text-marble/20">
+                          bias: {t.forecastBias > 0 ? '+' : ''}{t.forecastBias.toFixed(3)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {t.closedAt ? (
+                          <span className={`text-[9px] font-mono font-bold ${t.correct ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {t.correct ? '✓' : '✗'}
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-mono text-amber-400/60 animate-pulse">OPEN</span>
+                        )}
+                        {livePnl !== undefined && (
+                          <span className={`text-[9px] font-mono ${(livePnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {(livePnl ?? 0) >= 0 ? '+' : ''}${(livePnl ?? 0).toFixed(2)}
+                          </span>
+                        )}
+                        <span className="text-[8px] font-mono text-marble/15">
+                          {holdMin}m{holdRemSec}s
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {t.closedAt && (
-                        <span className={`text-[9px] font-mono font-bold ${t.correct ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {t.correct ? '✓' : '✗'}
-                        </span>
-                      )}
-                      {t.pnl !== undefined && (
-                        <span className={`text-[9px] font-mono ${(t.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {(t.pnl ?? 0) >= 0 ? '+' : ''}${(t.pnl ?? 0).toFixed(2)}
-                        </span>
-                      )}
-                      <span className="text-[8px] font-mono text-marble/15">
-                        {new Date(t.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                    <div className="flex gap-3 text-[8px] font-mono text-marble/20 mt-0.5 pl-5">
+                      <span>Entry: ${t.entryPrice < 10 ? t.entryPrice.toFixed(4) : t.entryPrice.toFixed(2)}</span>
+                      {livePrice && !t.closedAt && <span className="text-marble/40">Now: ${livePrice < 10 ? livePrice.toFixed(4) : livePrice.toFixed(2)}</span>}
+                      <span>Forecast: ${t.forecastPrice < 10 ? t.forecastPrice.toFixed(4) : t.forecastPrice.toFixed(2)}</span>
+                      {t.exitPrice && <span>Exit: ${t.exitPrice < 10 ? t.exitPrice.toFixed(4) : t.exitPrice.toFixed(2)}</span>}
+                      <span>{t.predictedDirection === 'bullish' ? '📈' : '📉'} {t.predictedDirection}</span>
                     </div>
                   </div>
-                  <div className="flex gap-3 text-[8px] font-mono text-marble/20 mt-0.5 pl-5">
-                    <span>Entry: ${t.entryPrice < 10 ? t.entryPrice.toFixed(4) : t.entryPrice.toFixed(2)}</span>
-                    <span>Forecast: ${t.forecastPrice < 10 ? t.forecastPrice.toFixed(4) : t.forecastPrice.toFixed(2)}</span>
-                    {t.exitPrice && <span>Exit: ${t.exitPrice < 10 ? t.exitPrice.toFixed(4) : t.exitPrice.toFixed(2)}</span>}
-                    <span>{t.predictedDirection === 'bullish' ? '📈' : '📉'} {t.predictedDirection}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
