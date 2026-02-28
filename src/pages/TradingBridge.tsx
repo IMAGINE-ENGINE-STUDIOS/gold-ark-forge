@@ -1005,8 +1005,12 @@ const TradingBridge = () => {
                   killAll={bot.killAll}
                   approveProposal={bot.approveProposal}
                   rejectProposal={bot.rejectProposal}
-                  positionCount={paper.positions.length}
+                  positionCount={paper.positions.filter(p => p.botSource).length}
                   equity={paper.account.equity}
+                  botPositions={paper.positions.filter(p => p.botSource)}
+                  resolvePrice={resolvePriceForTicker}
+                  onClosePosition={(id, price) => handleClosePosition(id, price)}
+                  onNavigate={(sym) => setActiveSymbol(sym)}
                 />
               )}
               {bottomTab === 'automate' && (
@@ -1337,8 +1341,12 @@ const TradingBridge = () => {
                       killAll={bot.killAll}
                       approveProposal={bot.approveProposal}
                       rejectProposal={bot.rejectProposal}
-                      positionCount={paper.positions.length}
+                      positionCount={paper.positions.filter(p => p.botSource).length}
                       equity={paper.account.equity}
+                      botPositions={paper.positions.filter(p => p.botSource)}
+                      resolvePrice={resolvePriceForTicker}
+                      onClosePosition={(id, price) => handleClosePosition(id, price)}
+                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
                     />
                   )}
                   {bottomTab === 'automate' && (

@@ -22,6 +22,7 @@ export interface BotConfig {
   riskPerTradePct: number;
   stopLossAtrMult: number;
   takeProfitAtrMult: number;
+  botBudget: number;
 }
 
 export interface SignalBreakdown {
@@ -327,6 +328,7 @@ function loadBotConfig(): BotConfig {
     riskPerTradePct: 1,
     stopLossAtrMult: 1.0,
     takeProfitAtrMult: 1.5,
+    botBudget: 25000,
   };
 }
 
@@ -596,11 +598,11 @@ export function useTradingBot(params: UseTradingBotParams) {
       const sizeMult = isWeakEntry ? strategyConfig.positionSizeMult * 0.5 : strategyConfig.positionSizeMult;
 
       const totalExposure = positions.filter(p => p.botSource).reduce((s, p) => s + p.currentPrice * p.qty, 0);
-      const maxTotalExposure = equity * 0.80;
+      const maxTotalExposure = config.botBudget;
       if (totalExposure >= maxTotalExposure) continue;
 
       const qty = calculatePositionSize(
-        equity, price, config.riskPerTradePct, atr,
+        config.botBudget, price, config.riskPerTradePct, atr,
         config.stopLossAtrMult, sizeMult, isMicro ? 0.10 : 0.25 // Micro uses smaller max exposure
       );
 
