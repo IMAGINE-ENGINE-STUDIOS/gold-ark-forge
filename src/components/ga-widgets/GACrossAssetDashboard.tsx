@@ -3,7 +3,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import LivePulse from './LivePulse';
 
@@ -29,8 +29,10 @@ const GACrossAssetDashboard = () => {
 
   const pair = PAIRS[activePair];
 
-  // Live gold price from API
-  const liveGold = metals?.gold?.price_usd ?? 2350;
+  // Live gold price via simulated stream
+  const { price: liveGold } = useSimulatedStream(
+    metals?.gold?.price_usd ?? 2350, metals?.gold?.change_24h ?? 0, 'gold'
+  );
 
   const priceA = useMemo(() => {
     if (pair.keyA === 'gold') return liveGold;

@@ -375,7 +375,7 @@ function loadBotConfig(): BotConfig {
         strategy: parsed.strategy ?? 'micro',
         // Force legacy ASK configs to AUTO so bot actually trades by default
         mode: 'auto',
-        scanIntervalSec: parsed.scanIntervalSec ?? 3,
+        scanIntervalSec: parsed.scanIntervalSec ?? 10,
         maxPositions: parsed.maxPositions ?? 8,
         riskPerTradePct: parsed.riskPerTradePct ?? 1,
         stopLossAtrMult: parsed.stopLossAtrMult ?? 1.0,
@@ -389,7 +389,7 @@ function loadBotConfig(): BotConfig {
     enabled: false,
     strategy: 'micro',
     mode: 'auto',
-    scanIntervalSec: 3,
+    scanIntervalSec: 10,
     maxPositions: 8,
     riskPerTradePct: 1,
     stopLossAtrMult: 1.0,

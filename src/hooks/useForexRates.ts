@@ -26,7 +26,7 @@ export const useForexRates = () => {
   return useQuery({
     queryKey: ['forex-rates'],
     queryFn: fetchForexRates,
-    refetchInterval: 10000,
-    staleTime: 5000,
+    refetchInterval: 60000, // 1 min auto-refresh
+    staleTime: 30000,
   });
 };

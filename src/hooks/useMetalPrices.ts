@@ -27,8 +27,7 @@ export const useMetalPrices = () => {
 
       return priceMap;
     },
-    refetchInterval: 5000,
-    staleTime: 3000,
+    refetchInterval: 60000, // Refetch every minute
   });
 };
 

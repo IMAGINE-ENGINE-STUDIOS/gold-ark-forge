@@ -1,4 +1,5 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useMemo, useState, useEffect, useRef } from 'react';
@@ -38,8 +39,8 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
   const basePrice = feed?.price_usd ?? 0;
   const change = feed?.change_24h ?? 0;
 
-  // Raw API price (no simulation)
-  const livePrice = basePrice;
+  // Live-streaming price
+  const { price: livePrice } = useSimulatedStream(basePrice, change, metalType);
 
   // Live sparkline that accumulates ticks
   const [sparkData, setSparkData] = useState<{ v: number }[]>([]);

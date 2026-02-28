@@ -1,4 +1,5 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3, MoreHorizontal } from 'lucide-react';
@@ -87,7 +88,7 @@ interface RTCandle {
 const useRealtimeCandles = (basePrice: number, metal: MetalKey, active: boolean) => {
   const [candles, setCandles] = useState<RTCandle[]>([]);
   const candleRef = useRef<RTCandle | null>(null);
-  const livePrice = basePrice;
+  const { price: livePrice } = useSimulatedStream(basePrice, 0, metal);
 
   // Reset candles when metal changes
   useEffect(() => {
@@ -167,7 +168,7 @@ const GAMetalChart = () => {
   const config = metalConfig[activeMetal];
 
   const isRT = activeTimeframe === 'RT';
-  const livePrice = basePrice;
+  const { price: livePrice } = useSimulatedStream(basePrice, change, activeMetal);
   const displayPrice = isRT ? livePrice : basePrice;
 
   const rtCandles = useRealtimeCandles(basePrice, activeMetal, isRT);
