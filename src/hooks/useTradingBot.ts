@@ -358,7 +358,11 @@ function calculatePositionSize(
   const kellyQty = riskAmount / stopDistance;
   const maxQtyByExposure = (equity * maxExposurePct) / price;
   const qty = Math.min(kellyQty * sizeMult, maxQtyByExposure);
-  return Math.max(0, price < 10 ? parseFloat(qty.toFixed(4)) : Math.floor(qty));
+  // Allow fractional quantities for expensive assets (gold, BTC, etc.)
+  if (qty <= 0) return 0;
+  if (price >= 100) return parseFloat(qty.toFixed(4)); // fractional for expensive assets
+  if (price >= 10) return parseFloat(qty.toFixed(2));
+  return parseFloat(qty.toFixed(4));
 }
 
 // ─── Bot Settings Persistence ────────────────────────────
@@ -686,12 +690,13 @@ export function useTradingBot(params: UseTradingBotParams) {
     const cooldownMs = isMicro ? 15_000 : 30_000;
 
     // ONLY scan tradable (real-feed) symbols
+    let debugSkips = { noPrice: 0, noCandles: 0, lowSignal: 0, filtered: 0, processed: 0 };
     for (const ticker of tradableSymbols) {
       const price = resolvePrice(ticker);
-      if (price <= 0) continue; // Skip symbols with no live price
+      if (price <= 0) { debugSkips.noPrice++; continue; }
 
       const candleData = getCandleData(ticker);
-      if (!candleData || candleData.closes.length < 30) continue; // Need real data
+      if (!candleData || candleData.closes.length < 30) { debugSkips.noCandles++; continue; }
 
       const waveBias = getWaveBias(ticker);
       const signal = computeCompositeSignal(
@@ -752,11 +757,12 @@ export function useTradingBot(params: UseTradingBotParams) {
       if (botPositionCount >= config.maxPositions) continue;
       if (coolingDown) continue;
 
+      debugSkips.processed++;
       const absScore = Math.abs(signal.composite);
       const isStrongEntry = absScore >= strategyConfig.entryThreshold;
       const isWeakEntry = absScore >= strategyConfig.weakEntryThreshold && absScore < strategyConfig.entryThreshold;
 
-      if (!isStrongEntry && !isWeakEntry) continue;
+      if (!isStrongEntry && !isWeakEntry) { debugSkips.lowSignal++; continue; }
 
       // ─── MULTI-TIMEFRAME CONFLUENCE ───
       // Compute signal on shorter window (last 30 bars) vs full window for confirmation
@@ -788,10 +794,9 @@ export function useTradingBot(params: UseTradingBotParams) {
       const regimeAdjust = isTrending ? 0 : 0.05;
       const adjustedScore = absScore + confluenceBonus - regimeAdjust;
 
-      if (adjustedScore < (isWeakEntry ? strategyConfig.weakEntryThreshold : strategyConfig.entryThreshold)) continue;
+      if (adjustedScore < (isWeakEntry ? strategyConfig.weakEntryThreshold : strategyConfig.entryThreshold)) { debugSkips.filtered++; continue; }
 
       // ─── MOMENTUM DIVERGENCE CHECK ───
-      // If price making new highs but RSI declining = bearish divergence (skip buy)
       const rsiArr = computeRSI(candleData.closes);
       if (rsiArr.length >= 5 && recentCloses.length >= 5) {
         const priceUp = recentCloses[recentCloses.length - 1] > recentCloses[recentCloses.length - 5];
@@ -800,49 +805,53 @@ export function useTradingBot(params: UseTradingBotParams) {
         const rsiUp = rsiArr[rsiArr.length - 1] > rsiArr[rsiArr.length - 5];
         const bearishDiv = priceUp && rsiDown && signal.composite > 0;
         const bullishDiv = priceDown && rsiUp && signal.composite < 0;
-        if (bearishDiv || bullishDiv) continue; // Skip divergent signals
+        if (bearishDiv || bullishDiv) { debugSkips.filtered++; continue; }
       }
 
       const side: 'buy' | 'sell' = signal.composite > 0 ? 'buy' : 'sell';
       const sizeMult = isWeakEntry ? strategyConfig.positionSizeMult * 0.5 : strategyConfig.positionSizeMult;
 
       // ─── ADAPTIVE POSITION SIZING ───
-      // Scale down after losses, scale up after wins
       const streakMult = recentConsecLosses >= 2 ? 0.5 : recentConsecLosses >= 1 ? 0.75 : 1.0;
-      const volMult = isHighVol ? 0.7 : 1.0; // Reduce size in high-vol regimes
+      const volMult = isHighVol ? 0.7 : 1.0;
 
       const totalExposure = botPositions.reduce((s, p) => s + p.currentPrice * p.qty, 0);
       const maxTotalExposure = config.botBudget;
-      if (totalExposure >= maxTotalExposure) continue;
+      if (totalExposure >= maxTotalExposure) { debugSkips.filtered++; continue; }
 
-      // Remaining budget constraint: don't risk more than remaining budget allows
       const remainingBudget = config.botBudget - totalExposure;
-      const budgetForTrade = Math.min(remainingBudget, config.botBudget * (isMicro ? 0.10 : 0.25));
+      const budgetForTrade = Math.min(remainingBudget, config.botBudget * (isMicro ? 0.15 : 0.25));
 
       const qty = calculatePositionSize(
         budgetForTrade, price, config.riskPerTradePct, atr,
         config.stopLossAtrMult, sizeMult * drawdownSizeMult * streakMult * volMult,
-        isMicro ? 0.10 : 0.25
+        isMicro ? 0.15 : 0.25
       );
 
-      if (qty <= 0 || price * qty > cash) continue;
+      if (qty <= 0 || price * qty > cash) {
+        console.log(`[Bot] ${ticker} qty=${qty} price=${price} cost=${price*qty} cash=${cash} atr=${atr.toFixed(4)} budgetForTrade=${budgetForTrade.toFixed(0)}`);
+        debugSkips.filtered++;
+        continue;
+      }
 
       // Estimate fees accurately
       const estimatedFees = (price * qty * 7 / 10000) + 1.50;
 
-      // For micro, ensure potential profit exceeds fees
+      // For micro, ensure potential profit exceeds fees (relaxed check)
       if (isMicro) {
         const expectedMove = atr * 0.5;
         const potentialProfit = expectedMove * qty;
-        if (potentialProfit < estimatedFees * 2) continue;
+        if (potentialProfit < estimatedFees * 1.2) {
+          // If fees filter is the only blocker, try with relaxed check for small positions
+          if (qty * price < 500) { debugSkips.filtered++; continue; }
+        }
       }
 
       // ─── RISK-REWARD CHECK ───
-      // Only enter if R:R >= 1.5
       const stopDist = atr * config.stopLossAtrMult;
       const targetDist = atr * config.takeProfitAtrMult;
       const riskReward = targetDist / (stopDist || 1);
-      if (riskReward < 1.5) continue;
+      if (riskReward < 1.2) { debugSkips.filtered++; continue; }
 
       const regimeLabel = isTrending ? 'TREND' : 'RANGE';
       const confluenceLabel = confluenceBonus > 0 ? '✓MTF' : confluenceBonus < 0 ? '✗MTF' : '';
@@ -935,6 +944,7 @@ export function useTradingBot(params: UseTradingBotParams) {
         cooldowns.current[ticker] = now;
       });
     }
+    console.log('[Bot Scan]', debugSkips, `tradable: ${tradableSymbols.length}`);
   }, [
     config.enabled, config.maxPositions, config.riskPerTradePct, config.stopLossAtrMult,
     config.takeProfitAtrMult, config.strategy, config.botBudget, config.scanIntervalSec,
