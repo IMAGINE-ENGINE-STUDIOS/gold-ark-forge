@@ -1,9 +1,43 @@
+import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Card, CardContent } from '@/components/ui/card';
-import { Shield, Bitcoin, Link as LinkIcon, Building2, Users, Lock } from 'lucide-react';
+import { Shield, Bitcoin, Link as LinkIcon, Building2, Users, Lock, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+// Read paper trading state from localStorage for the indicator
+function usePaperMoneySnapshot() {
+  const [snapshot, setSnapshot] = useState<{ equity: number; cash: number; totalPnl: number; positions: number; winRate: number } | null>(null);
+
+  useEffect(() => {
+    const load = () => {
+      try {
+        const raw = localStorage.getItem('ga_paper_trading_v2');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        const positions = data.positions ?? [];
+        const cash = data.cash ?? 100000;
+        const positionsValue = positions.reduce((s: number, p: any) => {
+          return s + (p.side === 'buy' ? (p.currentPrice ?? p.entryPrice) * p.qty : (2 * p.entryPrice - (p.currentPrice ?? p.entryPrice)) * p.qty);
+        }, 0);
+        const equity = cash + positionsValue;
+        const totalPnl = equity - 100000;
+        const wc = data.winCount ?? 0;
+        const lc = data.lossCount ?? 0;
+        const winRate = (wc + lc) > 0 ? (wc / (wc + lc)) * 100 : 0;
+        setSnapshot({ equity, cash, totalPnl, positions: positions.length, winRate });
+      } catch { /* ignore */ }
+    };
+    load();
+    const interval = setInterval(load, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return snapshot;
+}
 
 const About = () => {
+  const paperMoney = usePaperMoneySnapshot();
   return (
     <div className="min-h-screen bg-navy">
       <Header />
@@ -149,6 +183,56 @@ const About = () => {
             </div>
           </div>
         </div>
+
+        {/* Paper Trading Indicator */}
+        {paperMoney && (
+          <div className="max-w-4xl mx-auto mb-16">
+            <h2 className="font-display text-2xl text-gold mb-8 text-center">
+              Paper Trading Portfolio
+            </h2>
+            <Link to="/trading-bridge" className="block">
+              <Card className="bg-navy-light/30 border-gold/20 hover:border-gold/40 transition-colors cursor-pointer">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-gold/10 flex items-center justify-center">
+                      <Wallet className="text-gold" size={20} />
+                    </div>
+                    <div>
+                      <div className="font-display text-sm text-marble/50 tracking-wider">SIMULATED PORTFOLIO</div>
+                      <div className="font-mono text-2xl text-marble">
+                        ${paperMoney.equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="ml-auto text-right">
+                      <div className={`flex items-center gap-1 font-mono text-lg ${paperMoney.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {paperMoney.totalPnl >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                        {paperMoney.totalPnl >= 0 ? '+' : ''}${paperMoney.totalPnl.toFixed(2)}
+                      </div>
+                      <div className={`text-xs font-mono ${paperMoney.totalPnl >= 0 ? 'text-emerald-400/60' : 'text-red-400/60'}`}>
+                        {paperMoney.totalPnl >= 0 ? '+' : ''}{((paperMoney.totalPnl / 100000) * 100).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 border-t border-gold/10 pt-4">
+                    <div className="text-center">
+                      <div className="text-[10px] text-marble/30 font-display tracking-wider">CASH</div>
+                      <div className="text-sm font-mono text-marble/70">${paperMoney.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-marble/30 font-display tracking-wider">POSITIONS</div>
+                      <div className="text-sm font-mono text-marble/70">{paperMoney.positions}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-marble/30 font-display tracking-wider">WIN RATE</div>
+                      <div className="text-sm font-mono text-marble/70">{paperMoney.winRate.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  <div className="text-center mt-3 text-[9px] text-marble/20 font-display tracking-widest">TAP TO OPEN TRADING BRIDGE →</div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        )}
 
         {/* Client Types */}
         <div className="max-w-4xl mx-auto">
