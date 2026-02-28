@@ -582,40 +582,97 @@ const TradingBridge = () => {
   const peakEquityRef = useRef(paper.account.equity);
   if (paper.account.equity > peakEquityRef.current) peakEquityRef.current = paper.account.equity;
 
+  // Accumulate real price ticks for each symbol
+  const candleHistoryRef = useRef<Record<string, { timestamps: number[]; prices: number[] }>>({});
+
   const getCandleData = useCallback((ticker: string) => {
-    // Generate synthetic candle data for signal computation
     const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
     if (!sym) return null;
     const price = resolveSymbolPrice(sym);
     if (price <= 0) return null;
-    const sp = SYNTHETIC_PRICES[sym.key];
-    const change = sp?.c ?? 0;
-    // Build a 60-point price series for indicator computation
-    const points = 60;
-    const startPrice = price / (1 + change / 100);
-    const drift = (price - startPrice) / points;
-    const closes: number[] = [];
-    const highs: number[] = [];
-    const lows: number[] = [];
-    let walk = startPrice;
-    for (let i = 0; i < points; i++) {
-      walk += drift + (Math.random() - 0.5) * walk * 0.003;
-      const spread = Math.abs((Math.random() - 0.5) * walk * 0.002);
-      closes.push(walk);
-      highs.push(walk + spread);
-      lows.push(walk - spread);
+
+    // Initialize history for this symbol if needed
+    if (!candleHistoryRef.current[ticker]) {
+      candleHistoryRef.current[ticker] = { timestamps: [], prices: [] };
     }
-    closes[closes.length - 1] = price; // Ensure last close is live price
+
+    const history = candleHistoryRef.current[ticker];
+    const now = Date.now();
+
+    // Only add a new tick if at least 1s has passed since last
+    const lastTs = history.timestamps[history.timestamps.length - 1] || 0;
+    if (now - lastTs >= 1000) {
+      history.timestamps.push(now);
+      history.prices.push(price);
+      // Keep last 500 ticks
+      if (history.prices.length > 500) {
+        history.prices.splice(0, history.prices.length - 500);
+        history.timestamps.splice(0, history.timestamps.length - 500);
+      }
+    }
+
+    // Need minimum 30 real ticks for indicators
+    if (history.prices.length < 30) {
+      // Bootstrap with synthetic data based on current price to allow immediate scanning
+      const sp = SYNTHETIC_PRICES[sym.key];
+      const change = sp?.c ?? 0;
+      const points = 60;
+      const startPrice = price / (1 + change / 100);
+      const drift = (price - startPrice) / points;
+      const closes: number[] = [];
+      const highs: number[] = [];
+      const lows: number[] = [];
+      let walk = startPrice;
+      for (let i = 0; i < points; i++) {
+        walk += drift + (Math.random() - 0.5) * walk * 0.001;
+        const spread = Math.abs(walk * 0.001);
+        closes.push(walk);
+        highs.push(walk + spread);
+        lows.push(walk - spread);
+      }
+      closes[closes.length - 1] = price;
+      return { closes, highs, lows };
+    }
+
+    // Build OHLC from real accumulated ticks
+    const closes = [...history.prices];
+    const highs = closes.map((c, i) => {
+      const window = closes.slice(Math.max(0, i - 2), i + 1);
+      return Math.max(...window);
+    });
+    const lows = closes.map((c, i) => {
+      const window = closes.slice(Math.max(0, i - 2), i + 1);
+      return Math.min(...window);
+    });
+
     return { closes, highs, lows };
   }, [resolveSymbolPrice]);
 
   const getWaveBias = useCallback((_ticker: string) => {
-    // Simplified wave bias: use active symbol's change as proxy
+    // Use accumulated real price data to compute forecast bias
+    const history = candleHistoryRef.current[_ticker];
+    if (history && history.prices.length >= 20) {
+      const prices = history.prices;
+      const len = prices.length;
+      // Compute directional bias from recent price momentum
+      const shortMA = prices.slice(-5).reduce((a, b) => a + b, 0) / 5;
+      const longMA = prices.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, len);
+      const last = prices[len - 1];
+      const atr = prices.slice(-14).reduce((sum, p, i, arr) => {
+        if (i === 0) return 0;
+        return sum + Math.abs(p - arr[i - 1]);
+      }, 0) / 13;
+      if (atr > 0) {
+        const bias = ((shortMA - longMA) / atr) * 0.5;
+        return Math.max(-1, Math.min(1, bias));
+      }
+    }
+    // Fallback: use change% as proxy
     const sym = ALL_SYMBOLS.find(s => s.ticker === _ticker);
     if (!sym) return 0;
     const sp = SYNTHETIC_PRICES[sym.key];
     const change = sp?.c ?? 0;
-    return Math.max(-1, Math.min(1, change / 5)); // Normalize change% to -1..1
+    return Math.max(-1, Math.min(1, change / 5));
   }, []);
 
   const bot = useTradingBot({
@@ -629,6 +686,7 @@ const TradingBridge = () => {
     equity: paper.account.equity,
     cash: paper.account.cash,
     peakEquity: peakEquityRef.current,
+    totalFees: paper.account.totalFees,
   });
 
   // ─── Close Position with Notification ──────────────
@@ -949,8 +1007,11 @@ const TradingBridge = () => {
                   config={bot.config}
                   updateConfig={bot.updateConfig}
                   activityLog={bot.activityLog}
+                  pendingProposals={bot.pendingProposals}
                   stats={bot.stats}
                   killAll={bot.killAll}
+                  approveProposal={bot.approveProposal}
+                  rejectProposal={bot.rejectProposal}
                   positionCount={paper.positions.length}
                   equity={paper.account.equity}
                 />
@@ -1258,8 +1319,11 @@ const TradingBridge = () => {
                       config={bot.config}
                       updateConfig={bot.updateConfig}
                       activityLog={bot.activityLog}
+                      pendingProposals={bot.pendingProposals}
                       stats={bot.stats}
                       killAll={bot.killAll}
+                      approveProposal={bot.approveProposal}
+                      rejectProposal={bot.rejectProposal}
                       positionCount={paper.positions.length}
                       equity={paper.account.equity}
                     />

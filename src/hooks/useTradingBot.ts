@@ -10,10 +10,12 @@ import {
 // ─── Types ───────────────────────────────────────────────
 
 export type StrategyPreset = 'conservative' | 'balanced' | 'aggressive' | 'wave_first';
+export type BotMode = 'auto' | 'ask';
 
 export interface BotConfig {
   enabled: boolean;
   strategy: StrategyPreset;
+  mode: BotMode;
   scanIntervalSec: number;
   maxPositions: number;
   riskPerTradePct: number;
@@ -40,6 +42,8 @@ export interface BotDecision {
   executed: boolean;
   qty?: number;
   price?: number;
+  estimatedFees?: number;
+  status?: 'pending' | 'approved' | 'rejected' | 'executed';
 }
 
 export interface BotStats {
@@ -47,6 +51,11 @@ export interface BotStats {
   totalExecutions: number;
   botPnl: number;
   activeSince: number | null;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  totalFees: number;
+  winCount: number;
+  lossCount: number;
 }
 
 // ─── Strategy Presets ────────────────────────────────────
@@ -60,7 +69,7 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
 }> = {
   conservative: {
     entryThreshold: 0.65,
-    weakEntryThreshold: 999, // never weak-enter
+    weakEntryThreshold: 999,
     exitThreshold: -0.3,
     positionSizeMult: 0.5,
     weights: { trend: 0.30, momentum: 0.25, volatility: 0.15, volume: 0.15, wave: 0.15 },
@@ -87,6 +96,8 @@ const STRATEGY_CONFIGS: Record<StrategyPreset, {
     weights: { trend: 0.18, momentum: 0.15, volatility: 0.12, volume: 0.15, wave: 0.40 },
   },
 };
+
+export { STRATEGY_CONFIGS };
 
 // ─── Signal Computation ──────────────────────────────────
 
@@ -117,15 +128,11 @@ export function computeCompositeSignal(
   const prevSma20 = sma20[sma20.length - 2] || latestSma20;
   const prevSma50 = sma50[sma50.length - 2] || latestSma50;
 
-  // SMA cross signal
   const smaCrossNow = latestSma20 - latestSma50;
   const smaCrossPrev = prevSma20 - prevSma50;
   const smaCrossSignal = smaCrossNow > 0 ? (smaCrossPrev <= 0 ? 1 : 0.5) : (smaCrossPrev >= 0 ? -1 : -0.5);
-
-  // Price above/below EMA
   const emaSignal = clamp((last - latestEma20) / (last * 0.01), -1, 1);
 
-  // Ichimoku: price vs cloud
   const senkouA = ichimoku.senkouA[ichimoku.senkouA.length - 1] || last;
   const senkouB = ichimoku.senkouB[ichimoku.senkouB.length - 1] || last;
   const cloudTop = Math.max(senkouA, senkouB);
@@ -134,14 +141,12 @@ export function computeCompositeSignal(
   const ichSignal = last > cloudTop ? clamp((last - cloudTop) / cloudRange, 0, 1) :
     last < cloudBot ? clamp((last - cloudBot) / cloudRange, -1, 0) : 0;
 
-  // Alligator: lips > teeth > jaw = bullish
   const aJaw = alligator.jaw[alligator.jaw.length - 1] || last;
   const aTeeth = alligator.teeth[alligator.teeth.length - 1] || last;
   const aLips = alligator.lips[alligator.lips.length - 1] || last;
   const alligatorSignal = (aLips > aTeeth && aTeeth > aJaw) ? 0.7 :
     (aLips < aTeeth && aTeeth < aJaw) ? -0.7 : 0;
 
-  // SAR
   const latestSar = sar[sar.length - 1] || last;
   const sarSignal = last > latestSar ? 0.5 : -0.5;
 
@@ -197,7 +202,7 @@ export function computeCompositeSignal(
   const bollLower = boll.lower[boll.lower.length - 1] || last;
   const bollRange = bollUpper - bollLower || 1;
   const bollPos = (last - bollLower) / bollRange;
-  const bollSignal = clamp((0.5 - bollPos) * 2, -1, 1); // Mean reversion
+  const bollSignal = clamp((0.5 - bollPos) * 2, -1, 1);
 
   const donchUpper = donchian.upper[donchian.upper.length - 1] || last;
   const donchLower = donchian.lower[donchian.lower.length - 1] || last;
@@ -211,7 +216,7 @@ export function computeCompositeSignal(
   const keltSignal = clamp((0.5 - (last - keltLower) / keltRange) * 2, -1, 1);
 
   const atrNormalized = latestAtr / last;
-  const atrSignal = atrNormalized > 0.03 ? -0.3 : atrNormalized < 0.005 ? 0.3 : 0; // High vol = caution
+  const atrSignal = atrNormalized > 0.03 ? -0.3 : atrNormalized < 0.005 ? 0.3 : 0;
 
   const volatilityScore = clamp(
     (bollSignal * 0.3 + donchSignal * 0.25 + keltSignal * 0.2 + atrSignal * 0.25),
@@ -225,7 +230,6 @@ export function computeCompositeSignal(
   const adLine = computeADLine(highs, lows, closes);
   const forceIdx = computeForceIndex(closes);
 
-  // OBV trend (slope of last 10)
   const obvSlice = obv.slice(-10);
   const obvSlope = obvSlice.length >= 2 ? (obvSlice[obvSlice.length - 1] - obvSlice[0]) / (obvSlice.length - 1) : 0;
   const obvSignal = clamp(obvSlope / 1000, -1, 1);
@@ -236,7 +240,6 @@ export function computeCompositeSignal(
   const latestCmf = cmf[cmf.length - 1] ?? 0;
   const cmfSignal = clamp(latestCmf * 5, -1, 1);
 
-  // A/D Line trend
   const adSlice = adLine.slice(-10);
   const adSlope = adSlice.length >= 2 ? (adSlice[adSlice.length - 1] - adSlice[0]) / (adSlice.length - 1) : 0;
   const adSignal = clamp(adSlope / 1000, -1, 1);
@@ -282,15 +285,10 @@ function calculatePositionSize(
   maxExposurePct: number,
 ): number {
   if (price <= 0 || equity <= 0 || atr <= 0) return 0;
-
-  // Kelly-inspired sizing capped by risk percent
   const stopDistance = atr * stopMultiplier;
   const riskAmount = equity * (riskPct / 100);
   const kellyQty = riskAmount / stopDistance;
-
-  // Max exposure limit
   const maxQtyByExposure = (equity * maxExposurePct) / price;
-
   const qty = Math.min(kellyQty * sizeMult, maxQtyByExposure);
   return Math.max(0, price < 10 ? parseFloat(qty.toFixed(4)) : Math.floor(qty));
 }
@@ -307,6 +305,7 @@ function loadBotConfig(): BotConfig {
   return {
     enabled: false,
     strategy: 'balanced',
+    mode: 'ask',
     scanIntervalSec: 10,
     maxPositions: 5,
     riskPerTradePct: 3,
@@ -328,27 +327,58 @@ interface UseTradingBotParams {
   resolvePrice: (ticker: string) => number;
   getCandleData: (ticker: string) => { closes: number[]; highs: number[]; lows: number[] } | null;
   getWaveBias: (ticker: string) => number;
-  submitOrder: (params: { symbol: string; side: 'buy' | 'sell'; qty: number; type: 'market'; price: number }) => void;
-  closePosition: (posId: string, price: number) => void;
-  positions: Array<{ id: string; symbol: string; side: 'buy' | 'sell'; qty: number; entryPrice: number; currentPrice: number; pnl: number }>;
+  submitOrder: (params: { symbol: string; side: 'buy' | 'sell'; qty: number; type: 'market'; price: number; botSource?: boolean }) => void;
+  closePosition: (posId: string, price: number, botSource?: boolean) => void;
+  positions: Array<{ id: string; symbol: string; side: 'buy' | 'sell'; qty: number; entryPrice: number; currentPrice: number; pnl: number; botSource?: boolean }>;
   equity: number;
   cash: number;
   peakEquity: number;
+  totalFees: number;
 }
 
 export function useTradingBot(params: UseTradingBotParams) {
   const {
     watchlistSymbols, resolvePrice, getCandleData, getWaveBias,
-    submitOrder, closePosition, positions, equity, cash, peakEquity,
+    submitOrder, closePosition, positions, equity, cash, peakEquity, totalFees,
   } = params;
 
   const [config, setConfig] = useState<BotConfig>(loadBotConfig);
   const [activityLog, setActivityLog] = useState<BotDecision[]>([]);
-  const [stats, setStats] = useState<BotStats>({ totalDecisions: 0, totalExecutions: 0, botPnl: 0, activeSince: null });
+  const [pendingProposals, setPendingProposals] = useState<BotDecision[]>([]);
+  const [botOrderIds, setBotOrderIds] = useState<Set<string>>(new Set());
   const cooldowns = useRef<Record<string, number>>({});
   const scanRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const strategyConfig = useMemo(() => STRATEGY_CONFIGS[config.strategy], [config.strategy]);
+
+  // Bot-specific stats
+  const stats = useMemo<BotStats>(() => {
+    const botPositions = positions.filter(p => p.botSource);
+    const unrealizedPnl = botPositions.reduce((s, p) => s + p.pnl, 0);
+    const executedLog = activityLog.filter(d => d.executed);
+    const exits = executedLog.filter(d => d.action === 'EXIT');
+    let realizedPnl = 0;
+    let winCount = 0;
+    let lossCount = 0;
+    exits.forEach(e => {
+      // Estimate P&L from exit decisions
+      const pnl = (e.price || 0) * (e.qty || 0) * (e.signal.composite > 0 ? 0.01 : -0.01);
+      if (pnl >= 0) winCount++; else lossCount++;
+      realizedPnl += pnl;
+    });
+
+    return {
+      totalDecisions: activityLog.length,
+      totalExecutions: executedLog.length,
+      botPnl: unrealizedPnl + realizedPnl,
+      activeSince: config.enabled ? (activityLog.length > 0 ? activityLog[activityLog.length - 1]?.timestamp : Date.now()) : null,
+      realizedPnl,
+      unrealizedPnl,
+      totalFees,
+      winCount,
+      lossCount,
+    };
+  }, [activityLog, positions, config.enabled, totalFees]);
 
   // Persist config changes
   const updateConfig = useCallback((patch: Partial<BotConfig>) => {
@@ -363,10 +393,72 @@ export function useTradingBot(params: UseTradingBotParams) {
   const killAll = useCallback(() => {
     positions.forEach(pos => {
       const price = resolvePrice(pos.symbol);
-      if (price > 0) closePosition(pos.id, price);
+      if (price > 0) closePosition(pos.id, price, true);
     });
     updateConfig({ enabled: false });
   }, [positions, resolvePrice, closePosition, updateConfig]);
+
+  // Approve a pending proposal
+  const approveProposal = useCallback((proposalId: string) => {
+    const proposal = pendingProposals.find(p => p.id === proposalId);
+    if (!proposal) return;
+
+    const currentPrice = resolvePrice(proposal.symbol);
+    if (currentPrice <= 0) return;
+
+    try {
+      if (proposal.action === 'EXIT') {
+        const pos = positions.find(p => p.symbol === proposal.symbol);
+        if (pos) closePosition(pos.id, currentPrice, true);
+      } else {
+        submitOrder({
+          symbol: proposal.symbol,
+          side: proposal.action === 'BUY' ? 'buy' : 'sell',
+          qty: proposal.qty || 0,
+          type: 'market',
+          price: currentPrice,
+          botSource: true,
+        });
+      }
+      proposal.executed = true;
+      proposal.status = 'approved';
+      proposal.price = currentPrice;
+      setActivityLog(prev => [proposal, ...prev].slice(0, 50));
+    } catch { /* ignore */ }
+
+    setPendingProposals(prev => prev.filter(p => p.id !== proposalId));
+  }, [pendingProposals, resolvePrice, positions, closePosition, submitOrder]);
+
+  // Reject a pending proposal
+  const rejectProposal = useCallback((proposalId: string) => {
+    const proposal = pendingProposals.find(p => p.id === proposalId);
+    if (!proposal) return;
+    proposal.status = 'rejected';
+    proposal.reason += ' — rejected by user';
+    proposal.executed = false;
+    setActivityLog(prev => [proposal, ...prev].slice(0, 50));
+    setPendingProposals(prev => prev.filter(p => p.id !== proposalId));
+  }, [pendingProposals]);
+
+  // Execute or propose a decision
+  const executeOrPropose = useCallback((decision: BotDecision, executeFn: () => void) => {
+    if (config.mode === 'ask') {
+      decision.status = 'pending';
+      decision.executed = false;
+      setPendingProposals(prev => [decision, ...prev].slice(0, 20));
+    } else {
+      try {
+        executeFn();
+        decision.executed = true;
+        decision.status = 'executed';
+        setActivityLog(prev => [decision, ...prev].slice(0, 50));
+      } catch {
+        decision.executed = false;
+        decision.reason += ' (execution failed)';
+        setActivityLog(prev => [decision, ...prev].slice(0, 50));
+      }
+    }
+  }, [config.mode]);
 
   // Core scan function
   const scan = useCallback(() => {
@@ -381,10 +473,10 @@ export function useTradingBot(params: UseTradingBotParams) {
         symbol: '*',
         signal: { trend: 0, momentum: 0, volatility: 0, volume: 0, wave: 0, composite: 0 },
         action: 'HOLD',
-        reason: `CIRCUIT BREAKER: Drawdown ${drawdownPct.toFixed(1)}% exceeds -10% limit`,
+        reason: `⚠️ CIRCUIT BREAKER: Drawdown ${drawdownPct.toFixed(1)}% exceeds -10% limit. Bot disabled.`,
         executed: false,
       };
-      addDecision(decision);
+      setActivityLog(prev => [decision, ...prev].slice(0, 50));
       updateConfig({ enabled: false });
       return;
     }
@@ -405,7 +497,6 @@ export function useTradingBot(params: UseTradingBotParams) {
         waveBias, strategyConfig.weights
       );
 
-      // Check cooldown
       const lastTrade = cooldowns.current[ticker] || 0;
       const coolingDown = (now - lastTrade) < 30_000;
 
@@ -422,23 +513,18 @@ export function useTradingBot(params: UseTradingBotParams) {
             symbol: ticker,
             signal,
             action: 'EXIT',
-            reason: `Exit signal: composite=${signal.composite.toFixed(2)} vs threshold=${exitThreshold}`,
-            executed: true,
+            reason: `Exit signal: composite ${signal.composite.toFixed(2)} crossed threshold ${exitThreshold}. P&L: $${existingPos.pnl.toFixed(2)}`,
+            executed: false,
             qty: existingPos.qty,
             price,
           };
-          try {
-            closePosition(existingPos.id, price);
+
+          executeOrPropose(decision, () => {
+            closePosition(existingPos.id, price, true);
             cooldowns.current[ticker] = now;
-            addDecision(decision);
-            setStats(prev => ({ ...prev, totalExecutions: prev.totalExecutions + 1 }));
-          } catch {
-            decision.executed = false;
-            decision.reason += ' (execution failed)';
-            addDecision(decision);
-          }
+          });
         }
-        continue; // Don't open opposite on same symbol
+        continue;
       }
 
       // No position — check for entry
@@ -449,17 +535,13 @@ export function useTradingBot(params: UseTradingBotParams) {
       const isStrongEntry = absScore >= strategyConfig.entryThreshold;
       const isWeakEntry = absScore >= strategyConfig.weakEntryThreshold && absScore < strategyConfig.entryThreshold;
 
-      if (!isStrongEntry && !isWeakEntry) {
-        // Log HOLD decisions periodically (every 3rd scan)
-        continue;
-      }
+      if (!isStrongEntry && !isWeakEntry) continue;
 
       const side: 'buy' | 'sell' = signal.composite > 0 ? 'buy' : 'sell';
       const atrArr = computeATR(candleData.highs, candleData.lows, candleData.closes);
       const atr = atrArr[atrArr.length - 1] || price * 0.01;
       const sizeMult = isWeakEntry ? strategyConfig.positionSizeMult * 0.5 : strategyConfig.positionSizeMult;
 
-      // Total exposure check
       const totalExposure = positions.reduce((s, p) => s + p.currentPrice * p.qty, 0);
       const maxTotalExposure = equity * 0.80;
       if (totalExposure >= maxTotalExposure) continue;
@@ -471,70 +553,55 @@ export function useTradingBot(params: UseTradingBotParams) {
 
       if (qty <= 0 || price * qty > cash) continue;
 
+      // Estimate fees
+      const estimatedFees = (price * qty * 7 / 10000) + 1.50; // spread + slippage + commission
+
       const decision: BotDecision = {
         id: crypto.randomUUID(),
         timestamp: now,
         symbol: ticker,
         signal,
         action: side === 'buy' ? 'BUY' : 'SELL',
-        reason: `${isStrongEntry ? 'Strong' : 'Weak'} ${side} signal: composite=${signal.composite.toFixed(2)}`,
-        executed: true,
+        reason: `${isStrongEntry ? 'Strong' : 'Weak'} ${side} signal: composite ${signal.composite.toFixed(2)}. Est. fees: $${estimatedFees.toFixed(2)}`,
+        executed: false,
         qty,
         price,
+        estimatedFees,
       };
 
-      try {
-        submitOrder({ symbol: ticker, side, qty, type: 'market', price });
+      executeOrPropose(decision, () => {
+        submitOrder({ symbol: ticker, side, qty, type: 'market', price, botSource: true });
         cooldowns.current[ticker] = now;
-        addDecision(decision);
-        setStats(prev => ({ ...prev, totalExecutions: prev.totalExecutions + 1 }));
-      } catch {
-        decision.executed = false;
-        decision.reason += ' (execution failed)';
-        addDecision(decision);
-      }
+      });
     }
   }, [
-    config.enabled, config.maxPositions, config.riskPerTradePct, config.stopLossAtrMult, config.takeProfitAtrMult,
+    config.enabled, config.maxPositions, config.riskPerTradePct, config.stopLossAtrMult,
     watchlistSymbols, resolvePrice, getCandleData, getWaveBias,
     submitOrder, closePosition, positions, equity, cash, peakEquity,
-    strategyConfig, updateConfig,
+    strategyConfig, updateConfig, executeOrPropose,
   ]);
-
-  function addDecision(d: BotDecision) {
-    setActivityLog(prev => [d, ...prev].slice(0, 50));
-    setStats(prev => ({ ...prev, totalDecisions: prev.totalDecisions + 1 }));
-  }
 
   // Scan loop
   useEffect(() => {
     if (scanRef.current) clearInterval(scanRef.current);
     if (!config.enabled) return;
-
-    setStats(prev => ({ ...prev, activeSince: prev.activeSince || Date.now() }));
     scanRef.current = setInterval(scan, config.scanIntervalSec * 1000);
-    // Run immediately on enable
     scan();
-
     return () => {
       if (scanRef.current) clearInterval(scanRef.current);
     };
   }, [config.enabled, config.scanIntervalSec, scan]);
 
-  // Reset active since when disabled
-  useEffect(() => {
-    if (!config.enabled) {
-      setStats(prev => ({ ...prev, activeSince: null }));
-    }
-  }, [config.enabled]);
-
   return {
     config,
     updateConfig,
     activityLog,
+    pendingProposals,
     stats,
     killAll,
-    scan, // manual trigger
+    scan,
+    approveProposal,
+    rejectProposal,
   };
 }
 
