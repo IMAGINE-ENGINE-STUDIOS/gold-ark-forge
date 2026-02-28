@@ -20,6 +20,7 @@ import OilGasIntelligence from "./pages/OilGasIntelligence";
 import TradingBridge from "./pages/TradingBridge";
 import LogRegistry from "./pages/LogRegistry";
 import LogRegistry2 from "./pages/LogRegistry2";
+import OldBots from "./pages/OldBots";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/trading-bridge" element={<TradingBridge />} />
             <Route path="/log-registry" element={<LogRegistry />} />
             <Route path="/log-registry-2" element={<LogRegistry2 />} />
+            <Route path="/old-bots" element={<OldBots />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminDashboard />} />

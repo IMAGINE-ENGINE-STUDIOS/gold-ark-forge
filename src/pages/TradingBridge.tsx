@@ -37,9 +37,8 @@ import GAPipCalculator from '@/components/ga-widgets/GAPipCalculator';
 import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
 import OneClickTrading from '@/components/trading/OneClickTrading';
 import TradingPanel from '@/components/trading/TradingPanel';
-import BotControlPanel from '@/components/trading/BotControlPanel';
-import GABotScanner from '@/components/ga-widgets/GABotScanner';
-import { useTradingBot } from '@/hooks/useTradingBot';
+import WaveBotPanel from '@/components/trading/WaveBotPanel';
+import { useWaveBot } from '@/hooks/useWaveBot';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
@@ -791,18 +790,28 @@ const TradingBridge = () => {
     return Math.max(-1, Math.min(1, change / 5));
   }, []);
 
-  const bot = useTradingBot({
+  // Helper to get candle history prices for wave bot
+  const getCandleHistory = useCallback((ticker: string): number[] | null => {
+    const history = candleHistoryRef.current[ticker];
+    if (!history || history.prices.length < 20) {
+      // Try to seed it
+      const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
+      if (sym) seedCandleHistory(ticker, sym);
+      const h2 = candleHistoryRef.current[ticker];
+      return h2 && h2.prices.length >= 20 ? h2.prices : null;
+    }
+    return history.prices;
+  }, [seedCandleHistory]);
+
+  const waveBot = useWaveBot({
     watchlistSymbols: watchlistTickers,
     resolvePrice: resolvePriceForTicker,
-    getCandleData,
-    getWaveBias,
+    getCandleHistory,
     submitOrder: paper.submitOrder,
     closePosition: paper.closePosition,
     positions: paper.positions,
     equity: paper.account.equity,
     cash: paper.account.cash,
-    peakEquity: peakEquityRef.current,
-    totalFees: paper.account.totalFees,
   });
 
   // ─── Close Position with Notification ──────────────
@@ -1123,31 +1132,19 @@ const TradingBridge = () => {
               )}
               {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
               {bottomTab === 'bot' && (
-                <div className="space-y-4">
-                  <BotControlPanel
-                    config={bot.config}
-                    updateConfig={bot.updateConfig}
-                    activityLog={bot.activityLog}
-                    pendingProposals={bot.pendingProposals}
-                    stats={bot.stats}
-                    killAll={bot.killAll}
-                    approveProposal={bot.approveProposal}
-                    rejectProposal={bot.rejectProposal}
-                    positionCount={paper.positions.filter(p => p.botSource).length}
-                    equity={paper.account.equity}
-                    botPositions={paper.positions.filter(p => p.botSource)}
-                    resolvePrice={resolvePriceForTicker}
-                    onClosePosition={(id, price) => handleClosePosition(id, price)}
-                    onNavigate={(sym) => setActiveSymbol(sym)}
-                  />
-                  <GABotScanner
-                    resolvePrice={resolvePriceForTicker}
-                    getCandleData={getCandleData}
-                    getWaveBias={getWaveBias}
-                    onNavigate={(sym) => setActiveSymbol(sym)}
-                    botBudget={bot.config.botBudget}
-                  />
-                </div>
+                <WaveBotPanel
+                  config={waveBot.config}
+                  updateConfig={waveBot.updateConfig}
+                  trades={waveBot.trades}
+                  stats={waveBot.stats}
+                  killAll={waveBot.killAll}
+                  clearHistory={waveBot.clearHistory}
+                  botPositions={waveBot.botPositions}
+                  resolvePrice={resolvePriceForTicker}
+                  onClosePosition={(id, price) => handleClosePosition(id, price)}
+                  onNavigate={(sym) => setActiveSymbol(sym)}
+                  equity={paper.account.equity}
+                />
               )}
               {bottomTab === 'automate' && (
                 <div className="space-y-4">
@@ -1468,31 +1465,19 @@ const TradingBridge = () => {
                     </div>
                   )}
                   {bottomTab === 'bot' && (
-                    <div className="space-y-4">
-                      <BotControlPanel
-                        config={bot.config}
-                        updateConfig={bot.updateConfig}
-                        activityLog={bot.activityLog}
-                        pendingProposals={bot.pendingProposals}
-                        stats={bot.stats}
-                        killAll={bot.killAll}
-                        approveProposal={bot.approveProposal}
-                        rejectProposal={bot.rejectProposal}
-                        positionCount={paper.positions.filter(p => p.botSource).length}
-                        equity={paper.account.equity}
-                        botPositions={paper.positions.filter(p => p.botSource)}
-                        resolvePrice={resolvePriceForTicker}
-                        onClosePosition={(id, price) => handleClosePosition(id, price)}
-                        onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                      />
-                      <GABotScanner
-                        resolvePrice={resolvePriceForTicker}
-                        getCandleData={getCandleData}
-                        getWaveBias={getWaveBias}
-                        onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                        botBudget={bot.config.botBudget}
-                      />
-                    </div>
+                    <WaveBotPanel
+                      config={waveBot.config}
+                      updateConfig={waveBot.updateConfig}
+                      trades={waveBot.trades}
+                      stats={waveBot.stats}
+                      killAll={waveBot.killAll}
+                      clearHistory={waveBot.clearHistory}
+                      botPositions={waveBot.botPositions}
+                      resolvePrice={resolvePriceForTicker}
+                      onClosePosition={(id, price) => handleClosePosition(id, price)}
+                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                      equity={paper.account.equity}
+                    />
                   )}
                   {bottomTab === 'automate' && (
                     <div className="space-y-4">
@@ -1584,7 +1569,7 @@ const TradingBridge = () => {
             <span className="text-[8px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
           )}
           <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
-          {bot.config.enabled && (
+          {waveBot.config.enabled && (
             <span className="text-[8px] font-mono text-purple-400/60 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
               BOT
