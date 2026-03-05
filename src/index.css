@@ -601,3 +601,12 @@
     box-shadow: 0 0 0 0 hsla(43, 72%, 50%, 0);
   }
 }
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

@@ -493,6 +493,8 @@ const TradingBridge = () => {
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSnap, setDrawerSnap] = useState<string | number | null>(0.5);
   const [brokerDialogOpen, setBrokerDialogOpen] = useState(false);
   const [tradingMode, setTradingMode] = useState<'live' | 'paper'>('paper');
   const [oneClickOpen, setOneClickOpen] = useState(false);
@@ -856,11 +858,20 @@ const TradingBridge = () => {
   );
 
   // ─── MOBILE LAYOUT ──────────────────────────────────
+
+  const handleTabClick = (tabKey: BottomTab) => {
+    setBottomTab(tabKey);
+    if (!drawerOpen) {
+      setDrawerOpen(true);
+      setDrawerSnap(0.5);
+    }
+  };
+
   if (isMobile) {
     return (
-      <div className="h-screen w-screen flex flex-col bg-navy overflow-hidden">
-        {/* Mobile Top Bar */}
-        <div className="h-11 flex items-center justify-between px-3 bg-navy-dark border-b border-gold/10 flex-shrink-0">
+      <div className="h-[100dvh] w-screen flex flex-col bg-navy overflow-hidden">
+        {/* Mobile Top Bar — compact */}
+        <div className="h-10 flex items-center justify-between px-3 bg-navy-dark border-b border-gold/10 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Link to="/" className="font-display text-xs tracking-[0.12em] text-gold">GA</Link>
             <span className="text-gold/20">|</span>
@@ -880,19 +891,13 @@ const TradingBridge = () => {
             >
               {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
             </button>
-            {priceAlertsHook.activeCount > 0 && (
-              <button onClick={() => { setMobileTab('tools'); setBottomTab('automate'); }} className="relative p-1 text-gold/60 hover:text-gold">
-                <Bell className="w-3.5 h-3.5" />
-                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
-              </button>
-            )}
             <ConnectWalletButton />
           </div>
         </div>
 
         {/* Mobile Watchlist Overlay */}
         {watchlistOpen && (
-          <div className="absolute top-11 left-0 right-0 z-50 bg-navy-dark/98 border-b border-gold/20 max-h-[60vh] overflow-y-auto backdrop-blur-sm watchlist-scroll">
+          <div className="absolute top-10 left-0 right-0 z-50 bg-navy-dark/98 border-b border-gold/20 max-h-[60vh] overflow-y-auto backdrop-blur-sm watchlist-scroll">
             <div className="sticky top-0 z-10 p-2 bg-navy-dark border-b border-gold/10">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-marble/30" />
@@ -937,291 +942,229 @@ const TradingBridge = () => {
           </div>
         )}
 
-        {/* Mobile Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-          {mobileTab === 'chart' && (
-            <div className="flex flex-col">
-              <div className="h-[45vh] min-h-[260px]">
-                <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
-              </div>
-               <div className="p-3 space-y-3">
-                 <GAPriceCards />
-                 
-                 <GATopMovers />
-                 <GAMiniCharts />
-                 <GAMarketPulse />
-               </div>
-            </div>
-          )}
-
-          {mobileTab === 'trade' && (
-            <div className="p-3 space-y-3">
-              <TradeTabContent 
-                tradingMode={tradingMode} 
-                activeSymbol={activeSymbol} 
-                activePrice={activePrice} 
-                paper={paper} 
-                activeConn={activeConn} 
-              />
-            </div>
-          )}
-
-          {mobileTab === 'portfolio' && (
-            <div className="p-3 space-y-4">
-              {tradingMode === 'paper' ? (
-                <>
-                  {/* Paper Account Summary */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-                      <div className="text-[7px] text-marble/30 font-display tracking-wider">EQUITY</div>
-                      <div className="text-xs font-mono text-marble">${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-                    </div>
-                    <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-                      <div className="text-[7px] text-marble/30 font-display tracking-wider">CASH</div>
-                      <div className="text-xs font-mono text-marble">${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-                    </div>
-                    <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-                      <div className="text-[7px] text-marble/30 font-display tracking-wider">P&L</div>
-                      <div className={`text-xs font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {paper.account.totalPnl >= 0 ? '+' : ''}${paper.account.totalPnl.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Paper Positions */}
-                  {paper.positions.length > 0 ? (
-                    <div className="space-y-2">
-                      <div className="text-[8px] font-display tracking-wider text-emerald-400/60">PAPER POSITIONS ({paper.positions.length})</div>
-                      {paper.positions.map(pos => (
-                        <PositionMiniCard
-                          key={pos.id}
-                          posId={pos.id}
-                          symbol={pos.symbol}
-                          side={pos.side}
-                          qty={pos.qty}
-                          entryPrice={pos.entryPrice}
-                          currentPrice={pos.currentPrice}
-                          pnl={pos.pnl ?? 0}
-                          pnlPercent={pos.pnlPercent ?? 0}
-                          resolvedPrice={resolvePriceForTicker(pos.symbol)}
-                          onClose={(id, price) => handleClosePosition(id, price)}
-                          onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-marble/20 text-[10px] font-display tracking-wider">NO OPEN PAPER POSITIONS</div>
-                  )}
-                  {/* Paper Order History */}
-                  {paper.orders.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="text-[8px] font-display tracking-wider text-marble/30">RECENT ORDERS ({paper.orders.length})</div>
-                      {paper.orders.slice(0, 10).map(o => (
-                        <div key={o.id} className="flex items-center justify-between p-1.5 bg-navy-light/10 rounded text-[9px] font-mono">
-                          <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
-                          <span className="text-marble/40">{o.symbol}</span>
-                          <span className="text-marble/30">{o.qty} @ ${o.price.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <PortfolioSummary />
-                  {activeConn ? <PositionsPanel connectionId={activeConn.id} /> : <EmptyState text="Connect a broker to view positions" />}
-                  {activeConn ? <OrderHistory connectionId={activeConn.id} /> : null}
-                </>
-              )}
-            </div>
-          )}
-
-          {mobileTab === 'tools' && (
-            <div className="p-3 space-y-4">
-              <div className="relative">
-                <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide flex-nowrap">
-                  {BOTTOM_TABS.map((tab) => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setBottomTab(tab.key)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
-                        bottomTab === tab.key
-                          ? 'bg-gold/15 text-gold border border-gold/30'
-                          : 'text-marble/35 border border-gold/5'
-                      }`}
-                    >
-                      <tab.icon className="w-2.5 h-2.5" />
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-navy to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-navy to-transparent" />
-              </div>
-              {bottomTab === 'trade' && (
-                <TradeTabContent 
-                  tradingMode={tradingMode} 
-                  activeSymbol={activeSymbol} 
-                  activePrice={activePrice} 
-                  paper={paper} 
-                  activeConn={activeConn} 
-                />
-              )}
-              {bottomTab === 'book' && tradingMode === 'paper' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS</span>
-                    </div>
-                    <GALivePriceNotice
-                      price={activePrice}
-                      symbol={activeSymbol.ticker}
-                      label={activeSymbol.label}
-                      change={activeChange}
-                      category={activeSymbol.cat}
-                      size="sm"
-                    />
-                  </div>
-                  {paper.positions.length > 0 ? (
-                    <div className="space-y-2">
-                      {paper.positions.map(pos => (
-                        <PositionMiniCard
-                          key={pos.id}
-                          posId={pos.id}
-                          symbol={pos.symbol}
-                          side={pos.side}
-                          qty={pos.qty}
-                          entryPrice={pos.entryPrice}
-                          currentPrice={pos.currentPrice}
-                          pnl={pos.pnl}
-                          pnlPercent={pos.pnlPercent}
-                          resolvedPrice={resolvePriceForTicker(pos.symbol)}
-                          onClose={(id, price) => handleClosePosition(id, price)}
-                          onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                        />
-                      ))}
-                    </div>
-                  ) : <EmptyState text="No open paper positions" />}
-                  
-                  {paper.orders.length > 0 && (
-                    <div className="border-t border-gold/10 pt-3 space-y-1">
-                      <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
-                      {paper.orders.slice(0, 10).map(o => (
-                        <div key={o.id} className="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono text-marble/30 border-b border-gold/5">
-                          <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
-                          <span>{o.qty} {o.symbol}</span>
-                          <span>${o.price.toFixed(2)}</span>
-                          <span className="text-marble/15">{new Date(o.filledAt).toLocaleTimeString()}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="border-t border-gold/10 pt-3 space-y-3">
-                    <GATopMovers />
-                    <GACryptoPriceCards />
-                  </div>
-                </div>
-              )}
-              {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
-                <div className="space-y-4">
-                  <PositionsPanel connectionId={activeConn.id} />
-                  <div className="border-t border-gold/10 pt-4">
-                    <OrderHistory connectionId={activeConn.id} />
-                  </div>
-                </div>
-              )}
-              {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
-              {bottomTab === 'bot' && (
-                <WaveBotPanel
-                  config={waveBot.config}
-                  updateConfig={waveBot.updateConfig}
-                  trades={waveBot.trades}
-                  stats={waveBot.stats}
-                  killAll={waveBot.killAll}
-                  clearHistory={waveBot.clearHistory}
-                  botPositions={waveBot.botPositions}
-                  resolvePrice={resolvePriceForTicker}
-                  onClosePosition={(id, price) => handleClosePosition(id, price)}
-                  onNavigate={(sym) => setActiveSymbol(sym)}
-                  equity={paper.account.equity}
-                />
-              )}
-              {bottomTab === 'automate' && (
-                <div className="space-y-4">
-                  <SchedulePanel />
-                  <div className="border-t border-gold/10 pt-4">
-                    <PriceAlerts alertsHook={priceAlertsHook} />
-                  </div>
-                </div>
-              )}
-              {bottomTab === 'backtest' && <BacktestPanel />}
-              {bottomTab === 'analytics' && (
-                <div className="space-y-4">
-                  <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
-                   <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
-                    <GAMarketPulse />
-                    <GACrossAssetDashboard />
-                    <GAAssetOverview />
-                    <GAMiniCharts />
-                    <GAPortfolioAllocator />
-                  </div>
-                </div>
-              )}
-              {bottomTab === 'risk' && (
-                <>
-                  <RiskPanel connectionId={activeConn?.id} />
-                  <div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div>
-                  <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
-                    <GAVolatilityMatrix />
-                    <GAGoldRatio />
-                    <GABullionHeatmap />
-                    <GACommodityRadar />
-                    <GAForexWarRoom />
-                  </div>
-                </>
-              )}
-              {bottomTab === 'market' && (
-                <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
-                  <GAMarketHeatmap />
-                  <GACryptoHeatmap />
-                  <GAForexMatrix />
-                  <GAEconomicCalendar />
-                  <GAMarketQuotes />
-                  <GAMarketSummary />
-                  <GACryptoMarket />
-                  <GACryptoPriceCards />
-                  <GATopMovers />
-                  <GANewsFeed />
-                </div>
-              )}
-              {bottomTab === 'strategies' && (
-                <div className="space-y-4">
-                  <StrategiesPanel />
-                  <div className="border-t border-gold/10 pt-4">
-                    <GATechnicalGauge />
-                  </div>
-                </div>
-              )}
-              {bottomTab === 'social' && <SocialPanel />}
-            </div>
-          )}
+        {/* FULL-SCREEN CHART — takes remaining space above bottom tabs */}
+        <div className="flex-1 min-h-0 relative">
+          <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
         </div>
 
-        {/* Mobile Bottom Nav */}
-        <div className="flex-shrink-0 border-t border-gold/10 bg-navy-dark flex">
-          {MOBILE_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setMobileTab(tab.key)}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
-                mobileTab === tab.key ? 'text-gold' : 'text-marble/30'
-              }`}
+        {/* Bottom Tab Bar — always visible, tapping opens drawer */}
+        <div className="flex-shrink-0 border-t border-gold/10 bg-navy-dark">
+          {/* Swipe-up handle */}
+          <button
+            onClick={() => { setDrawerOpen(true); setDrawerSnap(0.5); }}
+            className="w-full flex justify-center py-1.5"
+          >
+            <div className="w-10 h-1 rounded-full bg-marble/15" />
+          </button>
+          <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)]">
+            {BOTTOM_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => handleTabClick(tab.key)}
+                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-1.5 transition-colors flex-shrink-0 ${
+                  drawerOpen && bottomTab === tab.key ? 'text-gold' : 'text-marble/30'
+                }`}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                <span className="text-[7px] font-display tracking-wider">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom Sheet Drawer — slides up to half screen */}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 z-50"
+            style={{ pointerEvents: 'auto' }}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+              onClick={() => setDrawerOpen(false)}
+            />
+            {/* Sheet */}
+            <div
+              className="absolute bottom-0 left-0 right-0 bg-navy-dark border-t border-gold/20 rounded-t-2xl flex flex-col overflow-hidden"
+              style={{
+                height: '50dvh',
+                animation: 'slideUp 0.3s ease-out',
+              }}
             >
-              <tab.icon className="w-4 h-4" />
-              <span className="text-[8px] font-display tracking-wider">{tab.label}</span>
-            </button>
-          ))}
-        </div>
+              {/* Drag handle */}
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="w-full flex justify-center py-2 flex-shrink-0"
+              >
+                <div className="w-10 h-1 rounded-full bg-marble/20" />
+              </button>
+
+              {/* Tab bar inside drawer */}
+              <div className="flex overflow-x-auto scrollbar-hide px-2 pb-2 gap-1 flex-shrink-0">
+                {BOTTOM_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setBottomTab(tab.key)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
+                      bottomTab === tab.key
+                        ? 'bg-gold/15 text-gold border border-gold/30'
+                        : 'text-marble/35 border border-gold/5'
+                    }`}
+                  >
+                    <tab.icon className="w-3 h-3" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Drawer content — scrollable */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-3">
+                {bottomTab === 'trade' && (
+                  <TradeTabContent
+                    tradingMode={tradingMode}
+                    activeSymbol={activeSymbol}
+                    activePrice={activePrice}
+                    paper={paper}
+                    activeConn={activeConn}
+                  />
+                )}
+                {bottomTab === 'book' && tradingMode === 'paper' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS</span>
+                      </div>
+                      <GALivePriceNotice
+                        price={activePrice}
+                        symbol={activeSymbol.ticker}
+                        label={activeSymbol.label}
+                        change={activeChange}
+                        category={activeSymbol.cat}
+                        size="sm"
+                      />
+                    </div>
+                    {paper.positions.length > 0 ? (
+                      <div className="space-y-2">
+                        {paper.positions.map(pos => (
+                          <PositionMiniCard
+                            key={pos.id}
+                            posId={pos.id}
+                            symbol={pos.symbol}
+                            side={pos.side}
+                            qty={pos.qty}
+                            entryPrice={pos.entryPrice}
+                            currentPrice={pos.currentPrice}
+                            pnl={pos.pnl}
+                            pnlPercent={pos.pnlPercent}
+                            resolvedPrice={resolvePriceForTicker(pos.symbol)}
+                            onClose={(id, price) => handleClosePosition(id, price)}
+                            onNavigate={(sym) => { setActiveSymbol(sym); setDrawerOpen(false); }}
+                          />
+                        ))}
+                      </div>
+                    ) : <EmptyState text="No open paper positions" />}
+                    {paper.orders.length > 0 && (
+                      <div className="border-t border-gold/10 pt-3 space-y-1">
+                        <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
+                        {paper.orders.slice(0, 10).map(o => (
+                          <div key={o.id} className="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono text-marble/30 border-b border-gold/5">
+                            <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
+                            <span>{o.qty} {o.symbol}</span>
+                            <span>${o.price.toFixed(2)}</span>
+                            <span className="text-marble/15">{new Date(o.filledAt).toLocaleTimeString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
+                  <div className="space-y-4">
+                    <PositionsPanel connectionId={activeConn.id} />
+                    <div className="border-t border-gold/10 pt-4">
+                      <OrderHistory connectionId={activeConn.id} />
+                    </div>
+                  </div>
+                )}
+                {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+                {bottomTab === 'bot' && (
+                  <WaveBotPanel
+                    config={waveBot.config}
+                    updateConfig={waveBot.updateConfig}
+                    trades={waveBot.trades}
+                    stats={waveBot.stats}
+                    killAll={waveBot.killAll}
+                    clearHistory={waveBot.clearHistory}
+                    botPositions={waveBot.botPositions}
+                    resolvePrice={resolvePriceForTicker}
+                    onClosePosition={(id, price) => handleClosePosition(id, price)}
+                    onNavigate={(sym) => setActiveSymbol(sym)}
+                    equity={paper.account.equity}
+                  />
+                )}
+                {bottomTab === 'automate' && (
+                  <div className="space-y-4">
+                    <SchedulePanel />
+                    <div className="border-t border-gold/10 pt-4">
+                      <PriceAlerts alertsHook={priceAlertsHook} />
+                    </div>
+                  </div>
+                )}
+                {bottomTab === 'backtest' && <BacktestPanel />}
+                {bottomTab === 'analytics' && (
+                  <div className="space-y-4">
+                    <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
+                    <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
+                      <GAMarketPulse />
+                      <GACrossAssetDashboard />
+                      <GAAssetOverview />
+                      <GAMiniCharts />
+                      <GAPortfolioAllocator />
+                    </div>
+                  </div>
+                )}
+                {bottomTab === 'risk' && (
+                  <>
+                    <RiskPanel connectionId={activeConn?.id} />
+                    <div className="mt-4 pt-4 border-t border-gold/10"><RiskLimits riskMonitor={riskMonitor} /></div>
+                    <div className="mt-4 pt-4 border-t border-gold/10 grid grid-cols-1 gap-3">
+                      <GAVolatilityMatrix />
+                      <GAGoldRatio />
+                      <GABullionHeatmap />
+                      <GACommodityRadar />
+                      <GAForexWarRoom />
+                    </div>
+                  </>
+                )}
+                {bottomTab === 'market' && (
+                  <div className="grid grid-cols-1 gap-3">
+                    <GAMarketHeatmap />
+                    <GACryptoHeatmap />
+                    <GAForexMatrix />
+                    <GAEconomicCalendar />
+                    <GAMarketQuotes />
+                    <GAMarketSummary />
+                    <GACryptoMarket />
+                    <GACryptoPriceCards />
+                    <GATopMovers />
+                    <GANewsFeed />
+                  </div>
+                )}
+                {bottomTab === 'strategies' && (
+                  <div className="space-y-4">
+                    <StrategiesPanel />
+                    <div className="border-t border-gold/10 pt-4">
+                      <GATechnicalGauge />
+                    </div>
+                  </div>
+                )}
+                {bottomTab === 'social' && <SocialPanel />}
+              </div>
+            </div>
+          </div>
+        )}
+
         <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
         <FirstTradeGuide />
       </div>
