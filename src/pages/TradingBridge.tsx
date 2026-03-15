@@ -1292,22 +1292,32 @@ const TradingBridge = () => {
             <ResizablePanel defaultSize={65} minSize={30}>
               <div className="h-full relative">
                 <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
-                {/* One-Click Trading Toggle */}
+                {/* Broker button inside chart — top-left */}
+                <button
+                  onClick={() => setBrokerDialogOpen(true)}
+                  className="absolute top-2 left-2 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors backdrop-blur-sm"
+                >
+                  <Activity className="w-4 h-4" />
+                  {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
+                </button>
+                {/* One-Click Trading Toggle — bottom-right to avoid overlap */}
                 <button
                   onClick={() => setOneClickOpen(!oneClickOpen)}
-                  className={`absolute top-2 right-2 z-40 flex items-center gap-1 px-2 py-1 rounded text-[8px] font-display tracking-wider transition-all ${
-                    oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40' : 'bg-navy-dark/80 text-marble/30 border border-gold/10 hover:text-gold'
+                  className={`absolute bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider transition-all backdrop-blur-sm ${
+                    oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40' : 'bg-navy-dark/80 text-marble/40 border border-gold/10 hover:text-gold'
                   }`}
                 >
-                  <Zap className="w-3 h-3" /> 1-CLICK
+                  <Zap className="w-4 h-4" /> 1-CLICK
                 </button>
                 {oneClickOpen && (
-                  <OneClickTrading
-                    symbol={activeSymbol.ticker}
-                    price={activePrice}
-                    paper={paper}
-                    onClose={() => setOneClickOpen(false)}
-                  />
+                  <div className="absolute bottom-14 right-3 z-50">
+                    <OneClickTrading
+                      symbol={activeSymbol.ticker}
+                      price={activePrice}
+                      paper={paper}
+                      onClose={() => setOneClickOpen(false)}
+                    />
+                  </div>
                 )}
               </div>
             </ResizablePanel>
