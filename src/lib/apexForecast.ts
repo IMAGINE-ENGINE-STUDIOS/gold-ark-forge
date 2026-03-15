@@ -785,26 +785,32 @@ export function computeApexForecast(
     points.push(point);
   }
 
-  // Record shot with full attribution
+  // Record shot ONLY for directional predictions (bullish/bearish)
+  // Neutral = "no prediction" — doesn't count toward accuracy
   const lastForecast = points[points.length - 1];
-  if (lastForecast) {
-    const newShot: ApexShotRecord = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      timestamp: Date.now(),
-      symbol: '',
-      timeframe,
-      predictedDirection: gatedDirection,
-      predictedPrice: lastForecast.apexForecast,
-      entryPrice: currentPrice,
-      probability,
-      signalVotes: votes,
-      regime,
-      confluenceCount,
-      atrAtEntry: atr,
-      evalDelayMs: evalDelay,
-    };
-    correctedState.shots.unshift(newShot);
-    if (correctedState.shots.length > MAX_SHOTS) correctedState.shots.length = MAX_SHOTS;
+  if (lastForecast && gatedDirection !== 'neutral') {
+    // Throttle: don't record if last shot was < 10s ago (prevent spamming from re-renders)
+    const lastShot = correctedState.shots[0];
+    const timeSinceLast = lastShot ? Date.now() - lastShot.timestamp : Infinity;
+    if (timeSinceLast > 10_000) {
+      const newShot: ApexShotRecord = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: Date.now(),
+        symbol: '',
+        timeframe,
+        predictedDirection: gatedDirection,
+        predictedPrice: lastForecast.apexForecast,
+        entryPrice: currentPrice,
+        probability,
+        signalVotes: votes,
+        regime,
+        confluenceCount,
+        atrAtEntry: atr,
+        evalDelayMs: evalDelay,
+      };
+      correctedState.shots.unshift(newShot);
+      if (correctedState.shots.length > MAX_SHOTS) correctedState.shots.length = MAX_SHOTS;
+    }
   }
 
   // Update the weights accessor
