@@ -8,6 +8,7 @@ import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
 import { addForecastLogEntry, biasToRainbowColor, biasToAngle } from '@/lib/forecastLog';
+import { computeApexForecast, getApexStats, type ApexForecastPoint } from '@/lib/apexForecast';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -251,6 +252,114 @@ const ForecastRainbowLine = ({ data, xScale, yScale }: {
     elements.push(
       <text key="fc-label" x={lx + 8} y={ly + 3} fontSize={9} fill={lastD.forecastColor} fontFamily="monospace" opacity={0.8}>
         ${lastD.forecast?.toFixed(2)}
+      </text>
+    );
+  }
+
+  return <g>{elements}</g>;
+};
+
+// ═══ APEX Forecast Renderer — Solid cyan line + WAVE ghost ═══
+const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
+  data: any[];
+  xScale: (i: number) => number;
+  yScale: (v: number) => number;
+  showWaveGhost: boolean;
+}) => {
+  const apexIndices: number[] = [];
+  data.forEach((d, i) => { if (d.apexForecast !== undefined) apexIndices.push(i); });
+  if (apexIndices.length < 2) return null;
+
+  const elements: React.ReactElement[] = [];
+
+  // Confidence band (tighter than WAVE)
+  const bandUp: string[] = [];
+  const bandDn: string[] = [];
+  for (const idx of apexIndices) {
+    const d = data[idx];
+    const x = xScale(idx);
+    const yH = yScale(d.apexHigh ?? d.apexForecast);
+    const yL = yScale(d.apexLow ?? d.apexForecast);
+    if (isNaN(x) || isNaN(yH) || isNaN(yL)) continue;
+    bandUp.push(`${x},${yH}`);
+    bandDn.unshift(`${x},${yL}`);
+  }
+  if (bandUp.length > 1) {
+    elements.push(
+      <polygon key="ax-band" points={[...bandUp, ...bandDn].join(' ')}
+        fill="hsl(185, 70%, 50%)" fillOpacity={0.06}
+        stroke="hsl(185, 70%, 50%)" strokeWidth={0.5} strokeOpacity={0.12} strokeDasharray="3 2" />
+    );
+  }
+
+  // WAVE ghost (faded dashed line showing where WAVE predicted)
+  if (showWaveGhost) {
+    const ghostIndices = apexIndices.filter(i => data[i].waveGhost !== undefined);
+    for (let j = 0; j < ghostIndices.length - 1; j++) {
+      const i1 = ghostIndices[j], i2 = ghostIndices[j + 1];
+      const x1 = xScale(i1), x2 = xScale(i2);
+      const y1 = yScale(data[i1].waveGhost), y2 = yScale(data[i2].waveGhost);
+      if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
+      elements.push(
+        <line key={`ghost-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke="hsl(270, 40%, 50%)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.25} />
+      );
+    }
+    // Ghost label
+    if (ghostIndices.length > 0) {
+      const lastGIdx = ghostIndices[ghostIndices.length - 1];
+      const gx = xScale(lastGIdx);
+      const gy = yScale(data[lastGIdx].waveGhost);
+      if (!isNaN(gx) && !isNaN(gy)) {
+        elements.push(
+          <text key="ghost-lbl" x={gx + 6} y={gy - 6} fontSize={7} fill="hsl(270, 40%, 50%)" fontFamily="monospace" opacity={0.35}>
+            WAVE
+          </text>
+        );
+      }
+    }
+  }
+
+  // Main APEX line — solid, bright cyan
+  for (let j = 0; j < apexIndices.length - 1; j++) {
+    const i1 = apexIndices[j], i2 = apexIndices[j + 1];
+    const d2 = data[i2];
+    const x1 = xScale(i1), x2 = xScale(i2);
+    const y1 = yScale(data[i1].apexForecast), y2 = yScale(d2.apexForecast);
+    if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
+    const color = d2.apexColor || 'hsl(185, 80%, 55%)';
+    elements.push(
+      <line key={`ax-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.9} />
+    );
+    elements.push(
+      <line key={`ax-glow-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={color} strokeWidth={8} strokeLinecap="round" opacity={0.1} />
+    );
+  }
+
+  // Endpoint
+  const lastIdx = apexIndices[apexIndices.length - 1];
+  const lastD = data[lastIdx];
+  const lx = xScale(lastIdx), ly = yScale(lastD.apexForecast);
+  if (!isNaN(lx) && !isNaN(ly)) {
+    elements.push(
+      <circle key="ax-pulse" cx={lx} cy={ly} r={8} fill="hsl(185, 80%, 55%)" opacity={0.15}>
+        <animate attributeName="r" values="6;12;6" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.15;0.03;0.15" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+    );
+    elements.push(
+      <circle key="ax-dot" cx={lx} cy={ly} r={4.5} fill="hsl(185, 80%, 55%)" stroke="hsl(213, 32%, 16%)" strokeWidth={2} />
+    );
+    elements.push(
+      <text key="ax-label" x={lx + 8} y={ly + 3} fontSize={9} fill="hsl(185, 80%, 55%)" fontFamily="monospace" fontWeight="bold" opacity={0.9}>
+        ${lastD.apexForecast?.toFixed(2)}
+      </text>
+    );
+    elements.push(
+      <text key="ax-tag" x={lx + 8} y={ly + 13} fontSize={7} fill="hsl(185, 80%, 55%)" fontFamily="monospace" opacity={0.5}>
+        APEX
       </text>
     );
   }
@@ -555,6 +664,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const { drawings, activeTool, setActiveTool, addDrawing, deleteDrawing, clearAll, showList, toggleList } = useDrawings();
   const [pendingClick, setPendingClick] = useState<number | null>(null);
   const [showForecast, setShowForecast] = useState(false);
+  const [showApex, setShowApex] = useState(false);
   const lastLoggedForecastRef = useRef<string>('');
 
   const { data: metalPrices } = useMetalPrices();
@@ -612,23 +722,79 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   // ═══ FORECAST PROJECTION ═══
   const cfg = tfConfigs[tf];
   const { forecastPoints, forecastBias } = useMemo(() => {
-    if (!showForecast) return { forecastPoints: [] as ForecastPoint[], forecastBias: 0 };
+    if (!showForecast && !showApex) return { forecastPoints: [] as ForecastPoint[], forecastBias: 0 };
     const vals = liveCandles.map(d => d.value);
     const his = liveCandles.map(d => d.high);
     const los = liveCandles.map(d => d.low);
     const result = computeForecastPoints(vals, his, los, price, cfg.intervalMs, cfg.labelFn, cfg.points, tf);
     return { forecastPoints: result.points, forecastBias: result.bias };
-  }, [liveCandles, price, tf, showForecast, cfg]);
+  }, [liveCandles, price, tf, showForecast, showApex, cfg]);
 
-  // Merge real + forecast data
+  // ═══ APEX ADAPTIVE FORECAST ═══
+  const { apexPoints, apexBias, apexConfidence, apexStats } = useMemo(() => {
+    if (!showApex) return { apexPoints: [] as ApexForecastPoint[], apexBias: 0, apexConfidence: 0, apexStats: getApexStats() };
+    const vals = liveCandles.map(d => d.value);
+    const his = liveCandles.map(d => d.high);
+    const los = liveCandles.map(d => d.low);
+    const depth = FORECAST_DEPTH[tf] ?? { points: 12 };
+    const result = computeApexForecast(
+      vals, his, los, price, cfg.intervalMs, cfg.labelFn, depth.points, tf,
+      forecastBias, forecastPoints,
+    );
+    const stats = getApexStats();
+    return { apexPoints: result.points, apexBias: result.bias, apexConfidence: result.confidence, apexStats: stats };
+  }, [liveCandles, price, tf, showApex, cfg, forecastBias, forecastPoints]);
+
+  // Merge real + forecast + apex data
   const chartData = useMemo(() => {
-    if (forecastPoints.length === 0) return enrichedData;
+    if (forecastPoints.length === 0 && apexPoints.length === 0) return enrichedData;
     const lastReal = enrichedData[enrichedData.length - 1];
-    const bridge = lastReal ? { ...lastReal, forecast: lastReal.value, forecastColor: biasToRainbowColor(0) } : undefined;
     const result = [...enrichedData];
-    if (bridge) result[result.length - 1] = bridge;
-    return [...result, ...forecastPoints];
-  }, [enrichedData, forecastPoints]);
+    
+    // Determine how many forecast points we need
+    const maxLen = Math.max(forecastPoints.length, apexPoints.length);
+    if (maxLen === 0) return result;
+    
+    // Bridge point
+    if (lastReal) {
+      const bridge: any = { ...lastReal };
+      if (showForecast && forecastPoints.length > 0) {
+        bridge.forecast = lastReal.value;
+        bridge.forecastColor = biasToRainbowColor(0);
+      }
+      if (showApex && apexPoints.length > 0) {
+        bridge.apexForecast = lastReal.value;
+        bridge.apexColor = 'hsl(185, 80%, 55%)';
+        if (showForecast && forecastPoints.length > 0) {
+          bridge.waveGhost = lastReal.value;
+        }
+      }
+      result[result.length - 1] = bridge;
+    }
+    
+    // Merge forecast + apex points
+    for (let i = 0; i < maxLen; i++) {
+      const merged: any = {};
+      if (i < forecastPoints.length && showForecast) {
+        Object.assign(merged, forecastPoints[i]);
+      }
+      if (i < apexPoints.length && showApex) {
+        merged.time = apexPoints[i].time;
+        merged.apexForecast = apexPoints[i].apexForecast;
+        merged.apexColor = apexPoints[i].apexColor;
+        merged.apexHigh = apexPoints[i].apexHigh;
+        merged.apexLow = apexPoints[i].apexLow;
+        if (apexPoints[i].waveGhost !== undefined) {
+          merged.waveGhost = apexPoints[i].waveGhost;
+        }
+      }
+      if (!merged.time && i < forecastPoints.length) merged.time = forecastPoints[i].time;
+      if (!merged.time && i < apexPoints.length) merged.time = apexPoints[i].time;
+      result.push(merged);
+    }
+    
+    return result;
+  }, [enrichedData, forecastPoints, apexPoints, showForecast, showApex]);
 
   // Log forecast to registry when toggled on
   useEffect(() => {
@@ -869,7 +1035,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
                 <LongTimeframeDropdown tf={tf} setTf={setTf} />
               </div>
             )}
-            {/* Forecast toggle */}
+            {/* Forecast toggles */}
             <button
               onClick={() => setShowForecast(prev => !prev)}
               className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
@@ -879,6 +1045,21 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             >
               <Crosshair className="w-3 h-3" />
               <span className="hidden sm:inline">WAVE</span>
+            </button>
+            <button
+              onClick={() => setShowApex(prev => !prev)}
+              className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
+                showApex ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
+              }`}
+              title="APEX — Self-correcting adaptive forecast"
+            >
+              <TrendingUp className="w-3 h-3" />
+              <span className="hidden sm:inline">APEX</span>
+              {showApex && apexStats.totalShots > 0 && (
+                <span className={`text-[7px] px-1 py-px rounded ${apexStats.winRate >= 60 ? 'bg-emerald-500/20 text-emerald-400' : apexStats.winRate >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {apexStats.winRate.toFixed(0)}%
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -953,6 +1134,16 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
                   return <ForecastRainbowLine data={chartData as any[]} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} />;
                 }} />
               )}
+              {/* APEX Forecast Line */}
+              {showApex && apexPoints.length > 0 && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  return <ApexForecastLine data={chartData as any[]} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} showWaveGhost={showForecast} />;
+                }} />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         )}
@@ -974,6 +1165,11 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
         <div className="flex items-center gap-3">
           {activeIndicators.size > 0 && (
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
+          )}
+          {showApex && (
+            <span className="text-[8px] font-mono text-cyan-400/50">
+              APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
+            </span>
           )}
            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
             {zoom.zoomLabel !== 'FIT' && (
