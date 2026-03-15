@@ -1166,6 +1166,11 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
           {activeIndicators.size > 0 && (
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
           )}
+          {showApex && (
+            <span className="text-[8px] font-mono text-cyan-400/50">
+              APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
+            </span>
+          )}
            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
             {zoom.zoomLabel !== 'FIT' && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
