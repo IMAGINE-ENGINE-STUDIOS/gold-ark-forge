@@ -1204,12 +1204,6 @@ const TradingBridge = () => {
           <span className="text-gold/20">|</span>
           <span className="font-display text-xs tracking-[0.2em] text-marble/40">SWAP</span>
           <ModeToggle />
-          <button
-            onClick={() => setBrokerDialogOpen(true)}
-            className="text-[9px] font-mono bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
-          >
-            {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
-          </button>
         </div>
         <div className="flex items-center gap-3">
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
