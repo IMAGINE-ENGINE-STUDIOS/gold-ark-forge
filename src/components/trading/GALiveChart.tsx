@@ -1143,6 +1143,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
                   if (!xAxis?.scale || !yAxis?.scale) return null;
                   return <ApexForecastLine data={chartData as any[]} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} showWaveGhost={showForecast} />;
                 }} />
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         )}
