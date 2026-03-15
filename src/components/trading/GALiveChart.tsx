@@ -9,6 +9,7 @@ import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Respon
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
 import { addForecastLogEntry, biasToRainbowColor, biasToAngle } from '@/lib/forecastLog';
 import { computeApexForecast, getApexStats, type ApexForecastPoint } from '@/lib/apexForecast';
+import ApexDashboard from '@/components/trading/ApexDashboard';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -259,7 +260,7 @@ const ForecastRainbowLine = ({ data, xScale, yScale }: {
   return <g>{elements}</g>;
 };
 
-// ═══ APEX Forecast Renderer — Solid cyan line + WAVE ghost ═══
+// ═══ APEX Forecast Renderer — High-contrast direction-colored line + WAVE ghost ═══
 const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
   data: any[];
   xScale: (i: number) => number;
@@ -272,7 +273,12 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
 
   const elements: React.ReactElement[] = [];
 
-  // Confidence band (tighter than WAVE)
+  // Determine overall direction for band color
+  const firstApex = data[apexIndices[0]]?.apexForecast ?? 0;
+  const lastApex = data[apexIndices[apexIndices.length - 1]]?.apexForecast ?? 0;
+  const dirColor = lastApex > firstApex ? 'hsl(145, 75%, 50%)' : lastApex < firstApex ? 'hsl(0, 80%, 55%)' : 'hsl(45, 80%, 55%)';
+
+  // Confidence band with direction-colored fill
   const bandUp: string[] = [];
   const bandDn: string[] = [];
   for (const idx of apexIndices) {
@@ -287,12 +293,12 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
   if (bandUp.length > 1) {
     elements.push(
       <polygon key="ax-band" points={[...bandUp, ...bandDn].join(' ')}
-        fill="hsl(185, 70%, 50%)" fillOpacity={0.06}
-        stroke="hsl(185, 70%, 50%)" strokeWidth={0.5} strokeOpacity={0.12} strokeDasharray="3 2" />
+        fill={dirColor} fillOpacity={0.08}
+        stroke={dirColor} strokeWidth={0.5} strokeOpacity={0.2} strokeDasharray="3 2" />
     );
   }
 
-  // WAVE ghost (faded dashed line showing where WAVE predicted)
+  // WAVE ghost (faded dashed line)
   if (showWaveGhost) {
     const ghostIndices = apexIndices.filter(i => data[i].waveGhost !== undefined);
     for (let j = 0; j < ghostIndices.length - 1; j++) {
@@ -302,17 +308,16 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
       if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
       elements.push(
         <line key={`ghost-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
-          stroke="hsl(270, 40%, 50%)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.25} />
+          stroke="hsl(270, 40%, 50%)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.3} />
       );
     }
-    // Ghost label
     if (ghostIndices.length > 0) {
       const lastGIdx = ghostIndices[ghostIndices.length - 1];
       const gx = xScale(lastGIdx);
       const gy = yScale(data[lastGIdx].waveGhost);
       if (!isNaN(gx) && !isNaN(gy)) {
         elements.push(
-          <text key="ghost-lbl" x={gx + 6} y={gy - 6} fontSize={7} fill="hsl(270, 40%, 50%)" fontFamily="monospace" opacity={0.35}>
+          <text key="ghost-lbl" x={gx + 6} y={gy - 6} fontSize={7} fill="hsl(270, 40%, 50%)" fontFamily="monospace" opacity={0.4}>
             WAVE
           </text>
         );
@@ -320,45 +325,63 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
     }
   }
 
-  // Main APEX line — solid, bright cyan
+  // Main APEX line — thick, high-contrast, per-segment colored
   for (let j = 0; j < apexIndices.length - 1; j++) {
     const i1 = apexIndices[j], i2 = apexIndices[j + 1];
-    const d2 = data[i2];
+    const d1 = data[i1], d2 = data[i2];
     const x1 = xScale(i1), x2 = xScale(i2);
-    const y1 = yScale(data[i1].apexForecast), y2 = yScale(d2.apexForecast);
+    const y1 = yScale(d1.apexForecast), y2 = yScale(d2.apexForecast);
     if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
-    const color = d2.apexColor || 'hsl(185, 80%, 55%)';
+    const color = d2.apexColor || dirColor;
+    // Main line
     elements.push(
       <line key={`ax-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.9} />
+        stroke={color} strokeWidth={3} strokeLinecap="round" opacity={0.95} />
     );
+    // Glow
     elements.push(
       <line key={`ax-glow-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={color} strokeWidth={8} strokeLinecap="round" opacity={0.1} />
+        stroke={color} strokeWidth={10} strokeLinecap="round" opacity={0.12} />
     );
   }
 
-  // Endpoint
+  // Direction arrow at midpoint
+  if (apexIndices.length >= 4) {
+    const midIdx = apexIndices[Math.floor(apexIndices.length / 2)];
+    const mx = xScale(midIdx);
+    const my = yScale(data[midIdx].apexForecast);
+    if (!isNaN(mx) && !isNaN(my)) {
+      const arrowDir = lastApex > firstApex ? '▲' : lastApex < firstApex ? '▼' : '◆';
+      elements.push(
+        <text key="ax-arrow" x={mx} y={my - 10} fontSize={12} fill={dirColor} fontFamily="sans-serif" textAnchor="middle" opacity={0.6}>
+          {arrowDir}
+        </text>
+      );
+    }
+  }
+
+  // Endpoint with pulsing ring
   const lastIdx = apexIndices[apexIndices.length - 1];
   const lastD = data[lastIdx];
   const lx = xScale(lastIdx), ly = yScale(lastD.apexForecast);
   if (!isNaN(lx) && !isNaN(ly)) {
+    const endColor = lastD.apexColor || dirColor;
     elements.push(
-      <circle key="ax-pulse" cx={lx} cy={ly} r={8} fill="hsl(185, 80%, 55%)" opacity={0.15}>
-        <animate attributeName="r" values="6;12;6" dur="1.5s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0.15;0.03;0.15" dur="1.5s" repeatCount="indefinite" />
+      <circle key="ax-pulse" cx={lx} cy={ly} r={10} fill={endColor} opacity={0.12}>
+        <animate attributeName="r" values="8;14;8" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.12;0.03;0.12" dur="1.5s" repeatCount="indefinite" />
       </circle>
     );
     elements.push(
-      <circle key="ax-dot" cx={lx} cy={ly} r={4.5} fill="hsl(185, 80%, 55%)" stroke="hsl(213, 32%, 16%)" strokeWidth={2} />
+      <circle key="ax-dot" cx={lx} cy={ly} r={5} fill={endColor} stroke="hsl(213, 32%, 16%)" strokeWidth={2.5} />
     );
     elements.push(
-      <text key="ax-label" x={lx + 8} y={ly + 3} fontSize={9} fill="hsl(185, 80%, 55%)" fontFamily="monospace" fontWeight="bold" opacity={0.9}>
+      <text key="ax-label" x={lx + 10} y={ly + 3} fontSize={10} fill={endColor} fontFamily="monospace" fontWeight="bold" opacity={0.95}>
         ${lastD.apexForecast?.toFixed(2)}
       </text>
     );
     elements.push(
-      <text key="ax-tag" x={lx + 8} y={ly + 13} fontSize={7} fill="hsl(185, 80%, 55%)" fontFamily="monospace" opacity={0.5}>
+      <text key="ax-tag" x={lx + 10} y={ly + 14} fontSize={8} fill={endColor} fontFamily="monospace" opacity={0.6} fontWeight="bold">
         APEX
       </text>
     );
@@ -1048,15 +1071,15 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             </button>
             <button
               onClick={() => setShowApex(prev => !prev)}
-              className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
-                showApex ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
+              className={`flex items-center gap-1 px-2.5 py-1 text-[9px] font-mono tracking-wider rounded transition-all border font-bold ${
+                showApex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_8px_rgba(52,211,153,0.15)]' : 'text-marble/30 border-marble/10 hover:text-emerald-400 hover:border-emerald-500/30'
               }`}
               title="APEX — Self-correcting adaptive forecast"
             >
-              <TrendingUp className="w-3 h-3" />
+              <TrendingUp className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">APEX</span>
               {showApex && apexStats.totalShots > 0 && (
-                <span className={`text-[7px] px-1 py-px rounded ${apexStats.winRate >= 60 ? 'bg-emerald-500/20 text-emerald-400' : apexStats.winRate >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                <span className={`text-[8px] px-1.5 py-px rounded font-bold ${apexStats.winRate >= 60 ? 'bg-emerald-500/25 text-emerald-300' : apexStats.winRate >= 40 ? 'bg-amber-500/25 text-amber-300' : 'bg-red-500/25 text-red-300'}`}>
                   {apexStats.winRate.toFixed(0)}%
                 </span>
               )}
@@ -1156,6 +1179,13 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
         </div>
       )}
 
+      {/* APEX Performance Dashboard */}
+      {showApex && (
+        <div className="border-t border-gold/10 flex-shrink-0 px-2 py-1">
+          <ApexDashboard stats={apexStats} />
+        </div>
+      )}
+
       {/* Bottom bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-gold/10 flex-shrink-0 bg-navy-dark/20">
         <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">
@@ -1167,7 +1197,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
           )}
           {showApex && (
-            <span className="text-[8px] font-mono text-cyan-400/50">
+            <span className="text-[8px] font-mono text-emerald-400/60">
               APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
             </span>
           )}
