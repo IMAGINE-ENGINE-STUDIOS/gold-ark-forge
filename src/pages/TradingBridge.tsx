@@ -836,23 +836,23 @@ const TradingBridge = () => {
     <div className="flex items-center gap-0.5 bg-navy-light/50 rounded-lg p-0.5 border border-gold/10">
       <button
         onClick={() => setTradingMode('paper')}
-        className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
+        className={`px-2.5 py-1 rounded text-[9px] font-display tracking-wider transition-all flex items-center gap-1 ${
           tradingMode === 'paper'
             ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
             : 'text-marble/30 border border-transparent hover:text-marble/50'
         }`}
       >
-        PAPER
+        <FlaskConical className="w-3 h-3" /> DEMO
       </button>
       <button
         onClick={() => setTradingMode('live')}
-        className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
+        className={`px-2.5 py-1 rounded text-[9px] font-display tracking-wider transition-all flex items-center gap-1 ${
           tradingMode === 'live'
             ? 'bg-gold/20 text-gold border border-gold/30'
             : 'text-marble/30 border border-transparent hover:text-marble/50'
         }`}
       >
-        LIVE
+        <DollarSign className="w-3 h-3" /> REAL
       </button>
     </div>
   );
@@ -939,25 +939,25 @@ const TradingBridge = () => {
         {/* FULL-SCREEN CHART — takes remaining space above bottom tabs */}
         <div className="flex-1 min-h-0 relative">
           <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
-          {/* Broker button inside chart — bottom-left */}
+          {/* Broker button — top-left inside chart */}
           <button
             onClick={() => setBrokerDialogOpen(true)}
-            className="absolute bottom-3 left-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors backdrop-blur-sm"
+            className="absolute top-12 left-3 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-wider bg-navy-dark/90 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors backdrop-blur-sm"
           >
-            <Activity className="w-4 h-4" />
-            {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
+            <Activity className="w-3.5 h-3.5" />
+            {(connections?.length || 0) > 0 ? `${connections!.length} CONNECTED` : 'CONNECT BROKER'}
           </button>
-          {/* 1-Click toggle inside chart — bottom-right */}
+          {/* 1-Click toggle — top-right inside chart */}
           <button
             onClick={() => setOneClickOpen(!oneClickOpen)}
-            className={`absolute bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider transition-all backdrop-blur-sm ${
-              oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40' : 'bg-navy-dark/80 text-marble/40 border border-gold/10 hover:text-gold'
+            className={`absolute top-12 right-3 z-40 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-wider transition-all backdrop-blur-sm ${
+              oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40 shadow-lg shadow-gold/10' : 'bg-navy-dark/90 text-marble/50 border border-gold/15 hover:text-gold hover:border-gold/30'
             }`}
           >
-            <Zap className="w-4 h-4" /> 1-CLICK
+            <Zap className={`w-3.5 h-3.5 ${oneClickOpen ? 'text-gold' : ''}`} /> 1-CLICK
           </button>
           {oneClickOpen && (
-            <div className="absolute bottom-14 right-3 z-50">
+            <div className="absolute top-24 right-3 z-50">
               <OneClickTrading
                 symbol={activeSymbol.ticker}
                 price={activePrice}
@@ -1292,25 +1292,25 @@ const TradingBridge = () => {
             <ResizablePanel defaultSize={65} minSize={30}>
               <div className="h-full relative">
                 <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
-                {/* Broker button inside chart — top-left */}
+                {/* Broker button — top-left inside chart */}
                 <button
                   onClick={() => setBrokerDialogOpen(true)}
-                  className="absolute top-2 left-2 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors backdrop-blur-sm"
+                  className="absolute top-12 left-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider bg-navy-dark/90 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors backdrop-blur-sm"
                 >
                   <Activity className="w-4 h-4" />
-                  {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
+                  {(connections?.length || 0) > 0 ? `${connections!.length} CONNECTED` : 'CONNECT BROKER'}
                 </button>
-                {/* One-Click Trading Toggle — bottom-right to avoid overlap */}
+                {/* One-Click Trading Toggle — top-right */}
                 <button
                   onClick={() => setOneClickOpen(!oneClickOpen)}
-                  className={`absolute bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider transition-all backdrop-blur-sm ${
-                    oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40' : 'bg-navy-dark/80 text-marble/40 border border-gold/10 hover:text-gold'
+                  className={`absolute top-12 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider transition-all backdrop-blur-sm ${
+                    oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40 shadow-lg shadow-gold/10' : 'bg-navy-dark/90 text-marble/50 border border-gold/15 hover:text-gold hover:border-gold/30'
                   }`}
                 >
-                  <Zap className="w-4 h-4" /> 1-CLICK
+                  <Zap className={`w-4 h-4 ${oneClickOpen ? 'text-gold' : ''}`} /> 1-CLICK
                 </button>
                 {oneClickOpen && (
-                  <div className="absolute bottom-14 right-3 z-50">
+                  <div className="absolute top-24 right-3 z-50">
                     <OneClickTrading
                       symbol={activeSymbol.ticker}
                       price={activePrice}
