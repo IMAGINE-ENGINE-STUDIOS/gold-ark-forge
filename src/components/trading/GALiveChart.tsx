@@ -1179,6 +1179,13 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
         </div>
       )}
 
+      {/* APEX Performance Dashboard */}
+      {showApex && (
+        <div className="border-t border-gold/10 flex-shrink-0 px-2 py-1">
+          <ApexDashboard stats={apexStats} />
+        </div>
+      )}
+
       {/* Bottom bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-gold/10 flex-shrink-0 bg-navy-dark/20">
         <span className="text-[9px] font-display tracking-wider text-marble/20 uppercase">
@@ -1190,7 +1197,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
           )}
           {showApex && (
-            <span className="text-[8px] font-mono text-cyan-400/50">
+            <span className="text-[8px] font-mono text-emerald-400/60">
               APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
             </span>
           )}
