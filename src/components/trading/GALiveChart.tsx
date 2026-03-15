@@ -556,6 +556,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const { drawings, activeTool, setActiveTool, addDrawing, deleteDrawing, clearAll, showList, toggleList } = useDrawings();
   const [pendingClick, setPendingClick] = useState<number | null>(null);
   const [showForecast, setShowForecast] = useState(false);
+  const [showApex, setShowApex] = useState(false);
   const lastLoggedForecastRef = useRef<string>('');
 
   const { data: metalPrices } = useMetalPrices();
