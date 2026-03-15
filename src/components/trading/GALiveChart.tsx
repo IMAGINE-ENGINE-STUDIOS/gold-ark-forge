@@ -263,6 +263,8 @@ interface Props {
   category: string;
   label: string;
   onSymbolChange?: (sym: WatchlistSymbol) => void;
+  headerLeftSlot?: ReactNode;
+  headerRightSlot?: ReactNode;
 }
 
 const shortTimeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
