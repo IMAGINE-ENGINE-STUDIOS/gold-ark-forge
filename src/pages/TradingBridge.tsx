@@ -836,23 +836,23 @@ const TradingBridge = () => {
     <div className="flex items-center gap-0.5 bg-navy-light/50 rounded-lg p-0.5 border border-gold/10">
       <button
         onClick={() => setTradingMode('paper')}
-        className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
+        className={`px-2.5 py-1 rounded text-[9px] font-display tracking-wider transition-all flex items-center gap-1 ${
           tradingMode === 'paper'
             ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
             : 'text-marble/30 border border-transparent hover:text-marble/50'
         }`}
       >
-        PAPER
+        <FlaskConical className="w-3 h-3" /> DEMO
       </button>
       <button
         onClick={() => setTradingMode('live')}
-        className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
+        className={`px-2.5 py-1 rounded text-[9px] font-display tracking-wider transition-all flex items-center gap-1 ${
           tradingMode === 'live'
             ? 'bg-gold/20 text-gold border border-gold/30'
             : 'text-marble/30 border border-transparent hover:text-marble/50'
         }`}
       >
-        LIVE
+        <DollarSign className="w-3 h-3" /> REAL
       </button>
     </div>
   );
