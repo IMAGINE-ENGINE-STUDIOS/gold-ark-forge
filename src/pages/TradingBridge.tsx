@@ -833,28 +833,46 @@ const TradingBridge = () => {
 
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
-    <div className="flex items-center gap-0.5 bg-navy-light/50 rounded-lg p-0.5 border border-gold/10">
+    <div className="flex items-center gap-1 rounded-lg p-1 border border-gold/20 bg-navy-dark/80 backdrop-blur-sm shadow-sm">
       <button
         onClick={() => setTradingMode('paper')}
-        className={`px-2.5 py-1 rounded text-[9px] font-display tracking-wider transition-all flex items-center gap-1 ${
+        className={`px-2 py-1 rounded-md text-[8px] sm:text-[9px] font-display tracking-[0.15em] transition-all flex items-center gap-1.5 ${
           tradingMode === 'paper'
-            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-            : 'text-marble/30 border border-transparent hover:text-marble/50'
+            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/35'
+            : 'text-marble/35 border border-transparent hover:text-marble/60'
         }`}
       >
         <FlaskConical className="w-3 h-3" /> DEMO
       </button>
       <button
         onClick={() => setTradingMode('live')}
-        className={`px-2.5 py-1 rounded text-[9px] font-display tracking-wider transition-all flex items-center gap-1 ${
+        className={`px-2 py-1 rounded-md text-[8px] sm:text-[9px] font-display tracking-[0.15em] transition-all flex items-center gap-1.5 ${
           tradingMode === 'live'
-            ? 'bg-gold/20 text-gold border border-gold/30'
-            : 'text-marble/30 border border-transparent hover:text-marble/50'
+            ? 'bg-gold/20 text-gold border border-gold/35'
+            : 'text-marble/35 border border-transparent hover:text-marble/60'
         }`}
       >
         <DollarSign className="w-3 h-3" /> REAL
       </button>
     </div>
+  );
+
+  const BrokerHeaderButton = () => (
+    <button
+      onClick={() => setBrokerDialogOpen(true)}
+      className="inline-flex items-center gap-1.5 rounded-md border border-gold/30 bg-gold/10 px-2 py-1 text-[8px] sm:text-[9px] font-display tracking-[0.14em] text-gold hover:bg-gold/20 transition-colors"
+      title="Connect broker"
+    >
+      <Activity className="w-3 h-3" />
+      <span>BROKER</span>
+      <span className={`px-1 py-0.5 rounded text-[8px] font-mono border ${
+        (connections?.length || 0) > 0
+          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+          : 'bg-marble/10 text-marble/60 border-marble/20'
+      }`}>
+        {connections?.length || 0}
+      </span>
+    </button>
   );
 
   // ─── MOBILE LAYOUT ──────────────────────────────────

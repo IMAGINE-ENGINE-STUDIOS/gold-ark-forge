@@ -3,7 +3,7 @@
  * Based on the clean GALiveStandalone widget with prop interface
  * for symbol sync with the Swap terminal panel.
  */
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
