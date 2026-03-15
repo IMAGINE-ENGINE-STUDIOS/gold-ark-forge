@@ -707,10 +707,11 @@ export function computeApexForecast(
   // Compute consensus from real indicators with regime weighting
   const { bias, probability, signals, votes, confluenceCount } = computeConsensus(values, highs, lows, activeWeights, regime);
 
-  // CONFLUENCE GATE: require minimum signals agreeing
-  const gatedBias = confluenceCount >= CONFLUENCE_THRESHOLD ? bias : 0;
+  // ADAPTIVE CONFLUENCE GATE: raise threshold when accuracy drops below floor
+  const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState);
+  const gatedBias = confluenceCount >= adaptiveThreshold ? bias : 0;
   const gatedDirection: 'bullish' | 'bearish' | 'neutral' =
-    confluenceCount < CONFLUENCE_THRESHOLD ? 'neutral' :
+    confluenceCount < adaptiveThreshold ? 'neutral' :
     gatedBias > 0.06 ? 'bullish' :
     gatedBias < -0.06 ? 'bearish' : 'neutral';
 
