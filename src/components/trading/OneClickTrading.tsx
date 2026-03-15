@@ -34,7 +34,7 @@ const OneClickTrading = ({ symbol, price, spread: spreadProp, paper, onClose }: 
   };
 
   return (
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-navy-dark/95 border border-gold/30 rounded-lg shadow-2xl backdrop-blur-md px-1 py-1 flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+    <div className="relative z-50 bg-navy-dark/95 border border-gold/30 rounded-lg shadow-2xl backdrop-blur-md px-1 py-1 flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
       {/* SELL */}
       <button
         onClick={() => execute('sell')}

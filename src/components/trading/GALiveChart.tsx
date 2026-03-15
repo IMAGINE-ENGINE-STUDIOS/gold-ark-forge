@@ -3,7 +3,7 @@
  * Based on the clean GALiveStandalone widget with prop interface
  * for symbol sync with the Swap terminal panel.
  */
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
@@ -263,6 +263,8 @@ interface Props {
   category: string;
   label: string;
   onSymbolChange?: (sym: WatchlistSymbol) => void;
+  headerLeftSlot?: ReactNode;
+  headerRightSlot?: ReactNode;
 }
 
 const shortTimeframes = ['RT', '1H', '4H', '1D', '1W', '1M'] as const;
@@ -542,7 +544,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
 // ═══════════════════════════════════════════════════════════
 // GOLD ARROW LIVE — Swap Terminal Chart
 // ═══════════════════════════════════════════════════════════
-const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
+const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlot, headerRightSlot }: Props) => {
   const [tf, setTf] = useState<Timeframe>('RT');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
@@ -780,6 +782,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
         <div className="flex items-center justify-between px-4 py-2">
           <div className="flex items-center gap-2 min-w-0">
             <BarChart3 className="w-4 h-4 text-gold flex-shrink-0" />
+            {headerLeftSlot}
             <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={20} />
             <button onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
               className="flex items-center gap-1 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group" title="Search symbol (press /)">
@@ -793,6 +796,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {headerRightSlot}
             <span className="font-display text-lg text-marble">
               ${price < 10 ? price.toFixed(3) : price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
