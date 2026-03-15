@@ -945,6 +945,33 @@ const TradingBridge = () => {
         {/* FULL-SCREEN CHART — takes remaining space above bottom tabs */}
         <div className="flex-1 min-h-0 relative">
           <GALiveChart symbolKey={activeSymbol.key} category={activeSymbol.cat} label={activeSymbol.label} onSymbolChange={setActiveSymbol} />
+          {/* Broker button inside chart — bottom-left */}
+          <button
+            onClick={() => setBrokerDialogOpen(true)}
+            className="absolute bottom-3 left-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors backdrop-blur-sm"
+          >
+            <Activity className="w-4 h-4" />
+            {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
+          </button>
+          {/* 1-Click toggle inside chart — bottom-right */}
+          <button
+            onClick={() => setOneClickOpen(!oneClickOpen)}
+            className={`absolute bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-display tracking-wider transition-all backdrop-blur-sm ${
+              oneClickOpen ? 'bg-gold/20 text-gold border border-gold/40' : 'bg-navy-dark/80 text-marble/40 border border-gold/10 hover:text-gold'
+            }`}
+          >
+            <Zap className="w-4 h-4" /> 1-CLICK
+          </button>
+          {oneClickOpen && (
+            <div className="absolute bottom-14 right-3 z-50">
+              <OneClickTrading
+                symbol={activeSymbol.ticker}
+                price={activePrice}
+                paper={paper}
+                onClose={() => setOneClickOpen(false)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Bottom Tab Bar — always visible, tapping opens drawer */}
