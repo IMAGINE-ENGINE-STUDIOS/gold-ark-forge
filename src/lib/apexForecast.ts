@@ -831,6 +831,32 @@ export function computeApexForecast(
   };
 }
 
+// ─── Adaptive Confluence Threshold ───────────────────────
+
+function getAdaptiveConfluenceThreshold(state: ApexState): number {
+  const evaluated = state.shots.filter(s => s.correct !== undefined);
+  if (evaluated.length < 3) return MIN_CONFLUENCE; // not enough data, use base
+
+  // Use rolling window of last 20 evaluated shots
+  const recent = evaluated.slice(0, 20);
+  const correctCount = recent.filter(s => s.correct).length;
+  const recentAccuracy = (correctCount / recent.length) * 100;
+
+  if (recentAccuracy >= ACCURACY_FLOOR + ACCURACY_FLOOR_MARGIN) {
+    // Accuracy well above floor — relax threshold
+    return MIN_CONFLUENCE;
+  } else if (recentAccuracy >= ACCURACY_FLOOR) {
+    // In the margin zone — slightly tighter
+    return Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1);
+  } else {
+    // Below floor — progressively tighten to recover accuracy
+    // The further below, the higher the threshold (more selective = fewer but better predictions)
+    const deficit = ACCURACY_FLOOR - recentAccuracy;
+    const extra = Math.ceil(deficit / 10); // +1 per 10% deficit
+    return Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1 + extra);
+  }
+}
+
 // ─── APEX Color System — Maximum Contrast ────────────────
 
 function biasToApexColor(bias: number, confidence: number): string {
