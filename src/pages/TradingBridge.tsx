@@ -838,7 +838,7 @@ const TradingBridge = () => {
         onClick={() => setTradingMode('paper')}
         className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
           tradingMode === 'paper'
-            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
             : 'text-marble/30 border border-transparent hover:text-marble/50'
         }`}
       >
@@ -848,7 +848,7 @@ const TradingBridge = () => {
         onClick={() => setTradingMode('live')}
         className={`px-2 py-1 rounded text-[9px] font-display tracking-wider transition-all ${
           tradingMode === 'live'
-            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+            ? 'bg-gold/20 text-gold border border-gold/30'
             : 'text-marble/30 border border-transparent hover:text-marble/50'
         }`}
       >
