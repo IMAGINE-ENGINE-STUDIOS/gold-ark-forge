@@ -1035,7 +1035,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
                 <LongTimeframeDropdown tf={tf} setTf={setTf} />
               </div>
             )}
-            {/* Forecast toggle */}
+            {/* Forecast toggles */}
             <button
               onClick={() => setShowForecast(prev => !prev)}
               className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
@@ -1045,6 +1045,21 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             >
               <Crosshair className="w-3 h-3" />
               <span className="hidden sm:inline">WAVE</span>
+            </button>
+            <button
+              onClick={() => setShowApex(prev => !prev)}
+              className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
+                showApex ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
+              }`}
+              title="APEX — Self-correcting adaptive forecast"
+            >
+              <TrendingUp className="w-3 h-3" />
+              <span className="hidden sm:inline">APEX</span>
+              {showApex && apexStats.totalShots > 0 && (
+                <span className={`text-[7px] px-1 py-px rounded ${apexStats.winRate >= 60 ? 'bg-emerald-500/20 text-emerald-400' : apexStats.winRate >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {apexStats.winRate.toFixed(0)}%
+                </span>
+              )}
             </button>
           </div>
         </div>
