@@ -91,9 +91,12 @@ export interface ApexState {
 
 const APEX_STATE_KEY = 'ga_apex_state_v4';
 const SHOT_WINDOW = 5;
-const MAX_SHOTS = 100;
+const MAX_SHOTS = 200;
 const MAX_WEIGHT_HISTORY = 50;
-const CONFLUENCE_THRESHOLD = 4; // minimum agreeing signals
+const MIN_CONFLUENCE = 4;        // base minimum agreeing signals
+const MAX_CONFLUENCE = 8;        // max when accuracy is poor
+const ACCURACY_FLOOR = 75;       // target minimum accuracy %
+const ACCURACY_FLOOR_MARGIN = 5; // start tightening at 80%
 
 const DEFAULT_WEIGHTS: ApexWeights = {
   rsi: 0.60,
