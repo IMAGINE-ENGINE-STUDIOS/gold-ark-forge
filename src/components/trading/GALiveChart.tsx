@@ -1134,6 +1134,15 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
                   return <ForecastRainbowLine data={chartData as any[]} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} />;
                 }} />
               )}
+              {/* APEX Forecast Line */}
+              {showApex && apexPoints.length > 0 && (
+                <Customized component={(props: any) => {
+                  const { xAxisMap, yAxisMap } = props;
+                  const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+                  const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+                  if (!xAxis?.scale || !yAxis?.scale) return null;
+                  return <ApexForecastLine data={chartData as any[]} xScale={(i: number) => xAxis.scale(chartData[i]?.time)} yScale={yAxis.scale} showWaveGhost={showForecast} />;
+                }} />
             </ComposedChart>
           </ResponsiveContainer>
         )}
