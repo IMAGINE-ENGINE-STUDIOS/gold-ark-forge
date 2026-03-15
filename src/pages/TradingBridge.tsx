@@ -885,12 +885,6 @@ const TradingBridge = () => {
           </div>
           <div className="flex items-center gap-2">
             <ModeToggle />
-            <button
-              onClick={() => setBrokerDialogOpen(true)}
-              className="text-[8px] font-mono bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
-            >
-              {connections?.length || 0} BROKER{connections?.length !== 1 ? 'S' : ''}
-            </button>
             <ConnectWalletButton />
           </div>
         </div>
