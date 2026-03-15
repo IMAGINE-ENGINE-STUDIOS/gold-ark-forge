@@ -259,7 +259,7 @@ const ForecastRainbowLine = ({ data, xScale, yScale }: {
   return <g>{elements}</g>;
 };
 
-// ═══ APEX Forecast Renderer — Solid cyan line + WAVE ghost ═══
+// ═══ APEX Forecast Renderer — High-contrast direction-colored line + WAVE ghost ═══
 const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
   data: any[];
   xScale: (i: number) => number;
@@ -272,7 +272,12 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
 
   const elements: React.ReactElement[] = [];
 
-  // Confidence band (tighter than WAVE)
+  // Determine overall direction for band color
+  const firstApex = data[apexIndices[0]]?.apexForecast ?? 0;
+  const lastApex = data[apexIndices[apexIndices.length - 1]]?.apexForecast ?? 0;
+  const dirColor = lastApex > firstApex ? 'hsl(145, 75%, 50%)' : lastApex < firstApex ? 'hsl(0, 80%, 55%)' : 'hsl(45, 80%, 55%)';
+
+  // Confidence band with direction-colored fill
   const bandUp: string[] = [];
   const bandDn: string[] = [];
   for (const idx of apexIndices) {
@@ -287,12 +292,12 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
   if (bandUp.length > 1) {
     elements.push(
       <polygon key="ax-band" points={[...bandUp, ...bandDn].join(' ')}
-        fill="hsl(185, 70%, 50%)" fillOpacity={0.06}
-        stroke="hsl(185, 70%, 50%)" strokeWidth={0.5} strokeOpacity={0.12} strokeDasharray="3 2" />
+        fill={dirColor} fillOpacity={0.08}
+        stroke={dirColor} strokeWidth={0.5} strokeOpacity={0.2} strokeDasharray="3 2" />
     );
   }
 
-  // WAVE ghost (faded dashed line showing where WAVE predicted)
+  // WAVE ghost (faded dashed line)
   if (showWaveGhost) {
     const ghostIndices = apexIndices.filter(i => data[i].waveGhost !== undefined);
     for (let j = 0; j < ghostIndices.length - 1; j++) {
@@ -302,17 +307,16 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
       if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
       elements.push(
         <line key={`ghost-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
-          stroke="hsl(270, 40%, 50%)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.25} />
+          stroke="hsl(270, 40%, 50%)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.3} />
       );
     }
-    // Ghost label
     if (ghostIndices.length > 0) {
       const lastGIdx = ghostIndices[ghostIndices.length - 1];
       const gx = xScale(lastGIdx);
       const gy = yScale(data[lastGIdx].waveGhost);
       if (!isNaN(gx) && !isNaN(gy)) {
         elements.push(
-          <text key="ghost-lbl" x={gx + 6} y={gy - 6} fontSize={7} fill="hsl(270, 40%, 50%)" fontFamily="monospace" opacity={0.35}>
+          <text key="ghost-lbl" x={gx + 6} y={gy - 6} fontSize={7} fill="hsl(270, 40%, 50%)" fontFamily="monospace" opacity={0.4}>
             WAVE
           </text>
         );
@@ -320,45 +324,63 @@ const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
     }
   }
 
-  // Main APEX line — solid, bright cyan
+  // Main APEX line — thick, high-contrast, per-segment colored
   for (let j = 0; j < apexIndices.length - 1; j++) {
     const i1 = apexIndices[j], i2 = apexIndices[j + 1];
-    const d2 = data[i2];
+    const d1 = data[i1], d2 = data[i2];
     const x1 = xScale(i1), x2 = xScale(i2);
-    const y1 = yScale(data[i1].apexForecast), y2 = yScale(d2.apexForecast);
+    const y1 = yScale(d1.apexForecast), y2 = yScale(d2.apexForecast);
     if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
-    const color = d2.apexColor || 'hsl(185, 80%, 55%)';
+    const color = d2.apexColor || dirColor;
+    // Main line
     elements.push(
       <line key={`ax-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.9} />
+        stroke={color} strokeWidth={3} strokeLinecap="round" opacity={0.95} />
     );
+    // Glow
     elements.push(
       <line key={`ax-glow-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={color} strokeWidth={8} strokeLinecap="round" opacity={0.1} />
+        stroke={color} strokeWidth={10} strokeLinecap="round" opacity={0.12} />
     );
   }
 
-  // Endpoint
+  // Direction arrow at midpoint
+  if (apexIndices.length >= 4) {
+    const midIdx = apexIndices[Math.floor(apexIndices.length / 2)];
+    const mx = xScale(midIdx);
+    const my = yScale(data[midIdx].apexForecast);
+    if (!isNaN(mx) && !isNaN(my)) {
+      const arrowDir = lastApex > firstApex ? '▲' : lastApex < firstApex ? '▼' : '◆';
+      elements.push(
+        <text key="ax-arrow" x={mx} y={my - 10} fontSize={12} fill={dirColor} fontFamily="sans-serif" textAnchor="middle" opacity={0.6}>
+          {arrowDir}
+        </text>
+      );
+    }
+  }
+
+  // Endpoint with pulsing ring
   const lastIdx = apexIndices[apexIndices.length - 1];
   const lastD = data[lastIdx];
   const lx = xScale(lastIdx), ly = yScale(lastD.apexForecast);
   if (!isNaN(lx) && !isNaN(ly)) {
+    const endColor = lastD.apexColor || dirColor;
     elements.push(
-      <circle key="ax-pulse" cx={lx} cy={ly} r={8} fill="hsl(185, 80%, 55%)" opacity={0.15}>
-        <animate attributeName="r" values="6;12;6" dur="1.5s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0.15;0.03;0.15" dur="1.5s" repeatCount="indefinite" />
+      <circle key="ax-pulse" cx={lx} cy={ly} r={10} fill={endColor} opacity={0.12}>
+        <animate attributeName="r" values="8;14;8" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.12;0.03;0.12" dur="1.5s" repeatCount="indefinite" />
       </circle>
     );
     elements.push(
-      <circle key="ax-dot" cx={lx} cy={ly} r={4.5} fill="hsl(185, 80%, 55%)" stroke="hsl(213, 32%, 16%)" strokeWidth={2} />
+      <circle key="ax-dot" cx={lx} cy={ly} r={5} fill={endColor} stroke="hsl(213, 32%, 16%)" strokeWidth={2.5} />
     );
     elements.push(
-      <text key="ax-label" x={lx + 8} y={ly + 3} fontSize={9} fill="hsl(185, 80%, 55%)" fontFamily="monospace" fontWeight="bold" opacity={0.9}>
+      <text key="ax-label" x={lx + 10} y={ly + 3} fontSize={10} fill={endColor} fontFamily="monospace" fontWeight="bold" opacity={0.95}>
         ${lastD.apexForecast?.toFixed(2)}
       </text>
     );
     elements.push(
-      <text key="ax-tag" x={lx + 8} y={ly + 13} fontSize={7} fill="hsl(185, 80%, 55%)" fontFamily="monospace" opacity={0.5}>
+      <text key="ax-tag" x={lx + 10} y={ly + 14} fontSize={8} fill={endColor} fontFamily="monospace" opacity={0.6} fontWeight="bold">
         APEX
       </text>
     );
