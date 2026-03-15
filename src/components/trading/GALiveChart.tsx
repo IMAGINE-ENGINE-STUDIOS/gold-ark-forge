@@ -9,6 +9,7 @@ import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Respon
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
 import { addForecastLogEntry, biasToRainbowColor, biasToAngle } from '@/lib/forecastLog';
 import { computeApexForecast, getApexStats, type ApexForecastPoint } from '@/lib/apexForecast';
+import ApexDashboard from '@/components/trading/ApexDashboard';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
