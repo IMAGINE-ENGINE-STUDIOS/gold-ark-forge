@@ -614,23 +614,79 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   // ═══ FORECAST PROJECTION ═══
   const cfg = tfConfigs[tf];
   const { forecastPoints, forecastBias } = useMemo(() => {
-    if (!showForecast) return { forecastPoints: [] as ForecastPoint[], forecastBias: 0 };
+    if (!showForecast && !showApex) return { forecastPoints: [] as ForecastPoint[], forecastBias: 0 };
     const vals = liveCandles.map(d => d.value);
     const his = liveCandles.map(d => d.high);
     const los = liveCandles.map(d => d.low);
     const result = computeForecastPoints(vals, his, los, price, cfg.intervalMs, cfg.labelFn, cfg.points, tf);
     return { forecastPoints: result.points, forecastBias: result.bias };
-  }, [liveCandles, price, tf, showForecast, cfg]);
+  }, [liveCandles, price, tf, showForecast, showApex, cfg]);
 
-  // Merge real + forecast data
+  // ═══ APEX ADAPTIVE FORECAST ═══
+  const { apexPoints, apexBias, apexConfidence, apexStats } = useMemo(() => {
+    if (!showApex) return { apexPoints: [] as ApexForecastPoint[], apexBias: 0, apexConfidence: 0, apexStats: getApexStats() };
+    const vals = liveCandles.map(d => d.value);
+    const his = liveCandles.map(d => d.high);
+    const los = liveCandles.map(d => d.low);
+    const depth = FORECAST_DEPTH[tf] ?? { points: 12 };
+    const result = computeApexForecast(
+      vals, his, los, price, cfg.intervalMs, cfg.labelFn, depth.points, tf,
+      forecastBias, forecastPoints,
+    );
+    const stats = getApexStats();
+    return { apexPoints: result.points, apexBias: result.bias, apexConfidence: result.confidence, apexStats: stats };
+  }, [liveCandles, price, tf, showApex, cfg, forecastBias, forecastPoints]);
+
+  // Merge real + forecast + apex data
   const chartData = useMemo(() => {
-    if (forecastPoints.length === 0) return enrichedData;
+    if (forecastPoints.length === 0 && apexPoints.length === 0) return enrichedData;
     const lastReal = enrichedData[enrichedData.length - 1];
-    const bridge = lastReal ? { ...lastReal, forecast: lastReal.value, forecastColor: biasToRainbowColor(0) } : undefined;
     const result = [...enrichedData];
-    if (bridge) result[result.length - 1] = bridge;
-    return [...result, ...forecastPoints];
-  }, [enrichedData, forecastPoints]);
+    
+    // Determine how many forecast points we need
+    const maxLen = Math.max(forecastPoints.length, apexPoints.length);
+    if (maxLen === 0) return result;
+    
+    // Bridge point
+    if (lastReal) {
+      const bridge: any = { ...lastReal };
+      if (showForecast && forecastPoints.length > 0) {
+        bridge.forecast = lastReal.value;
+        bridge.forecastColor = biasToRainbowColor(0);
+      }
+      if (showApex && apexPoints.length > 0) {
+        bridge.apexForecast = lastReal.value;
+        bridge.apexColor = 'hsl(185, 80%, 55%)';
+        if (showForecast && forecastPoints.length > 0) {
+          bridge.waveGhost = lastReal.value;
+        }
+      }
+      result[result.length - 1] = bridge;
+    }
+    
+    // Merge forecast + apex points
+    for (let i = 0; i < maxLen; i++) {
+      const merged: any = {};
+      if (i < forecastPoints.length && showForecast) {
+        Object.assign(merged, forecastPoints[i]);
+      }
+      if (i < apexPoints.length && showApex) {
+        merged.time = apexPoints[i].time;
+        merged.apexForecast = apexPoints[i].apexForecast;
+        merged.apexColor = apexPoints[i].apexColor;
+        merged.apexHigh = apexPoints[i].apexHigh;
+        merged.apexLow = apexPoints[i].apexLow;
+        if (apexPoints[i].waveGhost !== undefined) {
+          merged.waveGhost = apexPoints[i].waveGhost;
+        }
+      }
+      if (!merged.time && i < forecastPoints.length) merged.time = forecastPoints[i].time;
+      if (!merged.time && i < apexPoints.length) merged.time = apexPoints[i].time;
+      result.push(merged);
+    }
+    
+    return result;
+  }, [enrichedData, forecastPoints, apexPoints, showForecast, showApex]);
 
   // Log forecast to registry when toggled on
   useEffect(() => {
