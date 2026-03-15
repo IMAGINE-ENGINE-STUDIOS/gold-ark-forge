@@ -1221,7 +1221,6 @@ const TradingBridge = () => {
           </Link>
           <span className="text-gold/20">|</span>
           <span className="font-display text-xs tracking-[0.2em] text-marble/40">SWAP</span>
-          <ModeToggle />
         </div>
         <div className="flex items-center gap-3">
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
