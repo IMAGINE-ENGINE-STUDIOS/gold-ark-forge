@@ -1071,15 +1071,15 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             </button>
             <button
               onClick={() => setShowApex(prev => !prev)}
-              className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all border ${
-                showApex ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'text-marble/25 border-transparent hover:text-marble/50'
+              className={`flex items-center gap-1 px-2.5 py-1 text-[9px] font-mono tracking-wider rounded transition-all border font-bold ${
+                showApex ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_8px_rgba(52,211,153,0.15)]' : 'text-marble/30 border-marble/10 hover:text-emerald-400 hover:border-emerald-500/30'
               }`}
               title="APEX — Self-correcting adaptive forecast"
             >
-              <TrendingUp className="w-3 h-3" />
+              <TrendingUp className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">APEX</span>
               {showApex && apexStats.totalShots > 0 && (
-                <span className={`text-[7px] px-1 py-px rounded ${apexStats.winRate >= 60 ? 'bg-emerald-500/20 text-emerald-400' : apexStats.winRate >= 40 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                <span className={`text-[8px] px-1.5 py-px rounded font-bold ${apexStats.winRate >= 60 ? 'bg-emerald-500/25 text-emerald-300' : apexStats.winRate >= 40 ? 'bg-amber-500/25 text-amber-300' : 'bg-red-500/25 text-red-300'}`}>
                   {apexStats.winRate.toFixed(0)}%
                 </span>
               )}
