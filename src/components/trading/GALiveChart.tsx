@@ -259,6 +259,114 @@ const ForecastRainbowLine = ({ data, xScale, yScale }: {
   return <g>{elements}</g>;
 };
 
+// ═══ APEX Forecast Renderer — Solid cyan line + WAVE ghost ═══
+const ApexForecastLine = ({ data, xScale, yScale, showWaveGhost }: {
+  data: any[];
+  xScale: (i: number) => number;
+  yScale: (v: number) => number;
+  showWaveGhost: boolean;
+}) => {
+  const apexIndices: number[] = [];
+  data.forEach((d, i) => { if (d.apexForecast !== undefined) apexIndices.push(i); });
+  if (apexIndices.length < 2) return null;
+
+  const elements: React.ReactElement[] = [];
+
+  // Confidence band (tighter than WAVE)
+  const bandUp: string[] = [];
+  const bandDn: string[] = [];
+  for (const idx of apexIndices) {
+    const d = data[idx];
+    const x = xScale(idx);
+    const yH = yScale(d.apexHigh ?? d.apexForecast);
+    const yL = yScale(d.apexLow ?? d.apexForecast);
+    if (isNaN(x) || isNaN(yH) || isNaN(yL)) continue;
+    bandUp.push(`${x},${yH}`);
+    bandDn.unshift(`${x},${yL}`);
+  }
+  if (bandUp.length > 1) {
+    elements.push(
+      <polygon key="ax-band" points={[...bandUp, ...bandDn].join(' ')}
+        fill="hsl(185, 70%, 50%)" fillOpacity={0.06}
+        stroke="hsl(185, 70%, 50%)" strokeWidth={0.5} strokeOpacity={0.12} strokeDasharray="3 2" />
+    );
+  }
+
+  // WAVE ghost (faded dashed line showing where WAVE predicted)
+  if (showWaveGhost) {
+    const ghostIndices = apexIndices.filter(i => data[i].waveGhost !== undefined);
+    for (let j = 0; j < ghostIndices.length - 1; j++) {
+      const i1 = ghostIndices[j], i2 = ghostIndices[j + 1];
+      const x1 = xScale(i1), x2 = xScale(i2);
+      const y1 = yScale(data[i1].waveGhost), y2 = yScale(data[i2].waveGhost);
+      if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
+      elements.push(
+        <line key={`ghost-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
+          stroke="hsl(270, 40%, 50%)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.25} />
+      );
+    }
+    // Ghost label
+    if (ghostIndices.length > 0) {
+      const lastGIdx = ghostIndices[ghostIndices.length - 1];
+      const gx = xScale(lastGIdx);
+      const gy = yScale(data[lastGIdx].waveGhost);
+      if (!isNaN(gx) && !isNaN(gy)) {
+        elements.push(
+          <text key="ghost-lbl" x={gx + 6} y={gy - 6} fontSize={7} fill="hsl(270, 40%, 50%)" fontFamily="monospace" opacity={0.35}>
+            WAVE
+          </text>
+        );
+      }
+    }
+  }
+
+  // Main APEX line — solid, bright cyan
+  for (let j = 0; j < apexIndices.length - 1; j++) {
+    const i1 = apexIndices[j], i2 = apexIndices[j + 1];
+    const d2 = data[i2];
+    const x1 = xScale(i1), x2 = xScale(i2);
+    const y1 = yScale(data[i1].apexForecast), y2 = yScale(d2.apexForecast);
+    if (isNaN(x1) || isNaN(x2) || isNaN(y1) || isNaN(y2)) continue;
+    const color = d2.apexColor || 'hsl(185, 80%, 55%)';
+    elements.push(
+      <line key={`ax-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.9} />
+    );
+    elements.push(
+      <line key={`ax-glow-${j}`} x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={color} strokeWidth={8} strokeLinecap="round" opacity={0.1} />
+    );
+  }
+
+  // Endpoint
+  const lastIdx = apexIndices[apexIndices.length - 1];
+  const lastD = data[lastIdx];
+  const lx = xScale(lastIdx), ly = yScale(lastD.apexForecast);
+  if (!isNaN(lx) && !isNaN(ly)) {
+    elements.push(
+      <circle key="ax-pulse" cx={lx} cy={ly} r={8} fill="hsl(185, 80%, 55%)" opacity={0.15}>
+        <animate attributeName="r" values="6;12;6" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.15;0.03;0.15" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+    );
+    elements.push(
+      <circle key="ax-dot" cx={lx} cy={ly} r={4.5} fill="hsl(185, 80%, 55%)" stroke="hsl(213, 32%, 16%)" strokeWidth={2} />
+    );
+    elements.push(
+      <text key="ax-label" x={lx + 8} y={ly + 3} fontSize={9} fill="hsl(185, 80%, 55%)" fontFamily="monospace" fontWeight="bold" opacity={0.9}>
+        ${lastD.apexForecast?.toFixed(2)}
+      </text>
+    );
+    elements.push(
+      <text key="ax-tag" x={lx + 8} y={ly + 13} fontSize={7} fill="hsl(185, 80%, 55%)" fontFamily="monospace" opacity={0.5}>
+        APEX
+      </text>
+    );
+  }
+
+  return <g>{elements}</g>;
+};
+
 interface Props {
   symbolKey: string;
   category: string;
