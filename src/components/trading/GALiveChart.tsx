@@ -544,7 +544,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
 // ═══════════════════════════════════════════════════════════
 // GOLD ARROW LIVE — Swap Terminal Chart
 // ═══════════════════════════════════════════════════════════
-const GALiveChart = ({ symbolKey, category, label, onSymbolChange }: Props) => {
+const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlot, headerRightSlot }: Props) => {
   const [tf, setTf] = useState<Timeframe>('RT');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
