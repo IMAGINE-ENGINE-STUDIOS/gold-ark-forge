@@ -782,6 +782,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
         <div className="flex items-center justify-between px-4 py-2">
           <div className="flex items-center gap-2 min-w-0">
             <BarChart3 className="w-4 h-4 text-gold flex-shrink-0" />
+            {headerLeftSlot}
             <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={20} />
             <button onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
               className="flex items-center gap-1 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group" title="Search symbol (press /)">
@@ -795,6 +796,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {headerRightSlot}
             <span className="font-display text-lg text-marble">
               ${price < 10 ? price.toFixed(3) : price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
