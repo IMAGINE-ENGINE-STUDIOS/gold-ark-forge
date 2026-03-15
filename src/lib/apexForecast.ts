@@ -891,8 +891,26 @@ export interface ApexStats {
   winRate: number;
   streak: number;
   totalShots: number;
+  totalPredictions: number; // only directional (non-neutral)
+  totalEvaluated: number;
+  totalCorrect: number;
+  accuracyPct: number;
+  adaptiveThreshold: number;
+  aboveFloor: boolean;
   last5Accuracy: string;
   last5Detail: Array<{ correct: boolean; direction: string; error: number }>;
+  predictionLog: Array<{
+    id: string;
+    timestamp: number;
+    direction: 'bullish' | 'bearish';
+    entryPrice: number;
+    predictedPrice: number;
+    actualPrice?: number;
+    correct?: boolean;
+    probability: number;
+    regime: string;
+    confluence: number;
+  }>;
   weights: ApexWeights;
   weightHistory: WeightSnapshot[];
   shots: ApexShotRecord[];
@@ -903,22 +921,48 @@ export interface ApexStats {
 
 export function getApexStats(): ApexStats {
   const state = loadState();
-  const evaluated = state.shots.filter(s => s.correct !== undefined);
+  // Only count directional predictions (not neutral)
+  const directional = state.shots.filter(s => s.predictedDirection !== 'neutral');
+  const evaluated = directional.filter(s => s.correct !== undefined);
+  const correct = evaluated.filter(s => s.correct);
+  const accuracyPct = evaluated.length > 0 ? (correct.length / evaluated.length) * 100 : 0;
   const last5 = evaluated.slice(0, 5);
   const last5Correct = last5.filter(s => s.correct).length;
+  const threshold = getAdaptiveConfluenceThreshold(state);
+
+  // Build prediction log for UI
+  const predictionLog = directional.slice(0, 50).map(s => ({
+    id: s.id,
+    timestamp: s.timestamp,
+    direction: s.predictedDirection as 'bullish' | 'bearish',
+    entryPrice: s.entryPrice,
+    predictedPrice: s.predictedPrice,
+    actualPrice: s.actualPrice,
+    correct: s.correct,
+    probability: s.probability,
+    regime: s.regime,
+    confluence: s.confluenceCount,
+  }));
 
   return {
     generation: state.generation,
     corrections: state.corrections,
-    winRate: state.winRate,
+    winRate: accuracyPct,
     streak: state.streak,
-    totalShots: evaluated.length,
+    totalShots: state.shots.length,
+    totalPredictions: directional.length,
+    totalEvaluated: evaluated.length,
+    totalCorrect: correct.length,
+    accuracyPct,
+    adaptiveThreshold: threshold,
+    aboveFloor: accuracyPct >= ACCURACY_FLOOR || evaluated.length < 3,
     last5Accuracy: last5.length > 0 ? `${last5Correct}/${last5.length}` : '—',
     last5Detail: last5.map(s => ({
       correct: !!s.correct,
       direction: s.predictedDirection,
       error: s.error ?? 0,
     })),
+    predictionLog,
     weights: state.weights,
     weightHistory: state.weightHistory,
     shots: state.shots,
