@@ -1066,6 +1066,9 @@ export function getApexStats(): ApexStats {
     accuracyPct,
     adaptiveThreshold: threshold,
     aboveFloor: accuracyPct >= ACCURACY_FLOOR || evaluated.length < 3,
+    lastBatchAudit: evaluated.length >= BATCH_AUDIT_SIZE
+      ? { sample: evaluated.length, accuracy: accuracyPct, passed: accuracyPct >= BATCH_AUDIT_FLOOR }
+      : null,
     last5Accuracy: last5.length > 0 ? `${last5Correct}/${last5.length}` : '—',
     last5Detail: last5.map(s => ({
       correct: !!s.correct,
