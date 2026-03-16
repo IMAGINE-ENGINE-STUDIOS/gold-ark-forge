@@ -87,6 +87,7 @@ export interface ApexState {
   winRate: number;
   streak: number;
   weightHistory: WeightSnapshot[];
+  _lastBatchAuditCount?: number;
 }
 
 const APEX_STATE_KEY = 'ga_apex_state_v4';
