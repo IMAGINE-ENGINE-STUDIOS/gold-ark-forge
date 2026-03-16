@@ -164,10 +164,24 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   const remainingCash = side === 'buy' ? paper.account.cash - totalCost : paper.account.cash + totalCost;
   const spread = activePrice * 0.0002;
 
+  // Find owned position for the active symbol
+  const ownedPosition = paper.positions.find(
+    p => p.symbol === activeSymbol.ticker && p.side === 'buy'
+  );
+  const ownedQty = ownedPosition?.qty ?? 0;
+
   const setQtyPercent = (pct: number) => {
     if (activePrice <= 0) return;
-    const maxQty = (paper.account.cash * pct) / activePrice;
-    setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
+    if (side === 'sell') {
+      // For sells, percentage of owned position qty
+      if (ownedQty <= 0) return;
+      const sellQty = ownedQty * pct;
+      setQty(sellQty < 1 ? sellQty.toFixed(4) : Math.floor(sellQty).toString());
+    } else {
+      // For buys, percentage of available cash
+      const maxQty = (paper.account.cash * pct) / activePrice;
+      setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
+    }
   };
 
   const executeOrder = () => {

@@ -160,6 +160,20 @@ export const usePaperTrading = (userId?: string | null) => {
       throw new Error(`Insufficient funds: need $${cost.toFixed(2)}, have $${cash.toFixed(2)}`);
     }
 
+    // CRITICAL: Block naked short selling — can only sell what you own
+    if (params.side === 'sell') {
+      const ownedPosition = positions.find(
+        p => p.symbol === params.symbol && p.side === 'buy'
+      );
+      const ownedQty = ownedPosition?.qty ?? 0;
+      if (ownedQty <= 0) {
+        throw new Error(`Cannot sell ${params.symbol} — you don't own any`);
+      }
+      if (params.qty > ownedQty) {
+        throw new Error(`Cannot sell ${params.qty} ${params.symbol} — you only own ${ownedQty}`);
+      }
+    }
+
     let closedPnl: number | undefined;
 
     const existingIdx = positions.findIndex(
