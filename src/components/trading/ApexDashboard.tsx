@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
 
-// v5: Auto-reset poisoned data from v4 inverted signals on first load
-const V5_RESET_KEY = 'ga_apex_v5_reset_done';
+// v6: Auto-reset poisoned data from v5 re-evaluation bug on first load
+const V6_RESET_KEY = 'ga_apex_v6_reset_done';
 
 
 const WEIGHT_LABELS: Record<string, string> = {
