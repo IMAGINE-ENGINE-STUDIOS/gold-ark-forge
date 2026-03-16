@@ -85,7 +85,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
         >
           <div className="flex items-center gap-2">
             <Brain className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX v5</span>
+            <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX v6</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
