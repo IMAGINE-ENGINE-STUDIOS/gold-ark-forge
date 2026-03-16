@@ -775,7 +775,7 @@ function computeConsensus(
     }
   }
 
-  return { bias, probability, signals, votes, confluenceCount: clusterConfluence, currentATR: atr, avgATR50, clusterVotes, candleConfirmed };
+  return { bias, probability, signals, votes, confluenceCount: clusterConfluence, currentATR: atr, avgATR50, clusterVotes, candleConfirmed, technicalDecision };
 }
 
 // ─── Timeframe-Adaptive Evaluation Delay ─────────────────
