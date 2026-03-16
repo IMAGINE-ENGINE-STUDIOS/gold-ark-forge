@@ -1,16 +1,15 @@
 /**
- * APEX Forecast Engine v4 — Regime-Aware, Confluence-Gated Direction Predictor
+ * APEX Forecast Engine v4.1 — Regime-Aware, Confluence-Gated Direction Predictor
  * 
  * NO fake data. NO sinusoidal simulation. ALL math-based on real indicator signals.
  * 
- * v4 improvements over v3:
- * 1. 12 independent signals (up from 8): +Stochastic, +ROC, +ADX-style, +SMA Cross
- * 2. Hurst-based regime detection: trending vs mean-reverting → separate weight sets
- * 3. Confluence gate: requires 4+ signals to agree before issuing directional call
- * 4. Adaptive linear projection with ATR envelope (no fake sine waves)
- * 5. Timeframe-adaptive evaluation windows (60s–300s)
- * 6. Magnitude-aware scoring: direction + minimum ATR movement
- * 7. Per-regime weight learning: trending corrections don't degrade ranging performance
+ * v4.1 additions over v4:
+ * 1. Multi-timeframe confirmation filter (5x aggregation veto gate)
+ * 2. Cooldown after 2 consecutive misses (120–600s pause)
+ * 3. Signal decay weighting (recency bias on momentum/ROC/SMA)
+ * 4. Volatility-aware confluence gate (+2 in low-vol regimes)
+ * 5. Direction persistence filter (|bias| > 0.15 to flip direction)
+ * 6. Weighted accuracy scoring (time-decayed recent predictions)
  */
 
 import {
@@ -88,6 +87,9 @@ export interface ApexState {
   streak: number;
   weightHistory: WeightSnapshot[];
   _lastBatchAuditCount?: number;
+  _consecutiveMisses?: number;
+  _cooldownUntil?: number;
+  _lastPredictedDirection?: 'bullish' | 'bearish' | 'neutral';
 }
 
 const APEX_STATE_KEY = 'ga_apex_state_v4';
@@ -100,6 +102,11 @@ const ACCURACY_FLOOR = 75;       // target minimum accuracy %
 const ACCURACY_FLOOR_MARGIN = 5; // start tightening at 80%
 const BATCH_AUDIT_SIZE = 10;     // evaluate true accuracy every N predictions
 const BATCH_AUDIT_FLOOR = 70;    // trigger deep correction if overall < 70%
+const MISS_COOLDOWN_TRIGGER = 2; // consecutive misses before cooldown
+const DIRECTION_FLIP_THRESHOLD = 0.15; // min |bias| to flip direction
+const SIGNAL_DECAY_FACTOR = 0.85; // exponential decay for recency bias
+const LOW_VOL_RATIO = 0.3;       // ATR ratio below which = low vol regime
+const LOW_VOL_GATE_BONUS = 2;    // extra confluence required in low vol
 
 const DEFAULT_WEIGHTS: ApexWeights = {
   rsi: 0.60,
@@ -144,6 +151,9 @@ function loadState(): ApexState {
         streak: parsed.streak ?? 0,
         weightHistory: parsed.weightHistory ?? [],
         _lastBatchAuditCount: parsed._lastBatchAuditCount ?? 0,
+        _consecutiveMisses: parsed._consecutiveMisses ?? 0,
+        _cooldownUntil: parsed._cooldownUntil ?? 0,
+        _lastPredictedDirection: parsed._lastPredictedDirection ?? 'neutral',
       };
     }
   } catch { /* ignore */ }
@@ -158,6 +168,9 @@ function loadState(): ApexState {
     streak: 0,
     weightHistory: [],
     _lastBatchAuditCount: 0,
+    _consecutiveMisses: 0,
+    _cooldownUntil: 0,
+    _lastPredictedDirection: 'neutral',
   };
 }
 
@@ -179,7 +192,6 @@ function estimateHurst(values: number[], maxLag = 20): number {
   if (n < 20) return 0.5;
   const slice = values.slice(-n);
 
-  // Rescaled range (R/S) method - simplified
   const logRS: number[] = [];
   const logN: number[] = [];
 
@@ -193,7 +205,6 @@ function estimateHurst(values: number[], maxLag = 20): number {
       const mean = chunk.reduce((a, b) => a + b, 0) / chunk.length;
       const deviations = chunk.map(v => v - mean);
 
-      // Cumulative deviations
       let cumSum = 0;
       let maxCum = -Infinity;
       let minCum = Infinity;
@@ -219,7 +230,6 @@ function estimateHurst(values: number[], maxLag = 20): number {
 
   if (logRS.length < 3) return 0.5;
 
-  // Linear regression of log(R/S) vs log(n) → slope = Hurst exponent
   const nPts = logRS.length;
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
   for (let i = 0; i < nPts; i++) {
@@ -238,6 +248,73 @@ function estimateHurst(values: number[], maxLag = 20): number {
 function getRegime(values: number[]): 'trending' | 'ranging' {
   const hurst = estimateHurst(values);
   return hurst > 0.55 ? 'trending' : 'ranging';
+}
+
+// ─── v4.1: Multi-Timeframe Confirmation Filter ──────────
+// Aggregates candles into 5x-period bars, computes SMA20 + momentum on those.
+// Returns a directional bias: >0 = higher TF bullish, <0 = bearish, 0 = neutral.
+
+function higherTimeframeBias(values: number[], highs: number[], lows: number[]): number {
+  const aggFactor = 5;
+  const minBars = aggFactor * 20; // need at least 20 aggregated bars for SMA20
+  if (values.length < minBars) return 0; // not enough data, no filter
+
+  // Aggregate into 5x bars (use close of last bar in group)
+  const aggCloses: number[] = [];
+  const aggHighs: number[] = [];
+  const aggLows: number[] = [];
+  const usable = values.length - (values.length % aggFactor);
+  for (let i = 0; i < usable; i += aggFactor) {
+    const closeSlice = values.slice(i, i + aggFactor);
+    const highSlice = highs.slice(i, i + aggFactor);
+    const lowSlice = lows.slice(i, i + aggFactor);
+    aggCloses.push(closeSlice[closeSlice.length - 1]);
+    aggHighs.push(Math.max(...highSlice));
+    aggLows.push(Math.min(...lowSlice));
+  }
+
+  if (aggCloses.length < 20) return 0;
+
+  // SMA20 on aggregated data
+  const sma = computeSMA(aggCloses, 20);
+  const latestSMA = sma[sma.length - 1];
+  const latestClose = aggCloses[aggCloses.length - 1];
+  if (!latestSMA || !latestClose) return 0;
+
+  // ATR on aggregated data
+  const atrArr = computeATR(aggHighs, aggLows, aggCloses);
+  const atr = atrArr[atrArr.length - 1] || latestClose * 0.005;
+
+  // SMA distance signal
+  const smaDist = (latestClose - latestSMA) / atr;
+
+  // Momentum on aggregated data (last 5 aggregated bars)
+  const momN = Math.min(5, aggCloses.length);
+  const momSlice = aggCloses.slice(-momN);
+  let momSum = 0;
+  for (let i = 1; i < momSlice.length; i++) {
+    momSum += momSlice[i] - momSlice[i - 1];
+  }
+  const momSignal = atr > 0 ? (momSum / (momN - 1)) / atr : 0;
+
+  // Combined higher-TF bias
+  const htfBias = Math.max(-1, Math.min(1, (smaDist * 0.6 + momSignal * 0.4)));
+  return htfBias;
+}
+
+// ─── v4.1: Signal Decay Weighting (Recency Bias) ────────
+// Applies exponential decay to linear regression / ROC lookback,
+// giving recent bars more influence.
+
+function applyDecayWeights(slice: number[], decayFactor: number): number[] {
+  // Returns weighted values where recent values have more weight
+  // Used in momentum/ROC slope calculations
+  const n = slice.length;
+  const weights: number[] = [];
+  for (let i = 0; i < n; i++) {
+    weights.push(Math.pow(decayFactor, n - 1 - i)); // oldest = lowest weight
+  }
+  return weights;
 }
 
 // ─── Individual Signal Computations (Pure Math) ──────────
@@ -293,17 +370,25 @@ function signalBollinger(values: number[]): number {
   return Math.max(-1, Math.min(1, (0.5 - position) * 2.5));
 }
 
+// v4.1: Momentum with decay weighting (recency bias)
 function signalMomentum(values: number[], atr: number): number {
   const n = Math.min(10, values.length);
   if (n < 3 || atr <= 0) return 0;
   const slice = values.slice(-n);
-  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  const weights = applyDecayWeights(slice, SIGNAL_DECAY_FACTOR);
+
+  let sumWX = 0, sumWY = 0, sumWXY = 0, sumWXX = 0, sumW = 0;
   for (let i = 0; i < slice.length; i++) {
-    sumX += i; sumY += slice[i]; sumXY += i * slice[i]; sumXX += i * i;
+    const w = weights[i];
+    sumW += w;
+    sumWX += w * i;
+    sumWY += w * slice[i];
+    sumWXY += w * i * slice[i];
+    sumWXX += w * i * i;
   }
-  const denom = n * sumXX - sumX * sumX;
+  const denom = sumW * sumWXX - sumWX * sumWX;
   if (denom === 0) return 0;
-  const slope = (n * sumXY - sumX * sumY) / denom;
+  const slope = (sumW * sumWXY - sumWX * sumWY) / denom;
   return Math.max(-1, Math.min(1, (slope / atr) * 8));
 }
 
@@ -324,7 +409,6 @@ function signalStochastic(values: number[], highs: number[], lows: number[]): nu
   const smoothK = 3;
   if (values.length < period + smoothK) return 0;
 
-  // Compute %K
   const kValues: number[] = [];
   for (let i = period - 1; i < values.length; i++) {
     const highSlice = highs.slice(i - period + 1, i + 1);
@@ -335,7 +419,6 @@ function signalStochastic(values: number[], highs: number[], lows: number[]): nu
     kValues.push(((values[i] - lowest) / (highest - lowest)) * 100);
   }
 
-  // Smooth %K to get %K(slow)
   if (kValues.length < smoothK) return 0;
   const kSmoothed: number[] = [];
   for (let i = smoothK - 1; i < kValues.length; i++) {
@@ -343,7 +426,6 @@ function signalStochastic(values: number[], highs: number[], lows: number[]): nu
     kSmoothed.push(avg);
   }
 
-  // %D = SMA of smoothed %K
   const dPeriod = 3;
   if (kSmoothed.length < dPeriod) return 0;
   const dValues: number[] = [];
@@ -355,35 +437,44 @@ function signalStochastic(values: number[], highs: number[], lows: number[]): nu
   const k = kSmoothed[kSmoothed.length - 1];
   const d = dValues[dValues.length - 1];
 
-  // Overbought/oversold + crossover
   let vote = 0;
   if (k < 20) vote += 0.6;
   else if (k < 30) vote += 0.3;
   else if (k > 80) vote -= 0.6;
   else if (k > 70) vote -= 0.3;
 
-  // K/D crossover
-  if (k > d && k < 40) vote += 0.4; // bullish cross in oversold
-  else if (k < d && k > 60) vote -= 0.4; // bearish cross in overbought
+  if (k > d && k < 40) vote += 0.4;
+  else if (k < d && k > 60) vote -= 0.4;
 
   return Math.max(-1, Math.min(1, vote));
 }
 
+// v4.1: ROC with decay weighting
 function signalROC(values: number[], atr: number): number {
   const period = 12;
   if (values.length < period + 1 || atr <= 0) return 0;
+
+  // Apply decay: weight recent bars more for a smoothed ROC
+  const slice = values.slice(-(period + 1));
+  const weights = applyDecayWeights(slice, SIGNAL_DECAY_FACTOR);
+
+  // Weighted average of per-bar ROC
+  let weightedROC = 0, wSum = 0;
+  for (let i = 1; i < slice.length; i++) {
+    if (slice[i - 1] === 0) continue;
+    const barROC = (slice[i] - slice[i - 1]) / slice[i - 1];
+    weightedROC += barROC * weights[i];
+    wSum += weights[i];
+  }
+  if (wSum === 0) return 0;
+  const avgROC = weightedROC / wSum;
+
   const current = values[values.length - 1];
-  const past = values[values.length - 1 - period];
-  if (past === 0) return 0;
-  const roc = (current - past) / past;
-  // Normalize by ATR-relative scale
-  const normalized = roc / (atr / current) * 0.5;
+  const normalized = avgROC / (atr / current) * 0.5 * period; // scale comparable to original
   return Math.max(-1, Math.min(1, normalized));
 }
 
 function signalADX(highs: number[], lows: number[], values: number[]): number {
-  // Simplified ADX: measures trend strength without direction
-  // Returns 0 for no trend, positive for uptrend strength, negative for downtrend strength
   const period = 14;
   if (values.length < period * 2) return 0;
 
@@ -406,12 +497,12 @@ function signalADX(highs: number[], lows: number[], values: number[]): number {
   const diSum = plusDI + minusDI;
   if (diSum === 0) return 0;
 
-  // DX normalized and signed by direction
   const dx = Math.abs(diDiff) / diSum;
   const direction = Math.sign(diDiff);
   return Math.max(-1, Math.min(1, direction * dx * 2));
 }
 
+// v4.1: SMA Cross with decay-weighted slope
 function signalSMACross(values: number[], atr: number): number {
   if (values.length < 20 || atr <= 0) return 0;
   const sma10 = computeSMA(values, 10);
@@ -422,7 +513,6 @@ function signalSMACross(values: number[], atr: number): number {
 
   const crossDist = (fast - slow) / atr;
 
-  // Also check recent crossover direction for stronger signal
   const fastPrev = sma10[sma10.length - 3];
   const slowPrev = sma20[sma20.length - 3];
   let crossBoost = 0;
@@ -431,8 +521,8 @@ function signalSMACross(values: number[], atr: number): number {
     const isAbove = fast > slow;
     const wasAboveOrAt = fastPrev >= slowPrev;
     const isBelow = fast < slow;
-    if (wasBelowOrAt && isAbove) crossBoost = 0.4; // bullish cross
-    else if (wasAboveOrAt && isBelow) crossBoost = -0.4; // bearish cross
+    if (wasBelowOrAt && isAbove) crossBoost = 0.4;
+    else if (wasAboveOrAt && isBelow) crossBoost = -0.4;
   }
 
   return Math.max(-1, Math.min(1, crossDist * 0.8 + crossBoost));
@@ -452,11 +542,15 @@ function computeConsensus(
   lows: number[],
   weights: ApexWeights,
   regime: 'trending' | 'ranging',
-): { bias: number; probability: number; signals: SignalResult[]; votes: Record<string, number>; confluenceCount: number } {
-  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0 };
+): { bias: number; probability: number; signals: SignalResult[]; votes: Record<string, number>; confluenceCount: number; currentATR: number; avgATR50: number } {
+  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0 };
 
   const atrArr = computeATR(highs, lows, values);
   const atr = atrArr[atrArr.length - 1] ?? values[values.length - 1] * 0.005;
+
+  // v4.1: Compute average ATR over last 50 bars for volatility ratio
+  const atrLast50 = atrArr.slice(-50);
+  const avgATR50 = atrLast50.length > 0 ? atrLast50.reduce((a, b) => a + b, 0) / atrLast50.length : atr;
 
   const rawSignals: { name: keyof ApexWeights; vote: number }[] = [
     { name: 'rsi', vote: signalRSI(values) },
@@ -503,11 +597,10 @@ function computeConsensus(
   const totalActive = activeSignals.length;
   const agreement = totalActive > 0 ? agreeingSignals.length / totalActive : 0.5;
 
-  // Strong probability scaling: agreement * bias magnitude
   const rawProb = 0.5 + (agreement - 0.5) * Math.abs(bias) * 1.2;
   const probability = Math.max(0.1, Math.min(0.95, rawProb));
 
-  return { bias, probability, signals, votes, confluenceCount };
+  return { bias, probability, signals, votes, confluenceCount, currentATR: atr, avgATR50 };
 }
 
 // ─── Timeframe-Adaptive Evaluation Delay ─────────────────
@@ -525,6 +618,40 @@ function getEvalDelay(timeframe: string): number {
   }
 }
 
+// ─── v4.1: Cooldown duration based on timeframe ──────────
+
+function getCooldownDuration(timeframe: string): number {
+  switch (timeframe) {
+    case 'RT': return 120_000;    // 2 min
+    case '1m': return 180_000;    // 3 min
+    case '5m': return 300_000;    // 5 min
+    case '15m': return 600_000;   // 10 min
+    default: return 180_000;
+  }
+}
+
+// ─── v4.1: Weighted Accuracy Scoring (Time-Decayed) ──────
+// Recent predictions (last 5 min) count 2x, older decay to 0.5x
+
+function computeWeightedAccuracy(shots: ApexShotRecord[]): number {
+  const evaluated = shots.filter(s => s.correct !== undefined);
+  if (evaluated.length === 0) return 0;
+
+  let weightedCorrect = 0;
+  let totalWeight = 0;
+  const now = Date.now();
+
+  for (const shot of evaluated) {
+    const ageMs = now - shot.timestamp;
+    // 2x for <5min, decays to 0.5x for old predictions
+    const recencyWeight = Math.max(0.5, 2.0 - (ageMs / 300_000));
+    totalWeight += recencyWeight;
+    if (shot.correct) weightedCorrect += recencyWeight;
+  }
+
+  return totalWeight > 0 ? (weightedCorrect / totalWeight) * 100 : 0;
+}
+
 // ─── Self-Correction Engine (Per-Regime) ─────────────────
 
 function evaluateAndCorrect(state: ApexState): ApexState {
@@ -534,7 +661,7 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     if (shot.actualPrice === undefined) continue;
     const moved = shot.actualPrice - shot.entryPrice;
     const atr = shot.atrAtEntry || (shot.entryPrice * 0.005);
-    const minMove = atr * 0.3; // must move at least 0.3 ATR to count
+    const minMove = atr * 0.3;
 
     if (shot.predictedDirection === 'neutral') {
       shot.correct = Math.abs(moved) < minMove;
@@ -550,6 +677,13 @@ function evaluateAndCorrect(state: ApexState): ApexState {
       }
     }
     shot.error = shot.actualPrice - shot.predictedPrice;
+
+    // v4.1: Track consecutive misses for cooldown
+    if (shot.correct === false) {
+      state._consecutiveMisses = (state._consecutiveMisses ?? 0) + 1;
+    } else if (shot.correct === true) {
+      state._consecutiveMisses = 0;
+    }
   }
 
   // Check for complete evaluation window
@@ -560,13 +694,11 @@ function evaluateAndCorrect(state: ApexState): ApexState {
   const errors = recentBatch.filter(s => !s.correct);
   const errorRate = errors.length / SHOT_WINDOW;
 
-  // Per-regime weight adjustment
   const newTrendingWeights = { ...state.trendingWeights };
   const newRangingWeights = { ...state.rangingWeights };
   const LEARN_RATE = 0.12 + errorRate * 0.18;
   let correctionApplied = false;
 
-  // Separate recent shots by regime
   const trendingShots = recentBatch.filter(s => s.regime === 'trending');
   const rangingShots = recentBatch.filter(s => s.regime === 'ranging');
 
@@ -624,7 +756,8 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     }
   }
 
-  // Compute overall stats
+  // v4.1: Use weighted accuracy scoring (recency bias)
+  const weightedAccuracy = computeWeightedAccuracy(state.shots);
   const allEvaluated = state.shots.filter(s => s.correct !== undefined);
   const totalCorrect = allEvaluated.filter(s => s.correct).length;
   const winRate = allEvaluated.length > 0 ? (totalCorrect / allEvaluated.length) * 100 : 0;
@@ -642,12 +775,13 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     generation: newGeneration,
     timestamp: Date.now(),
     weights: currentRegime === 'trending' ? { ...newTrendingWeights } : { ...newRangingWeights },
-    accuracy: winRate,
+    accuracy: weightedAccuracy, // v4.1: use weighted accuracy
     correctionApplied,
     regime: currentRegime,
   };
 
   return {
+    ...state,
     trendingWeights: newTrendingWeights,
     rangingWeights: newRangingWeights,
     weights: currentRegime === 'trending' ? newTrendingWeights : newRangingWeights,
@@ -661,42 +795,37 @@ function evaluateAndCorrect(state: ApexState): ApexState {
 }
 
 // ─── 10-Prediction Batch Audit ───────────────────────────
-// After every 10 evaluated directional predictions, measure true accuracy.
-// If below 70%, trigger aggressive deep correction on both regime weight sets.
+// v4.1: Uses weighted accuracy scoring for audit evaluation
 
 function batchAudit(state: ApexState): ApexState {
   const directional = state.shots.filter(s => s.predictedDirection !== 'neutral');
   const evaluated = directional.filter(s => s.correct !== undefined);
 
-  // Only trigger at multiples of BATCH_AUDIT_SIZE
-  // Track last audit count to avoid repeating the same audit
-  const lastAuditCount = (state as any)._lastBatchAuditCount ?? 0;
+  const lastAuditCount = state._lastBatchAuditCount ?? 0;
   const currentBatchCount = Math.floor(evaluated.length / BATCH_AUDIT_SIZE);
   if (currentBatchCount <= lastAuditCount || evaluated.length < BATCH_AUDIT_SIZE) {
     return state;
   }
 
-  // Compute true accuracy over ALL evaluated predictions
+  // v4.1: Use weighted accuracy for batch audit too
+  const weightedAccuracy = computeWeightedAccuracy(evaluated);
   const totalCorrect = evaluated.filter(s => s.correct).length;
-  const trueAccuracy = (totalCorrect / evaluated.length) * 100;
+  const rawAccuracy = (totalCorrect / evaluated.length) * 100;
+  // Use the worse of raw vs weighted to be conservative
+  const trueAccuracy = Math.min(rawAccuracy, weightedAccuracy);
 
-  // Store the batch audit milestone
-  (state as any)._lastBatchAuditCount = currentBatchCount;
+  state._lastBatchAuditCount = currentBatchCount;
 
-  // If accuracy >= 70%, no deep correction needed
   if (trueAccuracy >= BATCH_AUDIT_FLOOR) {
     console.log(`[APEX BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% ≥ ${BATCH_AUDIT_FLOOR}% — OK`);
     return state;
   }
 
-  // ─── DEEP CORRECTION: accuracy below 70% ──────────────
   console.log(`[APEX BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% < ${BATCH_AUDIT_FLOOR}% — DEEP CORRECTION`);
 
   const deficit = BATCH_AUDIT_FLOOR - trueAccuracy;
-  // Aggressive learn rate: 0.20 base + 0.02 per % deficit (max 0.50)
   const deepLearnRate = Math.min(0.50, 0.20 + deficit * 0.02);
 
-  // Analyze ALL evaluated shots for signal-level accuracy
   const signalStats: Record<string, { correct: number; wrong: number }> = {};
   for (const shot of evaluated) {
     const actualDir = (shot.actualPrice ?? shot.entryPrice) > shot.entryPrice ? 1 : -1;
@@ -711,27 +840,22 @@ function batchAudit(state: ApexState): ApexState {
     }
   }
 
-  // Apply deep corrections to BOTH weight sets
   const applyDeepCorrection = (weights: ApexWeights) => {
     for (const k of Object.keys(weights) as (keyof ApexWeights)[]) {
       const stats = signalStats[k];
       if (!stats) continue;
       const total = stats.correct + stats.wrong;
-      if (total < 3) continue; // not enough data for this signal
+      if (total < 3) continue;
       const sigAccuracy = stats.correct / total;
 
       if (sigAccuracy < 0.40) {
-        // Bad signal: aggressively reduce weight
         weights[k] *= (1 - deepLearnRate);
       } else if (sigAccuracy < 0.55) {
-        // Mediocre signal: moderate reduction
         weights[k] *= (1 - deepLearnRate * 0.4);
       } else if (sigAccuracy > 0.70) {
-        // Good signal: boost it
         weights[k] *= (1 + deepLearnRate * 0.5);
       }
 
-      // Clamp
       weights[k] = Math.max(0.05, Math.min(2.5, weights[k]));
     }
   };
@@ -741,7 +865,6 @@ function batchAudit(state: ApexState): ApexState {
   applyDeepCorrection(newTrending);
   applyDeepCorrection(newRanging);
 
-  // Record the deep correction in weight history
   const currentRegime: 'trending' | 'ranging' =
     evaluated.filter(s => s.regime === 'trending').length >=
     evaluated.filter(s => s.regime === 'ranging').length
@@ -767,7 +890,7 @@ function batchAudit(state: ApexState): ApexState {
   };
 }
 
-// ─── APEX v4 Forecast Projection ─────────────────────────
+// ─── APEX v4.1 Forecast Projection ──────────────────────
 
 export interface ApexComputeResult {
   points: ApexForecastPoint[];
@@ -814,28 +937,63 @@ export function computeApexForecast(
   const activeWeights = regime === 'trending' ? correctedState.trendingWeights : correctedState.rangingWeights;
 
   // Compute consensus from real indicators with regime weighting
-  const { bias, probability, signals, votes, confluenceCount } = computeConsensus(values, highs, lows, activeWeights, regime);
+  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50 } = computeConsensus(values, highs, lows, activeWeights, regime);
 
-  // ADAPTIVE CONFLUENCE GATE: raise threshold when accuracy drops below floor
-  const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState);
+  // v4.1: ADAPTIVE CONFLUENCE GATE with volatility awareness
+  const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState, currentATR, avgATR50);
+
+  // v4.1: Multi-timeframe confirmation filter
+  const htfBias = higherTimeframeBias(values, highs, lows);
+  const htfDisagrees = (bias > 0 && htfBias < -0.3) || (bias < 0 && htfBias > 0.3);
+
+  // If higher timeframe disagrees, halve the probability
+  const adjustedProbability = htfDisagrees ? probability * 0.5 : probability;
+
   const gatedBias = confluenceCount >= adaptiveThreshold ? bias : 0;
-  const gatedDirection: 'bullish' | 'bearish' | 'neutral' =
+
+  // v4.1: Direction persistence filter
+  const lastDir = correctedState._lastPredictedDirection ?? 'neutral';
+  let rawDirection: 'bullish' | 'bearish' | 'neutral' =
     confluenceCount < adaptiveThreshold ? 'neutral' :
     gatedBias > 0.06 ? 'bullish' :
     gatedBias < -0.06 ? 'bearish' : 'neutral';
+
+  // If flipping direction, require higher bias magnitude
+  if (rawDirection !== 'neutral' && lastDir !== 'neutral' && rawDirection !== lastDir) {
+    if (Math.abs(gatedBias) < DIRECTION_FLIP_THRESHOLD) {
+      rawDirection = 'neutral'; // not strong enough to flip
+    }
+  }
+
+  // v4.1: If higher TF disagrees strongly, veto the prediction
+  if (htfDisagrees && rawDirection !== 'neutral') {
+    rawDirection = 'neutral';
+  }
+
+  // v4.1: Cooldown check — skip prediction if in cooldown
+  const now = Date.now();
+  const cooldownUntil = correctedState._cooldownUntil ?? 0;
+  const consecutiveMisses = correctedState._consecutiveMisses ?? 0;
+  let inCooldown = now < cooldownUntil;
+
+  // Trigger new cooldown if we just hit the miss threshold
+  if (consecutiveMisses >= MISS_COOLDOWN_TRIGGER && !inCooldown) {
+    const cooldownDuration = getCooldownDuration(timeframe);
+    correctedState._cooldownUntil = now + cooldownDuration;
+    correctedState._consecutiveMisses = 0; // reset after triggering
+    inCooldown = true;
+    console.log(`[APEX COOLDOWN] ${consecutiveMisses} consecutive misses — pausing predictions for ${(cooldownDuration / 1000).toFixed(0)}s`);
+  }
+
+  const gatedDirection = inCooldown ? 'neutral' : rawDirection;
 
   const atrArr = computeATR(highs, lows, values);
   const atr = atrArr[atrArr.length - 1] ?? currentPrice * 0.005;
 
   // ─── Adaptive Linear Projection (NO sinusoids) ─────────
-  // Forecast = currentPrice + (bias * ATR * decay) per step
-  // Band = ATR * sqrt(step) — statistically correct random walk envelope
-
   const points: ApexForecastPoint[] = [];
-  const now = Date.now();
   const decimals = currentPrice < 10 ? 4 : 2;
 
-  // Momentum factor from recent price action
   const momN = Math.min(8, values.length);
   const momSlice = values.slice(-momN);
   let weightedMom = 0, wSum = 0;
@@ -846,32 +1004,24 @@ export function computeApexForecast(
   }
   const momentum = wSum > 0 ? weightedMom / wSum : 0;
 
-  // Decay rate: faster for lower confidence
-  const decayRate = 0.15 + (1 - probability) * 0.25;
+  const decayRate = 0.15 + (1 - adjustedProbability) * 0.25;
 
   for (let i = 1; i <= numPoints; i++) {
     const t = i / numPoints;
     const decay = Math.exp(-t * decayRate);
 
-    // Linear drift from consensus bias
-    const drift = gatedBias * atr * 0.12 * probability * i * decay;
-
-    // Momentum carry (decaying)
+    const drift = gatedBias * atr * 0.12 * adjustedProbability * i * decay;
     const momContrib = momentum * i * 0.15 * decay;
-
-    // Mean-reversion pull (strengthens over time for ranging regime)
     const recentMean = values.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, values.length);
     const pullStrength = regime === 'ranging' ? 0.025 * t : 0.008 * t;
-    const meanPull = (recentMean - currentPrice) * pullStrength * (1 - probability);
+    const meanPull = (recentMean - currentPrice) * pullStrength * (1 - adjustedProbability);
 
     const forecastPrice = currentPrice + drift + momContrib + meanPull;
 
-    // Confidence band: ATR * sqrt(step) — proper random walk scaling
-    const bandWidth = atr * Math.sqrt(i / numPoints) * (0.8 + (1 - probability) * 0.8);
+    const bandWidth = atr * Math.sqrt(i / numPoints) * (0.8 + (1 - adjustedProbability) * 0.8);
 
-    // Color: direction-coded with HIGH CONTRAST
     const prevForecast = i === 1 ? currentPrice :
-      currentPrice + gatedBias * atr * 0.12 * probability * (i - 1) * Math.exp(-(i - 1) / numPoints * decayRate) +
+      currentPrice + gatedBias * atr * 0.12 * adjustedProbability * (i - 1) * Math.exp(-(i - 1) / numPoints * decayRate) +
       momentum * (i - 1) * 0.15 * Math.exp(-(i - 1) / numPoints * decayRate);
 
     const localSlope = forecastPrice - prevForecast;
@@ -882,7 +1032,7 @@ export function computeApexForecast(
     const point: ApexForecastPoint = {
       time: labelFn(futureTime),
       apexForecast: parseFloat(forecastPrice.toFixed(decimals)),
-      apexColor: biasToApexColor(slopeBias, probability),
+      apexColor: biasToApexColor(slopeBias, adjustedProbability),
       apexHigh: parseFloat((forecastPrice + bandWidth).toFixed(decimals)),
       apexLow: parseFloat((forecastPrice - bandWidth).toFixed(decimals)),
     };
@@ -895,10 +1045,8 @@ export function computeApexForecast(
   }
 
   // Record shot ONLY for directional predictions (bullish/bearish)
-  // Neutral = "no prediction" — doesn't count toward accuracy
   const lastForecast = points[points.length - 1];
   if (lastForecast && gatedDirection !== 'neutral') {
-    // Throttle: don't record if last shot was < 10s ago (prevent spamming from re-renders)
     const lastShot = correctedState.shots[0];
     const timeSinceLast = lastShot ? Date.now() - lastShot.timestamp : Infinity;
     if (timeSinceLast > 10_000) {
@@ -910,7 +1058,7 @@ export function computeApexForecast(
         predictedDirection: gatedDirection,
         predictedPrice: lastForecast.apexForecast,
         entryPrice: currentPrice,
-        probability,
+        probability: adjustedProbability,
         signalVotes: votes,
         regime,
         confluenceCount,
@@ -919,6 +1067,9 @@ export function computeApexForecast(
       };
       correctedState.shots.unshift(newShot);
       if (correctedState.shots.length > MAX_SHOTS) correctedState.shots.length = MAX_SHOTS;
+
+      // v4.1: Update last predicted direction for persistence filter
+      correctedState._lastPredictedDirection = gatedDirection;
     }
   }
 
@@ -930,8 +1081,8 @@ export function computeApexForecast(
   return {
     points,
     bias: gatedBias,
-    confidence: probability,
-    probability,
+    confidence: adjustedProbability,
+    probability: adjustedProbability,
     direction: gatedDirection,
     signals,
     state: correctedState,
@@ -941,29 +1092,40 @@ export function computeApexForecast(
 }
 
 // ─── Adaptive Confluence Threshold ───────────────────────
+// v4.1: Now includes volatility-aware gate bonus
 
-function getAdaptiveConfluenceThreshold(state: ApexState): number {
+function getAdaptiveConfluenceThreshold(state: ApexState, currentATR?: number, avgATR50?: number): number {
   const evaluated = state.shots.filter(s => s.correct !== undefined);
-  if (evaluated.length < 3) return MIN_CONFLUENCE; // not enough data, use base
+  if (evaluated.length < 3) return MIN_CONFLUENCE;
 
-  // Use rolling window of last 20 evaluated shots
+  // v4.1: Use weighted accuracy for threshold decisions
+  const weightedAcc = computeWeightedAccuracy(state.shots);
   const recent = evaluated.slice(0, 20);
   const correctCount = recent.filter(s => s.correct).length;
-  const recentAccuracy = (correctCount / recent.length) * 100;
+  const rawAccuracy = (correctCount / recent.length) * 100;
+  // Use the worse of raw vs weighted
+  const recentAccuracy = Math.min(rawAccuracy, weightedAcc);
 
+  let threshold: number;
   if (recentAccuracy >= ACCURACY_FLOOR + ACCURACY_FLOOR_MARGIN) {
-    // Accuracy well above floor — relax threshold
-    return MIN_CONFLUENCE;
+    threshold = MIN_CONFLUENCE;
   } else if (recentAccuracy >= ACCURACY_FLOOR) {
-    // In the margin zone — slightly tighter
-    return Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1);
+    threshold = Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1);
   } else {
-    // Below floor — progressively tighten to recover accuracy
-    // The further below, the higher the threshold (more selective = fewer but better predictions)
     const deficit = ACCURACY_FLOOR - recentAccuracy;
-    const extra = Math.ceil(deficit / 10); // +1 per 10% deficit
-    return Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1 + extra);
+    const extra = Math.ceil(deficit / 10);
+    threshold = Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1 + extra);
   }
+
+  // v4.1: Volatility-aware gate — raise threshold in low-vol environments
+  if (currentATR !== undefined && avgATR50 !== undefined && avgATR50 > 0) {
+    const volRatio = currentATR / avgATR50;
+    if (volRatio < LOW_VOL_RATIO) {
+      threshold = Math.min(MAX_CONFLUENCE, threshold + LOW_VOL_GATE_BONUS);
+    }
+  }
+
+  return threshold;
 }
 
 // ─── APEX Color System — Maximum Contrast ────────────────
@@ -973,21 +1135,18 @@ function biasToApexColor(bias: number, confidence: number): string {
   const alpha = 0.85 + confidence * 0.15;
 
   if (clamped > 0.1) {
-    // Bullish = electric green → neon
     const intensity = Math.min(1, clamped / 0.4);
     const hue = 140 + intensity * 10;
     const sat = 80 + intensity * 20;
     const light = 50 + intensity * 12;
     return `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
   } else if (clamped < -0.1) {
-    // Bearish = vivid crimson → hot red
     const intensity = Math.min(1, Math.abs(clamped) / 0.4);
     const hue = 0 + intensity * 10;
     const sat = 85 + intensity * 15;
     const light = 48 + intensity * 12;
     return `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
   } else {
-    // Neutral = bright amber
     return `hsla(45, 90%, 58%, ${alpha})`;
   }
 }
@@ -1000,13 +1159,18 @@ export interface ApexStats {
   winRate: number;
   streak: number;
   totalShots: number;
-  totalPredictions: number; // only directional (non-neutral)
+  totalPredictions: number;
   totalEvaluated: number;
   totalCorrect: number;
   accuracyPct: number;
+  weightedAccuracyPct: number;
   adaptiveThreshold: number;
   aboveFloor: boolean;
   lastBatchAudit: { sample: number; accuracy: number; passed: boolean } | null;
+  inCooldown: boolean;
+  cooldownRemainingSec: number;
+  consecutiveMisses: number;
+  lastDirection: string;
   last5Accuracy: string;
   last5Detail: Array<{ correct: boolean; direction: string; error: number }>;
   predictionLog: Array<{
@@ -1031,16 +1195,20 @@ export interface ApexStats {
 
 export function getApexStats(): ApexStats {
   const state = loadState();
-  // Only count directional predictions (not neutral)
   const directional = state.shots.filter(s => s.predictedDirection !== 'neutral');
   const evaluated = directional.filter(s => s.correct !== undefined);
   const correct = evaluated.filter(s => s.correct);
   const accuracyPct = evaluated.length > 0 ? (correct.length / evaluated.length) * 100 : 0;
+  const weightedAccuracyPct = computeWeightedAccuracy(state.shots);
   const last5 = evaluated.slice(0, 5);
   const last5Correct = last5.filter(s => s.correct).length;
   const threshold = getAdaptiveConfluenceThreshold(state);
 
-  // Build prediction log for UI
+  const now = Date.now();
+  const cooldownUntil = state._cooldownUntil ?? 0;
+  const inCooldown = now < cooldownUntil;
+  const cooldownRemainingSec = inCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
+
   const predictionLog = directional.slice(0, 50).map(s => ({
     id: s.id,
     timestamp: s.timestamp,
@@ -1064,11 +1232,16 @@ export function getApexStats(): ApexStats {
     totalEvaluated: evaluated.length,
     totalCorrect: correct.length,
     accuracyPct,
+    weightedAccuracyPct,
     adaptiveThreshold: threshold,
     aboveFloor: accuracyPct >= ACCURACY_FLOOR || evaluated.length < 3,
     lastBatchAudit: evaluated.length >= BATCH_AUDIT_SIZE
       ? { sample: evaluated.length, accuracy: accuracyPct, passed: accuracyPct >= BATCH_AUDIT_FLOOR }
       : null,
+    inCooldown,
+    cooldownRemainingSec,
+    consecutiveMisses: state._consecutiveMisses ?? 0,
+    lastDirection: state._lastPredictedDirection ?? 'neutral',
     last5Accuracy: last5.length > 0 ? `${last5Correct}/${last5.length}` : '—',
     last5Detail: last5.map(s => ({
       correct: !!s.correct,

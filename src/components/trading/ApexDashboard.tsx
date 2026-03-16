@@ -8,6 +8,7 @@ import {
   BarChart3, Activity, Target, RefreshCw, Zap, Brain, Shield, ShieldAlert,
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
+import { Timer, ArrowLeftRight } from 'lucide-react';
 
 const WEIGHT_LABELS: Record<string, string> = {
   rsi: 'RSI', sma20: 'SMA 20', sma50: 'SMA 50', ema20: 'EMA 20',
@@ -129,6 +130,24 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
             <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20 text-[9px] text-red-400">
               <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
               Accuracy below 75% — confluence threshold raised to {stats.adaptiveThreshold} signals to recover
+            </div>
+          )}
+
+          {/* v4.1: Cooldown indicator */}
+          {(stats as any).inCooldown && (
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-amber-400/10 border border-amber-400/20 text-[9px] text-amber-400">
+              <Timer className="w-3.5 h-3.5 flex-shrink-0 animate-pulse" />
+              Cooldown active — {(stats as any).cooldownRemainingSec}s remaining after consecutive misses
+            </div>
+          )}
+
+          {/* v4.1: Direction persistence indicator */}
+          {(stats as any).lastDirection && (stats as any).lastDirection !== 'neutral' && (
+            <div className="flex items-center gap-2 px-2 py-1 text-[8px] text-marble/30">
+              <ArrowLeftRight className="w-3 h-3" />
+              Last direction: <span className={(stats as any).lastDirection === 'bullish' ? 'text-emerald-400' : 'text-red-400'}>
+                {(stats as any).lastDirection === 'bullish' ? '▲ BULL' : '▼ BEAR'}
+              </span> · flip requires |bias| {'>'} 0.15
             </div>
           )}
 
