@@ -1,43 +1,45 @@
 
 
-# Fix WAVE Bot: Real-Time Position Movement + Increase Max to 500
+# APEX Accuracy: 3 Improvements + 3 Strategy Adjustments
 
-## Problems Identified
+## 3 Accuracy Improvements (Technical)
 
-1. **Bot opens positions but never closes them** — The exit logic in `checkExits` only detects externally-closed positions. The bias-reversal close in `scan` uses `entryThreshold * 0.5` which may never trigger if bias stays near zero. Positions sit forever.
-2. **No automatic take-profit/stop-loss** — There's no time-based or price-based exit mechanism. Positions just hang open indefinitely.
-3. **Stats/accuracy never update** — Since positions never close, `closedTrades` stays 0, accuracy shows "—", P&L shows $0.00. The widget looks frozen/static.
-4. **maxPositions capped at 5** — Once 5 positions open, the bot stops entirely. User wants 500.
-5. **Trade log limit is 200** — `saveTrades` slices to 200, needs to increase for 500 positions.
+### 1. Multi-Timeframe Confirmation Filter
+Currently APEX only analyzes signals on a single timeframe. Add a **higher-timeframe bias check**: before issuing a directional call on RT/1m, compute the SMA and momentum signals on 5m aggregated data. If the higher timeframe disagrees with the lower timeframe direction, either skip the prediction or halve the probability. This eliminates the most common failure mode — predicting against the dominant trend.
 
-## Fix Strategy
+**Changes**: `apexForecast.ts` — new `higherTimeframeBias()` function that aggregates recent candles into 5x-period bars, computes SMA20 and momentum on those, and returns a directional filter. Applied in `computeConsensus` as a veto gate.
 
-### `src/hooks/useWaveBot.ts`
-- **Add time-based auto-close**: Close positions after a configurable hold period (default ~3-5 scan cycles = 240-400s). This ensures positions cycle and accuracy gets measured.
-- **Add price-target exit**: Close when price moves ≥ forecast distance from entry (take-profit) or moves against by same amount (stop-loss).
-- **Relax bias-reversal threshold**: Lower from `0.5 * entryThreshold` to `0.3 * entryThreshold` so reversals trigger more easily.
-- **Increase maxPositions default to 500**, increase trade history cap from 200 to 1000.
-- **Fix `checkExits`**: Also close trades whose positions still exist but have exceeded hold time or hit price targets.
-- **Force position P&L recalculation each scan**: Update trade records with current prices so the log shows live movement, not just static entry data.
+### 2. Cooldown After Consecutive Misses
+Currently after a miss, APEX immediately tries again, often in the same adverse conditions. Add a **miss-streak cooldown**: after 2 consecutive misses, pause predictions for 2 evaluation cycles (e.g. 120–600s depending on timeframe). This prevents compounding errors in choppy/news-driven markets and lets the self-correction engine adjust weights before the next batch of predictions.
 
-### `src/components/trading/WaveBotPanel.tsx`
-- **Update Max Positions slider**: Change max from 15 to 500.
-- **Add live P&L per-trade in the log**: Show current price alongside entry/forecast so user sees movement in real-time.
-- **Add hold-time display**: Show how long each position has been open.
-- **Auto-refresh the trade log section**: The panel should re-render as trades update (already happens via state, but need to ensure closed trades appear quickly).
+**Changes**: `apexForecast.ts` — track `consecutiveMisses` in state. In `logDirectionalPrediction`, check if cooldown is active; if so, skip logging and return early.
 
-### Key Logic Addition (auto-close in scan):
-```text
-For each open bot position:
-  1. Check time held > maxHoldSeconds (default 320s = 4 cycles)
-     → Close at current price, record accuracy
-  2. Check if price hit take-profit (moved in predicted direction by ≥ ATR)
-     → Close at current price, record as correct
-  3. Check if price hit stop-loss (moved against by ≥ ATR)  
-     → Close at current price, record as incorrect
-  4. Check bias reversal (existing, but with lower threshold)
-     → Close at current price
-```
+### 3. Signal Decay Weighting (Recency Bias)
+Currently all 12 signals are computed on equal lookback windows. Add **exponential recency weighting** to momentum, ROC, and SMA signals — give the last 5 bars 2x weight compared to bars 10+ ago. This makes the engine more responsive to recent price action shifts without shortening the indicator period (which would add noise).
 
-This creates a continuous cycle: open → hold 3-5 minutes → close → measure → open new. Real-time accuracy updates every few minutes.
+**Changes**: `apexForecast.ts` — modify `signalMomentum`, `signalROC`, and `signalSMACross` to apply exponential decay to their internal calculations. Add a `decayFactor` parameter (default 0.85).
+
+---
+
+## 3 Strategy Adjustments (Behavioral)
+
+### 4. Raise Confluence Gate During Low-Volatility Regimes
+Currently the confluence gate is only adjusted by accuracy. Add a **volatility-aware gate**: when ATR is below 0.3x its 50-period average (low volatility / consolidation), raise the minimum confluence from 4 to 6. Low-vol environments produce noisy, contradictory signals — requiring more agreement prevents weak predictions during chop.
+
+**Changes**: `apexForecast.ts` — in `getAdaptiveThreshold`, compute `atr / avgATR50` ratio. If below 0.3, add +2 to the threshold.
+
+### 5. Direction Persistence Filter
+Currently APEX can flip between bullish and bearish on consecutive predictions. Add a **direction persistence requirement**: if the previous prediction was bullish, the next prediction can only flip to bearish if the bias magnitude exceeds 0.15 (currently any non-zero bias triggers a flip). This prevents whipsaw predictions in ranging markets and aligns with how institutional signals work.
+
+**Changes**: `apexForecast.ts` — store `lastPredictedDirection` in state. In `logDirectionalPrediction`, compare new direction to last; if flipping, require `|bias| > 0.15` instead of `|bias| > 0.06`.
+
+### 6. Weighted Accuracy Scoring (Recent Predictions Matter More)
+Currently the accuracy floor treats all historical predictions equally. A prediction from 2 hours ago has the same weight as one from 10 seconds ago. Add **time-decayed accuracy**: recent predictions (last 5 minutes) count 2x, older ones decay to 0.5x. This makes the self-correction engine react faster to changing market conditions and prevents stale good performance from masking a current accuracy drop.
+
+**Changes**: `apexForecast.ts` — in `evaluateAndCorrect` and `batchAudit`, apply a `recencyWeight = Math.max(0.5, 2.0 - (ageMs / 300000))` to each evaluated shot when computing accuracy percentages.
+
+---
+
+## Summary of File Changes
+- **1 file modified**: `src/lib/apexForecast.ts` — all 6 changes are localized to the forecast engine logic
 
