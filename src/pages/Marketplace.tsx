@@ -13,13 +13,19 @@ import { useBullionBars } from '@/hooks/useBullionBars';
 import { useCertificateReserveTotals } from '@/hooks/useCertificateReserveTotals';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import MarketplaceSpotWidget from '@/components/marketplace/MarketplaceSpotWidget';
-import { ALL_SYMBOLS, CATEGORY_COLORS } from '@/data/tradingSymbols';
+import {
+  ALL_SYMBOLS,
+  CATEGORY_COLORS,
+  SYNTHETIC_PRICES,
+  WATCHLIST_CATEGORIES,
+} from '@/data/tradingSymbols';
 import {
   Search, Shield, Activity, Coins, Flame, Gem,
-  ArrowUpRight, Sparkles,
+  ArrowUpRight, Sparkles, Landmark, BarChart3, DollarSign,
 } from 'lucide-react';
 
-type FeedCategory = 'crypto' | 'energy' | 'metals';
+/* ─── Types ─── */
+type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
 type BoardFilter = 'all' | FeedCategory;
 
 interface BoardItem {
@@ -36,14 +42,7 @@ interface BoardItem {
   accentColor: string;
 }
 
-interface ReserveCardData {
-  metal: 'gold' | 'silver' | 'platinum';
-  vaultOz: number;
-  certifiedOz: number;
-  barCount: number;
-  spotPrice: number | null;
-}
-
+/* ─── Constants ─── */
 const CRYPTO_WS_KEYS = [
   'bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano', 'avalanche',
   'polkadot', 'chainlink', 'dogecoin', 'polygon', 'litecoin', 'uniswap',
@@ -51,49 +50,18 @@ const CRYPTO_WS_KEYS = [
   'filecoin', 'cosmos', 'stellar', 'hedera', 'tron', 'shiba', 'pepe',
 ] as const;
 
-const WS_KEY_BY_SYMBOL: Record<string, string> = {
-  btc: 'bitcoin', eth: 'ethereum', sol: 'solana', xrp: 'xrp', bnb: 'bnb',
-  ada: 'cardano', avax: 'avalanche', dot: 'polkadot', link: 'chainlink',
-  doge: 'dogecoin', matic: 'polygon', pol: 'polygon', ltc: 'litecoin',
-  uni: 'uniswap', near: 'near', apt: 'aptos', sui: 'sui', arb: 'arbitrum',
-  op: 'optimism', inj: 'injective', render: 'render', rndr: 'render',
-  fil: 'filecoin', atom: 'cosmos', xlm: 'stellar', hbar: 'hedera',
-  trx: 'tron', shib: 'shiba', pepe: 'pepe',
-};
-
 const CRYPTO_ID_BY_KEY: Record<string, string> = {
-  bitcoin: 'bitcoin',
-  ethereum: 'ethereum',
-  solana: 'solana',
-  xrp: 'ripple',
-  bnb: 'binancecoin',
-  cardano: 'cardano',
-  avalanche: 'avalanche-2',
-  polkadot: 'polkadot',
-  chainlink: 'chainlink',
-  dogecoin: 'dogecoin',
-  polygon: 'matic-network',
-  litecoin: 'litecoin',
-  uniswap: 'uniswap',
-  near: 'near',
-  aptos: 'aptos',
-  sui: 'sui',
-  arbitrum: 'arbitrum',
-  optimism: 'optimism',
-  injective: 'injective-protocol',
-  render: 'render-token',
-  filecoin: 'filecoin',
-  cosmos: 'cosmos',
-  stellar: 'stellar',
-  hedera: 'hedera-hashgraph',
-  tron: 'tron',
-  shiba: 'shiba-inu',
-  pepe: 'pepe',
+  bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana', xrp: 'ripple',
+  bnb: 'binancecoin', cardano: 'cardano', avalanche: 'avalanche-2',
+  polkadot: 'polkadot', chainlink: 'chainlink', dogecoin: 'dogecoin',
+  polygon: 'matic-network', litecoin: 'litecoin', uniswap: 'uniswap',
+  near: 'near', aptos: 'aptos', sui: 'sui', arbitrum: 'arbitrum',
+  optimism: 'optimism', injective: 'injective-protocol', render: 'render-token',
+  filecoin: 'filecoin', cosmos: 'cosmos', stellar: 'stellar',
+  hedera: 'hedera-hashgraph', tron: 'tron', shiba: 'shiba-inu', pepe: 'pepe',
 };
 
-const SUPPORTED_CRYPTO_SYMBOLS = ALL_SYMBOLS.filter(({ cat }) => cat === 'crypto');
-
-const ENERGY_ROUTE_BY_SYMBOL: Record<string, string> = {
+const ENERGY_TICKER_TO_KEY: Record<string, string> = {
   CL: 'oil', BZ: 'brent', NG: 'natgas', HO: 'heating_oil', RB: 'rbob',
 };
 
@@ -102,36 +70,22 @@ const METAL_ROUTE_MAP: Record<string, string> = {
 };
 
 const FILTERS: { key: BoardFilter; label: string; icon: typeof Activity }[] = [
-  { key: 'all', label: 'ALL FEEDS', icon: Activity },
+  { key: 'all', label: 'ALL', icon: Activity },
   { key: 'metals', label: 'METALS', icon: Gem },
   { key: 'crypto', label: 'CRYPTO', icon: Coins },
   { key: 'energy', label: 'ENERGY', icon: Flame },
+  { key: 'stocks', label: 'EQUITIES', icon: BarChart3 },
+  { key: 'forex', label: 'FOREX', icon: DollarSign },
+  { key: 'bonds', label: 'BONDS', icon: Landmark },
 ];
 
 const METAL_META = {
-  gold: {
-    label: 'Gold Reserve',
-    accent: 'text-gold',
-    chip: 'border-gold/25 bg-gold/10 text-gold-light',
-    spotColor: 'hsl(43, 72%, 50%)',
-    marketSymbol: 'XAU/USD',
-  },
-  silver: {
-    label: 'Silver Reserve',
-    accent: 'text-silver-light',
-    chip: 'border-silver/25 bg-silver/10 text-silver-light',
-    spotColor: 'hsl(210, 6%, 67%)',
-    marketSymbol: 'XAG/USD',
-  },
-  platinum: {
-    label: 'Platinum Reserve',
-    accent: 'text-platinum-light',
-    chip: 'border-platinum/25 bg-platinum/10 text-platinum-light',
-    spotColor: 'hsl(210, 4%, 76%)',
-    marketSymbol: 'XPT/USD',
-  },
+  gold: { label: 'Gold', accent: 'text-gold', chip: 'border-gold/25 bg-gold/10 text-gold-light', spotColor: 'hsl(43, 72%, 50%)', marketSymbol: 'XAU/USD' },
+  silver: { label: 'Silver', accent: 'text-silver-light', chip: 'border-silver/25 bg-silver/10 text-silver-light', spotColor: 'hsl(210, 6%, 67%)', marketSymbol: 'XAG/USD' },
+  platinum: { label: 'Platinum', accent: 'text-platinum-light', chip: 'border-platinum/25 bg-platinum/10 text-platinum-light', spotColor: 'hsl(210, 4%, 76%)', marketSymbol: 'XPT/USD' },
 } as const;
 
+/* ─── Helpers ─── */
 const formatPrice = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return '—';
   if (value < 0.01) return `$${value.toFixed(6)}`;
@@ -148,7 +102,16 @@ const formatCompact = (value: number) =>
 
 const fallbackCryptoName = (label: string) => label.replace('/USD', '').replace('/', ' ');
 
-/* ─── LiveDot: pulsing dot for live feeds ─── */
+const catToFeedCategory = (cat: string): FeedCategory => {
+  if (cat === 'metals') return 'metals';
+  if (cat === 'crypto') return 'crypto';
+  if (cat === 'energy') return 'energy';
+  if (cat === 'forex') return 'forex';
+  if (cat === 'bonds') return 'bonds';
+  return 'stocks';
+};
+
+/* ─── LiveDot ─── */
 const LiveDot = () => (
   <span className="relative flex h-2 w-2">
     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -156,6 +119,7 @@ const LiveDot = () => (
   </span>
 );
 
+/* ─── StatCard ─── */
 const StatCard = ({ icon: Icon, label, value, detail }: { icon: typeof Activity; label: string; value: string; detail: string }) => (
   <div className="rounded-sm border border-gold/15 bg-secondary/40 p-5 shadow-card">
     <div className="mb-4 flex items-center gap-3 text-gold-light">
@@ -167,6 +131,7 @@ const StatCard = ({ icon: Icon, label, value, detail }: { icon: typeof Activity;
   </div>
 );
 
+/* ─── MoverCard ─── */
 const MoverCard = ({ item }: { item: BoardItem }) => {
   const navigate = useNavigate();
 
@@ -179,7 +144,6 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">VERIFIED</span>
             {item.live && <LiveDot />}
             <span className="text-xs font-mono text-marble/45">{item.source}</span>
           </div>
@@ -188,7 +152,7 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
         </div>
         <div className="flex flex-col items-center gap-1">
           <ArrowUpRight className="h-5 w-5 text-gold/60 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-          <span className="text-[9px] font-display tracking-[0.2em] text-gold/50">SWAP</span>
+          <span className="text-[9px] font-display tracking-[0.2em] text-gold/50">TRADE</span>
         </div>
       </div>
 
@@ -206,13 +170,18 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
   );
 };
 
+/* ─── FeedRow ─── */
 const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
   const navigate = useNavigate();
-  const categoryClass = item.category === 'crypto'
-    ? 'border-gold/20 bg-gold/10 text-gold-light'
-    : item.category === 'metals'
-      ? 'border-gold/25 bg-gold/15 text-gold'
-      : 'border-primary/20 bg-primary/10 text-primary';
+
+  const categoryColors: Record<FeedCategory, string> = {
+    crypto: 'border-gold/20 bg-gold/10 text-gold-light',
+    metals: 'border-gold/25 bg-gold/15 text-gold',
+    energy: 'border-primary/20 bg-primary/10 text-primary',
+    stocks: 'border-accent/20 bg-accent/10 text-accent',
+    forex: 'border-primary/20 bg-primary/10 text-primary',
+    bonds: 'border-muted/30 bg-muted/10 text-muted-foreground',
+  };
 
   return (
     <button
@@ -223,12 +192,12 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
       <div className="text-right font-mono text-sm text-marble/40">{rank}</div>
       <div className="min-w-0">
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-display tracking-[0.18em] ${categoryClass}`}>
+          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-display tracking-[0.18em] ${categoryColors[item.category]}`}>
             {item.category}
           </span>
           {item.live && <LiveDot />}
           <span className="text-[10px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">
-            OPEN IN SWAP →
+            OPEN CHART →
           </span>
         </div>
         <div className="font-display text-lg tracking-[0.04em] text-marble md:text-xl">{item.name}</div>
@@ -250,20 +219,19 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
   );
 };
 
-const ReserveCard = ({ card, onClick }: { card: ReserveCardData; onClick: () => void }) => {
+/* ─── ReserveCard ─── */
+const ReserveCard = ({ card, onClick }: { card: { metal: 'gold' | 'silver' | 'platinum'; vaultOz: number; barCount: number; spotPrice: number | null } & Record<string, any>; onClick: () => void }) => {
   const meta = METAL_META[card.metal];
-  const reserveValue = card.spotPrice ? card.certifiedOz * card.spotPrice : 0;
 
   return (
     <button type="button" onClick={onClick} className="rounded-sm border border-gold/15 bg-secondary/40 p-6 shadow-card text-left transition-all hover:border-gold/30 hover:shadow-gold group w-full">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-display tracking-[0.18em] ${meta.chip}`}>VERIFIED REGISTRY</div>
-          <h3 className={`mt-3 font-display text-2xl tracking-[0.06em] ${meta.accent}`}>{meta.label}</h3>
+          <h3 className={`font-display text-2xl tracking-[0.06em] ${meta.accent}`}>{meta.label}</h3>
         </div>
         <div className="flex flex-col items-center gap-1">
           <Gem className={`h-5 w-5 ${meta.accent}`} />
-          <span className="text-[9px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">SWAP →</span>
+          <span className="text-[9px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">TRADE →</span>
         </div>
       </div>
 
@@ -275,22 +243,26 @@ const ReserveCard = ({ card, onClick }: { card: ReserveCardData; onClick: () => 
           baseChange={0}
           accentColor={meta.spotColor}
         />
-        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
-          <div className="text-marble/45">Vault ounces</div>
-          <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.vaultOz)} oz</div>
-        </div>
-        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
-          <div className="text-marble/45">Bars in custody</div>
-          <div className="mt-1 font-mono text-2xl text-marble">{card.barCount}</div>
-        </div>
-        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
-          <div className="text-marble/45">Reserve value</div>
-          <div className="mt-1 font-mono text-2xl text-marble">{reserveValue > 0 ? formatPrice(reserveValue) : '—'}</div>
-        </div>
+        {card.vaultOz > 0 && (
+          <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+            <div className="text-marble/45">Vault ounces</div>
+            <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.vaultOz)} oz</div>
+          </div>
+        )}
+        {card.barCount > 0 && (
+          <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+            <div className="text-marble/45">Bars in custody</div>
+            <div className="mt-1 font-mono text-2xl text-marble">{card.barCount}</div>
+          </div>
+        )}
       </div>
     </button>
   );
 };
+
+/* ═══════════════════════════════════════════ */
+/*              MARKETPLACE PAGE               */
+/* ═══════════════════════════════════════════ */
 
 const Marketplace = () => {
   const navigate = useNavigate();
@@ -304,33 +276,29 @@ const Marketplace = () => {
   const { data: reserveTotals } = useCertificateReserveTotals();
   const { data: metalPrices } = useMetalPrices();
 
+  /* ─── Crypto lookup ─── */
   const cryptoLookup = useMemo(() => {
     const byKey: Record<string, NonNullable<typeof crypto>[number]> = {};
-
     (crypto ?? []).forEach(coin => {
-      const supportedKey = Object.entries(CRYPTO_ID_BY_KEY).find(([, id]) => id === coin.id)?.[0]
-        ?? WS_KEY_BY_SYMBOL[coin.symbol]
-        ?? coin.id;
+      const supportedKey = Object.entries(CRYPTO_ID_BY_KEY).find(([, id]) => id === coin.id)?.[0] ?? coin.id;
       byKey[supportedKey] = coin;
     });
-
     return byKey;
   }, [crypto]);
 
-  /* ─── Metals board items ─── */
+  /* ─── Metals board ─── */
   const metalsBoard = useMemo<BoardItem[]>(() => {
     if (!metalPrices) return [];
-
     return (['gold', 'silver', 'platinum'] as const)
       .filter(m => metalPrices[m]?.price_usd > 0)
       .map(m => ({
         id: `metal-${m}`,
-        name: m === 'gold' ? 'Gold (XAU)' : m === 'silver' ? 'Silver (XAG)' : 'Platinum (XPT)',
+        name: m === 'gold' ? 'Gold' : m === 'silver' ? 'Silver' : 'Platinum',
         ticker: m === 'gold' ? 'XAU/USD' : m === 'silver' ? 'XAG/USD' : 'XPT/USD',
         category: 'metals' as const,
         price: metalPrices[m].price_usd,
         change: metalPrices[m].change_24h ?? 0,
-        source: 'Vault registry',
+        source: 'Live spot',
         routeSymbol: METAL_ROUTE_MAP[m],
         live: true,
         isWsLive: false,
@@ -338,15 +306,14 @@ const Marketplace = () => {
       }));
   }, [metalPrices]);
 
-  /* ─── Crypto board items (SWAP-supported only) ─── */
+  /* ─── Crypto board (auto from ALL_SYMBOLS crypto) ─── */
   const cryptoBoard = useMemo<BoardItem[]>(() => {
-    return SUPPORTED_CRYPTO_SYMBOLS
+    return ALL_SYMBOLS.filter(s => s.cat === 'crypto')
       .map(symbol => {
         const coin = cryptoLookup[symbol.key];
         const ws = wsPrices[symbol.key];
         const price = ws?.price ?? coin?.current_price ?? 0;
         const change = ws?.change24h ?? coin?.price_change_percentage_24h ?? 0;
-
         return {
           id: symbol.key,
           name: coin?.name ?? fallbackCryptoName(symbol.label),
@@ -354,7 +321,7 @@ const Marketplace = () => {
           category: 'crypto' as const,
           price,
           change,
-          source: ws ? 'Binance stream' : coin ? 'CoinGecko' : 'Market feed',
+          source: ws ? 'Binance WS' : coin ? 'CoinGecko' : 'Market',
           routeSymbol: symbol.key,
           live: price > 0,
           isWsLive: Boolean(ws?.price),
@@ -364,10 +331,10 @@ const Marketplace = () => {
       .filter(item => item.price > 0);
   }, [cryptoLookup, wsPrices]);
 
-  /* ─── Energy board items ─── */
+  /* ─── Energy board ─── */
   const energyBoard = useMemo<BoardItem[]>(() => {
-    return (energy ?? [])
-      .filter(item => ENERGY_ROUTE_BY_SYMBOL[item.symbol])
+    const liveEnergy = (energy ?? [])
+      .filter(item => ENERGY_TICKER_TO_KEY[item.symbol])
       .map(item => ({
         id: item.symbol,
         name: item.name,
@@ -375,18 +342,59 @@ const Marketplace = () => {
         category: 'energy' as const,
         price: item.price,
         change: item.change,
-        source: 'EIA feed',
-        routeSymbol: ENERGY_ROUTE_BY_SYMBOL[item.symbol],
+        source: 'EIA',
+        routeSymbol: ENERGY_TICKER_TO_KEY[item.symbol],
         live: true,
         isWsLive: false,
         accentColor: CATEGORY_COLORS.energy,
       }))
       .filter(item => item.price > 0);
+
+    // Add remaining energy symbols from ALL_SYMBOLS not covered by live feeds
+    const liveKeys = new Set(liveEnergy.map(e => e.routeSymbol));
+    const syntheticEnergy = ALL_SYMBOLS
+      .filter(s => s.cat === 'energy' && !liveKeys.has(s.key) && SYNTHETIC_PRICES[s.key])
+      .map(s => ({
+        id: s.key,
+        name: s.label,
+        ticker: `${s.ticker}/USD`,
+        category: 'energy' as const,
+        price: SYNTHETIC_PRICES[s.key].p,
+        change: SYNTHETIC_PRICES[s.key].c,
+        source: 'Market',
+        routeSymbol: s.key,
+        live: false,
+        isWsLive: false,
+        accentColor: CATEGORY_COLORS.energy,
+      }));
+
+    return [...liveEnergy, ...syntheticEnergy];
   }, [energy]);
 
+  /* ─── Stocks / Forex / Bonds — auto-populated from ALL_SYMBOLS ─── */
+  const additionalBoards = useMemo<BoardItem[]>(() => {
+    return ALL_SYMBOLS
+      .filter(s => ['stocks', 'forex', 'bonds'].includes(s.cat) && SYNTHETIC_PRICES[s.key])
+      .map(s => ({
+        id: s.key,
+        name: s.label,
+        ticker: s.ticker,
+        category: catToFeedCategory(s.cat),
+        price: SYNTHETIC_PRICES[s.key].p,
+        change: SYNTHETIC_PRICES[s.key].c,
+        source: 'Market',
+        routeSymbol: s.key,
+        live: false,
+        isWsLive: false,
+        accentColor: CATEGORY_COLORS[s.cat] ?? CATEGORY_COLORS.stocks,
+      }));
+  }, []);
+
+  /* ─── Combined board ─── */
   const boardItems = useMemo(() => {
-    return [...metalsBoard, ...cryptoBoard, ...energyBoard].sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
-  }, [metalsBoard, cryptoBoard, energyBoard]);
+    return [...metalsBoard, ...cryptoBoard, ...energyBoard, ...additionalBoards]
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  }, [metalsBoard, cryptoBoard, energyBoard, additionalBoards]);
 
   const filteredBoard = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -397,23 +405,22 @@ const Marketplace = () => {
     });
   }, [boardItems, filter, search]);
 
-  const topMovers = useMemo(() => boardItems.slice(0, 4), [boardItems]);
+  const topMovers = useMemo(() => boardItems.filter(i => i.price > 0).slice(0, 4), [boardItems]);
 
-  const reserveCards = useMemo<ReserveCardData[]>(() => {
+  /* ─── Reserve cards (only show metals with actual vault data) ─── */
+  const reserveCards = useMemo(() => {
     const grouped = { gold: [] as any[], silver: [] as any[], platinum: [] as any[] };
     (bars ?? []).forEach(bar => { grouped[bar.metal_type].push(bar); });
     return (['gold', 'silver', 'platinum'] as const).map(metal => ({
       metal,
       vaultOz: grouped[metal].reduce((sum: number, bar: any) => sum + Number(bar.weight_oz), 0),
-      certifiedOz: Number(reserveTotals?.[`${metal}_oz` as keyof typeof reserveTotals] ?? 0),
       barCount: grouped[metal].length,
       spotPrice: metalPrices?.[metal]?.price_usd ?? null,
     }));
-  }, [bars, reserveTotals, metalPrices]);
+  }, [bars, metalPrices]);
 
-  const totalBars = bars?.length ?? 0;
-  const totalCertifiedOz = reserveCards.reduce((sum, card) => sum + card.certifiedOz, 0);
-  const liveFeedCount = boardItems.length;
+  const totalAssets = boardItems.length;
+  const categoryCount = new Set(boardItems.map(i => i.category)).size;
 
   return (
     <div className="min-h-screen bg-navy text-marble">
@@ -427,7 +434,7 @@ const Marketplace = () => {
           <div className="mx-auto max-w-5xl text-center">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-display tracking-[0.24em] text-gold-light">
               <Shield className="h-4 w-4" />
-              VERIFIED REAL-TIME MARKET FEEDS
+              LIVE MARKET DATA
             </div>
 
             <h1 className="font-display text-5xl tracking-[0.08em] text-marble md:text-7xl lg:text-8xl">
@@ -436,22 +443,22 @@ const Marketplace = () => {
             </h1>
 
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-marble/72 md:text-xl">
-              Every price streams in real-time. Click any asset to open it directly in the SWAP trading terminal.
+              Browse {totalAssets}+ instruments across {categoryCount} asset classes. Tap any asset to open its live chart and trade instantly.
             </p>
           </div>
 
           <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard icon={Activity} label="Live feeds" value={String(liveFeedCount)} detail="Real-time streaming prices." />
-            <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices from vault registry." />
-            <StatCard icon={Coins} label="Crypto board" value={String(cryptoBoard.length)} detail="WebSocket-backed majors & alts." />
-            <StatCard icon={Flame} label="Energy board" value={String(energyBoard.length)} detail="Live petroleum & gas benchmarks." />
+            <StatCard icon={Activity} label="Instruments" value={String(totalAssets)} detail="Available to trade now" />
+            <StatCard icon={Coins} label="Cryptocurrencies" value={String(cryptoBoard.length)} detail="Live WebSocket prices" />
+            <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices updated live" />
+            <StatCard icon={BarChart3} label="Asset classes" value={String(categoryCount)} detail="Metals · Crypto · Energy · Equities · Forex · Bonds" />
           </div>
 
           <div className="mt-12">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <p className="font-display text-sm tracking-[0.22em] text-gold-light">MARKET LEADERS</p>
-                <p className="mt-1 text-sm text-marble/55">Click any asset to open in SWAP terminal.</p>
+                <p className="font-display text-sm tracking-[0.22em] text-gold-light">TOP MOVERS</p>
+                <p className="mt-1 text-sm text-marble/55">Biggest 24h moves — tap to trade</p>
               </div>
               <button
                 type="button"
@@ -480,12 +487,12 @@ const Marketplace = () => {
           <div className="border-b border-gold/10 px-5 py-5 md:px-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="font-display text-sm tracking-[0.22em] text-gold-light">VERIFIED LIVE BOARD</p>
+                <p className="font-display text-sm tracking-[0.22em] text-gold-light">ALL INSTRUMENTS</p>
                 <h2 className="mt-2 font-display text-3xl tracking-[0.05em] text-marble md:text-4xl">
-                  Real-time feeds
+                  Explore & Trade
                 </h2>
                 <p className="mt-2 max-w-2xl text-base text-marble/60">
-                  All prices stream live. Click any row to open the asset in the SWAP trading chart.
+                  {totalAssets} instruments across metals, crypto, energy, equities, forex and bonds. Click any row to open the chart.
                 </p>
               </div>
 
@@ -495,7 +502,7 @@ const Marketplace = () => {
                   <input
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    placeholder="Search assets..."
+                    placeholder="Search instruments..."
                     className="w-full rounded-sm border border-gold/15 bg-background/5 py-3 pl-11 pr-4 text-base text-marble placeholder:text-marble/35 focus:border-gold/35 focus:outline-none"
                   />
                 </label>
@@ -535,8 +542,8 @@ const Marketplace = () => {
               filteredBoard.map((item, index) => <FeedRow key={item.id} item={item} rank={index + 1} />)
             ) : (
               <div className="px-6 py-14 text-center">
-                <h3 className="font-display text-2xl tracking-[0.08em] text-marble">No verified matches</h3>
-                <p className="mt-2 text-base text-marble/55">Try another search or switch back to all feeds.</p>
+                <h3 className="font-display text-2xl tracking-[0.08em] text-marble">No results</h3>
+                <p className="mt-2 text-base text-marble/55">Try a different search or filter.</p>
               </div>
             )}
           </div>
@@ -549,12 +556,12 @@ const Marketplace = () => {
 
         <section className="mt-10 rounded-sm border border-gold/15 bg-secondary/25 p-6 shadow-card md:p-8">
           <div className="mb-6 max-w-3xl">
-            <p className="font-display text-sm tracking-[0.22em] text-gold-light">BULLION RESERVE REGISTRY</p>
+            <p className="font-display text-sm tracking-[0.22em] text-gold-light">PRECIOUS METALS</p>
             <h2 className="mt-2 font-display text-3xl tracking-[0.05em] text-marble md:text-4xl">
-              Verified custody — click to trade
+              Gold · Silver · Platinum
             </h2>
             <p className="mt-2 text-base text-marble/60">
-              Each metal card links directly to its SWAP chart. Prices update in real-time from vault registry feeds.
+              Live spot prices. Tap any metal to open its chart.
             </p>
           </div>
 
