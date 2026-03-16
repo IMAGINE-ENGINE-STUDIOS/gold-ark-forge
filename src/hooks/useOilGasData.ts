@@ -98,22 +98,13 @@ const fetchLiveCommodityPrices = async (): Promise<OilGasPrice[]> => {
     const data = await resp.json();
     if (data.success && data.prices?.length > 0) {
       console.log(`[OG] Live commodity data from: ${data.source}`);
-      // Merge live data with fallback for any missing commodities
-      const liveMap = new Map(data.prices.map((p: OilGasPrice) => [p.symbol, p]));
-      return FALLBACK_PRICES.map((fp) => {
-        const live = liveMap.get(fp.symbol) as OilGasPrice | undefined;
-        return live ? { ...fp, price: live.price, change: live.change } : fp;
-      }) as OilGasPrice[];
+      return data.prices as OilGasPrice[];
     }
-    throw new Error('No live data returned');
+
+    throw new Error('No live commodity prices returned');
   } catch (err) {
-    console.warn('[OG] Live fetch failed, using fallback with drift:', err);
-    // Fallback with realistic drift
-    const now = Date.now();
-    return FALLBACK_PRICES.map((p) => {
-      const seed = Math.sin(now / 60000 + p.symbol.charCodeAt(0)) * 0.02;
-      return { ...p, price: Math.round((p.price * (1 + seed)) * 100) / 100, change: Math.round((p.change + (Math.random() - 0.5) * 0.3) * 100) / 100 };
-    });
+    console.warn('[OG] Live commodity data unavailable, returning no synthetic fallback:', err);
+    return [];
   }
 };
 

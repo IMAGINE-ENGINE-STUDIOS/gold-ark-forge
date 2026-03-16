@@ -1,464 +1,550 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
-import { useMetalPrices } from '@/hooks/useMetalPrices';
+import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
+import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
+import GABullionHeatmap from '@/components/ga-widgets/GABullionHeatmap';
+import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
+import { useCryptoData } from '@/hooks/useCryptoData';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, CATEGORY_COLORS, type WatchlistSymbol } from '@/data/tradingSymbols';
+import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { useBullionBars } from '@/hooks/useBullionBars';
+import { useCertificateReserveTotals } from '@/hooks/useCertificateReserveTotals';
+import { useMetalPrices } from '@/hooks/useMetalPrices';
 import {
-  Gem, Flame, Coins, Zap, Globe, Cpu, Building2, DollarSign, Landmark,
-  TrendingUp, TrendingDown, Search, ArrowUpRight, ChevronRight, Shield, Activity,
-  BarChart3, Eye, Star,
+  Search,
+  Shield,
+  Activity,
+  Coins,
+  Flame,
+  Gem,
+  ArrowUpRight,
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+  Landmark,
 } from 'lucide-react';
 
-// ─── Category Config ─────────────────────────────────────
-interface MarketCat {
-  key: string;
-  label: string;
-  icon: React.ElementType;
-  cats: string[];  // maps to tradingSymbols `cat` field
-  watchlistLabels?: string[]; // for fine-grained watchlist label matching
+type FeedCategory = 'crypto' | 'energy';
+type BoardFilter = 'all' | FeedCategory;
+
+interface BoardItem {
+  id: string;
+  name: string;
+  ticker: string;
+  category: FeedCategory;
+  price: number;
+  change: number;
+  source: string;
+  routeSymbol: string;
+  live: boolean;
 }
 
-const CATEGORIES: MarketCat[] = [
-  { key: 'all', label: 'ALL ASSETS', icon: BarChart3, cats: [] },
-  { key: 'metals', label: 'PRECIOUS METALS', icon: Gem, cats: ['metals'] },
-  { key: 'crypto', label: 'CRYPTO', icon: Coins, cats: ['crypto'] },
-  { key: 'energy', label: 'ENERGY', icon: Flame, cats: ['energy'] },
-  { key: 'equities', label: 'EQUITIES', icon: Globe, cats: ['stocks'] },
-  { key: 'forex', label: 'FOREX', icon: DollarSign, cats: ['forex'] },
-  { key: 'bonds', label: 'FIXED INCOME', icon: Landmark, cats: ['bonds'] },
+interface ReserveCardData {
+  metal: 'gold' | 'silver' | 'platinum';
+  vaultOz: number;
+  certifiedOz: number;
+  barCount: number;
+  spotPrice: number | null;
+}
+
+const CRYPTO_WS_KEYS = [
+  'bitcoin',
+  'ethereum',
+  'solana',
+  'xrp',
+  'bnb',
+  'cardano',
+  'avalanche',
+  'polkadot',
+  'chainlink',
+  'dogecoin',
+  'polygon',
+  'litecoin',
+  'uniswap',
+  'near',
+  'aptos',
+  'sui',
+  'arbitrum',
+  'optimism',
+  'injective',
+  'render',
+  'filecoin',
+  'cosmos',
+  'stellar',
+  'hedera',
+  'tron',
+  'shiba',
+  'pepe',
+] as const;
+
+const WS_KEY_BY_SYMBOL: Record<string, string> = {
+  btc: 'bitcoin',
+  eth: 'ethereum',
+  sol: 'solana',
+  xrp: 'xrp',
+  bnb: 'bnb',
+  ada: 'cardano',
+  avax: 'avalanche',
+  dot: 'polkadot',
+  link: 'chainlink',
+  doge: 'dogecoin',
+  matic: 'polygon',
+  pol: 'polygon',
+  ltc: 'litecoin',
+  uni: 'uniswap',
+  near: 'near',
+  apt: 'aptos',
+  sui: 'sui',
+  arb: 'arbitrum',
+  op: 'optimism',
+  inj: 'injective',
+  render: 'render',
+  rndr: 'render',
+  fil: 'filecoin',
+  atom: 'cosmos',
+  xlm: 'stellar',
+  hbar: 'hedera',
+  trx: 'tron',
+  shib: 'shiba',
+  pepe: 'pepe',
+};
+
+const ENERGY_ROUTE_BY_SYMBOL: Record<string, string> = {
+  CL: 'oil',
+  BZ: 'brent',
+  NG: 'natgas',
+  HO: 'heating_oil',
+  RB: 'rbob',
+};
+
+const FILTERS: { key: BoardFilter; label: string; icon: typeof Activity }[] = [
+  { key: 'all', label: 'ALL VERIFIED FEEDS', icon: Activity },
+  { key: 'crypto', label: 'CRYPTO', icon: Coins },
+  { key: 'energy', label: 'ENERGY', icon: Flame },
 ];
 
-const CAT_ACCENT: Record<string, string> = {
-  metals: 'hsl(43, 72%, 50%)',
-  crypto: 'hsl(38, 92%, 50%)',
-  energy: 'hsl(25, 95%, 53%)',
-  stocks: 'hsl(217, 91%, 60%)',
-  forex: 'hsl(170, 70%, 50%)',
-  bonds: 'hsl(210, 6%, 67%)',
+const METAL_META = {
+  gold: { label: 'Gold Reserve', accent: 'text-gold', chip: 'border-gold/25 bg-gold/10 text-gold-light' },
+  silver: { label: 'Silver Reserve', accent: 'text-silver-light', chip: 'border-silver/25 bg-silver/10 text-silver-light' },
+  platinum: { label: 'Platinum Reserve', accent: 'text-platinum-light', chip: 'border-platinum/25 bg-platinum/10 text-platinum-light' },
+} as const;
+
+const formatPrice = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  if (value < 0.01) return `$${value.toFixed(6)}`;
+  if (value < 1) return `$${value.toFixed(4)}`;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: value >= 1000 ? 2 : value < 10 ? 4 : 2,
+    maximumFractionDigits: value >= 1000 ? 2 : value < 10 ? 4 : 2,
+  }).format(value);
 };
 
-// All crypto keys for WS
-const CRYPTO_KEYS = ALL_SYMBOLS.filter(s => s.cat === 'crypto').map(s => s.key);
+const formatChange = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
-// ─── Format Helpers ──────────────────────────────────────
-const fmtPrice = (p: number) => {
-  if (p === 0) return '—';
-  if (p >= 1000) return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(p);
-  if (p < 0.01) return `$${p.toFixed(6)}`;
-  return `$${p.toFixed(p < 10 ? 4 : 2)}`;
-};
+const formatCompact = (value: number) =>
+  new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
 
-const fmtChange = (c: number) => `${c >= 0 ? '+' : ''}${c.toFixed(2)}%`;
-
-// ─── Animated Price Flash ────────────────────────────────
-const PriceFlash = ({ price, change, isLive }: { price: number; change: number; isLive: boolean }) => {
-  const prevPrice = useRef(price);
-  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
-
-  useEffect(() => {
-    if (price !== prevPrice.current) {
-      setFlash(price > prevPrice.current ? 'up' : 'down');
-      prevPrice.current = price;
-      const t = setTimeout(() => setFlash(null), 600);
-      return () => clearTimeout(t);
-    }
-  }, [price]);
-
-  return (
-    <div className="text-right">
-      <div className={`font-mono text-xl md:text-2xl font-bold tracking-tight transition-colors duration-300 ${
-        flash === 'up' ? 'text-emerald-400' : flash === 'down' ? 'text-red-400' : 'text-marble'
-      }`}>
-        {fmtPrice(price)}
+const StatCard = ({
+  icon: Icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+  detail: string;
+}) => (
+  <div className="rounded-sm border border-gold/15 bg-secondary/40 p-5 shadow-card">
+    <div className="mb-4 flex items-center gap-3 text-gold-light">
+      <div className="rounded-sm border border-gold/20 bg-gold/10 p-2.5">
+        <Icon className="h-5 w-5" />
       </div>
-      <div className={`text-sm font-mono flex items-center justify-end gap-1 mt-0.5 ${
-        change >= 0 ? 'text-emerald-400' : 'text-red-400'
-      }`}>
-        {change >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-        {fmtChange(change)}
-        {isLive && (
-          <span className="ml-1.5 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] text-emerald-400/80 font-display tracking-widest">LIVE</span>
-          </span>
-        )}
-      </div>
+      <span className="font-display text-sm tracking-[0.18em] text-marble/80">{label}</span>
     </div>
-  );
-};
+    <div className="font-display text-3xl tracking-[0.04em] text-marble md:text-4xl">{value}</div>
+    <p className="mt-2 text-sm text-marble/60">{detail}</p>
+  </div>
+);
 
-// ─── Sparkline Mini Bar ──────────────────────────────────
-const SparkBar = ({ change, accent }: { change: number; accent: string }) => {
-  const width = Math.min(100, Math.max(8, 50 + Math.abs(change) * 8));
-  return (
-    <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'hsla(213,32%,16%,0.6)' }}>
-      <div
-        className="h-full rounded-full transition-all duration-700"
-        style={{
-          width: `${width}%`,
-          background: change >= 0
-            ? 'linear-gradient(90deg, hsla(160,84%,39%,0.4), hsla(160,84%,39%,0.8))'
-            : 'linear-gradient(90deg, hsla(0,84%,60%,0.4), hsla(0,84%,60%,0.8))',
-        }}
-      />
-    </div>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════
-// ASSET ROW — the primary display unit
-// ═══════════════════════════════════════════════════════════
-const AssetRow = ({ symbol, price, change, isLive, rank }: {
-  symbol: WatchlistSymbol;
-  price: number;
-  change: number;
-  isLive: boolean;
-  rank: number;
-}) => {
+const MoverCard = ({ item }: { item: BoardItem }) => {
   const navigate = useNavigate();
-  const accent = CAT_ACCENT[symbol.cat] || 'hsl(43,72%,50%)';
+  const positive = item.change >= 0;
 
   return (
     <button
-      onClick={() => navigate(`/trading-bridge?symbol=${symbol.key}`)}
-      className="w-full group"
+      type="button"
+      onClick={() => navigate(`/trading-bridge?symbol=${item.routeSymbol}`)}
+      className="group rounded-sm border border-gold/15 bg-secondary/35 p-5 text-left transition-all duration-300 hover:border-gold/35 hover:bg-secondary/55 hover:shadow-gold"
     >
-      <div className="flex items-center gap-3 md:gap-5 px-4 md:px-6 py-4 md:py-5 rounded-sm border border-transparent hover:border-gold/25 bg-transparent hover:bg-navy-light/30 transition-all duration-300 relative">
-        {/* Rank */}
-        <span className="text-marble/20 font-mono text-xs w-6 text-right flex-shrink-0">{rank}</span>
-
-        {/* Category dot */}
-        <div className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-offset-1 ring-offset-navy" style={{ background: accent, boxShadow: `0 0 12px ${accent}40` }} />
-
-        {/* Symbol Info */}
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex items-center gap-2">
-            <span className="font-display text-base md:text-lg text-marble tracking-wide group-hover:text-gold transition-colors">
-              {symbol.label}
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">
+              VERIFIED
             </span>
-            <span className="text-[10px] md:text-xs font-mono text-marble/30 tracking-widest">{symbol.ticker}</span>
+            <span className="text-xs font-mono text-marble/45">{item.source}</span>
           </div>
-          <div className="mt-1.5 max-w-[200px]">
-            <SparkBar change={change} accent={accent} />
-          </div>
+          <h2 className="font-display text-2xl tracking-[0.06em] text-marble">{item.name}</h2>
+          <p className="mt-1 text-sm text-marble/55">{item.ticker}</p>
         </div>
+        <ArrowUpRight className="h-5 w-5 text-gold/60 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </div>
 
-        {/* Price + Change */}
-        <PriceFlash price={price} change={change} isLive={isLive} />
-
-        {/* Arrow */}
-        <ArrowUpRight size={18} className="text-marble/15 group-hover:text-gold/70 transition-colors flex-shrink-0 ml-2" />
+      <div className="flex items-end justify-between gap-4">
+        <div className="font-mono text-2xl font-semibold text-marble md:text-3xl">{formatPrice(item.price)}</div>
+        <div className={`flex items-center gap-1 text-sm font-semibold ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          {formatChange(item.change)}
+        </div>
       </div>
     </button>
   );
 };
 
-// ═══════════════════════════════════════════════════════════
-// FEATURED HERO CARDS (top 6 movers)
-// ═══════════════════════════════════════════════════════════
-const HeroCard = ({ symbol, price, change, isLive }: {
-  symbol: WatchlistSymbol;
-  price: number;
-  change: number;
-  isLive: boolean;
-}) => {
+const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
   const navigate = useNavigate();
-  const accent = CAT_ACCENT[symbol.cat] || 'hsl(43,72%,50%)';
+  const positive = item.change >= 0;
+  const categoryClass = item.category === 'crypto'
+    ? 'border-gold/20 bg-gold/10 text-gold-light'
+    : 'border-primary/20 bg-primary/10 text-primary';
 
   return (
     <button
-      onClick={() => navigate(`/trading-bridge?symbol=${symbol.key}`)}
-      className="group relative overflow-hidden rounded-sm border border-gold/15 hover:border-gold/40 transition-all duration-500 bg-navy-light/20 hover:bg-navy-light/40 p-5 md:p-6 text-left"
+      type="button"
+      onClick={() => navigate(`/trading-bridge?symbol=${item.routeSymbol}`)}
+      className="grid w-full grid-cols-[52px_minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] items-center gap-4 border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6"
     >
-      {/* Glow accent */}
-      <div className="absolute top-0 left-0 w-full h-1 opacity-60" style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
-
-      {/* Ornate corners */}
-      <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-gold/30 rounded-tl-sm" />
-      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-gold/30 rounded-br-sm" />
-
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: accent }} />
-            <span className="text-xs font-mono text-marble/40 tracking-widest">{symbol.ticker}</span>
-            {isLive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
-          </div>
-          <h3 className="font-display text-xl md:text-2xl text-marble group-hover:text-gold transition-colors tracking-wide">
-            {symbol.label}
-          </h3>
+      <div className="text-right font-mono text-sm text-marble/40">{rank}</div>
+      <div className="min-w-0">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-display tracking-[0.18em] ${categoryClass}`}>
+            {item.category}
+          </span>
+          {item.live && (
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">
+              LIVE
+            </span>
+          )}
         </div>
-        <ArrowUpRight size={20} className="text-marble/15 group-hover:text-gold/60 transition-colors mt-1" />
+        <div className="font-display text-lg tracking-[0.04em] text-marble md:text-xl">{item.name}</div>
+        <div className="text-sm text-marble/50">{item.ticker} · {item.source}</div>
       </div>
-
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="font-mono text-2xl md:text-3xl font-bold text-marble tracking-tight">
-            {fmtPrice(price)}
-          </div>
-          <div className={`text-sm font-mono mt-1 flex items-center gap-1.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {change >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-            {fmtChange(change)}
-          </div>
+      <div className="font-mono text-lg font-semibold text-marble md:text-xl">{formatPrice(item.price)}</div>
+      <div className="flex items-center justify-end gap-2">
+        <div className={`flex items-center gap-1 font-mono text-sm font-semibold md:text-base ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          {formatChange(item.change)}
         </div>
-        <SparkBar change={change} accent={accent} />
+        <ArrowUpRight className="h-4 w-4 text-gold/55" />
       </div>
     </button>
   );
 };
 
-// ═══════════════════════════════════════════════════════════
-// MARKETPLACE
-// ═══════════════════════════════════════════════════════════
+const ReserveCard = ({ card }: { card: ReserveCardData }) => {
+  const meta = METAL_META[card.metal];
+  const reserveValue = card.spotPrice ? card.certifiedOz * card.spotPrice : 0;
+
+  return (
+    <div className="rounded-sm border border-gold/15 bg-secondary/40 p-6 shadow-card">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-display tracking-[0.18em] ${meta.chip}`}>
+            VERIFIED REGISTRY
+          </div>
+          <h3 className={`mt-3 font-display text-2xl tracking-[0.06em] ${meta.accent}`}>{meta.label}</h3>
+        </div>
+        <Gem className={`h-5 w-5 ${meta.accent}`} />
+      </div>
+
+      <div className="grid gap-3 text-sm md:grid-cols-2">
+        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+          <div className="text-marble/45">Vault ounces</div>
+          <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.vaultOz)} oz</div>
+        </div>
+        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+          <div className="text-marble/45">Certified ounces</div>
+          <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.certifiedOz)} oz</div>
+        </div>
+        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+          <div className="text-marble/45">Bars in custody</div>
+          <div className="mt-1 font-mono text-2xl text-marble">{card.barCount}</div>
+        </div>
+        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+          <div className="text-marble/45">Reserve value</div>
+          <div className="mt-1 font-mono text-2xl text-marble">{reserveValue > 0 ? formatPrice(reserveValue) : 'Feed unavailable'}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Marketplace = () => {
   const navigate = useNavigate();
-  const [activeCat, setActiveCat] = useState('all');
+  const [filter, setFilter] = useState<BoardFilter>('all');
   const [search, setSearch] = useState('');
 
+  const { data: crypto } = useCryptoData(18);
+  const wsPrices = useWebSocketPrices([...CRYPTO_WS_KEYS]);
+  const { data: energy } = useOilGasPrices();
+  const { data: bars } = useBullionBars({ limit: 200 });
+  const { data: reserveTotals } = useCertificateReserveTotals();
   const { data: metalPrices } = useMetalPrices();
-  const wsPrices = useWebSocketPrices(CRYPTO_KEYS);
 
-  // Resolve price for any symbol
-  const resolvePrice = (sym: WatchlistSymbol) => {
-    if (wsPrices[sym.key]) {
-      return { price: wsPrices[sym.key].price, change: wsPrices[sym.key].change24h, isLive: true };
-    }
-    if (sym.cat === 'metals' && metalPrices) {
-      const mp = metalPrices[sym.key as keyof typeof metalPrices];
-      if (mp) return { price: Number(mp.price_usd), change: Number(mp.change_24h || 0), isLive: true };
-    }
-    const synth = SYNTHETIC_PRICES[sym.key];
-    if (synth) return { price: synth.p, change: synth.c, isLive: false };
-    return { price: 0, change: 0, isLive: false };
-  };
+  const cryptoBoard = useMemo<BoardItem[]>(() => {
+    return (crypto ?? [])
+      .filter((coin) => Boolean(WS_KEY_BY_SYMBOL[coin.symbol]) || coin.current_price > 0)
+      .map((coin) => {
+        const wsKey = WS_KEY_BY_SYMBOL[coin.symbol];
+        const ws = wsKey ? wsPrices[wsKey] : undefined;
+        return {
+          id: coin.id,
+          name: coin.name,
+          ticker: coin.symbol.toUpperCase(),
+          category: 'crypto' as const,
+          price: ws?.price ?? coin.current_price,
+          change: ws?.change24h ?? coin.price_change_percentage_24h ?? 0,
+          source: ws ? 'Binance stream' : 'CoinGecko market',
+          routeSymbol: wsKey ?? coin.symbol,
+          live: Boolean(ws || coin.current_price),
+        };
+      })
+      .filter((item) => item.price > 0);
+  }, [crypto, wsPrices]);
 
-  // Filter
-  const cat = CATEGORIES.find(c => c.key === activeCat) || CATEGORIES[0];
-  const filtered = useMemo(() => {
-    let syms = ALL_SYMBOLS;
-    if (activeCat !== 'all') {
-      syms = syms.filter(s => cat.cats.includes(s.cat));
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      syms = syms.filter(s =>
-        s.label.toLowerCase().includes(q) ||
-        s.ticker.toLowerCase().includes(q) ||
-        s.key.toLowerCase().includes(q)
-      );
-    }
-    return syms;
-  }, [activeCat, search, cat]);
+  const energyBoard = useMemo<BoardItem[]>(() => {
+    return (energy ?? [])
+      .filter((item) => ENERGY_ROUTE_BY_SYMBOL[item.symbol])
+      .map((item) => ({
+        id: item.symbol,
+        name: item.name,
+        ticker: item.symbol,
+        category: 'energy' as const,
+        price: item.price,
+        change: item.change,
+        source: 'EIA feed',
+        routeSymbol: ENERGY_ROUTE_BY_SYMBOL[item.symbol],
+        live: true,
+      }))
+      .filter((item) => item.price > 0);
+  }, [energy]);
 
-  // Top movers: sort by absolute change, take top 6
-  const topMovers = useMemo(() => {
-    const withPrices = ALL_SYMBOLS.map(s => ({ sym: s, ...resolvePrice(s) })).filter(x => x.price > 0);
-    return withPrices.sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 6);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsPrices, metalPrices]);
+  const boardItems = useMemo(() => {
+    return [...cryptoBoard, ...energyBoard].sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  }, [cryptoBoard, energyBoard]);
 
-  // Stats
-  const liveCount = ALL_SYMBOLS.filter(s => {
-    if (wsPrices[s.key]) return true;
-    if (s.cat === 'metals' && metalPrices?.[s.key as keyof typeof metalPrices]) return true;
-    return false;
-  }).length;
+  const filteredBoard = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return boardItems.filter((item) => {
+      const matchesFilter = filter === 'all' ? true : item.category === filter;
+      const matchesQuery = query
+        ? item.name.toLowerCase().includes(query) || item.ticker.toLowerCase().includes(query)
+        : true;
+      return matchesFilter && matchesQuery;
+    });
+  }, [boardItems, filter, search]);
+
+  const topMovers = useMemo(() => boardItems.slice(0, 4), [boardItems]);
+
+  const reserveCards = useMemo<ReserveCardData[]>(() => {
+    const grouped = { gold: [], silver: [], platinum: [] } as Record<'gold' | 'silver' | 'platinum', typeof bars>;
+    (bars ?? []).forEach((bar) => {
+      grouped[bar.metal_type].push(bar);
+    });
+
+    return (['gold', 'silver', 'platinum'] as const).map((metal) => ({
+      metal,
+      vaultOz: grouped[metal].reduce((sum, bar) => sum + Number(bar.weight_oz), 0),
+      certifiedOz: Number(reserveTotals?.[`${metal}_oz` as keyof typeof reserveTotals] ?? 0),
+      barCount: grouped[metal].length,
+      spotPrice: metalPrices?.[metal]?.price_usd ?? null,
+    }));
+  }, [bars, reserveTotals, metalPrices]);
+
+  const totalBars = bars?.length ?? 0;
+  const totalCertifiedOz = reserveCards.reduce((sum, card) => sum + card.certifiedOz, 0);
+  const liveFeedCount = boardItems.length;
 
   return (
-    <div className="min-h-screen bg-navy">
+    <div className="min-h-screen bg-navy text-marble">
       <Header />
-      <GAMultiTicker />
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* HERO SECTION                                       */}
-      {/* ═══════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden">
-        {/* Background radial glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-radial from-gold/8 via-gold/2 to-transparent" />
-        </div>
+      <section className="relative overflow-hidden border-b border-gold/10 bg-gradient-navy">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--gold)/0.14),transparent_42%)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
 
-        <div className="container mx-auto px-4 pt-16 pb-10 relative z-10">
-          {/* Ornate top line */}
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className="h-px w-24 bg-gradient-to-r from-transparent to-gold/50" />
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-gold/60" />
-              <span className="font-display text-[11px] tracking-[0.3em] text-gold/50">GOLD ARROW EXCHANGE</span>
-              <Shield className="w-4 h-4 text-gold/60" />
-            </div>
-            <div className="h-px w-24 bg-gradient-to-l from-transparent to-gold/50" />
-          </div>
-
-          {/* Title */}
-          <h1 className="text-center font-display text-5xl md:text-7xl lg:text-8xl tracking-[0.08em] mb-4"
-            style={{
-              background: 'linear-gradient(180deg, hsl(43,76%,62%) 0%, hsl(43,72%,50%) 40%, hsl(40,68%,38%) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>
-            ASSET MARKETPLACE
-          </h1>
-
-          {/* Subtitle */}
-          <p className="text-center text-marble/50 text-base md:text-lg font-light max-w-xl mx-auto mb-3 leading-relaxed">
-            Institutional-grade access to {ALL_SYMBOLS.length}+ instruments across global markets
-          </p>
-
-          {/* Live stats strip */}
-          <div className="flex items-center justify-center gap-6 md:gap-10 text-marble/40 text-xs font-mono mb-10">
-            <span className="flex items-center gap-1.5">
-              <Activity size={12} className="text-emerald-400" />
-              <span className="text-emerald-400 font-semibold">{liveCount}</span> live feeds
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Eye size={12} />
-              {ALL_SYMBOLS.length} instruments
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Star size={12} />
-              {CATEGORIES.length - 1} asset classes
-            </span>
-          </div>
-
-          {/* TOP MOVERS */}
-          <div className="mb-4">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-px flex-1 bg-gold/15" />
-              <span className="font-display text-sm tracking-[0.25em] text-gold/70">TOP MOVERS</span>
-              <div className="h-px flex-1 bg-gold/15" />
+        <div className="container relative z-10 px-4 py-16 md:py-20">
+          <div className="mx-auto max-w-5xl text-center">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-display tracking-[0.24em] text-gold-light">
+              <Shield className="h-4 w-4" />
+              VERIFIED MARKET INTELLIGENCE ONLY
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {topMovers.map(({ sym, price, change, isLive }) => (
-                <HeroCard key={sym.key} symbol={sym} price={price} change={change} isLive={isLive} />
+            <h1 className="font-display text-5xl tracking-[0.08em] text-marble md:text-7xl lg:text-8xl">
+              PAX ROMANA
+              <span className="mt-2 block gold-shimmer">MARKETPLACE</span>
+            </h1>
+
+            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-marble/72 md:text-xl">
+              No synthetic rows. No placeholder movers. Crypto and energy come from verified live feeds, while bullion is driven by vault, bar, and certificate intelligence.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              icon={Activity}
+              label="Verified feeds"
+              value={String(liveFeedCount)}
+              detail="Only rows with active market data are shown."
+            />
+            <StatCard
+              icon={Coins}
+              label="Crypto board"
+              value={String(cryptoBoard.length)}
+              detail="Stream-backed majors and liquid alts."
+            />
+            <StatCard
+              icon={Flame}
+              label="Energy board"
+              value={String(energyBoard.length)}
+              detail="Live petroleum and gas benchmarks."
+            />
+            <StatCard
+              icon={Landmark}
+              label="Certified reserve"
+              value={`${formatCompact(totalCertifiedOz)} oz`}
+              detail={`${totalBars} bars currently indexed in custody.`}
+            />
+          </div>
+
+          <div className="mt-12">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-display text-sm tracking-[0.22em] text-gold-light">MARKET LEADERS</p>
+                <p className="mt-1 text-sm text-marble/55">Largest real moves across the verified live board.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/intelligence')}
+                className="inline-flex items-center gap-2 rounded-sm border border-gold/20 bg-secondary/35 px-4 py-2 text-sm font-display tracking-[0.16em] text-marble transition-colors hover:border-gold/35 hover:text-gold-light"
+              >
+                <Sparkles className="h-4 w-4" />
+                Intelligence
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {topMovers.map((item) => (
+                <MoverCard key={item.id} item={item} />
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* MAIN CONTENT                                       */}
-      {/* ═══════════════════════════════════════════════════ */}
-      <main className="container mx-auto px-4 pb-20">
-        {/* Greek border line */}
-        <div className="h-px w-full bg-gradient-to-r from-transparent via-gold/30 to-transparent mb-10" />
+      <main className="container px-4 py-10 md:py-14">
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <GAMarketSummary />
+          <GACryptoPriceCards />
+        </section>
 
-        {/* Search + Category Bar */}
-        <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-10">
-          {/* Search */}
-          <div className="relative flex-shrink-0 w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-marble/30" />
-            <input
-              type="text"
-              placeholder="Search asset, ticker, symbol..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-12 pr-5 py-3.5 rounded-sm bg-navy-light/40 border border-gold/15 text-marble text-sm font-mono placeholder:text-marble/25 focus:outline-none focus:border-gold/40 focus:bg-navy-light/60 transition-all"
-            />
-          </div>
+        <section className="mt-10 rounded-sm border border-gold/15 bg-secondary/25 shadow-card">
+          <div className="border-b border-gold/10 px-5 py-5 md:px-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="font-display text-sm tracking-[0.22em] text-gold-light">VERIFIED LIVE BOARD</p>
+                <h2 className="mt-2 font-display text-3xl tracking-[0.05em] text-marble md:text-4xl">
+                  Real feeds only
+                </h2>
+                <p className="mt-2 max-w-2xl text-base text-marble/60">
+                  This board excludes every marketplace asset that still depends on synthetic or placeholder pricing.
+                </p>
+              </div>
 
-          {/* Category Tabs */}
-          <div className="flex flex-wrap gap-2 items-center">
-            {CATEGORIES.map((c) => {
-              const Icon = c.icon;
-              const isActive = activeCat === c.key;
-              const count = c.key === 'all' ? ALL_SYMBOLS.length : ALL_SYMBOLS.filter(s => c.cats.includes(s.cat)).length;
-              return (
-                <button
-                  key={c.key}
-                  onClick={() => { setActiveCat(c.key); setSearch(''); }}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-sm font-display text-xs tracking-[0.15em] transition-all duration-300 border ${
-                    isActive
-                      ? 'bg-gold/90 text-navy border-gold shadow-[0_0_20px_-5px_hsla(43,72%,50%,0.4)]'
-                      : 'bg-transparent text-marble/60 border-gold/10 hover:border-gold/25 hover:text-marble/90'
-                  }`}
-                >
-                  <Icon size={14} />
-                  {c.label}
-                  <span className={`text-[9px] font-mono ${isActive ? 'text-navy/60' : 'text-marble/25'}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+              <div className="flex w-full flex-col gap-3 lg:max-w-2xl lg:flex-row lg:items-center lg:justify-end">
+                <label className="relative block w-full lg:max-w-sm">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-marble/35" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search a verified live feed"
+                    className="w-full rounded-sm border border-gold/15 bg-background/5 py-3 pl-11 pr-4 text-base text-marble placeholder:text-marble/35 focus:border-gold/35 focus:outline-none"
+                  />
+                </label>
 
-        {/* ─── Asset Table ─── */}
-        {filtered.length > 0 ? (
-          <div>
-            {/* Table header */}
-            <div className="flex items-center gap-3 md:gap-5 px-4 md:px-6 py-3 mb-2 text-[10px] md:text-xs font-display tracking-[0.2em] text-marble/25 border-b border-gold/10">
-              <span className="w-6 text-right">#</span>
-              <span className="w-3" />
-              <span className="flex-1">INSTRUMENT</span>
-              <span className="text-right w-48">PRICE / CHANGE</span>
-              <span className="w-[18px]" />
-              <span className="w-2" />
+                <div className="flex flex-wrap gap-2">
+                  {FILTERS.map(({ key, label, icon: Icon }) => {
+                    const active = filter === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFilter(key)}
+                        className={`inline-flex items-center gap-2 rounded-sm border px-4 py-3 text-sm font-display tracking-[0.16em] transition-all ${
+                          active
+                            ? 'border-gold/40 bg-gold/15 text-gold-light'
+                            : 'border-gold/10 bg-secondary/30 text-marble/70 hover:border-gold/25 hover:text-marble'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+          </div>
 
-            {/* Group by watchlist category */}
-            {activeCat === 'all' ? (
-              WATCHLIST_CATEGORIES.map(wc => {
-                const catSyms = filtered.filter(s => {
-                  // Find this symbol's watchlist category
-                  return wc.items.some(item => item.key === s.key);
-                });
-                if (catSyms.length === 0) return null;
-                const catColor = CATEGORY_COLORS[catSyms[0]?.cat] || 'hsl(43,72%,50%)';
+          <div className="grid grid-cols-[52px_minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] gap-4 px-4 py-3 text-xs font-display tracking-[0.22em] text-marble/45 md:px-6">
+            <div className="text-right">#</div>
+            <div>INSTRUMENT</div>
+            <div>PRICE</div>
+            <div className="text-right">24H</div>
+          </div>
 
-                return (
-                  <div key={wc.label} className="mb-8">
-                    {/* Category header */}
-                    <div className="flex items-center gap-3 mb-3 px-4 md:px-6">
-                      <div className="w-3 h-3 rounded-full" style={{ background: catColor, boxShadow: `0 0 10px ${catColor}30` }} />
-                      <span className="font-display text-xs tracking-[0.25em] text-marble/40">{wc.label}</span>
-                      <div className="h-px flex-1 bg-gold/8" />
-                      <span className="text-[10px] font-mono text-marble/20">{catSyms.length}</span>
-                    </div>
-
-                    {/* Rows */}
-                    <div className="divide-y divide-gold/5">
-                      {catSyms.map((sym, i) => {
-                        const { price, change, isLive } = resolvePrice(sym);
-                        if (price === 0) return null;
-                        return <AssetRow key={sym.key} symbol={sym} price={price} change={change} isLive={isLive} rank={i + 1} />;
-                      })}
-                    </div>
-                  </div>
-                );
-              })
+          <div>
+            {filteredBoard.length > 0 ? (
+              filteredBoard.map((item, index) => <FeedRow key={item.id} item={item} rank={index + 1} />)
             ) : (
-              <div className="divide-y divide-gold/5">
-                {filtered.map((sym, i) => {
-                  const { price, change, isLive } = resolvePrice(sym);
-                  if (price === 0) return null;
-                  return <AssetRow key={sym.key} symbol={sym} price={price} change={change} isLive={isLive} rank={i + 1} />;
-                })}
+              <div className="px-6 py-14 text-center">
+                <h3 className="font-display text-2xl tracking-[0.08em] text-marble">No verified matches</h3>
+                <p className="mt-2 text-base text-marble/55">Try another search or switch back to all feeds.</p>
               </div>
             )}
           </div>
-        ) : (
-          <div className="text-center py-24">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full border border-gold/15 mb-6">
-              <Search size={28} className="text-marble/20" />
-            </div>
-            <h3 className="font-display text-2xl text-marble/50 mb-2 tracking-wider">NO ASSETS FOUND</h3>
-            <p className="text-marble/30 text-sm">Try a different search term or select another category.</p>
-          </div>
-        )}
+        </section>
 
-        {/* Bottom ornament */}
-        <div className="flex items-center justify-center gap-4 mt-16">
-          <div className="h-px w-20 bg-gradient-to-r from-transparent to-gold/30" />
-          <Gem size={14} className="text-gold/30" />
-          <div className="h-px w-20 bg-gradient-to-l from-transparent to-gold/30" />
-        </div>
+        <section className="mt-10 grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+          <GAMetalProfile />
+          <GABullionHeatmap />
+        </section>
+
+        <section className="mt-10 rounded-sm border border-gold/15 bg-secondary/25 p-6 shadow-card md:p-8">
+          <div className="mb-6 max-w-3xl">
+            <p className="font-display text-sm tracking-[0.22em] text-gold-light">BULLION RESERVE REGISTRY</p>
+            <h2 className="mt-2 font-display text-3xl tracking-[0.05em] text-marble md:text-4xl">
+              Verified custody, not synthetic metals
+            </h2>
+            <p className="mt-2 text-base text-marble/60">
+              Bullion is now represented through vault inventory, certificate totals, and custody records instead of fake trade rows.
+            </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-3">
+            {reserveCards.map((card) => (
+              <ReserveCard key={card.metal} card={card} />
+            ))}
+          </div>
+        </section>
       </main>
 
       <Footer />
