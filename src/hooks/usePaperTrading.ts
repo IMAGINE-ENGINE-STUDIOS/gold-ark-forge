@@ -160,6 +160,20 @@ export const usePaperTrading = (userId?: string | null) => {
       throw new Error(`Insufficient funds: need $${cost.toFixed(2)}, have $${cash.toFixed(2)}`);
     }
 
+    // CRITICAL: Block naked short selling — can only sell what you own
+    if (params.side === 'sell') {
+      const ownedPosition = positions.find(
+        p => p.symbol === params.symbol && p.side === 'buy'
+      );
+      const ownedQty = ownedPosition?.qty ?? 0;
+      if (ownedQty <= 0) {
+        throw new Error(`Cannot sell ${params.symbol} — you don't own any`);
+      }
+      if (params.qty > ownedQty) {
+        throw new Error(`Cannot sell ${params.qty} ${params.symbol} — you only own ${ownedQty}`);
+      }
+    }
+
     let closedPnl: number | undefined;
 
     const existingIdx = positions.findIndex(
@@ -198,32 +212,33 @@ export const usePaperTrading = (userId?: string | null) => {
     } else {
       if (params.side === 'buy') {
         newCash -= (fillPrice * params.qty + fees);
-      } else {
-        newCash += (fillPrice * params.qty - fees);
-      }
 
-      const existingSame = newPositions.findIndex(
-        p => p.symbol === params.symbol && p.side === params.side
-      );
+        const existingSame = newPositions.findIndex(
+          p => p.symbol === params.symbol && p.side === params.side
+        );
 
-      if (existingSame >= 0) {
-        const ex = newPositions[existingSame];
-        const totalQty = ex.qty + params.qty;
-        const avgPrice = (ex.entryPrice * ex.qty + fillPrice * params.qty) / totalQty;
-        newPositions[existingSame] = { ...ex, qty: totalQty, entryPrice: avgPrice };
+        if (existingSame >= 0) {
+          const ex = newPositions[existingSame];
+          const totalQty = ex.qty + params.qty;
+          const avgPrice = (ex.entryPrice * ex.qty + fillPrice * params.qty) / totalQty;
+          newPositions[existingSame] = { ...ex, qty: totalQty, entryPrice: avgPrice };
+        } else {
+          newPositions.push({
+            id: crypto.randomUUID(),
+            symbol: params.symbol,
+            side: params.side,
+            qty: params.qty,
+            entryPrice: fillPrice,
+            currentPrice: fillPrice,
+            openedAt: Date.now(),
+            pnl: 0,
+            pnlPercent: 0,
+            botSource: params.botSource,
+          });
+        }
       } else {
-        newPositions.push({
-          id: crypto.randomUUID(),
-          symbol: params.symbol,
-          side: params.side,
-          qty: params.qty,
-          entryPrice: fillPrice,
-          currentPrice: fillPrice,
-          openedAt: Date.now(),
-          pnl: 0,
-          pnlPercent: 0,
-          botSource: params.botSource,
-        });
+        // Sell without opposite position should never reach here due to guard above
+        throw new Error(`Cannot sell ${params.symbol} — no position owned`);
       }
     }
 
