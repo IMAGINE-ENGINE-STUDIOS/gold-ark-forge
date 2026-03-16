@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -12,9 +12,11 @@ import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useBullionBars } from '@/hooks/useBullionBars';
 import { useCertificateReserveTotals } from '@/hooks/useCertificateReserveTotals';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import MarketplaceSpotWidget from '@/components/marketplace/MarketplaceSpotWidget';
+import { ALL_SYMBOLS, CATEGORY_COLORS } from '@/data/tradingSymbols';
 import {
   Search, Shield, Activity, Coins, Flame, Gem,
-  ArrowUpRight, TrendingUp, TrendingDown, Sparkles, Landmark,
+  ArrowUpRight, Sparkles,
 } from 'lucide-react';
 
 type FeedCategory = 'crypto' | 'energy' | 'metals';
@@ -30,6 +32,8 @@ interface BoardItem {
   source: string;
   routeSymbol: string;
   live: boolean;
+  isWsLive: boolean;
+  accentColor: string;
 }
 
 interface ReserveCardData {
@@ -57,6 +61,38 @@ const WS_KEY_BY_SYMBOL: Record<string, string> = {
   trx: 'tron', shib: 'shiba', pepe: 'pepe',
 };
 
+const CRYPTO_ID_BY_KEY: Record<string, string> = {
+  bitcoin: 'bitcoin',
+  ethereum: 'ethereum',
+  solana: 'solana',
+  xrp: 'ripple',
+  bnb: 'binancecoin',
+  cardano: 'cardano',
+  avalanche: 'avalanche-2',
+  polkadot: 'polkadot',
+  chainlink: 'chainlink',
+  dogecoin: 'dogecoin',
+  polygon: 'matic-network',
+  litecoin: 'litecoin',
+  uniswap: 'uniswap',
+  near: 'near',
+  aptos: 'aptos',
+  sui: 'sui',
+  arbitrum: 'arbitrum',
+  optimism: 'optimism',
+  injective: 'injective-protocol',
+  render: 'render-token',
+  filecoin: 'filecoin',
+  cosmos: 'cosmos',
+  stellar: 'stellar',
+  hedera: 'hedera-hashgraph',
+  tron: 'tron',
+  shiba: 'shiba-inu',
+  pepe: 'pepe',
+};
+
+const SUPPORTED_CRYPTO_SYMBOLS = ALL_SYMBOLS.filter(({ cat }) => cat === 'crypto');
+
 const ENERGY_ROUTE_BY_SYMBOL: Record<string, string> = {
   CL: 'oil', BZ: 'brent', NG: 'natgas', HO: 'heating_oil', RB: 'rbob',
 };
@@ -73,9 +109,27 @@ const FILTERS: { key: BoardFilter; label: string; icon: typeof Activity }[] = [
 ];
 
 const METAL_META = {
-  gold: { label: 'Gold Reserve', accent: 'text-gold', chip: 'border-gold/25 bg-gold/10 text-gold-light' },
-  silver: { label: 'Silver Reserve', accent: 'text-silver-light', chip: 'border-silver/25 bg-silver/10 text-silver-light' },
-  platinum: { label: 'Platinum Reserve', accent: 'text-platinum-light', chip: 'border-platinum/25 bg-platinum/10 text-platinum-light' },
+  gold: {
+    label: 'Gold Reserve',
+    accent: 'text-gold',
+    chip: 'border-gold/25 bg-gold/10 text-gold-light',
+    spotColor: 'hsl(43, 72%, 50%)',
+    marketSymbol: 'XAU/USD',
+  },
+  silver: {
+    label: 'Silver Reserve',
+    accent: 'text-silver-light',
+    chip: 'border-silver/25 bg-silver/10 text-silver-light',
+    spotColor: 'hsl(210, 6%, 67%)',
+    marketSymbol: 'XAG/USD',
+  },
+  platinum: {
+    label: 'Platinum Reserve',
+    accent: 'text-platinum-light',
+    chip: 'border-platinum/25 bg-platinum/10 text-platinum-light',
+    spotColor: 'hsl(210, 4%, 76%)',
+    marketSymbol: 'XPT/USD',
+  },
 } as const;
 
 const formatPrice = (value: number) => {
@@ -89,35 +143,10 @@ const formatPrice = (value: number) => {
   }).format(value);
 };
 
-const formatChange = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-
 const formatCompact = (value: number) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
 
-/* ─── PriceFlash: flashes green/red when price changes ─── */
-const PriceFlash = ({ price, className = '' }: { price: number; className?: string }) => {
-  const prevRef = useRef(price);
-  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
-    if (price !== prevRef.current && prevRef.current > 0) {
-      setFlash(price > prevRef.current ? 'up' : 'down');
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setFlash(null), 600);
-    }
-    prevRef.current = price;
-    return () => clearTimeout(timerRef.current);
-  }, [price]);
-
-  const flashClass = flash === 'up'
-    ? 'text-emerald-300 transition-colors duration-150'
-    : flash === 'down'
-      ? 'text-red-300 transition-colors duration-150'
-      : 'text-marble transition-colors duration-500';
-
-  return <span className={`${flashClass} ${className}`}>{formatPrice(price)}</span>;
-};
+const fallbackCryptoName = (label: string) => label.replace('/USD', '').replace('/', ' ');
 
 /* ─── LiveDot: pulsing dot for live feeds ─── */
 const LiveDot = () => (
@@ -140,7 +169,7 @@ const StatCard = ({ icon: Icon, label, value, detail }: { icon: typeof Activity;
 
 const MoverCard = ({ item }: { item: BoardItem }) => {
   const navigate = useNavigate();
-  const positive = item.change >= 0;
+
   return (
     <button
       type="button"
@@ -151,7 +180,7 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
         <div>
           <div className="mb-2 flex items-center gap-2">
             <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">VERIFIED</span>
-            <LiveDot />
+            {item.live && <LiveDot />}
             <span className="text-xs font-mono text-marble/45">{item.source}</span>
           </div>
           <h2 className="font-display text-2xl tracking-[0.06em] text-marble">{item.name}</h2>
@@ -162,20 +191,23 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
           <span className="text-[9px] font-display tracking-[0.2em] text-gold/50">SWAP</span>
         </div>
       </div>
-      <div className="flex items-end justify-between gap-4">
-        <PriceFlash price={item.price} className="font-mono text-2xl font-semibold md:text-3xl" />
-        <div className={`flex items-center gap-1 text-sm font-semibold ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
-          {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-          {formatChange(item.change)}
-        </div>
-      </div>
+
+      <MarketplaceSpotWidget
+        symbolKey={item.routeSymbol}
+        label={item.ticker}
+        basePrice={item.price}
+        baseChange={item.change}
+        accentColor={item.accentColor}
+        wsPrice={item.isWsLive ? item.price : undefined}
+        wsChange={item.isWsLive ? item.change : undefined}
+        isWsLive={item.isWsLive}
+      />
     </button>
   );
 };
 
 const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
   const navigate = useNavigate();
-  const positive = item.change >= 0;
   const categoryClass = item.category === 'crypto'
     ? 'border-gold/20 bg-gold/10 text-gold-light'
     : item.category === 'metals'
@@ -186,7 +218,7 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
     <button
       type="button"
       onClick={() => navigate(`/trading-bridge?symbol=${item.routeSymbol}`)}
-      className="grid w-full grid-cols-[52px_minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] items-center gap-4 border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6 group cursor-pointer"
+      className="grid w-full grid-cols-[52px_minmax(0,1.2fr)_minmax(0,1fr)] items-center gap-4 border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6 group cursor-pointer"
     >
       <div className="text-right font-mono text-sm text-marble/40">{rank}</div>
       <div className="min-w-0">
@@ -202,14 +234,18 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
         <div className="font-display text-lg tracking-[0.04em] text-marble md:text-xl">{item.name}</div>
         <div className="text-sm text-marble/50">{item.ticker} · {item.source}</div>
       </div>
-      <PriceFlash price={item.price} className="font-mono text-lg font-semibold md:text-xl" />
-      <div className="flex items-center justify-end gap-2">
-        <div className={`flex items-center gap-1 font-mono text-sm font-semibold md:text-base ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
-          {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-          {formatChange(item.change)}
-        </div>
-        <ArrowUpRight className="h-4 w-4 text-gold/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-      </div>
+
+      <MarketplaceSpotWidget
+        symbolKey={item.routeSymbol}
+        label={item.ticker}
+        basePrice={item.price}
+        baseChange={item.change}
+        accentColor={item.accentColor}
+        compact
+        wsPrice={item.isWsLive ? item.price : undefined}
+        wsChange={item.isWsLive ? item.change : undefined}
+        isWsLive={item.isWsLive}
+      />
     </button>
   );
 };
@@ -217,6 +253,7 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
 const ReserveCard = ({ card, onClick }: { card: ReserveCardData; onClick: () => void }) => {
   const meta = METAL_META[card.metal];
   const reserveValue = card.spotPrice ? card.certifiedOz * card.spotPrice : 0;
+
   return (
     <button type="button" onClick={onClick} className="rounded-sm border border-gold/15 bg-secondary/40 p-6 shadow-card text-left transition-all hover:border-gold/30 hover:shadow-gold group w-full">
       <div className="mb-5 flex items-center justify-between gap-3">
@@ -229,11 +266,15 @@ const ReserveCard = ({ card, onClick }: { card: ReserveCardData; onClick: () => 
           <span className="text-[9px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">SWAP →</span>
         </div>
       </div>
+
       <div className="grid gap-3 text-sm md:grid-cols-2">
-        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
-          <div className="text-marble/45">Spot price</div>
-          <PriceFlash price={card.spotPrice ?? 0} className="mt-1 font-mono text-2xl block" />
-        </div>
+        <MarketplaceSpotWidget
+          symbolKey={card.metal}
+          label={meta.marketSymbol}
+          basePrice={card.spotPrice ?? 0}
+          baseChange={0}
+          accentColor={meta.spotColor}
+        />
         <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
           <div className="text-marble/45">Vault ounces</div>
           <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.vaultOz)} oz</div>
