@@ -1006,6 +1006,7 @@ export interface ApexStats {
   accuracyPct: number;
   adaptiveThreshold: number;
   aboveFloor: boolean;
+  lastBatchAudit: { sample: number; accuracy: number; passed: boolean } | null;
   last5Accuracy: string;
   last5Detail: Array<{ correct: boolean; direction: string; error: number }>;
   predictionLog: Array<{
