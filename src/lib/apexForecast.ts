@@ -1213,7 +1213,16 @@ export function computeApexForecast(
     rawDirection = 'neutral';
   }
 
-  // Mandatory abstain below probability threshold
+  if (rawDirection !== 'neutral' && technicalDecision.direction !== 'neutral' && technicalDecision.direction !== rawDirection) {
+    console.log(`[APEX v6] Technical stack vetoed ${rawDirection} — ${technicalDecision.direction} setup only`);
+    rawDirection = 'neutral';
+  }
+
+  if (rawDirection !== 'neutral' && technicalDecision.confidence < 0.62) {
+    console.log(`[APEX v6] Technical confidence too weak ${(technicalDecision.confidence * 100).toFixed(0)}% — abstaining`);
+    rawDirection = 'neutral';
+  }
+
   if (adjustedProbability < MIN_PREDICTION_PROBABILITY && rawDirection !== 'neutral') {
     console.log(`[APEX v6] Abstaining — probability ${(adjustedProbability * 100).toFixed(0)}% < ${MIN_PREDICTION_PROBABILITY * 100}%`);
     rawDirection = 'neutral';
