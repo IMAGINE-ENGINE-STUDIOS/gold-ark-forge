@@ -348,7 +348,12 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         <div className="space-y-1">
           <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
           {paper.positions.map(pos => {
-            const isProfit = pos.currentPrice >= pos.entryPrice;
+            const livePrice = pos.symbol === activeSymbol.ticker && activePrice > 0 ? activePrice : pos.currentPrice;
+            const livePnl = pos.side === 'buy'
+              ? (livePrice - pos.entryPrice) * pos.qty
+              : (pos.entryPrice - livePrice) * pos.qty;
+            const livePnlPct = pos.entryPrice > 0 ? (livePnl / (pos.entryPrice * pos.qty)) * 100 : 0;
+            const isProfit = livePnl >= 0;
             return (
               <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
                 <div>
@@ -358,13 +363,13 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
                 <div className="text-right flex items-center gap-2">
                   <div>
                     <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                      ${pos.currentPrice < 10 ? pos.currentPrice.toFixed(4) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${livePrice < 10 ? livePrice.toFixed(4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    <div className={`text-[9px] font-mono ${(pos.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(pos.pnl ?? 0) >= 0 ? '+' : ''}${(pos.pnl ?? 0).toFixed(2)} ({(pos.pnlPercent ?? 0).toFixed(1)}%)
+                    <div className={`text-[9px] font-mono ${livePnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)} ({livePnlPct.toFixed(1)}%)
                     </div>
                   </div>
-                  <button onClick={() => paper.closePosition(pos.id, pos.currentPrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
+                  <button onClick={() => paper.closePosition(pos.id, livePrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
                 </div>
               </div>
             );
