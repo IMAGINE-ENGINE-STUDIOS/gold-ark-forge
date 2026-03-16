@@ -465,7 +465,7 @@ function TradeTabContent({
         </CollapsibleSection>
 
         <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
-          <GATechnicalGauge />
+          <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
         </CollapsibleSection>
       </div>
 
