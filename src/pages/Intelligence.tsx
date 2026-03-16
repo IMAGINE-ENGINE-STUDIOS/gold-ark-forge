@@ -45,6 +45,7 @@ import GAActivityFeed from '@/components/ga-widgets/GAActivityFeed';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
 import GAAnchorStatus from '@/components/ga-widgets/GAAnchorStatus';
 import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
+import GAAllAssetPriceCards from '@/components/ga-widgets/GAAllAssetPriceCards';
 
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
@@ -223,6 +224,14 @@ const Intelligence = () => {
             <GAPriceCards />
             <div className="mt-6">
               <GACryptoPriceCards />
+            </div>
+            <div className="mt-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-1 h-6 bg-gold rounded-full" />
+                <span className="font-display text-sm tracking-[0.15em] text-gold-light">ALL SWAP ASSETS — REAL-TIME</span>
+                <span className="text-[10px] text-marble/25 font-mono">200+ instruments</span>
+              </div>
+              <GAAllAssetPriceCards />
             </div>
           </WidgetDocWrapper>
         </section>
