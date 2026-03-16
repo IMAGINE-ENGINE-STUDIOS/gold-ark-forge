@@ -220,7 +220,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
           {activeTab === 'weights' && (
             <div className="space-y-1.5">
               <div className="text-[8px] font-display tracking-wider text-marble/20 mb-2">
-                INDICATOR WEIGHTS · DEFAULT MARKER (|) · CURRENT BAR
+                INDICATOR WEIGHTS · DEFAULT (|) · ACCURACY % · MUTED = KILL-SWITCHED
               </div>
               {Object.entries(stats.weights).map(([name, value]) => (
                 <WeightBar
@@ -228,6 +228,8 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                   name={name}
                   value={value}
                   defaultValue={DEFAULT_WEIGHTS[name as keyof typeof DEFAULT_WEIGHTS]}
+                  sigAcc={(stats as any).signalAccuracy?.[name]}
+                  isMuted={(stats as any).mutedSignals?.includes(name)}
                 />
               ))}
             </div>
