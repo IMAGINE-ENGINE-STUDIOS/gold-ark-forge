@@ -839,6 +839,15 @@ const TradingBridge = () => {
     cash: paper.account.cash,
   });
 
+  const genius = useGeniusTrader({
+    submitOrder: paper.submitOrder,
+    positions: paper.positions,
+    cash: paper.account.cash,
+    equity: paper.account.equity,
+    resolvePrice: resolvePriceForTicker,
+    getCandleHistory,
+  });
+
   // ─── Close Position with Notification ──────────────
   const { toast } = useToast();
   const handleClosePosition = useCallback((posId: string, price: number) => {
