@@ -1,269 +1,246 @@
-import { useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
-import { useCertificates, MetalType, CertificateWithPartner } from '@/hooks/useCertificates';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS, CATEGORY_COLORS, type WatchlistSymbol } from '@/data/tradingSymbols';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, CATEGORY_COLORS, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
-  Shield, ArrowUpRight, Filter, Gem, Flame, Wheat, Landmark, Beef, Building2,
-  PaintbrushVertical, Warehouse, TrendingUp, TrendingDown, BarChart3, Cpu, Globe,
-  DollarSign, Coins, Zap, Search,
+  Gem, Flame, Coins, Zap, Globe, Cpu, Building2, DollarSign, Landmark,
+  TrendingUp, TrendingDown, Search, ArrowUpRight, ChevronRight, Shield, Activity,
+  BarChart3, Eye, Star,
 } from 'lucide-react';
 
-// ─── Marketplace Category Mapping ────────────────────────
-interface MarketCategory {
+// ─── Category Config ─────────────────────────────────────
+interface MarketCat {
   key: string;
   label: string;
   icon: React.ElementType;
-  swapCategories: string[];  // maps to tradingSymbols cat values
-  description: string;
+  cats: string[];  // maps to tradingSymbols `cat` field
+  watchlistLabels?: string[]; // for fine-grained watchlist label matching
 }
 
-const MARKET_CATEGORIES: MarketCategory[] = [
-  { key: 'all', label: 'All Assets', icon: BarChart3, swapCategories: [], description: '' },
-  { key: 'precious-metals', label: 'Precious Metals', icon: Gem, swapCategories: ['metals'], description: 'Gold, Silver, Platinum & Palladium — live spot prices' },
-  { key: 'crypto-major', label: 'Crypto Major', icon: Coins, swapCategories: ['crypto-major'], description: 'Bitcoin, Ethereum & top-cap digital assets — live WebSocket feeds' },
-  { key: 'crypto-alt', label: 'Crypto Alt', icon: Zap, swapCategories: ['crypto-alt'], description: 'High-growth altcoins & DeFi tokens — live Binance streams' },
-  { key: 'energy', label: 'Energy', icon: Flame, swapCategories: ['energy'], description: 'Crude oil, natural gas, uranium & power commodities' },
-  { key: 'oil-gas', label: 'Oil & Gas', icon: Flame, swapCategories: ['stocks-og'], description: 'Major energy producers & service companies' },
-  { key: 'indices', label: 'Indices & Mega', icon: Globe, swapCategories: ['stocks-idx'], description: 'S&P 500, Nasdaq, Dow & mega-cap equities' },
-  { key: 'tech', label: 'Tech & Growth', icon: Cpu, swapCategories: ['stocks-tech'], description: 'FAANG, semiconductors & high-growth tech' },
-  { key: 'financials', label: 'Financials', icon: Building2, swapCategories: ['stocks-fin'], description: 'Banks, asset managers & mining companies' },
-  { key: 'forex', label: 'Forex', icon: DollarSign, swapCategories: ['forex'], description: 'Major & emerging market currency pairs' },
-  { key: 'bonds', label: 'Bonds', icon: Landmark, swapCategories: ['bonds'], description: 'Treasury, corporate & municipal fixed-income ETFs' },
+const CATEGORIES: MarketCat[] = [
+  { key: 'all', label: 'ALL ASSETS', icon: BarChart3, cats: [] },
+  { key: 'metals', label: 'PRECIOUS METALS', icon: Gem, cats: ['metals'] },
+  { key: 'crypto', label: 'CRYPTO', icon: Coins, cats: ['crypto'] },
+  { key: 'energy', label: 'ENERGY', icon: Flame, cats: ['energy'] },
+  { key: 'equities', label: 'EQUITIES', icon: Globe, cats: ['stocks'] },
+  { key: 'forex', label: 'FOREX', icon: DollarSign, cats: ['forex'] },
+  { key: 'bonds', label: 'FIXED INCOME', icon: Landmark, cats: ['bonds'] },
 ];
 
-// Map WATCHLIST_CATEGORIES labels to our marketplace subcategory
-function getMarketSubCat(watchlistLabel: string): string {
-  const map: Record<string, string> = {
-    'PRECIOUS METALS': 'metals',
-    'CRYPTO — MAJOR': 'crypto-major',
-    'CRYPTO — ALT': 'crypto-alt',
-    'ENERGY COMMODITIES': 'energy',
-    'OIL & GAS COMPANIES': 'stocks-og',
-    'US INDICES & MEGA CAP': 'stocks-idx',
-    'TECH & GROWTH': 'stocks-tech',
-    'FINANCIALS & MINING': 'stocks-fin',
-    'FOREX — MAJOR': 'forex',
-    'BONDS & FIXED INCOME': 'bonds',
-  };
-  return map[watchlistLabel] || 'other';
-}
+const CAT_ACCENT: Record<string, string> = {
+  metals: 'hsl(43, 72%, 50%)',
+  crypto: 'hsl(38, 92%, 50%)',
+  energy: 'hsl(25, 95%, 53%)',
+  stocks: 'hsl(217, 91%, 60%)',
+  forex: 'hsl(170, 70%, 50%)',
+  bonds: 'hsl(210, 6%, 67%)',
+};
 
-// Build enriched symbol list with subcategory
-interface EnrichedSymbol extends WatchlistSymbol {
-  subCat: string;
-  watchlistLabel: string;
-}
-
-const ENRICHED_SYMBOLS: EnrichedSymbol[] = WATCHLIST_CATEGORIES.flatMap(wc =>
-  wc.items.map(item => ({
-    ...item,
-    subCat: getMarketSubCat(wc.label),
-    watchlistLabel: wc.label,
-  }))
-);
-
-// Crypto keys for WebSocket
+// All crypto keys for WS
 const CRYPTO_KEYS = ALL_SYMBOLS.filter(s => s.cat === 'crypto').map(s => s.key);
 
-// Category styling
-const CAT_STYLES: Record<string, { gradient: string; tag: string; text: string }> = {
-  metals:       { gradient: 'from-gold/20 to-gold/5 border-gold/30', tag: 'bg-gold/20 text-gold', text: 'text-gold' },
-  'crypto-major': { gradient: 'from-amber-500/20 to-amber-500/5 border-amber-500/30', tag: 'bg-amber-500/20 text-amber-400', text: 'text-amber-400' },
-  'crypto-alt': { gradient: 'from-orange-500/20 to-orange-500/5 border-orange-500/30', tag: 'bg-orange-500/20 text-orange-300', text: 'text-orange-300' },
-  energy:       { gradient: 'from-amber-600/20 to-amber-600/5 border-amber-600/30', tag: 'bg-amber-600/20 text-amber-400', text: 'text-amber-400' },
-  'stocks-og':  { gradient: 'from-sky-500/20 to-sky-500/5 border-sky-500/30', tag: 'bg-sky-500/20 text-sky-300', text: 'text-sky-300' },
-  'stocks-idx': { gradient: 'from-blue-500/20 to-blue-500/5 border-blue-500/30', tag: 'bg-blue-500/20 text-blue-300', text: 'text-blue-300' },
-  'stocks-tech': { gradient: 'from-indigo-500/20 to-indigo-500/5 border-indigo-500/30', tag: 'bg-indigo-500/20 text-indigo-300', text: 'text-indigo-300' },
-  'stocks-fin': { gradient: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/30', tag: 'bg-emerald-500/20 text-emerald-300', text: 'text-emerald-300' },
-  forex:        { gradient: 'from-teal-500/20 to-teal-500/5 border-teal-500/30', tag: 'bg-teal-500/20 text-teal-300', text: 'text-teal-300' },
-  bonds:        { gradient: 'from-slate-400/20 to-slate-400/5 border-slate-400/30', tag: 'bg-slate-400/20 text-slate-300', text: 'text-slate-300' },
+// ─── Format Helpers ──────────────────────────────────────
+const fmtPrice = (p: number) => {
+  if (p === 0) return '—';
+  if (p >= 1000) return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(p);
+  if (p < 0.01) return `$${p.toFixed(6)}`;
+  return `$${p.toFixed(p < 10 ? 4 : 2)}`;
 };
 
-const getStyle = (subCat: string) => CAT_STYLES[subCat] || CAT_STYLES.metals;
+const fmtChange = (c: number) => `${c >= 0 ? '+' : ''}${c.toFixed(2)}%`;
 
-// ─── Metal Certificate Card ─────────────────────────────
-const metalColors: Record<string, string> = {
-  gold: 'from-gold/20 to-gold/5 border-gold/30',
-  silver: 'from-silver/20 to-silver/5 border-silver/30',
-  platinum: 'from-platinum/20 to-platinum/5 border-platinum/30',
-};
-const metalTextColors: Record<string, string> = {
-  gold: 'text-gold', silver: 'text-silver', platinum: 'text-platinum',
-};
-const statusColors: Record<string, string> = {
-  active: 'text-emerald-400 border-emerald-400/50',
-  frozen: 'text-sky-400 border-sky-400/50',
-  revoked: 'text-red-400 border-red-400/50',
-  redeemed: 'text-muted-foreground border-muted',
-};
+// ─── Animated Price Flash ────────────────────────────────
+const PriceFlash = ({ price, change, isLive }: { price: number; change: number; isLive: boolean }) => {
+  const prevPrice = useRef(price);
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
 
-const CertificateCard = ({ cert, prices }: { cert: CertificateWithPartner; prices: any }) => {
-  const metal = (cert.metadata_json as any)?.metal_type || 'gold';
-  const weight = Number((cert.metadata_json as any)?.weight_oz) || 0;
-  const serial = (cert.metadata_json as any)?.serial_number || '—';
-  const fineness = Number((cert.metadata_json as any)?.fineness) || 0;
-  const spotPrice = prices?.[metal]?.price_usd ? Number(prices[metal].price_usd) : null;
-  const fmtPrice = (p: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(p);
+  useEffect(() => {
+    if (price !== prevPrice.current) {
+      setFlash(price > prevPrice.current ? 'up' : 'down');
+      prevPrice.current = price;
+      const t = setTimeout(() => setFlash(null), 600);
+      return () => clearTimeout(t);
+    }
+  }, [price]);
 
   return (
-    <Card className={`bg-gradient-to-br ${metalColors[metal] || metalColors.gold} border hover:border-gold/50 transition-all group relative overflow-hidden`}>
-      {/* Ornate corner accents */}
-      <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-gold/40 rounded-tl" />
-      <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-gold/40 rounded-tr" />
-      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-gold/40 rounded-bl" />
-      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-gold/40 rounded-br" />
-      <CardContent className="p-5">
-        <div className="flex justify-between items-start mb-3">
-          <div>
-            <Badge variant="outline" className={`${metalTextColors[metal] || 'text-gold'} border-current mb-1.5 text-[10px]`}>
-              {metal.toUpperCase()} · CERTIFICATE
-            </Badge>
-            <h3 className="font-display text-lg text-marble">{weight} oz Bar</h3>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className={`text-[10px] ${statusColors[cert.status] || ''}`}>{cert.status}</Badge>
-            <Shield className="text-emerald-400" size={14} />
-          </div>
-        </div>
-        <div className="space-y-1.5 text-xs text-marble/50 mb-3">
-          <div className="flex justify-between"><span>Partner:</span><span className="text-marble/80 font-medium">{cert.partners.legal_name}</span></div>
-          <div className="flex justify-between"><span>Serial:</span><span className="font-mono text-marble/70">{serial}</span></div>
-          <div className="flex justify-between"><span>Fineness:</span><span className="text-marble/70">{(fineness * 100).toFixed(2)}%</span></div>
-        </div>
-        {spotPrice && weight > 0 && (
-          <div className="border-t border-gold/20 pt-3 mb-3">
-            <div className="flex justify-between items-end">
-              <span className="text-marble/40 text-xs">Est. Value:</span>
-              <span className="text-gold font-display text-lg">{fmtPrice(weight * spotPrice)}</span>
-            </div>
-          </div>
+    <div className="text-right">
+      <div className={`font-mono text-xl md:text-2xl font-bold tracking-tight transition-colors duration-300 ${
+        flash === 'up' ? 'text-emerald-400' : flash === 'down' ? 'text-red-400' : 'text-marble'
+      }`}>
+        {fmtPrice(price)}
+      </div>
+      <div className={`text-sm font-mono flex items-center justify-end gap-1 mt-0.5 ${
+        change >= 0 ? 'text-emerald-400' : 'text-red-400'
+      }`}>
+        {change >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+        {fmtChange(change)}
+        {isLive && (
+          <span className="ml-1.5 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] text-emerald-400/80 font-display tracking-widest">LIVE</span>
+          </span>
         )}
-        <Link to={`/marketplace/certificate/${cert.cert_id}`}
-          className="block text-center bg-gold/10 hover:bg-gold/20 border border-gold/30 text-gold py-2.5 text-xs font-display tracking-wider rounded transition-all group-hover:border-gold/50">
-          View Certificate <ArrowUpRight size={12} className="inline ml-1" />
-        </Link>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
-// ─── Live Asset Card ─────────────────────────────────────
-const AssetCard = ({ symbol, livePrice, liveChange, isLive }: {
-  symbol: EnrichedSymbol;
-  livePrice: number;
-  liveChange: number;
+// ─── Sparkline Mini Bar ──────────────────────────────────
+const SparkBar = ({ change, accent }: { change: number; accent: string }) => {
+  const width = Math.min(100, Math.max(8, 50 + Math.abs(change) * 8));
+  return (
+    <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'hsla(213,32%,16%,0.6)' }}>
+      <div
+        className="h-full rounded-full transition-all duration-700"
+        style={{
+          width: `${width}%`,
+          background: change >= 0
+            ? 'linear-gradient(90deg, hsla(160,84%,39%,0.4), hsla(160,84%,39%,0.8))'
+            : 'linear-gradient(90deg, hsla(0,84%,60%,0.4), hsla(0,84%,60%,0.8))',
+        }}
+      />
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
+// ASSET ROW — the primary display unit
+// ═══════════════════════════════════════════════════════════
+const AssetRow = ({ symbol, price, change, isLive, rank }: {
+  symbol: WatchlistSymbol;
+  price: number;
+  change: number;
+  isLive: boolean;
+  rank: number;
+}) => {
+  const navigate = useNavigate();
+  const accent = CAT_ACCENT[symbol.cat] || 'hsl(43,72%,50%)';
+
+  return (
+    <button
+      onClick={() => navigate(`/trading-bridge?symbol=${symbol.key}`)}
+      className="w-full group"
+    >
+      <div className="flex items-center gap-3 md:gap-5 px-4 md:px-6 py-4 md:py-5 rounded-sm border border-transparent hover:border-gold/25 bg-transparent hover:bg-navy-light/30 transition-all duration-300 relative">
+        {/* Rank */}
+        <span className="text-marble/20 font-mono text-xs w-6 text-right flex-shrink-0">{rank}</span>
+
+        {/* Category dot */}
+        <div className="w-3 h-3 rounded-full flex-shrink-0 ring-2 ring-offset-1 ring-offset-navy" style={{ background: accent, boxShadow: `0 0 12px ${accent}40` }} />
+
+        {/* Symbol Info */}
+        <div className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-2">
+            <span className="font-display text-base md:text-lg text-marble tracking-wide group-hover:text-gold transition-colors">
+              {symbol.label}
+            </span>
+            <span className="text-[10px] md:text-xs font-mono text-marble/30 tracking-widest">{symbol.ticker}</span>
+          </div>
+          <div className="mt-1.5 max-w-[200px]">
+            <SparkBar change={change} accent={accent} />
+          </div>
+        </div>
+
+        {/* Price + Change */}
+        <PriceFlash price={price} change={change} isLive={isLive} />
+
+        {/* Arrow */}
+        <ArrowUpRight size={18} className="text-marble/15 group-hover:text-gold/70 transition-colors flex-shrink-0 ml-2" />
+      </div>
+    </button>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
+// FEATURED HERO CARDS (top 6 movers)
+// ═══════════════════════════════════════════════════════════
+const HeroCard = ({ symbol, price, change, isLive }: {
+  symbol: WatchlistSymbol;
+  price: number;
+  change: number;
   isLive: boolean;
 }) => {
   const navigate = useNavigate();
-  const style = getStyle(symbol.subCat);
-
-  const fmtPrice = (p: number) => {
-    if (p >= 1000) return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(p);
-    if (p < 0.01) return `$${p.toFixed(6)}`;
-    return `$${p.toFixed(p < 10 ? 4 : 2)}`;
-  };
+  const accent = CAT_ACCENT[symbol.cat] || 'hsl(43,72%,50%)';
 
   return (
-    <Card
-      className={`bg-gradient-to-br ${style.gradient} border hover:border-opacity-70 transition-all group cursor-pointer relative overflow-hidden`}
+    <button
       onClick={() => navigate(`/trading-bridge?symbol=${symbol.key}`)}
+      className="group relative overflow-hidden rounded-sm border border-gold/15 hover:border-gold/40 transition-all duration-500 bg-navy-light/20 hover:bg-navy-light/40 p-5 md:p-6 text-left"
     >
+      {/* Glow accent */}
+      <div className="absolute top-0 left-0 w-full h-1 opacity-60" style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
+
       {/* Ornate corners */}
-      <div className="absolute top-0 left-0 w-4 h-4 border-t border-l border-gold/20" />
-      <div className="absolute top-0 right-0 w-4 h-4 border-t border-r border-gold/20" />
-      <div className="absolute bottom-0 left-0 w-4 h-4 border-b border-l border-gold/20" />
-      <div className="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-gold/20" />
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Badge variant="outline" className={`${style.tag} border-current text-[9px] font-mono`}>
-                {symbol.ticker}
-              </Badge>
-              {isLive && (
-                <span className="flex items-center gap-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[7px] text-emerald-400/70 font-mono">LIVE</span>
-                </span>
-              )}
-              {!isLive && (
-                <span className="text-[7px] text-marble/30 font-mono">DELAYED</span>
-              )}
-            </div>
-            <h3 className="font-display text-sm text-marble truncate">{symbol.label}</h3>
+      <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-gold/30 rounded-tl-sm" />
+      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-gold/30 rounded-br-sm" />
+
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: accent }} />
+            <span className="text-xs font-mono text-marble/40 tracking-widest">{symbol.ticker}</span>
+            {isLive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
           </div>
-          <div className="text-right flex-shrink-0">
-            <div className="text-marble font-mono text-sm font-semibold">{fmtPrice(livePrice)}</div>
-            <div className={`text-[11px] font-mono flex items-center justify-end gap-0.5 ${liveChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {liveChange >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-              {liveChange >= 0 ? '+' : ''}{liveChange.toFixed(2)}%
-            </div>
+          <h3 className="font-display text-xl md:text-2xl text-marble group-hover:text-gold transition-colors tracking-wide">
+            {symbol.label}
+          </h3>
+        </div>
+        <ArrowUpRight size={20} className="text-marble/15 group-hover:text-gold/60 transition-colors mt-1" />
+      </div>
+
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="font-mono text-2xl md:text-3xl font-bold text-marble tracking-tight">
+            {fmtPrice(price)}
+          </div>
+          <div className={`text-sm font-mono mt-1 flex items-center gap-1.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {change >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+            {fmtChange(change)}
           </div>
         </div>
-
-        {/* Mini sparkline bar representing change direction */}
-        <div className="h-1 rounded-full bg-navy-dark/60 overflow-hidden mb-3">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${liveChange >= 0 ? 'bg-emerald-400/60' : 'bg-red-400/60'}`}
-            style={{ width: `${Math.min(100, Math.max(10, 50 + liveChange * 10))}%` }}
-          />
-        </div>
-
-        <button className={`w-full text-center border py-2 text-[10px] font-display tracking-[0.15em] rounded transition-all ${style.tag} border-current/30 hover:opacity-80 group-hover:border-current/60`}>
-          TRADE ON SWAP <ArrowUpRight size={10} className="inline ml-1" />
-        </button>
-      </CardContent>
-    </Card>
+        <SparkBar change={change} accent={accent} />
+      </div>
+    </button>
   );
 };
 
 // ═══════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// MARKETPLACE
 // ═══════════════════════════════════════════════════════════
 const Marketplace = () => {
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [selectedMetal, setSelectedMetal] = useState<MetalType | undefined>(undefined);
+  const navigate = useNavigate();
+  const [activeCat, setActiveCat] = useState('all');
   const [search, setSearch] = useState('');
-  const { data: certs, isLoading } = useCertificates({ metalType: selectedMetal });
-  const { data: metalPrices } = useMetalPrices();
 
-  // Live crypto prices via WebSocket
+  const { data: metalPrices } = useMetalPrices();
   const wsPrices = useWebSocketPrices(CRYPTO_KEYS);
 
-  // Resolve live price for any symbol
-  const resolvePrice = (sym: EnrichedSymbol): { price: number; change: number; isLive: boolean } => {
-    // WebSocket live crypto
+  // Resolve price for any symbol
+  const resolvePrice = (sym: WatchlistSymbol) => {
     if (wsPrices[sym.key]) {
       return { price: wsPrices[sym.key].price, change: wsPrices[sym.key].change24h, isLive: true };
     }
-    // Metal prices from API
     if (sym.cat === 'metals' && metalPrices) {
       const mp = metalPrices[sym.key as keyof typeof metalPrices];
       if (mp) return { price: Number(mp.price_usd), change: Number(mp.change_24h || 0), isLive: true };
     }
-    // Synthetic fallback
     const synth = SYNTHETIC_PRICES[sym.key];
     if (synth) return { price: synth.p, change: synth.c, isLive: false };
     return { price: 0, change: 0, isLive: false };
   };
 
-  // Filter symbols by active category
-  const activeCat = MARKET_CATEGORIES.find(c => c.key === activeCategory) || MARKET_CATEGORIES[0];
-  const showCertificates = activeCategory === 'all' || activeCategory === 'precious-metals';
-
-  const filteredSymbols = useMemo(() => {
-    let syms = ENRICHED_SYMBOLS;
-    if (activeCategory !== 'all') {
-      const cats = activeCat.swapCategories;
-      syms = syms.filter(s => cats.includes(s.subCat));
+  // Filter
+  const cat = CATEGORIES.find(c => c.key === activeCat) || CATEGORIES[0];
+  const filtered = useMemo(() => {
+    let syms = ALL_SYMBOLS;
+    if (activeCat !== 'all') {
+      syms = syms.filter(s => cat.cats.includes(s.cat));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -274,215 +251,216 @@ const Marketplace = () => {
       );
     }
     return syms;
-  }, [activeCategory, search, activeCat]);
+  }, [activeCat, search, cat]);
 
-  // Category counts
-  const catCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const mc of MARKET_CATEGORIES) {
-      if (mc.key === 'all') {
-        counts[mc.key] = ENRICHED_SYMBOLS.length + (certs?.length || 0);
-      } else if (mc.key === 'precious-metals') {
-        const metalSyms = ENRICHED_SYMBOLS.filter(s => mc.swapCategories.includes(s.subCat));
-        counts[mc.key] = metalSyms.length + (certs?.length || 0);
-      } else {
-        counts[mc.key] = ENRICHED_SYMBOLS.filter(s => mc.swapCategories.includes(s.subCat)).length;
-      }
-    }
-    return counts;
-  }, [certs]);
+  // Top movers: sort by absolute change, take top 6
+  const topMovers = useMemo(() => {
+    const withPrices = ALL_SYMBOLS.map(s => ({ sym: s, ...resolvePrice(s) })).filter(x => x.price > 0);
+    return withPrices.sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 6);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsPrices, metalPrices]);
 
-  const metals: { type: MetalType; label: string }[] = [
-    { type: 'gold', label: 'Gold' },
-    { type: 'silver', label: 'Silver' },
-    { type: 'platinum', label: 'Platinum' },
-  ];
-  const fmtSpot = (price: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(price);
+  // Stats
+  const liveCount = ALL_SYMBOLS.filter(s => {
+    if (wsPrices[s.key]) return true;
+    if (s.cat === 'metals' && metalPrices?.[s.key as keyof typeof metalPrices]) return true;
+    return false;
+  }).length;
 
   return (
     <div className="min-h-screen bg-navy">
       <Header />
       <GAMultiTicker />
-      <main className="container mx-auto px-4 py-12">
-        {/* ─── Roman PAX Header ─── */}
-        <div className="text-center mb-12 relative">
-          <div className="absolute inset-0 bg-gradient-radial from-gold/5 to-transparent pointer-events-none" />
-          <div className="h-px w-40 mx-auto bg-gradient-to-r from-transparent via-gold/60 to-transparent mb-4" />
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="h-px w-16 bg-gold/30" />
-            <Gem className="text-gold w-5 h-5" />
-            <div className="h-px w-16 bg-gold/30" />
+
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* HERO SECTION                                       */}
+      {/* ═══════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden">
+        {/* Background radial glow */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-radial from-gold/8 via-gold/2 to-transparent" />
+        </div>
+
+        <div className="container mx-auto px-4 pt-16 pb-10 relative z-10">
+          {/* Ornate top line */}
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <div className="h-px w-24 bg-gradient-to-r from-transparent to-gold/50" />
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-gold/60" />
+              <span className="font-display text-[11px] tracking-[0.3em] text-gold/50">GOLD ARROW EXCHANGE</span>
+              <Shield className="w-4 h-4 text-gold/60" />
+            </div>
+            <div className="h-px w-24 bg-gradient-to-l from-transparent to-gold/50" />
           </div>
-          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-gold via-gold-light to-gold mb-4 tracking-wide">
+
+          {/* Title */}
+          <h1 className="text-center font-display text-5xl md:text-7xl lg:text-8xl tracking-[0.08em] mb-4"
+            style={{
+              background: 'linear-gradient(180deg, hsl(43,76%,62%) 0%, hsl(43,72%,50%) 40%, hsl(40,68%,38%) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
             ASSET MARKETPLACE
           </h1>
-          <p className="text-marble/50 max-w-2xl mx-auto text-sm md:text-base font-light">
-            {ENRICHED_SYMBOLS.length}+ instruments across {MARKET_CATEGORIES.length - 1} asset classes.
-            Live data from WebSocket feeds, institutional APIs & proprietary analytics.
+
+          {/* Subtitle */}
+          <p className="text-center text-marble/50 text-base md:text-lg font-light max-w-xl mx-auto mb-3 leading-relaxed">
+            Institutional-grade access to {ALL_SYMBOLS.length}+ instruments across global markets
           </p>
-          <div className="h-px w-40 mx-auto bg-gradient-to-r from-transparent via-gold/60 to-transparent mt-4" />
-        </div>
 
-        {/* ─── Search Bar ─── */}
-        <div className="max-w-md mx-auto mb-8 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-marble/30" />
-          <input
-            type="text"
-            placeholder="Search assets, tickers..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-navy-light/60 border border-gold/15 text-marble text-sm font-mono placeholder:text-marble/25 focus:outline-none focus:border-gold/40 transition-colors"
-          />
-        </div>
-
-        {/* ─── Category Tabs ─── */}
-        <div className="flex flex-wrap gap-2 mb-8 justify-center">
-          {MARKET_CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            return (
-              <button
-                key={cat.key}
-                onClick={() => { setActiveCategory(cat.key); setSelectedMetal(undefined); setSearch(''); }}
-                className={`px-3 md:px-4 py-2 rounded font-display text-[10px] md:text-xs tracking-wider transition-all flex items-center gap-1.5 border ${
-                  activeCategory === cat.key
-                    ? 'bg-gold/90 text-navy border-gold'
-                    : 'bg-navy-light/30 text-marble/70 hover:bg-navy-light/60 border-gold/15 hover:border-gold/30'
-                }`}
-              >
-                <Icon size={12} />
-                {cat.label}
-                <span className="text-[8px] opacity-60">({catCounts[cat.key] || 0})</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ─── Active Category Description ─── */}
-        {activeCat.description && (
-          <div className="text-center mb-8 py-3 px-6 rounded border border-gold/15 bg-navy-light/20">
-            <p className="text-sm text-gold/80">{activeCat.description}</p>
+          {/* Live stats strip */}
+          <div className="flex items-center justify-center gap-6 md:gap-10 text-marble/40 text-xs font-mono mb-10">
+            <span className="flex items-center gap-1.5">
+              <Activity size={12} className="text-emerald-400" />
+              <span className="text-emerald-400 font-semibold">{liveCount}</span> live feeds
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Eye size={12} />
+              {ALL_SYMBOLS.length} instruments
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Star size={12} />
+              {CATEGORIES.length - 1} asset classes
+            </span>
           </div>
-        )}
 
-        {/* ─── Precious Metals Certificates Section ─── */}
-        {showCertificates && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {metals.map(({ type, label }) => (
-                <div key={type} className={`p-4 rounded-lg bg-gradient-to-br ${metalColors[type]} border relative overflow-hidden`}>
-                  <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-gold/30" />
-                  <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-gold/30" />
-                  <div className="flex justify-between items-center">
-                    <span className={`font-display text-lg ${metalTextColors[type]}`}>{label}</span>
-                    <div className="text-right">
-                      <div className="text-marble font-semibold">
-                        {metalPrices?.[type as keyof typeof metalPrices]?.price_usd ? fmtSpot(Number(metalPrices[type as keyof typeof metalPrices].price_usd)) : '—'}
-                      </div>
-                      {metalPrices?.[type as keyof typeof metalPrices]?.change_24h && (
-                        <div className={`text-xs font-mono ${Number(metalPrices[type as keyof typeof metalPrices].change_24h) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {Number(metalPrices[type as keyof typeof metalPrices].change_24h) >= 0 ? '+' : ''}
-                          {Number(metalPrices[type as keyof typeof metalPrices].change_24h).toFixed(2)}%
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+          {/* TOP MOVERS */}
+          <div className="mb-4">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-px flex-1 bg-gold/15" />
+              <span className="font-display text-sm tracking-[0.25em] text-gold/70">TOP MOVERS</span>
+              <div className="h-px flex-1 bg-gold/15" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {topMovers.map(({ sym, price, change, isLive }) => (
+                <HeroCard key={sym.key} symbol={sym} price={price} change={change} isLive={isLive} />
               ))}
             </div>
+          </div>
+        </div>
+      </section>
 
-            {activeCategory === 'precious-metals' && (
-              <div className="flex flex-wrap gap-3 mb-6">
-                <button onClick={() => setSelectedMetal(undefined)}
-                  className={`px-4 py-2 rounded font-display text-sm transition-all border ${!selectedMetal ? 'bg-gold text-navy border-gold' : 'bg-navy-light/30 text-marble border-gold/15 hover:bg-navy-light/50'}`}>
-                  <Filter size={14} className="inline mr-2" />All Metals
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* MAIN CONTENT                                       */}
+      {/* ═══════════════════════════════════════════════════ */}
+      <main className="container mx-auto px-4 pb-20">
+        {/* Greek border line */}
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-gold/30 to-transparent mb-10" />
+
+        {/* Search + Category Bar */}
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6 mb-10">
+          {/* Search */}
+          <div className="relative flex-shrink-0 w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-marble/30" />
+            <input
+              type="text"
+              placeholder="Search asset, ticker, symbol..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-5 py-3.5 rounded-sm bg-navy-light/40 border border-gold/15 text-marble text-sm font-mono placeholder:text-marble/25 focus:outline-none focus:border-gold/40 focus:bg-navy-light/60 transition-all"
+            />
+          </div>
+
+          {/* Category Tabs */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {CATEGORIES.map((c) => {
+              const Icon = c.icon;
+              const isActive = activeCat === c.key;
+              const count = c.key === 'all' ? ALL_SYMBOLS.length : ALL_SYMBOLS.filter(s => c.cats.includes(s.cat)).length;
+              return (
+                <button
+                  key={c.key}
+                  onClick={() => { setActiveCat(c.key); setSearch(''); }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-sm font-display text-xs tracking-[0.15em] transition-all duration-300 border ${
+                    isActive
+                      ? 'bg-gold/90 text-navy border-gold shadow-[0_0_20px_-5px_hsla(43,72%,50%,0.4)]'
+                      : 'bg-transparent text-marble/60 border-gold/10 hover:border-gold/25 hover:text-marble/90'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {c.label}
+                  <span className={`text-[9px] font-mono ${isActive ? 'text-navy/60' : 'text-marble/25'}`}>
+                    {count}
+                  </span>
                 </button>
-                {metals.map(({ type, label }) => (
-                  <button key={type} onClick={() => setSelectedMetal(type)}
-                    className={`px-4 py-2 rounded font-display text-sm transition-all border ${selectedMetal === type ? 'bg-gold text-navy border-gold' : 'bg-navy-light/30 text-marble border-gold/15 hover:bg-navy-light/50'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+              );
+            })}
+          </div>
+        </div>
 
-            <div className="mb-10">
-              <h3 className="font-display text-lg text-gold mb-4 tracking-wider flex items-center gap-2">
-                <div className="h-px flex-1 bg-gold/15" />
-                <Gem size={16} /> BULLION CERTIFICATES
-                <div className="h-px flex-1 bg-gold/15" />
-              </h3>
-              {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {[...Array(6)].map((_, i) => (
-                    <Card key={i} className="bg-navy-light/30 border-gold/10">
-                      <CardContent className="p-5"><Skeleton className="h-6 w-3/4 mb-4" /><Skeleton className="h-4 w-1/2 mb-2" /><Skeleton className="h-10 w-full" /></CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : certs && certs.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {certs.map((cert) => <CertificateCard key={cert.cert_id} cert={cert} prices={metalPrices} />)}
-                </div>
-              ) : (
-                <div className="text-center py-10 border border-gold/10 rounded bg-navy-light/20">
-                  <div className="text-marble/50 text-sm mb-2 font-display">No certificates available</div>
-                  <p className="text-marble/30 text-xs">Check back soon for new bullion listings.</p>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ─── Live Asset Grid ─── */}
-        {filteredSymbols.length > 0 && (
+        {/* ─── Asset Table ─── */}
+        {filtered.length > 0 ? (
           <div>
-            <h3 className="font-display text-lg text-gold mb-4 tracking-wider flex items-center gap-2">
-              <div className="h-px flex-1 bg-gold/15" />
-              <BarChart3 size={16} /> {activeCategory === 'all' ? 'ALL INSTRUMENTS' : activeCat.label.toUpperCase()}
-              <span className="text-[10px] text-marble/30 font-mono ml-2">{filteredSymbols.length}</span>
-              <div className="h-px flex-1 bg-gold/15" />
-            </h3>
+            {/* Table header */}
+            <div className="flex items-center gap-3 md:gap-5 px-4 md:px-6 py-3 mb-2 text-[10px] md:text-xs font-display tracking-[0.2em] text-marble/25 border-b border-gold/10">
+              <span className="w-6 text-right">#</span>
+              <span className="w-3" />
+              <span className="flex-1">INSTRUMENT</span>
+              <span className="text-right w-48">PRICE / CHANGE</span>
+              <span className="w-[18px]" />
+              <span className="w-2" />
+            </div>
 
-            {/* Group by watchlist category when showing all */}
-            {activeCategory === 'all' ? (
+            {/* Group by watchlist category */}
+            {activeCat === 'all' ? (
               WATCHLIST_CATEGORIES.map(wc => {
-                const catSyms = filteredSymbols.filter(s => s.watchlistLabel === wc.label);
+                const catSyms = filtered.filter(s => {
+                  // Find this symbol's watchlist category
+                  return wc.items.some(item => item.key === s.key);
+                });
                 if (catSyms.length === 0) return null;
+                const catColor = CATEGORY_COLORS[catSyms[0]?.cat] || 'hsl(43,72%,50%)';
+
                 return (
                   <div key={wc.label} className="mb-8">
-                    <h4 className="font-display text-xs tracking-[0.2em] text-marble/40 mb-3 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ background: CATEGORY_COLORS[catSyms[0]?.cat] || 'hsl(43,72%,50%)' }} />
-                      {wc.label}
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {catSyms.map(sym => {
+                    {/* Category header */}
+                    <div className="flex items-center gap-3 mb-3 px-4 md:px-6">
+                      <div className="w-3 h-3 rounded-full" style={{ background: catColor, boxShadow: `0 0 10px ${catColor}30` }} />
+                      <span className="font-display text-xs tracking-[0.25em] text-marble/40">{wc.label}</span>
+                      <div className="h-px flex-1 bg-gold/8" />
+                      <span className="text-[10px] font-mono text-marble/20">{catSyms.length}</span>
+                    </div>
+
+                    {/* Rows */}
+                    <div className="divide-y divide-gold/5">
+                      {catSyms.map((sym, i) => {
                         const { price, change, isLive } = resolvePrice(sym);
                         if (price === 0) return null;
-                        return <AssetCard key={sym.key} symbol={sym} livePrice={price} liveChange={change} isLive={isLive} />;
+                        return <AssetRow key={sym.key} symbol={sym} price={price} change={change} isLive={isLive} rank={i + 1} />;
                       })}
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredSymbols.map(sym => {
+              <div className="divide-y divide-gold/5">
+                {filtered.map((sym, i) => {
                   const { price, change, isLive } = resolvePrice(sym);
                   if (price === 0) return null;
-                  return <AssetCard key={sym.key} symbol={sym} livePrice={price} liveChange={change} isLive={isLive} />;
+                  return <AssetRow key={sym.key} symbol={sym} price={price} change={change} isLive={isLive} rank={i + 1} />;
                 })}
               </div>
             )}
           </div>
-        )}
-
-        {filteredSymbols.length === 0 && !showCertificates && (
-          <div className="text-center py-16">
-            <div className="text-marble/50 text-lg mb-4 font-display">No assets found.</div>
-            <p className="text-marble/30 text-sm">Try a different search or category.</p>
+        ) : (
+          <div className="text-center py-24">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full border border-gold/15 mb-6">
+              <Search size={28} className="text-marble/20" />
+            </div>
+            <h3 className="font-display text-2xl text-marble/50 mb-2 tracking-wider">NO ASSETS FOUND</h3>
+            <p className="text-marble/30 text-sm">Try a different search term or select another category.</p>
           </div>
         )}
+
+        {/* Bottom ornament */}
+        <div className="flex items-center justify-center gap-4 mt-16">
+          <div className="h-px w-20 bg-gradient-to-r from-transparent to-gold/30" />
+          <Gem size={14} className="text-gold/30" />
+          <div className="h-px w-20 bg-gradient-to-l from-transparent to-gold/30" />
+        </div>
       </main>
+
       <Footer />
     </div>
   );
