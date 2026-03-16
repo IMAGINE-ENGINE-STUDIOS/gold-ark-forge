@@ -31,7 +31,7 @@ import {
   computeATR,
   computeMACD,
   computeBollingerBands,
-} from '@/components/trading/IndicatorOverlay';
+import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 
 // ─── Types ───────────────────────────────────────────────
 
