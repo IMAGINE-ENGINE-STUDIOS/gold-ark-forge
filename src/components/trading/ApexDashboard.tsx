@@ -2,13 +2,17 @@
  * APEX Performance Dashboard — Prediction log with accuracy %,
  * weight evolution, correction timeline, and adaptive threshold status.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
   BarChart3, Activity, Target, RefreshCw, Zap, Brain, Shield, ShieldAlert,
+  Timer, ArrowLeftRight, Trash2,
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
-import { Timer, ArrowLeftRight } from 'lucide-react';
+
+// v5: Auto-reset poisoned data from v4 inverted signals on first load
+const V5_RESET_KEY = 'ga_apex_v5_reset_done';
+
 
 const WEIGHT_LABELS: Record<string, string> = {
   rsi: 'RSI', sma20: 'SMA 20', sma50: 'SMA 50', ema20: 'EMA 20',
@@ -52,50 +56,72 @@ const WeightBar = ({ name, value, defaultValue, sigAcc, isMuted }: { name: strin
 const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> }) => {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'predictions' | 'weights' | 'timeline'>('predictions');
+  // v5: Auto-reset on first load to clear poisoned v4 data
+  useEffect(() => {
+    if (!localStorage.getItem(V5_RESET_KEY)) {
+      console.log('[APEX v5] Auto-resetting poisoned v4 data (inverted VWAP, contrarian Bollinger, aggressive RSI)');
+      resetApexState();
+      localStorage.setItem(V5_RESET_KEY, '1');
+    }
+  }, []);
+
   const stats = { ...getApexStats(), ...externalStats };
+
+  const handleReset = () => {
+    resetApexState();
+    setExpanded(false);
+  };
 
   const accColor = stats.accuracyPct >= 75 ? 'text-emerald-400' : stats.accuracyPct >= 50 ? 'text-amber-400' : 'text-red-400';
   const accBg = stats.accuracyPct >= 75 ? 'bg-emerald-500/15 border-emerald-500/30' : stats.accuracyPct >= 50 ? 'bg-amber-400/10 border-amber-400/30' : 'bg-red-500/15 border-red-500/30';
 
   return (
     <div className="border border-gold/15 rounded-sm bg-navy-dark/40 overflow-hidden">
-      {/* Collapsed Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-gold/5 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Brain className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX ACCURACY</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Accuracy badge */}
-          <div className="flex items-center gap-1.5">
-            {stats.aboveFloor
-              ? <Shield className="w-3 h-3 text-emerald-400" />
-              : <ShieldAlert className="w-3 h-3 text-red-400 animate-pulse" />
-            }
-            <span className={`text-[11px] font-mono font-semibold ${accColor}`}>
-              {stats.totalEvaluated > 0 ? `${stats.accuracyPct.toFixed(1)}%` : '—'}
-            </span>
-            <span className="text-[9px] font-mono text-marble/25">
-              {stats.totalCorrect}/{stats.totalEvaluated}
-            </span>
+      {/* Header with Reset Button */}
+      <div className="flex items-center">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gold/5 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Brain className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX v5</span>
           </div>
-          {/* Last 5 dots */}
-          <div className="flex items-center gap-0.5">
-            {stats.last5Detail.map((shot, i) => (
-              <div
-                key={i}
-                className={`w-2 h-2 rounded-full ${shot.correct ? 'bg-emerald-400' : 'bg-red-400'}`}
-                title={`${shot.direction}: ${shot.correct ? '✓' : '✗'}`}
-              />
-            ))}
-            {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">no data</span>}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              {stats.aboveFloor
+                ? <Shield className="w-3 h-3 text-emerald-400" />
+                : <ShieldAlert className="w-3 h-3 text-red-400 animate-pulse" />
+              }
+              <span className={`text-[11px] font-mono font-semibold ${accColor}`}>
+                {stats.totalEvaluated > 0 ? `${stats.accuracyPct.toFixed(1)}%` : '—'}
+              </span>
+              <span className="text-[9px] font-mono text-marble/25">
+                {stats.totalCorrect}/{stats.totalEvaluated}
+              </span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              {stats.last5Detail.map((shot, i) => (
+                <div
+                  key={i}
+                  className={`w-2 h-2 rounded-full ${shot.correct ? 'bg-emerald-400' : 'bg-red-400'}`}
+                  title={`${shot.direction}: ${shot.correct ? '✓' : '✗'}`}
+                />
+              ))}
+              {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">v5 fresh</span>}
+            </div>
+            {expanded ? <ChevronUp className="w-3 h-3 text-marble/30" /> : <ChevronDown className="w-3 h-3 text-marble/30" />}
           </div>
-          {expanded ? <ChevronUp className="w-3 h-3 text-marble/30" /> : <ChevronDown className="w-3 h-3 text-marble/30" />}
-        </div>
-      </button>
+        </button>
+        {/* Always-visible reset button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleReset(); }}
+          className="px-2 py-2 hover:bg-red-500/10 transition-colors border-l border-gold/10"
+          title="Reset APEX learning data"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-red-400/40 hover:text-red-400" />
+        </button>
+      </div>
 
       {/* Expanded Dashboard */}
       {expanded && (
