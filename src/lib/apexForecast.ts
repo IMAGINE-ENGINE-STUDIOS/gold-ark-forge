@@ -746,13 +746,17 @@ function computeConsensus(
   const bias = clusterTotalWeight > 0 ? Math.max(-1, Math.min(1, clusterWeightedSum / clusterTotalWeight)) : 0;
 
   // v6: Candle confirmation check
+  const technicalSnapshot = buildTechnicalSnapshot({ closes: values, highs, lows });
+  const technicalDecision = technicalSnapshot?.decision ?? { direction: 'neutral' as const, confidence: 0.5, aligned: false };
+
   const tentativeDirection: 'bullish' | 'bearish' = bias > 0 ? 'bullish' : 'bearish';
   const { confirmed: candleConfirmed, strength: candleStrength } = candleConfirmation(values, tentativeDirection);
 
-  // Probability factors in cluster agreement + candle confirmation
   const clusterAgreement = clusterVotes.length > 0 ? clusterConfluence / clusterVotes.length : 0.5;
+  const technicalAligned = technicalDecision.direction === 'neutral' ? 0 : technicalDecision.direction === tentativeDirection ? 1 : -1;
   const candleBonus = candleConfirmed ? 0.08 : -0.10;
-  const rawProb = 0.5 + (clusterAgreement - 0.5) * Math.abs(bias) * 1.5 + candleBonus;
+  const technicalBonus = technicalAligned > 0 ? 0.10 + (technicalDecision.confidence - 0.5) * 0.3 : technicalAligned < 0 ? -0.18 : -0.04;
+  const rawProb = 0.5 + (clusterAgreement - 0.5) * Math.abs(bias) * 1.5 + candleBonus + technicalBonus;
   const probability = Math.max(0.1, Math.min(0.95, rawProb));
 
   // Build legacy signal results for dashboard
