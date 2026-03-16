@@ -534,7 +534,6 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     const minMove = atr * 0.3; // must move at least 0.3 ATR to count
 
     if (shot.predictedDirection === 'neutral') {
-      // Neutral is correct if price didn't move significantly
       shot.correct = Math.abs(moved) < minMove;
     } else {
       const predictedUp = shot.predictedDirection === 'bullish';
@@ -542,7 +541,6 @@ function evaluateAndCorrect(state: ApexState): ApexState {
       const significantMove = Math.abs(moved) >= minMove;
 
       if (!significantMove) {
-        // Insufficient movement — neutral outcome, treat as correct for neutral, incorrect for directional
         shot.correct = false;
       } else {
         shot.correct = (predictedUp && actualUp) || (!predictedUp && !actualUp);
@@ -569,7 +567,7 @@ function evaluateAndCorrect(state: ApexState): ApexState {
   const trendingShots = recentBatch.filter(s => s.regime === 'trending');
   const rangingShots = recentBatch.filter(s => s.regime === 'ranging');
 
-  const adjustWeights = (shots: ApexShotRecord[], weights: ApexWeights) => {
+  const adjustWeights = (shots: ApexShotRecord[], weights: ApexWeights, learnRate: number) => {
     if (shots.length < 2) return false;
     const shotErrors = shots.filter(s => !s.correct);
     const shotErrorRate = shotErrors.length / shots.length;
@@ -598,14 +596,13 @@ function evaluateAndCorrect(state: ApexState): ApexState {
 
         const signalAccuracy = correct / total;
         if (signalAccuracy < 0.35) {
-          weights[k] *= (1 - LEARN_RATE);
+          weights[k] *= (1 - learnRate);
         } else if (signalAccuracy > 0.65) {
-          weights[k] *= (1 + LEARN_RATE * 0.6);
+          weights[k] *= (1 + learnRate * 0.6);
         }
       }
       return true;
     } else if (shotErrorRate <= 0.2) {
-      // Gentle regression toward defaults
       for (const k of Object.keys(weights) as (keyof ApexWeights)[]) {
         weights[k] = weights[k] * 0.95 + DEFAULT_WEIGHTS[k] * 0.05;
       }
@@ -613,8 +610,8 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     return false;
   };
 
-  const trendCorrected = adjustWeights(trendingShots, newTrendingWeights);
-  const rangeCorrected = adjustWeights(rangingShots, newRangingWeights);
+  const trendCorrected = adjustWeights(trendingShots, newTrendingWeights, LEARN_RATE);
+  const rangeCorrected = adjustWeights(rangingShots, newRangingWeights, LEARN_RATE);
   correctionApplied = trendCorrected || rangeCorrected;
 
   // Clamp all weights
@@ -656,6 +653,113 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     generation: newGeneration,
     winRate,
     streak,
+    weightHistory: [snapshot, ...state.weightHistory].slice(0, MAX_WEIGHT_HISTORY),
+  };
+}
+
+// ─── 10-Prediction Batch Audit ───────────────────────────
+// After every 10 evaluated directional predictions, measure true accuracy.
+// If below 70%, trigger aggressive deep correction on both regime weight sets.
+
+function batchAudit(state: ApexState): ApexState {
+  const directional = state.shots.filter(s => s.predictedDirection !== 'neutral');
+  const evaluated = directional.filter(s => s.correct !== undefined);
+
+  // Only trigger at multiples of BATCH_AUDIT_SIZE
+  // Track last audit count to avoid repeating the same audit
+  const lastAuditCount = (state as any)._lastBatchAuditCount ?? 0;
+  const currentBatchCount = Math.floor(evaluated.length / BATCH_AUDIT_SIZE);
+  if (currentBatchCount <= lastAuditCount || evaluated.length < BATCH_AUDIT_SIZE) {
+    return state;
+  }
+
+  // Compute true accuracy over ALL evaluated predictions
+  const totalCorrect = evaluated.filter(s => s.correct).length;
+  const trueAccuracy = (totalCorrect / evaluated.length) * 100;
+
+  // Store the batch audit milestone
+  (state as any)._lastBatchAuditCount = currentBatchCount;
+
+  // If accuracy >= 70%, no deep correction needed
+  if (trueAccuracy >= BATCH_AUDIT_FLOOR) {
+    console.log(`[APEX BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% ≥ ${BATCH_AUDIT_FLOOR}% — OK`);
+    return state;
+  }
+
+  // ─── DEEP CORRECTION: accuracy below 70% ──────────────
+  console.log(`[APEX BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% < ${BATCH_AUDIT_FLOOR}% — DEEP CORRECTION`);
+
+  const deficit = BATCH_AUDIT_FLOOR - trueAccuracy;
+  // Aggressive learn rate: 0.20 base + 0.02 per % deficit (max 0.50)
+  const deepLearnRate = Math.min(0.50, 0.20 + deficit * 0.02);
+
+  // Analyze ALL evaluated shots for signal-level accuracy
+  const signalStats: Record<string, { correct: number; wrong: number }> = {};
+  for (const shot of evaluated) {
+    const actualDir = (shot.actualPrice ?? shot.entryPrice) > shot.entryPrice ? 1 : -1;
+    for (const [sigName, sigVote] of Object.entries(shot.signalVotes || {})) {
+      if (Math.abs(sigVote) < 0.1) continue;
+      if (!signalStats[sigName]) signalStats[sigName] = { correct: 0, wrong: 0 };
+      if (Math.sign(sigVote) === actualDir) {
+        signalStats[sigName].correct++;
+      } else {
+        signalStats[sigName].wrong++;
+      }
+    }
+  }
+
+  // Apply deep corrections to BOTH weight sets
+  const applyDeepCorrection = (weights: ApexWeights) => {
+    for (const k of Object.keys(weights) as (keyof ApexWeights)[]) {
+      const stats = signalStats[k];
+      if (!stats) continue;
+      const total = stats.correct + stats.wrong;
+      if (total < 3) continue; // not enough data for this signal
+      const sigAccuracy = stats.correct / total;
+
+      if (sigAccuracy < 0.40) {
+        // Bad signal: aggressively reduce weight
+        weights[k] *= (1 - deepLearnRate);
+      } else if (sigAccuracy < 0.55) {
+        // Mediocre signal: moderate reduction
+        weights[k] *= (1 - deepLearnRate * 0.4);
+      } else if (sigAccuracy > 0.70) {
+        // Good signal: boost it
+        weights[k] *= (1 + deepLearnRate * 0.5);
+      }
+
+      // Clamp
+      weights[k] = Math.max(0.05, Math.min(2.5, weights[k]));
+    }
+  };
+
+  const newTrending = { ...state.trendingWeights };
+  const newRanging = { ...state.rangingWeights };
+  applyDeepCorrection(newTrending);
+  applyDeepCorrection(newRanging);
+
+  // Record the deep correction in weight history
+  const currentRegime: 'trending' | 'ranging' =
+    evaluated.filter(s => s.regime === 'trending').length >=
+    evaluated.filter(s => s.regime === 'ranging').length
+      ? 'trending' : 'ranging';
+
+  const snapshot: WeightSnapshot = {
+    generation: state.generation + 1,
+    timestamp: Date.now(),
+    weights: currentRegime === 'trending' ? { ...newTrending } : { ...newRanging },
+    accuracy: trueAccuracy,
+    correctionApplied: true,
+    regime: currentRegime,
+  };
+
+  return {
+    ...state,
+    trendingWeights: newTrending,
+    rangingWeights: newRanging,
+    weights: currentRegime === 'trending' ? newTrending : newRanging,
+    generation: state.generation + 1,
+    corrections: state.corrections + 1,
     weightHistory: [snapshot, ...state.weightHistory].slice(0, MAX_WEIGHT_HISTORY),
   };
 }
