@@ -45,6 +45,7 @@ import GAActivityFeed from '@/components/ga-widgets/GAActivityFeed';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
 import GAAnchorStatus from '@/components/ga-widgets/GAAnchorStatus';
 import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
+import GAAllAssetPriceCards from '@/components/ga-widgets/GAAllAssetPriceCards';
 
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
