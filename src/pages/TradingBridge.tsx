@@ -1390,10 +1390,11 @@ const TradingBridge = () => {
                   {bottomTab === 'trade' && (
                     <TradeTabContent 
                       tradingMode={tradingMode} 
-                      activeSymbol={activeSymbol} 
-                      activePrice={activePrice} 
-                      paper={paper} 
-                      activeConn={activeConn} 
+                      activeSymbol={activeSymbol}
+                      activePrice={activePrice}
+                      paper={paper}
+                      activeConn={activeConn}
+                      activeCandles={getCandleData(activeSymbol.ticker)}
                     />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
