@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -38,7 +38,9 @@ import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
 import OneClickTrading from '@/components/trading/OneClickTrading';
 import TradingPanel from '@/components/trading/TradingPanel';
 import WaveBotPanel from '@/components/trading/WaveBotPanel';
+import GeniusPanel from '@/components/trading/GeniusPanel';
 import { useWaveBot } from '@/hooks/useWaveBot';
+import { useGeniusTrader } from '@/hooks/useGeniusTrader';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
@@ -129,6 +131,7 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 // ─── Bottom Panel Tabs ───────────────────────────────────
 const BOTTOM_TABS = [
   { key: 'trade', label: 'TRADE', icon: ArrowUpDown },
+  { key: 'genius', label: 'GENIUS', icon: Brain },
   { key: 'book', label: 'BOOK', icon: Briefcase },
   { key: 'bot', label: 'BOT', icon: Bot },
   { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
@@ -836,6 +839,15 @@ const TradingBridge = () => {
     cash: paper.account.cash,
   });
 
+  const genius = useGeniusTrader({
+    submitOrder: paper.submitOrder,
+    positions: paper.positions,
+    cash: paper.account.cash,
+    equity: paper.account.equity,
+    resolvePrice: resolvePriceForTicker,
+    getCandleHistory,
+  });
+
   // ─── Close Position with Notification ──────────────
   const { toast } = useToast();
   const handleClosePosition = useCallback((posId: string, price: number) => {
@@ -1086,6 +1098,28 @@ const TradingBridge = () => {
                     paper={paper}
                     activeConn={activeConn}
                     activeCandles={getCandleData(activeSymbol.ticker)}
+                  />
+                )}
+                {bottomTab === 'genius' && (
+                  <GeniusPanel
+                    enabled={genius.enabled}
+                    setEnabled={genius.setEnabled}
+                    timeline={genius.timeline}
+                    setTimeline={genius.setTimeline}
+                    riskTolerance={genius.riskTolerance}
+                    setRiskTolerance={genius.setRiskTolerance}
+                    autoExecute={genius.autoExecute}
+                    setAutoExecute={genius.setAutoExecute}
+                    status={genius.status}
+                    lastAnalysis={genius.lastAnalysis}
+                    logs={genius.logs}
+                    error={genius.error}
+                    cycleCount={genius.cycleCount}
+                    winCount={genius.winCount}
+                    lossCount={genius.lossCount}
+                    totalPnl={genius.totalPnl}
+                    runManual={genius.runManual}
+                    clearLogs={genius.clearLogs}
                   />
                 )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
@@ -1395,6 +1429,28 @@ const TradingBridge = () => {
                       paper={paper}
                       activeConn={activeConn}
                       activeCandles={getCandleData(activeSymbol.ticker)}
+                    />
+                  )}
+                  {bottomTab === 'genius' && (
+                    <GeniusPanel
+                      enabled={genius.enabled}
+                      setEnabled={genius.setEnabled}
+                      timeline={genius.timeline}
+                      setTimeline={genius.setTimeline}
+                      riskTolerance={genius.riskTolerance}
+                      setRiskTolerance={genius.setRiskTolerance}
+                      autoExecute={genius.autoExecute}
+                      setAutoExecute={genius.setAutoExecute}
+                      status={genius.status}
+                      lastAnalysis={genius.lastAnalysis}
+                      logs={genius.logs}
+                      error={genius.error}
+                      cycleCount={genius.cycleCount}
+                      winCount={genius.winCount}
+                      lossCount={genius.lossCount}
+                      totalPnl={genius.totalPnl}
+                      runManual={genius.runManual}
+                      clearLogs={genius.clearLogs}
                     />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
