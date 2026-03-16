@@ -56,7 +56,21 @@ const WeightBar = ({ name, value, defaultValue, sigAcc, isMuted }: { name: strin
 const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> }) => {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'predictions' | 'weights' | 'timeline'>('predictions');
+  // v5: Auto-reset on first load to clear poisoned v4 data
+  useEffect(() => {
+    if (!localStorage.getItem(V5_RESET_KEY)) {
+      console.log('[APEX v5] Auto-resetting poisoned v4 data (inverted VWAP, contrarian Bollinger, aggressive RSI)');
+      resetApexState();
+      localStorage.setItem(V5_RESET_KEY, '1');
+    }
+  }, []);
+
   const stats = { ...getApexStats(), ...externalStats };
+
+  const handleReset = () => {
+    resetApexState();
+    setExpanded(false);
+  };
 
   const accColor = stats.accuracyPct >= 75 ? 'text-emerald-400' : stats.accuracyPct >= 50 ? 'text-amber-400' : 'text-red-400';
   const accBg = stats.accuracyPct >= 75 ? 'bg-emerald-500/15 border-emerald-500/30' : stats.accuracyPct >= 50 ? 'bg-amber-400/10 border-amber-400/30' : 'bg-red-500/15 border-red-500/30';
