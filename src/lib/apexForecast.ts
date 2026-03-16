@@ -143,6 +143,7 @@ function loadState(): ApexState {
         winRate: parsed.winRate ?? 0,
         streak: parsed.streak ?? 0,
         weightHistory: parsed.weightHistory ?? [],
+        _lastBatchAuditCount: parsed._lastBatchAuditCount ?? 0,
       };
     }
   } catch { /* ignore */ }
@@ -156,6 +157,7 @@ function loadState(): ApexState {
     winRate: 0,
     streak: 0,
     weightHistory: [],
+    _lastBatchAuditCount: 0,
   };
 }
 
