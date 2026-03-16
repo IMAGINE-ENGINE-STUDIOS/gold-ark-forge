@@ -805,7 +805,7 @@ export function computeApexForecast(
       shot.actualPrice = currentPrice;
     }
   }
-  const correctedState = evaluateAndCorrect(state);
+  const correctedState = batchAudit(evaluateAndCorrect(state));
 
   // Select regime-appropriate weights
   const activeWeights = regime === 'trending' ? correctedState.trendingWeights : correctedState.rangingWeights;
