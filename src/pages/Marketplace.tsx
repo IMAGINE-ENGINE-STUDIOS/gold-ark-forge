@@ -297,52 +297,72 @@ const Marketplace = () => {
   const [filter, setFilter] = useState<BoardFilter>('all');
   const [search, setSearch] = useState('');
 
-  const { data: crypto } = useCryptoData(18);
+  const { data: crypto } = useCryptoData(50);
   const wsPrices = useWebSocketPrices([...CRYPTO_WS_KEYS]);
   const { data: energy } = useOilGasPrices();
   const { data: bars } = useBullionBars({ limit: 200 });
   const { data: reserveTotals } = useCertificateReserveTotals();
   const { data: metalPrices } = useMetalPrices();
 
+  const cryptoLookup = useMemo(() => {
+    const byKey: Record<string, NonNullable<typeof crypto>[number]> = {};
+
+    (crypto ?? []).forEach(coin => {
+      const supportedKey = Object.entries(CRYPTO_ID_BY_KEY).find(([, id]) => id === coin.id)?.[0]
+        ?? WS_KEY_BY_SYMBOL[coin.symbol]
+        ?? coin.id;
+      byKey[supportedKey] = coin;
+    });
+
+    return byKey;
+  }, [crypto]);
+
   /* ─── Metals board items ─── */
   const metalsBoard = useMemo<BoardItem[]>(() => {
     if (!metalPrices) return [];
+
     return (['gold', 'silver', 'platinum'] as const)
       .filter(m => metalPrices[m]?.price_usd > 0)
       .map(m => ({
         id: `metal-${m}`,
         name: m === 'gold' ? 'Gold (XAU)' : m === 'silver' ? 'Silver (XAG)' : 'Platinum (XPT)',
-        ticker: m === 'gold' ? 'XAU' : m === 'silver' ? 'XAG' : 'XPT',
+        ticker: m === 'gold' ? 'XAU/USD' : m === 'silver' ? 'XAG/USD' : 'XPT/USD',
         category: 'metals' as const,
         price: metalPrices[m].price_usd,
         change: metalPrices[m].change_24h ?? 0,
         source: 'Vault registry',
         routeSymbol: METAL_ROUTE_MAP[m],
         live: true,
+        isWsLive: false,
+        accentColor: METAL_META[m].spotColor,
       }));
   }, [metalPrices]);
 
-  /* ─── Crypto board items (WS-backed) ─── */
+  /* ─── Crypto board items (SWAP-supported only) ─── */
   const cryptoBoard = useMemo<BoardItem[]>(() => {
-    return (crypto ?? [])
-      .filter(coin => Boolean(WS_KEY_BY_SYMBOL[coin.symbol]) || coin.current_price > 0)
-      .map(coin => {
-        const wsKey = WS_KEY_BY_SYMBOL[coin.symbol];
-        const ws = wsKey ? wsPrices[wsKey] : undefined;
+    return SUPPORTED_CRYPTO_SYMBOLS
+      .map(symbol => {
+        const coin = cryptoLookup[symbol.key];
+        const ws = wsPrices[symbol.key];
+        const price = ws?.price ?? coin?.current_price ?? 0;
+        const change = ws?.change24h ?? coin?.price_change_percentage_24h ?? 0;
+
         return {
-          id: coin.id,
-          name: coin.name,
-          ticker: coin.symbol.toUpperCase(),
+          id: symbol.key,
+          name: coin?.name ?? fallbackCryptoName(symbol.label),
+          ticker: symbol.label,
           category: 'crypto' as const,
-          price: ws?.price ?? coin.current_price,
-          change: ws?.change24h ?? coin.price_change_percentage_24h ?? 0,
-          source: ws ? 'Binance stream' : 'CoinGecko',
-          routeSymbol: wsKey ?? coin.symbol,
-          live: Boolean(ws || coin.current_price),
+          price,
+          change,
+          source: ws ? 'Binance stream' : coin ? 'CoinGecko' : 'Market feed',
+          routeSymbol: symbol.key,
+          live: price > 0,
+          isWsLive: Boolean(ws?.price),
+          accentColor: CATEGORY_COLORS.crypto,
         };
       })
       .filter(item => item.price > 0);
-  }, [crypto, wsPrices]);
+  }, [cryptoLookup, wsPrices]);
 
   /* ─── Energy board items ─── */
   const energyBoard = useMemo<BoardItem[]>(() => {
@@ -351,13 +371,15 @@ const Marketplace = () => {
       .map(item => ({
         id: item.symbol,
         name: item.name,
-        ticker: item.symbol,
+        ticker: `${item.symbol}/USD`,
         category: 'energy' as const,
         price: item.price,
         change: item.change,
         source: 'EIA feed',
         routeSymbol: ENERGY_ROUTE_BY_SYMBOL[item.symbol],
         live: true,
+        isWsLive: false,
+        accentColor: CATEGORY_COLORS.energy,
       }))
       .filter(item => item.price > 0);
   }, [energy]);
