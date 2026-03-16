@@ -1177,7 +1177,7 @@ export function computeApexForecast(
   const activeWeights = regime === 'trending' ? correctedState.trendingWeights : correctedState.rangingWeights;
   const mutedSignals = correctedState._mutedSignals ?? [];
 
-  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50, clusterVotes, candleConfirmed } = 
+  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50, clusterVotes, candleConfirmed, technicalDecision } = 
     computeConsensus(values, highs, lows, activeWeights, regime, mutedSignals);
 
   const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState, currentATR, avgATR50);
