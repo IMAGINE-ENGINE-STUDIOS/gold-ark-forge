@@ -77,11 +77,12 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
 
   return (
     <div className="border border-gold/15 rounded-sm bg-navy-dark/40 overflow-hidden">
-      {/* Collapsed Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-gold/5 transition-colors"
-      >
+      {/* Header with Reset Button */}
+      <div className="flex items-center">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gold/5 transition-colors"
+        >
         <div className="flex items-center gap-2">
           <Brain className="w-3.5 h-3.5 text-emerald-400" />
           <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX ACCURACY</span>
