@@ -8,7 +8,7 @@ import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { PaperPosition } from '@/hooks/usePaperTrading';
 
 export type GeniusTimeline = 'short' | 'mid' | 'long';
-export type GeniusStatus = 'idle' | 'scanning' | 'analyzing' | 'executing' | 'cooldown' | 'error';
+export type GeniusStatus = 'idle' | 'scanning' | 'analyzing' | 'executing' | 'cooldown' | 'error' | 'goal-active';
 
 export interface GeniusTrade {
   ticker: string;
@@ -42,9 +42,38 @@ export interface GeniusCycleLog {
     price: number;
     success: boolean;
     error?: string;
+    pnl?: number;
   }>;
   portfolioBefore: { cash: number; equity: number };
   portfolioAfter: { cash: number; equity: number };
+}
+
+export interface GeniusChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  suggestedTrade?: { action: string; ticker: string; qty: number; reason: string } | null;
+}
+
+export interface GeniusGoalPlan {
+  feasible: boolean;
+  plan: {
+    summary: string;
+    estimatedTimeHours: number;
+    riskLevel: string;
+    phases: Array<{ name: string; durationMinutes: number; targetPnl: number; assetFocus: string[]; approach: string }>;
+    circuitBreaker: { maxLossPercent: number; maxConsecutiveLosses: number; pauseDurationMinutes: number };
+  };
+  initialTrades: GeniusTrade[];
+  warning: string | null;
+}
+
+export interface GeniusGoal {
+  type: 'hourly_target' | 'daily_target' | 'total_target' | 'percentage';
+  amount: number;
+  timeframeHours: number;
+  description: string;
 }
 
 interface UseGeniusTraderProps {
@@ -64,12 +93,7 @@ interface UseGeniusTraderProps {
 }
 
 export const useGeniusTrader = ({
-  submitOrder,
-  positions,
-  cash,
-  equity,
-  resolvePrice,
-  getCandleHistory,
+  submitOrder, positions, cash, equity, resolvePrice, getCandleHistory,
 }: UseGeniusTraderProps) => {
   const [enabled, setEnabled] = useState(false);
   const [timeline, setTimeline] = useState<GeniusTimeline>('short');
@@ -84,6 +108,21 @@ export const useGeniusTrader = ({
   const [lossCount, setLossCount] = useState(0);
   const [autoExecute, setAutoExecute] = useState(false);
 
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<GeniusChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Goal state
+  const [activeGoal, setActiveGoal] = useState<GeniusGoal | null>(null);
+  const [goalPlan, setGoalPlan] = useState<GeniusGoalPlan | null>(null);
+  const [goalAccepted, setGoalAccepted] = useState(false);
+  const [goalStartEquity, setGoalStartEquity] = useState(0);
+  const [goalPnl, setGoalPnl] = useState(0);
+
+  // Circuit breaker: 20% max loss
+  const [circuitBroken, setCircuitBroken] = useState(false);
+  const consecutiveLossesRef = useRef(0);
+
   const { data: cryptoData } = useCryptoData(50);
   const { data: metalPrices } = useMetalPrices();
   const { data: oilPrices } = useOilGasPrices();
@@ -92,53 +131,47 @@ export const useGeniusTrader = ({
   const mountedRef = useRef(true);
   const runningRef = useRef(false);
 
-  // Build market snapshot for AI
+  // Compute real P&L from executed trades in logs
+  useEffect(() => {
+    let pnl = 0;
+    let wins = 0;
+    let losses = 0;
+    for (const log of logs) {
+      for (const t of log.executedTrades) {
+        if (t.pnl !== undefined) {
+          pnl += t.pnl;
+          if (t.pnl >= 0) wins++; else losses++;
+        } else if (t.success) wins++;
+      }
+    }
+    setTotalPnl(pnl);
+    setWinCount(wins);
+    setLossCount(losses);
+  }, [logs]);
+
+  // Track goal P&L
+  useEffect(() => {
+    if (activeGoal && goalAccepted && goalStartEquity > 0) {
+      setGoalPnl(equity - goalStartEquity);
+    }
+  }, [equity, activeGoal, goalAccepted, goalStartEquity]);
+
+  // Build market snapshot
   const buildMarketSnapshot = useCallback(() => {
-    const assets: Array<{
-      key: string;
-      ticker: string;
-      cat: string;
-      label: string;
-      price: number;
-      change24h: number;
-      volume?: number;
-      sparkline?: number[];
-      technicals?: any;
-    }> = [];
-
-    // Only use REAL feed symbols for actual trading recommendations
+    const assets: Array<any> = [];
     for (const sym of REAL_FEED_SYMBOLS) {
-      let price = 0;
-      let change24h = 0;
-      let volume: number | undefined;
-      let sparkline: number[] | undefined;
-
+      let price = 0, change24h = 0, volume: number | undefined, sparkline: number[] | undefined;
       if (sym.cat === 'metals') {
-        const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum' };
-        const mk = metalMap[sym.key];
-        if (mk && metalPrices?.[mk]) {
-          price = metalPrices[mk].price_usd;
-          change24h = metalPrices[mk].change_24h ?? 0;
-        }
+        const mk = ({ gold: 'gold', silver: 'silver', platinum: 'platinum' } as any)[sym.key];
+        if (mk && metalPrices?.[mk]) { price = metalPrices[mk].price_usd; change24h = metalPrices[mk].change_24h ?? 0; }
       } else if (sym.cat === 'crypto') {
         const coin = cryptoData?.find(c => c.id === sym.key || c.symbol === sym.key);
-        if (coin) {
-          price = coin.current_price;
-          change24h = coin.price_change_percentage_24h;
-          volume = coin.total_volume;
-          sparkline = coin.sparkline_in_7d?.price;
-        }
+        if (coin) { price = coin.current_price; change24h = coin.price_change_percentage_24h; volume = coin.total_volume; sparkline = coin.sparkline_in_7d?.price; }
       } else if (sym.cat === 'energy') {
         const feed = oilPrices?.find(p => p.symbol === sym.ticker);
-        if (feed) {
-          price = feed.price;
-          change24h = feed.change;
-        }
+        if (feed) { price = feed.price; change24h = feed.change; }
       }
-
       if (price <= 0) continue;
-
-      // Build technicals from candle history
       let technicals: any;
       const candleHistory = getCandleHistory(sym.ticker);
       if (candleHistory && candleHistory.length >= 30) {
@@ -146,227 +179,247 @@ export const useGeniusTrader = ({
         const lows = candleHistory.map((c, i) => Math.min(c, candleHistory[Math.max(0, i - 1)] ?? c));
         const snapshot = buildTechnicalSnapshot({ closes: candleHistory, highs, lows });
         if (snapshot) {
-          technicals = {
-            rsi: snapshot.oscillators.find(o => o.name === 'RSI (14)')?.value ?? 50,
-            macdSignal: snapshot.oscillators.find(o => o.name === 'MACD Level')?.signal ?? 'Neutral',
-            smaSignal: snapshot.movingAverages.find(o => o.name === 'SMA (20)')?.signal ?? 'Neutral',
-            adx: snapshot.oscillators.find(o => o.name === 'ADX (14)')?.value ?? 18,
-            overallBias: snapshot.overallBias,
-            overallSignal: snapshot.overallSignal,
-            regime: snapshot.decision.regime,
-          };
+          technicals = { rsi: snapshot.oscillators.find(o => o.name === 'RSI (14)')?.value ?? 50, macdSignal: snapshot.oscillators.find(o => o.name === 'MACD Level')?.signal ?? 'Neutral', smaSignal: snapshot.movingAverages.find(o => o.name === 'SMA (20)')?.signal ?? 'Neutral', adx: snapshot.oscillators.find(o => o.name === 'ADX (14)')?.value ?? 18, overallBias: snapshot.overallBias, overallSignal: snapshot.overallSignal, regime: snapshot.decision.regime };
         }
       }
-
-      assets.push({
-        key: sym.key,
-        ticker: sym.ticker,
-        cat: sym.cat,
-        label: sym.label,
-        price,
-        change24h,
-        volume,
-        sparkline: sparkline?.slice(-24),
-        technicals,
-      });
+      assets.push({ key: sym.key, ticker: sym.ticker, cat: sym.cat, label: sym.label, price, change24h, volume, sparkline: sparkline?.slice(-24), technicals });
     }
-
     return assets;
   }, [cryptoData, metalPrices, oilPrices, getCandleHistory]);
 
+  const getPortfolioSnapshot = useCallback(() => ({
+    cash, equity,
+    positions: positions.map(p => ({ symbol: p.symbol, side: p.side, qty: p.qty, entryPrice: p.entryPrice, currentPrice: p.currentPrice, pnl: p.pnl })),
+  }), [cash, equity, positions]);
+
+  const getPerformanceContext = useCallback(() => ({
+    totalPnl, winRate: winCount + lossCount > 0 ? (winCount / (winCount + lossCount)) * 100 : 0,
+    totalTrades: winCount + lossCount, currentStreak: consecutiveLossesRef.current,
+    goalProgress: activeGoal ? goalPnl / activeGoal.amount * 100 : undefined,
+  }), [totalPnl, winCount, lossCount, goalPnl, activeGoal]);
+
+  // 20% circuit breaker check
+  const checkCircuitBreaker = useCallback(() => {
+    if (!activeGoal || !goalAccepted) return false;
+    const maxLoss = goalStartEquity * 0.20;
+    if (goalPnl < -maxLoss) {
+      setCircuitBroken(true);
+      setEnabled(false);
+      setError(`CIRCUIT BREAKER: Lost $${Math.abs(goalPnl).toFixed(2)} (>${20}% of starting equity). Auto-stopped.`);
+      return true;
+    }
+    if (consecutiveLossesRef.current >= (goalPlan?.plan.circuitBreaker.maxConsecutiveLosses || 5)) {
+      setCircuitBroken(true);
+      setEnabled(false);
+      setError(`CIRCUIT BREAKER: ${consecutiveLossesRef.current} consecutive losses. Auto-stopped.`);
+      return true;
+    }
+    return false;
+  }, [activeGoal, goalAccepted, goalStartEquity, goalPnl, goalPlan]);
+
+  // ─── Strategy Cycle ───
   const runCycle = useCallback(async () => {
     if (runningRef.current || !mountedRef.current) return;
+    if (checkCircuitBreaker()) return;
     runningRef.current = true;
     setError(null);
 
     try {
-      // Phase 1: Scan market
       setStatus('scanning');
       const assets = buildMarketSnapshot();
-      if (assets.length < 3) {
-        setError('Insufficient market data — waiting for feeds');
-        setStatus('error');
-        runningRef.current = false;
-        return;
-      }
+      if (assets.length < 3) { setError('Insufficient market data'); setStatus('error'); runningRef.current = false; return; }
 
-      // Phase 2: AI Analysis
       setStatus('analyzing');
-      const portfolioSnapshot = {
-        cash,
-        equity,
-        positions: positions.map(p => ({
-          symbol: p.symbol,
-          side: p.side,
-          qty: p.qty,
-          entryPrice: p.entryPrice,
-          currentPrice: p.currentPrice,
-          pnl: p.pnl,
-        })),
-      };
-
       const { data, error: fnError } = await supabase.functions.invoke('genius-strategy', {
         body: {
-          timeline,
-          assets,
-          portfolio: portfolioSnapshot,
+          mode: 'strategy', timeline, assets,
+          portfolio: getPortfolioSnapshot(),
           riskTolerance,
+          performanceContext: getPerformanceContext(),
         },
       });
 
-      if (fnError || !data?.success) {
-        const errMsg = data?.error || fnError?.message || 'Analysis failed';
-        setError(errMsg);
-        setStatus('error');
-        runningRef.current = false;
-        return;
-      }
+      if (fnError || !data?.success) { setError(data?.error || fnError?.message || 'Analysis failed'); setStatus('error'); runningRef.current = false; return; }
 
       const analysis: GeniusAnalysis = data.analysis;
       setLastAnalysis(analysis);
 
-      // Phase 3: Execute trades (if auto-execute enabled)
       const executed: GeniusCycleLog['executedTrades'] = [];
-
       if (autoExecute && analysis.trades?.length > 0) {
         setStatus('executing');
-        const portfolioBefore = { cash, equity };
-
         for (const trade of analysis.trades) {
-          // Validate the trade
           const livePrice = resolvePrice(trade.ticker);
-          if (livePrice <= 0) {
-            executed.push({ ticker: trade.ticker, action: trade.action, qty: trade.qty, price: 0, success: false, error: 'No live price' });
-            continue;
-          }
-
-          // Sanity check: don't execute if price diverged >2% from AI's entry
+          if (livePrice <= 0) { executed.push({ ticker: trade.ticker, action: trade.action, qty: trade.qty, price: 0, success: false, error: 'No live price' }); continue; }
           const priceDivergence = Math.abs(livePrice - trade.entryPrice) / trade.entryPrice;
-          if (priceDivergence > 0.02) {
-            executed.push({ ticker: trade.ticker, action: trade.action, qty: trade.qty, price: livePrice, success: false, error: `Price moved ${(priceDivergence * 100).toFixed(1)}%` });
-            continue;
-          }
-
+          if (priceDivergence > 0.02) { executed.push({ ticker: trade.ticker, action: trade.action, qty: trade.qty, price: livePrice, success: false, error: `Price moved ${(priceDivergence * 100).toFixed(1)}%` }); continue; }
           try {
-            submitOrder({
-              symbol: trade.ticker,
-              side: trade.action.toLowerCase() as 'buy' | 'sell',
-              qty: trade.qty,
-              type: 'market',
-              price: livePrice,
-              botSource: true,
-            });
+            submitOrder({ symbol: trade.ticker, side: trade.action.toLowerCase() as 'buy' | 'sell', qty: trade.qty, type: 'market', price: livePrice, botSource: true });
             executed.push({ ticker: trade.ticker, action: trade.action, qty: trade.qty, price: livePrice, success: true });
+            consecutiveLossesRef.current = 0;
           } catch (orderErr) {
-            executed.push({
-              ticker: trade.ticker,
-              action: trade.action,
-              qty: trade.qty,
-              price: livePrice,
-              success: false,
-              error: orderErr instanceof Error ? orderErr.message : 'Order failed',
-            });
+            executed.push({ ticker: trade.ticker, action: trade.action, qty: trade.qty, price: livePrice, success: false, error: orderErr instanceof Error ? orderErr.message : 'Order failed' });
+            consecutiveLossesRef.current++;
           }
         }
-
-        // Track execution results
-        const successCount = executed.filter(e => e.success).length;
-        if (successCount > 0) setWinCount(w => w + successCount);
-        const failCount = executed.filter(e => !e.success).length;
-        if (failCount > 0) setLossCount(l => l + failCount);
       }
 
-      // Log the cycle
       const log: GeniusCycleLog = {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        timeline,
-        analysis,
-        executedTrades: executed,
-        portfolioBefore: { cash, equity },
-        portfolioAfter: { cash, equity }, // Will update on next cycle
+        id: crypto.randomUUID(), timestamp: Date.now(), timeline, analysis, executedTrades: executed,
+        portfolioBefore: { cash, equity }, portfolioAfter: { cash, equity },
       };
       setLogs(prev => [log, ...prev].slice(0, 50));
       setCycleCount(c => c + 1);
-      setStatus('cooldown');
+
+      // Check if goal achieved
+      if (activeGoal && goalAccepted && goalPnl >= activeGoal.amount) {
+        setEnabled(false);
+        setStatus('idle');
+        setError(null);
+        setChatMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `🎯 GOAL ACHIEVED! Target of $${activeGoal.amount.toFixed(2)} reached. Current P&L: $${goalPnl.toFixed(2)}. Auto-stopped.`, timestamp: Date.now(), suggestedTrade: null }]);
+      } else {
+        setStatus('cooldown');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Cycle failed');
       setStatus('error');
     } finally {
       runningRef.current = false;
     }
-  }, [buildMarketSnapshot, cash, equity, positions, timeline, riskTolerance, autoExecute, submitOrder, resolvePrice]);
+  }, [buildMarketSnapshot, cash, equity, positions, timeline, riskTolerance, autoExecute, submitOrder, resolvePrice, getPortfolioSnapshot, getPerformanceContext, checkCircuitBreaker, activeGoal, goalAccepted, goalPnl]);
 
   // Auto-cycle timer
   useEffect(() => {
-    if (!enabled) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setStatus('idle');
-      return;
-    }
-
-    const intervalMs = {
-      short: 60_000,   // 1 minute cycles for scalping
-      mid: 300_000,    // 5 minute cycles for swing
-      long: 900_000,   // 15 minute cycles for position
-    }[timeline];
-
-    const cycle = async () => {
-      await runCycle();
-      if (mountedRef.current && enabled) {
-        timerRef.current = setTimeout(cycle, intervalMs);
-      }
-    };
-
-    // Start first cycle immediately
+    if (!enabled) { if (timerRef.current) clearTimeout(timerRef.current); if (status !== 'error') setStatus('idle'); return; }
+    const intervalMs = { short: 60_000, mid: 300_000, long: 900_000 }[timeline];
+    const cycle = async () => { await runCycle(); if (mountedRef.current && enabled) timerRef.current = setTimeout(cycle, intervalMs); };
     cycle();
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [enabled, timeline, runCycle]);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; if (timerRef.current) clearTimeout(timerRef.current); }; }, []);
+
+  // ─── Chat ───
+  const sendChat = useCallback(async (message: string) => {
+    if (!message.trim() || chatLoading) return;
+    const userMsg: GeniusChatMessage = { id: crypto.randomUUID(), role: 'user', content: message, timestamp: Date.now() };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatLoading(true);
+
+    try {
+      const assets = buildMarketSnapshot();
+      const { data, error: fnError } = await supabase.functions.invoke('genius-strategy', {
+        body: {
+          mode: 'chat', chatMessage: message,
+          chatHistory: chatMessages.slice(-20).map(m => ({ role: m.role, content: m.content })),
+          assets, portfolio: getPortfolioSnapshot(),
+          performanceContext: getPerformanceContext(),
+        },
+      });
+
+      if (fnError || !data?.success) throw new Error(data?.error || fnError?.message || 'Chat failed');
+
+      const assistantMsg: GeniusChatMessage = {
+        id: crypto.randomUUID(), role: 'assistant', content: data.reply, timestamp: Date.now(),
+        suggestedTrade: data.suggestedTrade,
+      };
+      setChatMessages(prev => [...prev, assistantMsg]);
+
+      // If user asked to buy/sell and AI suggested a trade, execute it
+      if (data.suggestedTrade && autoExecute) {
+        const t = data.suggestedTrade;
+        const livePrice = resolvePrice(t.ticker);
+        if (livePrice > 0) {
+          submitOrder({ symbol: t.ticker, side: t.action.toLowerCase() as 'buy' | 'sell', qty: t.qty, type: 'market', price: livePrice, botSource: true });
+        }
+      }
+    } catch (err) {
+      setChatMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${err instanceof Error ? err.message : 'Failed'}`, timestamp: Date.now() }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatMessages, chatLoading, buildMarketSnapshot, getPortfolioSnapshot, getPerformanceContext, autoExecute, submitOrder, resolvePrice]);
+
+  // ─── Goal ───
+  const submitGoal = useCallback(async (goal: GeniusGoal) => {
+    setActiveGoal(goal);
+    setGoalPlan(null);
+    setGoalAccepted(false);
+    setCircuitBroken(false);
+    setChatLoading(true);
+
+    try {
+      const assets = buildMarketSnapshot();
+      const { data, error: fnError } = await supabase.functions.invoke('genius-strategy', {
+        body: {
+          mode: 'goal', goal, assets,
+          portfolio: getPortfolioSnapshot(),
+          riskTolerance,
+          performanceContext: getPerformanceContext(),
+        },
+      });
+
+      if (fnError || !data?.success) throw new Error(data?.error || fnError?.message || 'Goal planning failed');
+      setGoalPlan(data.plan);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Goal planning failed');
+    } finally {
+      setChatLoading(false);
+    }
+  }, [buildMarketSnapshot, getPortfolioSnapshot, riskTolerance, getPerformanceContext]);
+
+  const acceptGoal = useCallback(() => {
+    if (!goalPlan) return;
+    setGoalAccepted(true);
+    setGoalStartEquity(equity);
+    setGoalPnl(0);
+    setEnabled(true);
+    setAutoExecute(true);
+    setStatus('goal-active');
+
+    // Execute initial trades from the plan
+    if (goalPlan.initialTrades?.length > 0) {
+      for (const trade of goalPlan.initialTrades) {
+        const livePrice = resolvePrice(trade.ticker);
+        if (livePrice > 0) {
+          try {
+            submitOrder({ symbol: trade.ticker, side: trade.action.toLowerCase() as 'buy' | 'sell', qty: trade.qty, type: 'market', price: livePrice, botSource: true });
+          } catch { /* ignore */ }
+        }
+      }
+    }
+  }, [goalPlan, equity, submitOrder, resolvePrice]);
+
+  const cancelGoal = useCallback(() => {
+    setActiveGoal(null);
+    setGoalPlan(null);
+    setGoalAccepted(false);
+    setCircuitBroken(false);
+    setEnabled(false);
+    setStatus('idle');
   }, []);
 
-  // Manual trigger
-  const runManual = useCallback(async () => {
-    if (runningRef.current) return;
-    await runCycle();
-  }, [runCycle]);
+  const executeTrade = useCallback((trade: { action: string; ticker: string; qty: number }) => {
+    const livePrice = resolvePrice(trade.ticker);
+    if (livePrice <= 0) return;
+    submitOrder({ symbol: trade.ticker, side: trade.action.toLowerCase() as 'buy' | 'sell', qty: trade.qty, type: 'market', price: livePrice, botSource: true });
+  }, [submitOrder, resolvePrice]);
 
-  const clearLogs = useCallback(() => {
-    setLogs([]);
-    setCycleCount(0);
-    setWinCount(0);
-    setLossCount(0);
-    setTotalPnl(0);
-    setLastAnalysis(null);
-  }, []);
+  const runManual = useCallback(async () => { if (!runningRef.current) await runCycle(); }, [runCycle]);
+  const clearLogs = useCallback(() => { setLogs([]); setCycleCount(0); setTotalPnl(0); setLastAnalysis(null); consecutiveLossesRef.current = 0; }, []);
+  const clearChat = useCallback(() => setChatMessages([]), []);
 
   return {
-    enabled,
-    setEnabled,
-    timeline,
-    setTimeline,
-    riskTolerance,
-    setRiskTolerance,
-    autoExecute,
-    setAutoExecute,
-    status,
-    lastAnalysis,
-    logs,
-    error,
-    cycleCount,
-    winCount,
-    lossCount,
-    totalPnl,
-    runManual,
-    clearLogs,
+    enabled, setEnabled, timeline, setTimeline, riskTolerance, setRiskTolerance,
+    autoExecute, setAutoExecute, status, lastAnalysis, logs, error,
+    cycleCount, winCount, lossCount, totalPnl, runManual, clearLogs,
+    // Chat
+    chatMessages, chatLoading, sendChat, clearChat,
+    // Goal
+    activeGoal, goalPlan, goalAccepted, goalPnl, goalStartEquity,
+    submitGoal, acceptGoal, cancelGoal, circuitBroken,
+    // Trade execution from chat
+    executeTrade,
+    // Positions for dashboard
+    positions,
   };
 };
