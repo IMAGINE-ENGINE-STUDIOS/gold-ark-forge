@@ -212,32 +212,33 @@ export const usePaperTrading = (userId?: string | null) => {
     } else {
       if (params.side === 'buy') {
         newCash -= (fillPrice * params.qty + fees);
-      } else {
-        newCash += (fillPrice * params.qty - fees);
-      }
 
-      const existingSame = newPositions.findIndex(
-        p => p.symbol === params.symbol && p.side === params.side
-      );
+        const existingSame = newPositions.findIndex(
+          p => p.symbol === params.symbol && p.side === params.side
+        );
 
-      if (existingSame >= 0) {
-        const ex = newPositions[existingSame];
-        const totalQty = ex.qty + params.qty;
-        const avgPrice = (ex.entryPrice * ex.qty + fillPrice * params.qty) / totalQty;
-        newPositions[existingSame] = { ...ex, qty: totalQty, entryPrice: avgPrice };
+        if (existingSame >= 0) {
+          const ex = newPositions[existingSame];
+          const totalQty = ex.qty + params.qty;
+          const avgPrice = (ex.entryPrice * ex.qty + fillPrice * params.qty) / totalQty;
+          newPositions[existingSame] = { ...ex, qty: totalQty, entryPrice: avgPrice };
+        } else {
+          newPositions.push({
+            id: crypto.randomUUID(),
+            symbol: params.symbol,
+            side: params.side,
+            qty: params.qty,
+            entryPrice: fillPrice,
+            currentPrice: fillPrice,
+            openedAt: Date.now(),
+            pnl: 0,
+            pnlPercent: 0,
+            botSource: params.botSource,
+          });
+        }
       } else {
-        newPositions.push({
-          id: crypto.randomUUID(),
-          symbol: params.symbol,
-          side: params.side,
-          qty: params.qty,
-          entryPrice: fillPrice,
-          currentPrice: fillPrice,
-          openedAt: Date.now(),
-          pnl: 0,
-          pnlPercent: 0,
-          botSource: params.botSource,
-        });
+        // Sell without opposite position should never reach here due to guard above
+        throw new Error(`Cannot sell ${params.symbol} — no position owned`);
       }
     }
 
