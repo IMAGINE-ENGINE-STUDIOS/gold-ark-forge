@@ -58,10 +58,10 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
   const [activeTab, setActiveTab] = useState<'predictions' | 'weights' | 'timeline'>('predictions');
   // v5: Auto-reset on first load to clear poisoned v4 data
   useEffect(() => {
-    if (!localStorage.getItem(V5_RESET_KEY)) {
-      console.log('[APEX v5] Auto-resetting poisoned v4 data (inverted VWAP, contrarian Bollinger, aggressive RSI)');
+    if (!localStorage.getItem(V6_RESET_KEY)) {
+      console.log('[APEX v6] Auto-resetting poisoned v5 data (re-evaluation bug, fake confluence, no candle confirmation)');
       resetApexState();
-      localStorage.setItem(V5_RESET_KEY, '1');
+      localStorage.setItem(V6_RESET_KEY, '1');
     }
   }, []);
 
