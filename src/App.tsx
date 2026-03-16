@@ -22,6 +22,7 @@ import LogRegistry from "./pages/LogRegistry";
 import LogRegistry2 from "./pages/LogRegistry2";
 import OldBots from "./pages/OldBots";
 import Login from "./pages/Login";
+import Deck from "./pages/Deck";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/deck" element={<Deck />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
