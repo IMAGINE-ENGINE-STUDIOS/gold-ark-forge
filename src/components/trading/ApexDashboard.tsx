@@ -8,6 +8,7 @@ import {
   BarChart3, Activity, Target, RefreshCw, Zap, Brain, Shield, ShieldAlert,
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
+import { Timer, ArrowLeftRight } from 'lucide-react';
 
 const WEIGHT_LABELS: Record<string, string> = {
   rsi: 'RSI', sma20: 'SMA 20', sma50: 'SMA 50', ema20: 'EMA 20',
