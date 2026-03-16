@@ -497,15 +497,39 @@ function TradeTabContent({
 
 const TradingBridge = () => {
   const { preferences, updatePrefs } = useUserPreferences();
+  const [searchParams] = useSearchParams();
+
+  const findSymbolFromQuery = useCallback((value: string | null) => {
+    if (!value) return null;
+
+    const normalize = (input: string) => input.toLowerCase().trim().replace(/[^a-z0-9]+/g, '');
+    const normalizedValue = normalize(value);
+
+    return ALL_SYMBOLS.find(symbol => {
+      const candidates = [symbol.key, symbol.ticker, symbol.label];
+      return candidates.some(candidate => normalize(candidate) === normalizedValue);
+    }) ?? null;
+  }, []);
+
   const [activeSymbol, setActiveSymbol] = useState(() => {
-    // Default to gold (ALL_SYMBOLS[0]) or user's last symbol
+    const queryMatch = findSymbolFromQuery(searchParams.get('symbol'));
+    if (queryMatch) return queryMatch;
+
     const lastKey = preferences?.last_symbol_key;
     if (lastKey) {
       const found = ALL_SYMBOLS.find(s => s.key === lastKey);
       if (found) return found;
     }
-    return ALL_SYMBOLS[0]; // Gold/USD
+
+    return ALL_SYMBOLS[0];
   });
+
+  useEffect(() => {
+    const queryMatch = findSymbolFromQuery(searchParams.get('symbol'));
+    if (!queryMatch) return;
+
+    setActiveSymbol(current => current.key === queryMatch.key ? current : queryMatch);
+  }, [searchParams, findSymbolFromQuery]);
 
   // Auto-save last viewed symbol
   useAutoSave(() => {
