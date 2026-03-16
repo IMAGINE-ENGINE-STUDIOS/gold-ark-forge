@@ -91,9 +91,12 @@ export interface ApexState {
 
 const APEX_STATE_KEY = 'ga_apex_state_v4';
 const SHOT_WINDOW = 5;
-const MAX_SHOTS = 100;
+const MAX_SHOTS = 200;
 const MAX_WEIGHT_HISTORY = 50;
-const CONFLUENCE_THRESHOLD = 4; // minimum agreeing signals
+const MIN_CONFLUENCE = 4;        // base minimum agreeing signals
+const MAX_CONFLUENCE = 8;        // max when accuracy is poor
+const ACCURACY_FLOOR = 75;       // target minimum accuracy %
+const ACCURACY_FLOOR_MARGIN = 5; // start tightening at 80%
 
 const DEFAULT_WEIGHTS: ApexWeights = {
   rsi: 0.60,
@@ -704,10 +707,11 @@ export function computeApexForecast(
   // Compute consensus from real indicators with regime weighting
   const { bias, probability, signals, votes, confluenceCount } = computeConsensus(values, highs, lows, activeWeights, regime);
 
-  // CONFLUENCE GATE: require minimum signals agreeing
-  const gatedBias = confluenceCount >= CONFLUENCE_THRESHOLD ? bias : 0;
+  // ADAPTIVE CONFLUENCE GATE: raise threshold when accuracy drops below floor
+  const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState);
+  const gatedBias = confluenceCount >= adaptiveThreshold ? bias : 0;
   const gatedDirection: 'bullish' | 'bearish' | 'neutral' =
-    confluenceCount < CONFLUENCE_THRESHOLD ? 'neutral' :
+    confluenceCount < adaptiveThreshold ? 'neutral' :
     gatedBias > 0.06 ? 'bullish' :
     gatedBias < -0.06 ? 'bearish' : 'neutral';
 
@@ -781,26 +785,32 @@ export function computeApexForecast(
     points.push(point);
   }
 
-  // Record shot with full attribution
+  // Record shot ONLY for directional predictions (bullish/bearish)
+  // Neutral = "no prediction" — doesn't count toward accuracy
   const lastForecast = points[points.length - 1];
-  if (lastForecast) {
-    const newShot: ApexShotRecord = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      timestamp: Date.now(),
-      symbol: '',
-      timeframe,
-      predictedDirection: gatedDirection,
-      predictedPrice: lastForecast.apexForecast,
-      entryPrice: currentPrice,
-      probability,
-      signalVotes: votes,
-      regime,
-      confluenceCount,
-      atrAtEntry: atr,
-      evalDelayMs: evalDelay,
-    };
-    correctedState.shots.unshift(newShot);
-    if (correctedState.shots.length > MAX_SHOTS) correctedState.shots.length = MAX_SHOTS;
+  if (lastForecast && gatedDirection !== 'neutral') {
+    // Throttle: don't record if last shot was < 10s ago (prevent spamming from re-renders)
+    const lastShot = correctedState.shots[0];
+    const timeSinceLast = lastShot ? Date.now() - lastShot.timestamp : Infinity;
+    if (timeSinceLast > 10_000) {
+      const newShot: ApexShotRecord = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: Date.now(),
+        symbol: '',
+        timeframe,
+        predictedDirection: gatedDirection,
+        predictedPrice: lastForecast.apexForecast,
+        entryPrice: currentPrice,
+        probability,
+        signalVotes: votes,
+        regime,
+        confluenceCount,
+        atrAtEntry: atr,
+        evalDelayMs: evalDelay,
+      };
+      correctedState.shots.unshift(newShot);
+      if (correctedState.shots.length > MAX_SHOTS) correctedState.shots.length = MAX_SHOTS;
+    }
   }
 
   // Update the weights accessor
@@ -819,6 +829,32 @@ export function computeApexForecast(
     regime,
     confluenceCount,
   };
+}
+
+// ─── Adaptive Confluence Threshold ───────────────────────
+
+function getAdaptiveConfluenceThreshold(state: ApexState): number {
+  const evaluated = state.shots.filter(s => s.correct !== undefined);
+  if (evaluated.length < 3) return MIN_CONFLUENCE; // not enough data, use base
+
+  // Use rolling window of last 20 evaluated shots
+  const recent = evaluated.slice(0, 20);
+  const correctCount = recent.filter(s => s.correct).length;
+  const recentAccuracy = (correctCount / recent.length) * 100;
+
+  if (recentAccuracy >= ACCURACY_FLOOR + ACCURACY_FLOOR_MARGIN) {
+    // Accuracy well above floor — relax threshold
+    return MIN_CONFLUENCE;
+  } else if (recentAccuracy >= ACCURACY_FLOOR) {
+    // In the margin zone — slightly tighter
+    return Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1);
+  } else {
+    // Below floor — progressively tighten to recover accuracy
+    // The further below, the higher the threshold (more selective = fewer but better predictions)
+    const deficit = ACCURACY_FLOOR - recentAccuracy;
+    const extra = Math.ceil(deficit / 10); // +1 per 10% deficit
+    return Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1 + extra);
+  }
 }
 
 // ─── APEX Color System — Maximum Contrast ────────────────
@@ -855,8 +891,26 @@ export interface ApexStats {
   winRate: number;
   streak: number;
   totalShots: number;
+  totalPredictions: number; // only directional (non-neutral)
+  totalEvaluated: number;
+  totalCorrect: number;
+  accuracyPct: number;
+  adaptiveThreshold: number;
+  aboveFloor: boolean;
   last5Accuracy: string;
   last5Detail: Array<{ correct: boolean; direction: string; error: number }>;
+  predictionLog: Array<{
+    id: string;
+    timestamp: number;
+    direction: 'bullish' | 'bearish';
+    entryPrice: number;
+    predictedPrice: number;
+    actualPrice?: number;
+    correct?: boolean;
+    probability: number;
+    regime: string;
+    confluence: number;
+  }>;
   weights: ApexWeights;
   weightHistory: WeightSnapshot[];
   shots: ApexShotRecord[];
@@ -867,22 +921,48 @@ export interface ApexStats {
 
 export function getApexStats(): ApexStats {
   const state = loadState();
-  const evaluated = state.shots.filter(s => s.correct !== undefined);
+  // Only count directional predictions (not neutral)
+  const directional = state.shots.filter(s => s.predictedDirection !== 'neutral');
+  const evaluated = directional.filter(s => s.correct !== undefined);
+  const correct = evaluated.filter(s => s.correct);
+  const accuracyPct = evaluated.length > 0 ? (correct.length / evaluated.length) * 100 : 0;
   const last5 = evaluated.slice(0, 5);
   const last5Correct = last5.filter(s => s.correct).length;
+  const threshold = getAdaptiveConfluenceThreshold(state);
+
+  // Build prediction log for UI
+  const predictionLog = directional.slice(0, 50).map(s => ({
+    id: s.id,
+    timestamp: s.timestamp,
+    direction: s.predictedDirection as 'bullish' | 'bearish',
+    entryPrice: s.entryPrice,
+    predictedPrice: s.predictedPrice,
+    actualPrice: s.actualPrice,
+    correct: s.correct,
+    probability: s.probability,
+    regime: s.regime,
+    confluence: s.confluenceCount,
+  }));
 
   return {
     generation: state.generation,
     corrections: state.corrections,
-    winRate: state.winRate,
+    winRate: accuracyPct,
     streak: state.streak,
-    totalShots: evaluated.length,
+    totalShots: state.shots.length,
+    totalPredictions: directional.length,
+    totalEvaluated: evaluated.length,
+    totalCorrect: correct.length,
+    accuracyPct,
+    adaptiveThreshold: threshold,
+    aboveFloor: accuracyPct >= ACCURACY_FLOOR || evaluated.length < 3,
     last5Accuracy: last5.length > 0 ? `${last5Correct}/${last5.length}` : '—',
     last5Detail: last5.map(s => ({
       correct: !!s.correct,
       direction: s.predictedDirection,
       error: s.error ?? 0,
     })),
+    predictionLog,
     weights: state.weights,
     weightHistory: state.weightHistory,
     shots: state.shots,
