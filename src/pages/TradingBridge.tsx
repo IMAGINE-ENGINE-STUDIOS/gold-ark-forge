@@ -337,9 +337,9 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
           </div>
         )}
 
-        <Button type="submit" disabled={!qty || (side === 'buy' && totalCost > paper.account.cash)}
+        <Button type="submit" disabled={!qty || (side === 'buy' && totalCost > paper.account.cash) || (side === 'sell' && (ownedQty <= 0 || parsedQty > ownedQty))}
           className={`w-full font-display tracking-wider ${side === 'buy' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
-          {side.toUpperCase()} {parsedQty > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : activeSymbol.ticker}
+          {side === 'sell' && ownedQty <= 0 ? `NO ${activeSymbol.ticker} TO SELL` : side === 'sell' && parsedQty > ownedQty ? `MAX ${ownedQty} OWNED` : `${side.toUpperCase()} ${parsedQty > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : activeSymbol.ticker}`}
         </Button>
       </form>
 
