@@ -1085,6 +1085,7 @@ const TradingBridge = () => {
                     activePrice={activePrice}
                     paper={paper}
                     activeConn={activeConn}
+                    activeCandles={getCandleData(activeSymbol.ticker)}
                   />
                 )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
