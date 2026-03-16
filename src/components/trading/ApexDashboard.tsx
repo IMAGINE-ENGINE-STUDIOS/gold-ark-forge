@@ -16,7 +16,7 @@ const WEIGHT_LABELS: Record<string, string> = {
   stochastic: 'Stochastic', roc: 'ROC', adx: 'ADX', smaCross: 'SMA Cross',
 };
 
-const WeightBar = ({ name, value, defaultValue }: { name: string; value: number; defaultValue: number }) => {
+const WeightBar = ({ name, value, defaultValue, sigAcc, isMuted }: { name: string; value: number; defaultValue: number; sigAcc?: { correct: number; wrong: number; pct: number }; isMuted?: boolean }) => {
   const pct = Math.min(100, (value / 2.0) * 100);
   const defaultPct = Math.min(100, (defaultValue / 2.0) * 100);
   const diff = ((value - defaultValue) / defaultValue * 100);
@@ -24,21 +24,27 @@ const WeightBar = ({ name, value, defaultValue }: { name: string; value: number;
   const isDown = diff < -2;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center gap-2 ${isMuted ? 'opacity-30' : ''}`}>
       <span className="text-[9px] font-mono text-marble/50 w-16 text-right">{WEIGHT_LABELS[name] ?? name}</span>
       <div className="flex-1 h-3 bg-navy-dark/80 rounded-full overflow-hidden relative">
         <div className="absolute top-0 h-full w-px bg-marble/20" style={{ left: `${defaultPct}%` }} />
         <div
-          className={`h-full rounded-full transition-all duration-500 ${isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-gold/60'}`}
+          className={`h-full rounded-full transition-all duration-500 ${isMuted ? 'bg-marble/20' : isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-gold/60'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`text-[9px] font-mono w-10 text-right ${isUp ? 'text-emerald-400' : isDown ? 'text-red-400' : 'text-marble/30'}`}>
+      <span className={`text-[9px] font-mono w-10 text-right ${isMuted ? 'text-marble/20' : isUp ? 'text-emerald-400' : isDown ? 'text-red-400' : 'text-marble/30'}`}>
         {value.toFixed(2)}
       </span>
-      {isUp && <TrendingUp className="w-2.5 h-2.5 text-emerald-400" />}
-      {isDown && <TrendingDown className="w-2.5 h-2.5 text-red-400" />}
-      {!isUp && !isDown && <Minus className="w-2.5 h-2.5 text-marble/20" />}
+      {sigAcc && (sigAcc.correct + sigAcc.wrong) > 0 && (
+        <span className={`text-[8px] font-mono w-10 text-right ${sigAcc.pct >= 60 ? 'text-emerald-400' : sigAcc.pct >= 45 ? 'text-amber-400' : 'text-red-400'}`}>
+          {sigAcc.pct.toFixed(0)}%
+        </span>
+      )}
+      {isMuted && <span className="text-[7px] px-1 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/20">MUTED</span>}
+      {!isMuted && isUp && <TrendingUp className="w-2.5 h-2.5 text-emerald-400" />}
+      {!isMuted && isDown && <TrendingDown className="w-2.5 h-2.5 text-red-400" />}
+      {!isMuted && !isUp && !isDown && <Minus className="w-2.5 h-2.5 text-marble/20" />}
     </div>
   );
 };
@@ -214,7 +220,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
           {activeTab === 'weights' && (
             <div className="space-y-1.5">
               <div className="text-[8px] font-display tracking-wider text-marble/20 mb-2">
-                INDICATOR WEIGHTS · DEFAULT MARKER (|) · CURRENT BAR
+                INDICATOR WEIGHTS · DEFAULT (|) · ACCURACY % · MUTED = KILL-SWITCHED
               </div>
               {Object.entries(stats.weights).map(([name, value]) => (
                 <WeightBar
@@ -222,6 +228,8 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                   name={name}
                   value={value}
                   defaultValue={DEFAULT_WEIGHTS[name as keyof typeof DEFAULT_WEIGHTS]}
+                  sigAcc={(stats as any).signalAccuracy?.[name]}
+                  isMuted={(stats as any).mutedSignals?.includes(name)}
                 />
               ))}
             </div>
