@@ -1215,7 +1215,7 @@ const TradingBridge = () => {
                   <div className="space-y-4">
                     <StrategiesPanel />
                     <div className="border-t border-gold/10 pt-4">
-                      <GATechnicalGauge />
+                      <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
                     </div>
                   </div>
                 )}
