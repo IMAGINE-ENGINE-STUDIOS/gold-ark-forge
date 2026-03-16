@@ -97,6 +97,8 @@ const MIN_CONFLUENCE = 4;        // base minimum agreeing signals
 const MAX_CONFLUENCE = 8;        // max when accuracy is poor
 const ACCURACY_FLOOR = 75;       // target minimum accuracy %
 const ACCURACY_FLOOR_MARGIN = 5; // start tightening at 80%
+const BATCH_AUDIT_SIZE = 10;     // evaluate true accuracy every N predictions
+const BATCH_AUDIT_FLOOR = 70;    // trigger deep correction if overall < 70%
 
 const DEFAULT_WEIGHTS: ApexWeights = {
   rsi: 0.60,
