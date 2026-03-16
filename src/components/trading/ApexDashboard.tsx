@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
 
-// v5: Auto-reset poisoned data from v4 inverted signals on first load
-const V5_RESET_KEY = 'ga_apex_v5_reset_done';
+// v6: Auto-reset poisoned data from v5 re-evaluation bug on first load
+const V6_RESET_KEY = 'ga_apex_v6_reset_done';
 
 
 const WEIGHT_LABELS: Record<string, string> = {
@@ -58,10 +58,10 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
   const [activeTab, setActiveTab] = useState<'predictions' | 'weights' | 'timeline'>('predictions');
   // v5: Auto-reset on first load to clear poisoned v4 data
   useEffect(() => {
-    if (!localStorage.getItem(V5_RESET_KEY)) {
-      console.log('[APEX v5] Auto-resetting poisoned v4 data (inverted VWAP, contrarian Bollinger, aggressive RSI)');
+    if (!localStorage.getItem(V6_RESET_KEY)) {
+      console.log('[APEX v6] Auto-resetting poisoned v5 data (re-evaluation bug, fake confluence, no candle confirmation)');
       resetApexState();
-      localStorage.setItem(V5_RESET_KEY, '1');
+      localStorage.setItem(V6_RESET_KEY, '1');
     }
   }, []);
 
@@ -85,7 +85,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
         >
           <div className="flex items-center gap-2">
             <Brain className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX v5</span>
+            <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX v6</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -108,7 +108,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                   title={`${shot.direction}: ${shot.correct ? '✓' : '✗'}`}
                 />
               ))}
-              {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">v5 fresh</span>}
+              {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">v6 fresh</span>}
             </div>
             {expanded ? <ChevronUp className="w-3 h-3 text-marble/30" /> : <ChevronDown className="w-3 h-3 text-marble/30" />}
           </div>

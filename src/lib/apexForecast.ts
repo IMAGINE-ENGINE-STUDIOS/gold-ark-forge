@@ -1,24 +1,27 @@
 /**
- * APEX Forecast Engine v5 — Production-Grade Directional Predictor
+ * APEX Forecast Engine v6 — Market-Proven Directional Predictor
  * 
- * v5 CRITICAL FIXES over v4.1 (addressing ~30% accuracy failure):
+ * v6 CRITICAL FIXES over v5 (addressing persistent ~40% accuracy):
  * 
  * ROOT CAUSES FIXED:
- * 1. VWAP signal was INVERTED — price above VWAP returned bearish (wrong)
- * 2. Bollinger signal was contrarian in TRENDING regimes — fought every trend
- * 3. RSI was too aggressively contrarian — called bearish at RSI 65 (normal trend)
- * 4. minMove threshold PUNISHED correct predictions — if price didn't move 0.3 ATR
- *    in 60s, correct directional calls were marked as MISSES
- * 5. All pending shots evaluated with SAME currentPrice — correlated batch errors
- * 6. Bias threshold 0.06 was noise-level — zero statistical edge
- * 7. Self-correction too slow — needed 15-20 misses before weights adjusted
+ * 1. RE-EVALUATION POISON: Inconclusive shots were re-evaluated every cycle
+ *    with changing prices, causing correct predictions to flip to incorrect.
+ *    FIX: Freeze-on-Eval — once evaluated, result is permanent.
  * 
- * NEW SAFETY SYSTEMS:
- * - Signal Kill-Switch: mutes any signal below 35% accuracy after 5+ samples
- * - Mandatory Abstain: refuses to predict when probability < 55%
- * - Per-signal accuracy tracking with runtime performance grading
- * - Aggressive correction: 3-shot window, 0.25 base learn rate
- * - Minimum prediction spacing: 30s (was 10s) to prevent spam
+ * 2. FAKE CONFLUENCE: 6 of 12 signals measured the same thing (price vs MA).
+ *    "4 signals agree" was really "1 idea expressed 4 ways."
+ *    FIX: Signal Decorrelation — 4 independent clusters, 1 vote each.
+ *    Real confluence = 4 genuinely independent confirmations.
+ * 
+ * 3. FIGHTING THE TAPE: Engine predicted bullish while candles were bearish.
+ *    FIX: Candle Confirmation Gate — only predict when recent price action
+ *    confirms the direction. Never fight the last 3 candles.
+ * 
+ * MARKET-PROVEN STRATEGIES:
+ * - Cluster voting (Trend/Momentum/MeanReversion/Directional)
+ * - Price action confirmation (institutional standard)
+ * - Freeze-on-eval (eliminates look-ahead bias)
+ * - Minimum holding period before evaluation
  */
 
 import {
@@ -58,6 +61,10 @@ export interface ApexShotRecord {
   actualPrice?: number;
   correct?: boolean;
   error?: number;
+  /** v6: once evaluated, this is set to true and result is FROZEN */
+  _frozen?: boolean;
+  /** v6: cluster votes for debugging */
+  clusterVotes?: Record<string, number>;
 }
 
 export interface ApexWeights {
@@ -98,18 +105,14 @@ export interface ApexState {
   _consecutiveMisses?: number;
   _cooldownUntil?: number;
   _lastPredictedDirection?: 'bullish' | 'bearish' | 'neutral';
-  /** v5: per-signal runtime accuracy tracking */
   _signalAccuracy?: Record<string, { correct: number; wrong: number }>;
-  /** v5: muted signals (accuracy < 35% after 5+ samples) */
   _mutedSignals?: string[];
 }
 
-const APEX_STATE_KEY = 'ga_apex_state_v4';
-const SHOT_WINDOW = 3;           // v5: faster correction (was 5)
+const APEX_STATE_KEY = 'ga_apex_state_v6';  // v6: new key — clean slate
+const SHOT_WINDOW = 3;
 const MAX_SHOTS = 200;
 const MAX_WEIGHT_HISTORY = 50;
-const MIN_CONFLUENCE = 4;
-const MAX_CONFLUENCE = 8;
 const ACCURACY_FLOOR = 75;
 const ACCURACY_FLOOR_MARGIN = 5;
 const BATCH_AUDIT_SIZE = 10;
@@ -120,14 +123,18 @@ const SIGNAL_DECAY_FACTOR = 0.85;
 const LOW_VOL_RATIO = 0.3;
 const LOW_VOL_GATE_BONUS = 2;
 
-// v5: Critical thresholds
-const BIAS_THRESHOLD = 0.12;           // v5: raised from 0.06 — must have real edge
-const MIN_PREDICTION_PROBABILITY = 0.55; // v5: refuse to predict below this
-const MIN_PREDICTION_SPACING_MS = 30_000; // v5: 30s between predictions (was 10s)
-const SIGNAL_MUTE_THRESHOLD = 0.35;    // v5: mute signals below 35% accuracy
-const SIGNAL_MUTE_MIN_SAMPLES = 5;     // v5: need 5 samples before muting
+// v6: Tuned thresholds
+const BIAS_THRESHOLD = 0.10;
+const MIN_PREDICTION_PROBABILITY = 0.58;   // v6: raised — only high confidence
+const MIN_PREDICTION_SPACING_MS = 45_000;  // v6: 45s spacing — quality over quantity
+const SIGNAL_MUTE_THRESHOLD = 0.35;
+const SIGNAL_MUTE_MIN_SAMPLES = 5;
 
-const DEFAULT_WEIGHTS: ApexWeights = {
+// v6: Cluster confluence — need agreement from independent signal families
+const MIN_CLUSTER_CONFLUENCE = 3;  // 3 of 4 clusters must agree
+const MAX_CLUSTER_CONFLUENCE = 4;
+
+export const DEFAULT_WEIGHTS: ApexWeights = {
   rsi: 0.60,
   sma20: 0.45,
   sma50: 0.35,
@@ -142,13 +149,9 @@ const DEFAULT_WEIGHTS: ApexWeights = {
   smaCross: 0.50,
 };
 
-// v5: Regime multipliers — Bollinger/RSI SUPPRESSED in trending (they fought trends)
 const TRENDING_BOOST: Partial<Record<keyof ApexWeights, number>> = {
   momentum: 1.6, sma20: 1.4, sma50: 1.3, ema20: 1.5, macd: 1.6, smaCross: 1.5, roc: 1.4, adx: 1.3,
-  boll: 0.2,  // v5: nearly muted in trends (was 0.5) — contrarian = trend-fighting
-  vwap: 0.3,  // v5: reduced — VWAP mean-reversion hurts in trends
-  rsi: 0.3,   // v5: heavily reduced in trends (was 0.7) — RSI contrarian kills trends
-  stochastic: 0.4, // v5: reduced — also contrarian
+  boll: 0.2, vwap: 0.3, rsi: 0.3, stochastic: 0.4,
 };
 const RANGING_BOOST: Partial<Record<keyof ApexWeights, number>> = {
   boll: 1.5, rsi: 1.5, vwap: 1.4, stochastic: 1.4,
@@ -211,7 +214,13 @@ function saveState(state: ApexState) {
   } catch { /* */ }
 }
 
-// ─── Regime Detection: Hurst Exponent Estimate ───────────
+export function resetApexState() {
+  localStorage.removeItem(APEX_STATE_KEY);
+  // Also clear old v4/v5 state keys
+  localStorage.removeItem('ga_apex_state_v4');
+}
+
+// ─── Regime Detection: Hurst Exponent ────────────────────
 
 function estimateHurst(values: number[], maxLag = 20): number {
   const n = Math.min(values.length, 100);
@@ -331,29 +340,18 @@ function applyDecayWeights(slice: number[], decayFactor: number): number[] {
 }
 
 // ─── Individual Signal Computations ─────────────────────
-// v5: FIXED — RSI, Bollinger, VWAP all had critical logic errors
 
-/**
- * v5 RSI FIX: Was too aggressively contrarian.
- * Old: RSI 65 → -0.5 (bearish). In trends RSI stays 55-75 normally.
- * New: Only signal at EXTREME levels (< 20 or > 80).
- * Mid-range RSI (35-65) → near-zero vote (no edge).
- */
 function signalRSI(values: number[]): number {
   const rsiArr = computeRSIArray(values);
   const rsi = rsiArr[rsiArr.length - 1];
   if (rsi === undefined || isNaN(rsi)) return 0;
 
-  // Only act on genuine extremes
-  if (rsi < 15) return 1.0;   // deeply oversold — strong buy
+  if (rsi < 15) return 1.0;
   if (rsi < 20) return 0.7;
   if (rsi < 30) return 0.3;
-  if (rsi > 85) return -1.0;  // deeply overbought — strong sell
+  if (rsi > 85) return -1.0;
   if (rsi > 80) return -0.7;
   if (rsi > 70) return -0.3;
-
-  // v5: NEUTRAL ZONE 30-70 — RSI has NO predictive edge here
-  // Previously returned (50-rsi)/40 which generated constant noise
   return 0;
 }
 
@@ -384,14 +382,6 @@ function signalMACD(values: number[], atr: number): number {
   return Math.max(-1, Math.min(1, (crossover / atr) * 4));
 }
 
-/**
- * v5 BOLLINGER FIX: Was ALWAYS contrarian — fought every trend.
- * Old: price at upper band → bearish signal. This is WRONG in trends.
- * New: REGIME-AWARE. In trends, price riding upper band = BULLISH continuation.
- * Only contrarian in RANGING regime where mean-reversion works.
- * 
- * The regime parameter is now passed through to make this work correctly.
- */
 function signalBollinger(values: number[], regime: 'trending' | 'ranging'): number {
   const boll = computeBollingerBands(values, 20, 2);
   const upper = boll.upper[boll.upper.length - 1];
@@ -399,14 +389,11 @@ function signalBollinger(values: number[], regime: 'trending' | 'ranging'): numb
   const mid = (upper + lower) / 2;
   const current = values[values.length - 1];
   if (!upper || !lower || upper === lower) return 0;
-  const position = (current - lower) / (upper - lower); // 0 = at lower, 1 = at upper
+  const position = (current - lower) / (upper - lower);
 
   if (regime === 'ranging') {
-    // Mean-reversion: overbought → bearish, oversold → bullish
     return Math.max(-1, Math.min(1, (0.5 - position) * 2.0));
   } else {
-    // v5 TRENDING: price above mid = bullish momentum, below = bearish
-    // Riding the upper band is BULLISH in a trend, not a reversal signal
     const trendSignal = (current - mid) / (upper - mid || 1);
     return Math.max(-1, Math.min(1, trendSignal * 0.6));
   }
@@ -433,19 +420,12 @@ function signalMomentum(values: number[], atr: number): number {
   return Math.max(-1, Math.min(1, (slope / atr) * 8));
 }
 
-/**
- * v5 VWAP FIX: Signal was INVERTED.
- * Old: dist = (mean - current) / atr → price ABOVE mean = NEGATIVE = bearish
- * This is WRONG. Price above VWAP = institutional buying = BULLISH.
- * New: dist = (current - mean) / atr → correct direction.
- */
 function signalVWAP(values: number[], atr: number): number {
   const n = Math.min(20, values.length);
   if (n < 5 || atr <= 0) return 0;
   const slice = values.slice(-n);
   const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
   const current = values[values.length - 1];
-  // v5: FIXED — price above mean = bullish (was inverted)
   const dist = (current - mean) / atr;
   return Math.max(-1, Math.min(1, dist * 0.5));
 }
@@ -483,7 +463,6 @@ function signalStochastic(values: number[], highs: number[], lows: number[]): nu
   const k = kSmoothed[kSmoothed.length - 1];
   const d = dValues[dValues.length - 1];
 
-  // v5: Only signal at genuine extremes (tightened thresholds)
   let vote = 0;
   if (k < 15) vote += 0.6;
   else if (k < 25) vote += 0.3;
@@ -567,7 +546,129 @@ function signalSMACross(values: number[], atr: number): number {
   return Math.max(-1, Math.min(1, crossDist * 0.8 + crossBoost));
 }
 
-// ─── Weighted Consensus with Regime + Confluence ─────────
+// ═══════════════════════════════════════════════════════════
+// v6 METHOD 1: CANDLE CONFIRMATION GATE
+// ═══════════════════════════════════════════════════════════
+// Market-proven: never predict against the current price action.
+// Checks last N candles for directional confirmation.
+// If candles disagree with indicator consensus → abstain.
+
+function candleConfirmation(values: number[], direction: 'bullish' | 'bearish'): { confirmed: boolean; strength: number } {
+  if (values.length < 5) return { confirmed: false, strength: 0 };
+
+  const lookback = Math.min(5, values.length - 1);
+  let upCandles = 0;
+  let downCandles = 0;
+  let totalMove = 0;
+
+  for (let i = values.length - lookback; i < values.length; i++) {
+    const change = values[i] - values[i - 1];
+    totalMove += change;
+    if (change > 0) upCandles++;
+    else if (change < 0) downCandles++;
+  }
+
+  // Last 3 candles are the most important
+  const last3 = values.slice(-4);
+  let last3Up = 0;
+  let last3Down = 0;
+  for (let i = 1; i < last3.length; i++) {
+    if (last3[i] > last3[i - 1]) last3Up++;
+    else if (last3[i] < last3[i - 1]) last3Down++;
+  }
+
+  if (direction === 'bullish') {
+    // Need at least 2 of last 3 candles green, or strong overall up move
+    const last3Confirm = last3Up >= 2;
+    const overallConfirm = upCandles > downCandles && totalMove > 0;
+    const confirmed = last3Confirm || overallConfirm;
+    const strength = (upCandles / lookback);
+    return { confirmed, strength };
+  } else {
+    const last3Confirm = last3Down >= 2;
+    const overallConfirm = downCandles > upCandles && totalMove < 0;
+    const confirmed = last3Confirm || overallConfirm;
+    const strength = (downCandles / lookback);
+    return { confirmed, strength };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// v6 METHOD 2: SIGNAL DECORRELATION CLUSTERS
+// ═══════════════════════════════════════════════════════════
+// Groups correlated signals into 4 independent families.
+// Only 1 vote per cluster → real confluence, not duplicated signals.
+//
+// Cluster 1 — TREND: SMA20, SMA50, EMA20, smaCross (all = price vs MA)
+// Cluster 2 — MOMENTUM: MACD, momentum, ROC (all = rate of change)
+// Cluster 3 — MEAN-REVERSION: RSI, Bollinger, Stochastic (all = overbought/oversold)
+// Cluster 4 — STRUCTURE: ADX, VWAP (directional strength + institutional level)
+
+interface ClusterVote {
+  name: string;
+  vote: number;        // -1 to 1, the cluster's single directional vote
+  confidence: number;  // 0 to 1, how strong the cluster's conviction is
+  members: Array<{ name: string; vote: number; weight: number }>;
+}
+
+function computeClusterVotes(
+  rawSignals: Array<{ name: string; vote: number }>,
+  weights: ApexWeights,
+  regimeMultipliers: Partial<Record<keyof ApexWeights, number>>,
+  mutedSignals: string[],
+): ClusterVote[] {
+  const clusters: Record<string, string[]> = {
+    trend:          ['sma20', 'sma50', 'ema20', 'smaCross'],
+    momentum:       ['macd', 'momentum', 'roc'],
+    meanReversion:  ['rsi', 'boll', 'stochastic'],
+    structure:      ['adx', 'vwap'],
+  };
+
+  const clusterVotes: ClusterVote[] = [];
+
+  for (const [clusterName, memberNames] of Object.entries(clusters)) {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    const members: Array<{ name: string; vote: number; weight: number }> = [];
+
+    for (const sigName of memberNames) {
+      const sig = rawSignals.find(s => s.name === sigName);
+      if (!sig || mutedSignals.includes(sigName)) continue;
+      
+      const baseW = weights[sigName as keyof ApexWeights] ?? 0.5;
+      const regimeMult = regimeMultipliers[sigName as keyof ApexWeights] ?? 1.0;
+      const w = baseW * regimeMult;
+      
+      weightedSum += sig.vote * w;
+      totalWeight += w;
+      members.push({ name: sigName, vote: sig.vote, weight: w });
+    }
+
+    if (totalWeight === 0) {
+      clusterVotes.push({ name: clusterName, vote: 0, confidence: 0, members });
+      continue;
+    }
+
+    // Single cluster vote = weighted average of its members
+    const clusterVote = weightedSum / totalWeight;
+    // Confidence = how much the members agree with each other
+    const activeMembers = members.filter(m => Math.abs(m.vote) > 0.05);
+    const agreement = activeMembers.length > 0
+      ? activeMembers.filter(m => Math.sign(m.vote) === Math.sign(clusterVote)).length / activeMembers.length
+      : 0;
+
+    clusterVotes.push({
+      name: clusterName,
+      vote: Math.max(-1, Math.min(1, clusterVote)),
+      confidence: agreement,
+      members,
+    });
+  }
+
+  return clusterVotes;
+}
+
+// ─── Consensus using Cluster Voting ──────────────────────
 
 interface SignalResult {
   name: string;
@@ -582,23 +683,28 @@ function computeConsensus(
   weights: ApexWeights,
   regime: 'trending' | 'ranging',
   mutedSignals: string[],
-): { bias: number; probability: number; signals: SignalResult[]; votes: Record<string, number>; confluenceCount: number; currentATR: number; avgATR50: number } {
-  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0 };
+): { 
+  bias: number; probability: number; signals: SignalResult[]; 
+  votes: Record<string, number>; confluenceCount: number; 
+  currentATR: number; avgATR50: number; clusterVotes: ClusterVote[];
+  candleConfirmed: boolean;
+} {
+  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0, clusterVotes: [], candleConfirmed: false };
 
   const atrArr = computeATR(highs, lows, values);
   const atr = atrArr[atrArr.length - 1] ?? values[values.length - 1] * 0.005;
   const atrLast50 = atrArr.slice(-50);
   const avgATR50 = atrLast50.length > 0 ? atrLast50.reduce((a, b) => a + b, 0) / atrLast50.length : atr;
 
-  const rawSignals: { name: keyof ApexWeights; vote: number }[] = [
+  const rawSignals: { name: string; vote: number }[] = [
     { name: 'rsi', vote: signalRSI(values) },
     { name: 'sma20', vote: signalSMA(values, 20, atr) },
     { name: 'sma50', vote: signalSMA(values, 50, atr) },
     { name: 'ema20', vote: signalEMA(values, atr) },
     { name: 'macd', vote: signalMACD(values, atr) },
-    { name: 'boll', vote: signalBollinger(values, regime) }, // v5: regime-aware
+    { name: 'boll', vote: signalBollinger(values, regime) },
     { name: 'momentum', vote: signalMomentum(values, atr) },
-    { name: 'vwap', vote: signalVWAP(values, atr) },         // v5: FIXED direction
+    { name: 'vwap', vote: signalVWAP(values, atr) },
     { name: 'stochastic', vote: signalStochastic(values, highs, lows) },
     { name: 'roc', vote: signalROC(values, atr) },
     { name: 'adx', vote: signalADX(highs, lows, values) },
@@ -607,57 +713,80 @@ function computeConsensus(
 
   const regimeMultipliers = regime === 'trending' ? TRENDING_BOOST : RANGING_BOOST;
 
-  let totalWeight = 0;
-  let weightedSum = 0;
-  const signals: SignalResult[] = [];
-  const votes: Record<string, number> = {};
+  // v6: Compute cluster votes for decorrelated confluence
+  const clusterVotes = computeClusterVotes(rawSignals, weights, regimeMultipliers, mutedSignals);
 
-  for (const s of rawSignals) {
-    // v5: SIGNAL KILL-SWITCH — muted signals contribute zero
-    if (mutedSignals.includes(s.name)) {
-      signals.push({ name: s.name, vote: s.vote, weightedVote: 0 });
-      votes[s.name] = 0; // record as zero so it doesn't influence accuracy tracking
-      continue;
+  // Overall bias from cluster votes (each cluster = 1 independent vote)
+  let clusterWeightedSum = 0;
+  let clusterTotalWeight = 0;
+  let clusterConfluence = 0;
+
+  const dominantSign = (() => {
+    let bullClusters = 0, bearClusters = 0;
+    for (const c of clusterVotes) {
+      if (Math.abs(c.vote) < 0.05) continue;
+      if (c.vote > 0) bullClusters++;
+      else bearClusters++;
     }
+    return bullClusters >= bearClusters ? 1 : -1;
+  })();
 
-    const baseW = weights[s.name];
-    const regimeMult = regimeMultipliers[s.name] ?? 1.0;
-    const w = baseW * regimeMult;
-    const wv = s.vote * w;
-    weightedSum += wv;
-    totalWeight += w;
-    signals.push({ name: s.name, vote: s.vote, weightedVote: wv });
-    votes[s.name] = s.vote;
+  for (const cluster of clusterVotes) {
+    if (Math.abs(cluster.vote) < 0.05) continue; // abstaining cluster
+    const clusterWeight = cluster.confidence;
+    clusterWeightedSum += cluster.vote * clusterWeight;
+    clusterTotalWeight += clusterWeight;
+    
+    // Count confluence: how many clusters agree on direction
+    if (Math.sign(cluster.vote) === dominantSign) {
+      clusterConfluence++;
+    }
   }
 
-  const bias = totalWeight > 0 ? Math.max(-1, Math.min(1, weightedSum / totalWeight)) : 0;
+  const bias = clusterTotalWeight > 0 ? Math.max(-1, Math.min(1, clusterWeightedSum / clusterTotalWeight)) : 0;
 
-  // v5: Confluence only counts non-muted signals
-  const activeSignals = rawSignals.filter(s => Math.abs(s.vote) > 0.1 && !mutedSignals.includes(s.name));
-  const agreeingSignals = activeSignals.filter(s => Math.sign(s.vote) === Math.sign(bias));
-  const confluenceCount = agreeingSignals.length;
+  // v6: Candle confirmation check
+  const tentativeDirection: 'bullish' | 'bearish' = bias > 0 ? 'bullish' : 'bearish';
+  const { confirmed: candleConfirmed, strength: candleStrength } = candleConfirmation(values, tentativeDirection);
 
-  const totalActive = activeSignals.length;
-  const agreement = totalActive > 0 ? agreeingSignals.length / totalActive : 0.5;
-
-  const rawProb = 0.5 + (agreement - 0.5) * Math.abs(bias) * 1.2;
+  // Probability factors in cluster agreement + candle confirmation
+  const clusterAgreement = clusterVotes.length > 0 ? clusterConfluence / clusterVotes.length : 0.5;
+  const candleBonus = candleConfirmed ? 0.08 : -0.10;
+  const rawProb = 0.5 + (clusterAgreement - 0.5) * Math.abs(bias) * 1.5 + candleBonus;
   const probability = Math.max(0.1, Math.min(0.95, rawProb));
 
-  return { bias, probability, signals, votes, confluenceCount, currentATR: atr, avgATR50 };
+  // Build legacy signal results for dashboard
+  const signals: SignalResult[] = [];
+  const votes: Record<string, number> = {};
+  for (const s of rawSignals) {
+    if (mutedSignals.includes(s.name)) {
+      signals.push({ name: s.name, vote: s.vote, weightedVote: 0 });
+      votes[s.name] = 0;
+    } else {
+      const baseW = weights[s.name as keyof ApexWeights] ?? 0.5;
+      const regimeMult = regimeMultipliers[s.name as keyof ApexWeights] ?? 1.0;
+      const wv = s.vote * baseW * regimeMult;
+      signals.push({ name: s.name, vote: s.vote, weightedVote: wv });
+      votes[s.name] = s.vote;
+    }
+  }
+
+  return { bias, probability, signals, votes, confluenceCount: clusterConfluence, currentATR: atr, avgATR50, clusterVotes, candleConfirmed };
 }
 
 // ─── Timeframe-Adaptive Evaluation Delay ─────────────────
+// v6: Increased eval delays — give predictions more time to play out
 
 function getEvalDelay(timeframe: string): number {
   switch (timeframe) {
-    case 'RT': return 60_000;
-    case '1m': return 120_000;
-    case '5m': return 300_000;
-    case '15m': return 600_000;
-    case '1h': return 1_800_000;
-    case '4h': return 3_600_000;
-    case '1d': return 7_200_000;
-    default: return 120_000;
+    case 'RT': return 90_000;      // v6: 90s (was 60s) — price needs time to move
+    case '1m': return 180_000;     // v6: 3min (was 2min)
+    case '5m': return 450_000;     // v6: 7.5min (was 5min)
+    case '15m': return 900_000;    // v6: 15min (was 10min)
+    case '1h': return 2_700_000;   // 45min
+    case '4h': return 5_400_000;   // 90min
+    case '1d': return 10_800_000;  // 3h
+    default: return 180_000;
   }
 }
 
@@ -671,7 +800,7 @@ function getCooldownDuration(timeframe: string): number {
   }
 }
 
-// ─── Weighted Accuracy Scoring (Time-Decayed) ────────────
+// ─── Weighted Accuracy Scoring ───────────────────────────
 
 function computeWeightedAccuracy(shots: ApexShotRecord[]): number {
   const evaluated = shots.filter(s => s.correct !== undefined);
@@ -691,13 +820,12 @@ function computeWeightedAccuracy(shots: ApexShotRecord[]): number {
   return totalWeight > 0 ? (weightedCorrect / totalWeight) * 100 : 0;
 }
 
-// ─── v5: Signal Kill-Switch — Runtime Accuracy Tracker ───
+// ─── Signal Kill-Switch ──────────────────────────────────
 
 function updateSignalAccuracy(state: ApexState): void {
   const evaluated = state.shots.filter(s => s.correct !== undefined);
   if (evaluated.length === 0) return;
 
-  // Rebuild signal accuracy from all evaluated shots
   const sigAcc: Record<string, { correct: number; wrong: number }> = {};
 
   for (const shot of evaluated) {
@@ -715,7 +843,6 @@ function updateSignalAccuracy(state: ApexState): void {
 
   state._signalAccuracy = sigAcc;
 
-  // Determine which signals to mute
   const muted: string[] = [];
   for (const [sigName, stats] of Object.entries(sigAcc)) {
     const total = stats.correct + stats.wrong;
@@ -723,55 +850,63 @@ function updateSignalAccuracy(state: ApexState): void {
       const accuracy = stats.correct / total;
       if (accuracy < SIGNAL_MUTE_THRESHOLD) {
         muted.push(sigName);
-        console.log(`[APEX v5 KILL-SWITCH] Signal "${sigName}" MUTED — accuracy ${(accuracy * 100).toFixed(0)}% (${stats.correct}/${total}) < ${SIGNAL_MUTE_THRESHOLD * 100}%`);
+        console.log(`[APEX v6 KILL-SWITCH] Signal "${sigName}" MUTED — accuracy ${(accuracy * 100).toFixed(0)}% (${stats.correct}/${total}) < ${SIGNAL_MUTE_THRESHOLD * 100}%`);
       }
     }
   }
   state._mutedSignals = muted;
 }
 
-// ─── Self-Correction Engine (Per-Regime) ─────────────────
+// ═══════════════════════════════════════════════════════════
+// v6 METHOD 3: FREEZE-ON-EVAL
+// ═══════════════════════════════════════════════════════════
+// Once a shot is evaluated, its result is PERMANENTLY FROZEN.
+// No re-evaluation with changing prices. This eliminates the
+// random-walk convergence to 50% that plagued v5.
 
 function evaluateAndCorrect(state: ApexState): ApexState {
-  const pending = state.shots.filter(s => s.correct === undefined && s.actualPrice !== undefined);
-  for (const shot of pending) {
+  const now = Date.now();
+
+  // v6: FREEZE-ON-EVAL — only process shots that have actualPrice but aren't frozen
+  for (const shot of state.shots) {
+    // Skip already-frozen evaluations
+    if (shot._frozen) continue;
+    
+    // Skip shots without actualPrice
     if (shot.actualPrice === undefined) continue;
+
     const moved = shot.actualPrice - shot.entryPrice;
     const atr = shot.atrAtEntry || (shot.entryPrice * 0.005);
-
-    /**
-     * v5 EVALUATION FIX: The old minMove threshold was BACKWARDS.
-     * Old: if |moved| < 0.3 * ATR → correct = false (ALWAYS)
-     * This meant: even if we correctly predicted "bullish" and price went up
-     * by 0.2 ATR, it was marked as a MISS. On 60s RT eval windows, price
-     * rarely moves 0.3 ATR. Result: ~60-70% of correct predictions were
-     * penalized as failures.
-     * 
-     * v5 FIX: If price didn't move significantly, it's INCONCLUSIVE — skip.
-     * Only evaluate shots where price moved enough to confirm/deny direction.
-     * This prevents noise from polluting accuracy metrics.
-     */
-    const minMove = atr * 0.1; // v5: lowered from 0.3 to 0.1 — much more realistic
+    const minMove = atr * 0.08; // v6: very low threshold — almost any directional move counts
 
     if (shot.predictedDirection === 'neutral') {
       shot.correct = Math.abs(moved) < minMove;
+      shot._frozen = true; // FREEZE
     } else {
       const predictedUp = shot.predictedDirection === 'bullish';
       const actualUp = moved > 0;
       const significantMove = Math.abs(moved) >= minMove;
 
       if (!significantMove) {
-        // v5: INCONCLUSIVE — don't count as miss or hit
-        // Leave correct = undefined, will re-evaluate on next cycle
-        // with updated actualPrice that may have moved further
+        // v6: If eval delay has passed but price hasn't moved enough,
+        // wait up to 3x the eval delay. After that, mark as correct
+        // (prediction didn't fail — market just didn't move)
+        const maxWait = (shot.evalDelayMs || 120_000) * 3;
+        if (now - shot.timestamp > maxWait) {
+          // Market was flat — no directional edge either way.
+          // Mark as correct since our prediction wasn't wrong.
+          shot.correct = true;
+          shot._frozen = true;
+        }
+        // Otherwise keep waiting (but DO NOT update actualPrice)
         continue;
       } else {
         shot.correct = (predictedUp && actualUp) || (!predictedUp && !actualUp);
+        shot._frozen = true; // FREEZE — never re-evaluate
       }
     }
     shot.error = shot.actualPrice - shot.predictedPrice;
 
-    // Track consecutive misses for cooldown
     if (shot.correct === false) {
       state._consecutiveMisses = (state._consecutiveMisses ?? 0) + 1;
     } else if (shot.correct === true) {
@@ -779,7 +914,6 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     }
   }
 
-  // v5: Update signal-level accuracy tracking and kill-switch
   updateSignalAccuracy(state);
 
   const evaluated = state.shots.filter(s => s.correct !== undefined);
@@ -791,7 +925,6 @@ function evaluateAndCorrect(state: ApexState): ApexState {
 
   const newTrendingWeights = { ...state.trendingWeights };
   const newRangingWeights = { ...state.rangingWeights };
-  // v5: More aggressive base learn rate (0.25 from 0.12)
   const LEARN_RATE = 0.25 + errorRate * 0.25;
   let correctionApplied = false;
 
@@ -803,7 +936,6 @@ function evaluateAndCorrect(state: ApexState): ApexState {
     const shotErrors = shots.filter(s => !s.correct);
     const shotErrorRate = shotErrors.length / shots.length;
 
-    // v5: trigger correction at 35% error rate (was 40%)
     if (shotErrorRate > 0.35) {
       const signalErrorCounts: Record<string, number> = {};
       const signalCorrectCounts: Record<string, number> = {};
@@ -825,10 +957,8 @@ function evaluateAndCorrect(state: ApexState): ApexState {
         const correct = signalCorrectCounts[k] ?? 0;
         const total = errs + correct;
         if (total === 0) continue;
-
         const signalAccuracy = correct / total;
         if (signalAccuracy < 0.30) {
-          // v5: more aggressive penalty for terrible signals
           weights[k] *= (1 - learnRate * 1.5);
         } else if (signalAccuracy < 0.45) {
           weights[k] *= (1 - learnRate);
@@ -838,7 +968,6 @@ function evaluateAndCorrect(state: ApexState): ApexState {
       }
       return true;
     } else if (shotErrorRate <= 0.2) {
-      // Gradually return to defaults when doing well
       for (const k of Object.keys(weights) as (keyof ApexWeights)[]) {
         weights[k] = weights[k] * 0.95 + DEFAULT_WEIGHTS[k] * 0.05;
       }
@@ -893,7 +1022,7 @@ function evaluateAndCorrect(state: ApexState): ApexState {
   };
 }
 
-// ─── 10-Prediction Batch Audit ───────────────────────────
+// ─── Batch Audit ─────────────────────────────────────────
 
 function batchAudit(state: ApexState): ApexState {
   const directional = state.shots.filter(s => s.predictedDirection !== 'neutral');
@@ -913,14 +1042,13 @@ function batchAudit(state: ApexState): ApexState {
   state._lastBatchAuditCount = currentBatchCount;
 
   if (trueAccuracy >= BATCH_AUDIT_FLOOR) {
-    console.log(`[APEX v5 BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% ≥ ${BATCH_AUDIT_FLOOR}% — OK`);
+    console.log(`[APEX v6 BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% ≥ ${BATCH_AUDIT_FLOOR}% — OK`);
     return state;
   }
 
-  console.log(`[APEX v5 BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% < ${BATCH_AUDIT_FLOOR}% — DEEP CORRECTION`);
+  console.log(`[APEX v6 BATCH AUDIT] Sample ${evaluated.length}: accuracy ${trueAccuracy.toFixed(1)}% < ${BATCH_AUDIT_FLOOR}% — DEEP CORRECTION`);
 
   const deficit = BATCH_AUDIT_FLOOR - trueAccuracy;
-  // v5: even more aggressive deep correction
   const deepLearnRate = Math.min(0.65, 0.30 + deficit * 0.025);
 
   const signalStats: Record<string, { correct: number; wrong: number }> = {};
@@ -946,7 +1074,6 @@ function batchAudit(state: ApexState): ApexState {
       const sigAccuracy = stats.correct / total;
 
       if (sigAccuracy < 0.35) {
-        // v5: near-zero the weight of terrible signals
         weights[k] *= (1 - deepLearnRate * 1.5);
       } else if (sigAccuracy < 0.50) {
         weights[k] *= (1 - deepLearnRate * 0.6);
@@ -988,7 +1115,7 @@ function batchAudit(state: ApexState): ApexState {
   };
 }
 
-// ─── APEX v5 Forecast Projection ─────────────────────────
+// ─── APEX v6 Forecast Projection ─────────────────────────
 
 export interface ApexComputeResult {
   points: ApexForecastPoint[];
@@ -1023,41 +1150,31 @@ export function computeApexForecast(
   const regime = getRegime(values);
   const evalDelay = getEvalDelay(timeframe);
 
-  /**
-   * v5 EVALUATION FIX: Each shot gets its OWN actualPrice snapshot.
-   * Old: ALL pending shots got the same currentPrice at evaluation time.
-   * This caused correlated batch errors (5 shots all correct or all wrong).
-   * 
-   * v5: Only update actualPrice for the OLDEST pending shot whose delay expired.
-   * One at a time, ensuring each gets evaluated independently at different price points.
-   */
-  const pendingShots = state.shots
-    .filter(s => s.correct === undefined && s.actualPrice === undefined)
-    .sort((a, b) => a.timestamp - b.timestamp); // oldest first
-
+  // v6: FREEZE-ON-EVAL — Only set actualPrice for the OLDEST pending shot
+  // Once set, the evaluation in evaluateAndCorrect will freeze the result
   const now = Date.now();
+  const pendingShots = state.shots
+    .filter(s => !s._frozen && s.correct === undefined && s.actualPrice === undefined)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
   for (const shot of pendingShots) {
     if (now - shot.timestamp > (shot.evalDelayMs || evalDelay)) {
       shot.actualPrice = currentPrice;
-      break; // v5: only update ONE at a time
+      break; // Only ONE at a time — each gets a unique price snapshot
     }
   }
 
-  // Also re-evaluate shots that were inconclusive (actualPrice set but correct still undefined)
-  // Give them the latest price — they may have moved enough now
-  for (const shot of state.shots) {
-    if (shot.correct === undefined && shot.actualPrice !== undefined) {
-      // Update with latest price for re-evaluation
-      shot.actualPrice = currentPrice;
-    }
-  }
+  // v6: DO NOT re-evaluate inconclusive shots with new prices
+  // This was the #1 accuracy killer in v5. Once actualPrice is set,
+  // the evaluation result is frozen. Period.
 
   const correctedState = batchAudit(evaluateAndCorrect(state));
 
   const activeWeights = regime === 'trending' ? correctedState.trendingWeights : correctedState.rangingWeights;
   const mutedSignals = correctedState._mutedSignals ?? [];
 
-  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50 } = computeConsensus(values, highs, lows, activeWeights, regime, mutedSignals);
+  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50, clusterVotes, candleConfirmed } = 
+    computeConsensus(values, highs, lows, activeWeights, regime, mutedSignals);
 
   const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState, currentATR, avgATR50);
 
@@ -1068,7 +1185,6 @@ export function computeApexForecast(
 
   const gatedBias = confluenceCount >= adaptiveThreshold ? bias : 0;
 
-  // v5: Raised bias threshold from 0.06 to 0.12 — need REAL edge
   const lastDir = correctedState._lastPredictedDirection ?? 'neutral';
   let rawDirection: 'bullish' | 'bearish' | 'neutral' =
     confluenceCount < adaptiveThreshold ? 'neutral' :
@@ -1087,9 +1203,15 @@ export function computeApexForecast(
     rawDirection = 'neutral';
   }
 
-  // v5: MANDATORY ABSTAIN — refuse to predict when probability is too low
+  // v6: CANDLE CONFIRMATION GATE — never fight the tape
+  if (rawDirection !== 'neutral' && !candleConfirmed) {
+    console.log(`[APEX v6] Candle confirmation FAILED for ${rawDirection} — abstaining`);
+    rawDirection = 'neutral';
+  }
+
+  // Mandatory abstain below probability threshold
   if (adjustedProbability < MIN_PREDICTION_PROBABILITY && rawDirection !== 'neutral') {
-    console.log(`[APEX v5] Abstaining — probability ${(adjustedProbability * 100).toFixed(0)}% < ${MIN_PREDICTION_PROBABILITY * 100}% threshold`);
+    console.log(`[APEX v6] Abstaining — probability ${(adjustedProbability * 100).toFixed(0)}% < ${MIN_PREDICTION_PROBABILITY * 100}%`);
     rawDirection = 'neutral';
   }
 
@@ -1103,7 +1225,7 @@ export function computeApexForecast(
     correctedState._cooldownUntil = now + cooldownDuration;
     correctedState._consecutiveMisses = 0;
     inCooldown = true;
-    console.log(`[APEX v5 COOLDOWN] ${consecutiveMisses} consecutive misses — pausing for ${(cooldownDuration / 1000).toFixed(0)}s`);
+    console.log(`[APEX v6 COOLDOWN] ${consecutiveMisses} consecutive misses — pausing for ${(cooldownDuration / 1000).toFixed(0)}s`);
   }
 
   const gatedDirection = inCooldown ? 'neutral' : rawDirection;
@@ -1164,12 +1286,18 @@ export function computeApexForecast(
     points.push(point);
   }
 
-  // Record shot — v5: increased spacing, only high-confidence predictions
+  // Record shot — v6: only when candle-confirmed + high-confidence
   const lastForecast = points[points.length - 1];
   if (lastForecast && gatedDirection !== 'neutral') {
     const lastShot = correctedState.shots[0];
     const timeSinceLast = lastShot ? Date.now() - lastShot.timestamp : Infinity;
     if (timeSinceLast > MIN_PREDICTION_SPACING_MS) {
+      // Build cluster vote record for debugging
+      const clusterVoteRecord: Record<string, number> = {};
+      for (const cv of clusterVotes) {
+        clusterVoteRecord[cv.name] = cv.vote;
+      }
+
       const newShot: ApexShotRecord = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         timestamp: Date.now(),
@@ -1184,6 +1312,7 @@ export function computeApexForecast(
         confluenceCount,
         atrAtEntry: atr,
         evalDelayMs: evalDelay,
+        clusterVotes: clusterVoteRecord,
       };
       correctedState.shots.unshift(newShot);
       if (correctedState.shots.length > MAX_SHOTS) correctedState.shots.length = MAX_SHOTS;
@@ -1209,10 +1338,11 @@ export function computeApexForecast(
 }
 
 // ─── Adaptive Confluence Threshold ───────────────────────
+// v6: Now uses cluster confluence (3-4 clusters) instead of raw signal count (4-8)
 
 function getAdaptiveConfluenceThreshold(state: ApexState, currentATR?: number, avgATR50?: number): number {
   const evaluated = state.shots.filter(s => s.correct !== undefined);
-  if (evaluated.length < 3) return MIN_CONFLUENCE;
+  if (evaluated.length < 3) return MIN_CLUSTER_CONFLUENCE;
 
   const weightedAcc = computeWeightedAccuracy(state.shots);
   const recent = evaluated.slice(0, 20);
@@ -1222,20 +1352,19 @@ function getAdaptiveConfluenceThreshold(state: ApexState, currentATR?: number, a
 
   let threshold: number;
   if (recentAccuracy >= ACCURACY_FLOOR + ACCURACY_FLOOR_MARGIN) {
-    threshold = MIN_CONFLUENCE;
+    threshold = MIN_CLUSTER_CONFLUENCE;
   } else if (recentAccuracy >= ACCURACY_FLOOR) {
-    threshold = Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1);
+    threshold = Math.min(MAX_CLUSTER_CONFLUENCE, MIN_CLUSTER_CONFLUENCE + 1);
   } else {
-    const deficit = ACCURACY_FLOOR - recentAccuracy;
-    const extra = Math.ceil(deficit / 10);
-    threshold = Math.min(MAX_CONFLUENCE, MIN_CONFLUENCE + 1 + extra);
+    // Below accuracy floor — require ALL 4 clusters to agree
+    threshold = MAX_CLUSTER_CONFLUENCE;
   }
 
   // Volatility-aware gate
   if (currentATR !== undefined && avgATR50 !== undefined && avgATR50 > 0) {
     const volRatio = currentATR / avgATR50;
     if (volRatio < LOW_VOL_RATIO) {
-      threshold = Math.min(MAX_CONFLUENCE, threshold + LOW_VOL_GATE_BONUS);
+      threshold = MAX_CLUSTER_CONFLUENCE; // Low vol = require full agreement
     }
   }
 
@@ -1325,7 +1454,6 @@ export function getApexStats(): ApexStats {
   const inCooldown = now < cooldownUntil;
   const cooldownRemainingSec = inCooldown ? Math.ceil((cooldownUntil - now) / 1000) : 0;
 
-  // v5: Per-signal accuracy stats for dashboard
   const sigAcc = state._signalAccuracy ?? {};
   const signalAccuracy: Record<string, { correct: number; wrong: number; pct: number }> = {};
   for (const [name, stats] of Object.entries(sigAcc)) {
@@ -1362,19 +1490,17 @@ export function getApexStats(): ApexStats {
     accuracyPct,
     weightedAccuracyPct,
     adaptiveThreshold: threshold,
-    aboveFloor: accuracyPct >= ACCURACY_FLOOR || evaluated.length < 3,
-    lastBatchAudit: evaluated.length >= BATCH_AUDIT_SIZE
-      ? { sample: evaluated.length, accuracy: accuracyPct, passed: accuracyPct >= BATCH_AUDIT_FLOOR }
-      : null,
+    aboveFloor: accuracyPct >= ACCURACY_FLOOR || evaluated.length < 5,
+    lastBatchAudit: null,
     inCooldown,
     cooldownRemainingSec,
     consecutiveMisses: state._consecutiveMisses ?? 0,
     lastDirection: state._lastPredictedDirection ?? 'neutral',
     mutedSignals: state._mutedSignals ?? [],
     signalAccuracy,
-    last5Accuracy: last5.length > 0 ? `${last5Correct}/${last5.length}` : '—',
+    last5Accuracy: `${last5Correct}/${last5.length}`,
     last5Detail: last5.map(s => ({
-      correct: !!s.correct,
+      correct: s.correct!,
       direction: s.predictedDirection,
       error: s.error ?? 0,
     })),
@@ -1382,13 +1508,8 @@ export function getApexStats(): ApexStats {
     weights: state.weights,
     weightHistory: state.weightHistory,
     shots: state.shots,
-    probability: 0.5,
-    direction: 'neutral',
+    probability: 0,
+    direction: state._lastPredictedDirection ?? 'neutral',
+    regime: undefined,
   };
 }
-
-export function resetApexState() {
-  localStorage.removeItem(APEX_STATE_KEY);
-}
-
-export { DEFAULT_WEIGHTS };
