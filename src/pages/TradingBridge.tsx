@@ -1100,6 +1100,28 @@ const TradingBridge = () => {
                     activeCandles={getCandleData(activeSymbol.ticker)}
                   />
                 )}
+                {bottomTab === 'genius' && (
+                  <GeniusPanel
+                    enabled={genius.enabled}
+                    setEnabled={genius.setEnabled}
+                    timeline={genius.timeline}
+                    setTimeline={genius.setTimeline}
+                    riskTolerance={genius.riskTolerance}
+                    setRiskTolerance={genius.setRiskTolerance}
+                    autoExecute={genius.autoExecute}
+                    setAutoExecute={genius.setAutoExecute}
+                    status={genius.status}
+                    lastAnalysis={genius.lastAnalysis}
+                    logs={genius.logs}
+                    error={genius.error}
+                    cycleCount={genius.cycleCount}
+                    winCount={genius.winCount}
+                    lossCount={genius.lossCount}
+                    totalPnl={genius.totalPnl}
+                    runManual={genius.runManual}
+                    clearLogs={genius.clearLogs}
+                  />
+                )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
