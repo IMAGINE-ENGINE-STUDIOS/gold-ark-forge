@@ -1,27 +1,22 @@
 /**
- * APEX Performance Dashboard — Real-time accuracy tracking,
- * weight evolution, correction timeline, and shot history.
+ * APEX Performance Dashboard — Prediction log with accuracy %,
+ * weight evolution, correction timeline, and adaptive threshold status.
  */
 import { useState } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
-  BarChart3, Activity, Target, RefreshCw, Zap, Brain,
+  BarChart3, Activity, Target, RefreshCw, Zap, Brain, Shield, ShieldAlert,
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
 
 const WEIGHT_LABELS: Record<string, string> = {
-  rsi: 'RSI',
-  sma20: 'SMA 20',
-  sma50: 'SMA 50',
-  ema20: 'EMA 20',
-  macd: 'MACD',
-  boll: 'Bollinger',
-  momentum: 'Momentum',
-  vwap: 'VWAP',
+  rsi: 'RSI', sma20: 'SMA 20', sma50: 'SMA 50', ema20: 'EMA 20',
+  macd: 'MACD', boll: 'Bollinger', momentum: 'Momentum', vwap: 'VWAP',
+  stochastic: 'Stochastic', roc: 'ROC', adx: 'ADX', smaCross: 'SMA Cross',
 };
 
 const WeightBar = ({ name, value, defaultValue }: { name: string; value: number; defaultValue: number }) => {
-  const pct = Math.min(100, (value / 2.0) * 100); // max weight is 2.0
+  const pct = Math.min(100, (value / 2.0) * 100);
   const defaultPct = Math.min(100, (defaultValue / 2.0) * 100);
   const diff = ((value - defaultValue) / defaultValue * 100);
   const isUp = diff > 2;
@@ -31,16 +26,9 @@ const WeightBar = ({ name, value, defaultValue }: { name: string; value: number;
     <div className="flex items-center gap-2">
       <span className="text-[9px] font-mono text-marble/50 w-16 text-right">{WEIGHT_LABELS[name] ?? name}</span>
       <div className="flex-1 h-3 bg-navy-dark/80 rounded-full overflow-hidden relative">
-        {/* Default marker */}
+        <div className="absolute top-0 h-full w-px bg-marble/20" style={{ left: `${defaultPct}%` }} />
         <div
-          className="absolute top-0 h-full w-px bg-marble/20"
-          style={{ left: `${defaultPct}%` }}
-        />
-        {/* Current value */}
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${
-            isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-gold/60'
-          }`}
+          className={`h-full rounded-full transition-all duration-500 ${isUp ? 'bg-emerald-500' : isDown ? 'bg-red-400' : 'bg-gold/60'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -56,11 +44,11 @@ const WeightBar = ({ name, value, defaultValue }: { name: string; value: number;
 
 const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> }) => {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'weights' | 'history' | 'timeline'>('weights');
+  const [activeTab, setActiveTab] = useState<'predictions' | 'weights' | 'timeline'>('predictions');
   const stats = { ...getApexStats(), ...externalStats };
 
-  const accuracyColor = stats.winRate >= 60 ? 'text-emerald-400' : stats.winRate >= 40 ? 'text-amber-400' : 'text-red-400';
-  const accuracyBg = stats.winRate >= 60 ? 'bg-emerald-500/15 border-emerald-500/30' : stats.winRate >= 40 ? 'bg-amber-400/10 border-amber-400/30' : 'bg-red-500/15 border-red-500/30';
+  const accColor = stats.accuracyPct >= 75 ? 'text-emerald-400' : stats.accuracyPct >= 50 ? 'text-amber-400' : 'text-red-400';
+  const accBg = stats.accuracyPct >= 75 ? 'bg-emerald-500/15 border-emerald-500/30' : stats.accuracyPct >= 50 ? 'bg-amber-400/10 border-amber-400/30' : 'bg-red-500/15 border-red-500/30';
 
   return (
     <div className="border border-gold/15 rounded-sm bg-navy-dark/40 overflow-hidden">
@@ -71,19 +59,20 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
       >
         <div className="flex items-center gap-2">
           <Brain className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX PERFORMANCE</span>
+          <span className="text-[10px] font-display tracking-[0.15em] text-marble/70">APEX ACCURACY</span>
         </div>
         <div className="flex items-center gap-3">
-          {/* Mini stats */}
-          <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-mono ${accuracyColor}`}>
-              {stats.winRate.toFixed(0)}% win
+          {/* Accuracy badge */}
+          <div className="flex items-center gap-1.5">
+            {stats.aboveFloor
+              ? <Shield className="w-3 h-3 text-emerald-400" />
+              : <ShieldAlert className="w-3 h-3 text-red-400 animate-pulse" />
+            }
+            <span className={`text-[11px] font-mono font-semibold ${accColor}`}>
+              {stats.totalEvaluated > 0 ? `${stats.accuracyPct.toFixed(1)}%` : '—'}
             </span>
             <span className="text-[9px] font-mono text-marble/25">
-              G{stats.generation}
-            </span>
-            <span className="text-[9px] font-mono text-marble/25">
-              {stats.corrections} fix{stats.corrections !== 1 ? 'es' : ''}
+              {stats.totalCorrect}/{stats.totalEvaluated}
             </span>
           </div>
           {/* Last 5 dots */}
@@ -95,9 +84,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                 title={`${shot.direction}: ${shot.correct ? '✓' : '✗'}`}
               />
             ))}
-            {stats.last5Detail.length === 0 && (
-              <span className="text-[8px] text-marble/20">no data</span>
-            )}
+            {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">no data</span>}
           </div>
           {expanded ? <ChevronUp className="w-3 h-3 text-marble/30" /> : <ChevronDown className="w-3 h-3 text-marble/30" />}
         </div>
@@ -108,12 +95,17 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
         <div className="border-t border-gold/10 p-3 space-y-3">
           {/* Summary Cards */}
           <div className="grid grid-cols-4 gap-2">
-            <div className={`rounded p-2 border ${accuracyBg}`}>
+            <div className={`rounded p-2 border ${accBg}`}>
               <div className="text-[8px] font-display tracking-wider text-marble/30 mb-0.5">ACCURACY</div>
-              <div className={`text-lg font-display font-semibold ${accuracyColor}`}>
-                {stats.winRate.toFixed(1)}%
+              <div className={`text-lg font-display font-semibold ${accColor}`}>
+                {stats.totalEvaluated > 0 ? `${stats.accuracyPct.toFixed(1)}%` : '—'}
               </div>
-              <div className="text-[8px] text-marble/20">{stats.totalShots} evaluated</div>
+              <div className="text-[8px] text-marble/20">{stats.totalCorrect}✓ / {stats.totalEvaluated} eval</div>
+            </div>
+            <div className="bg-navy/40 rounded p-2 border border-gold/10">
+              <div className="text-[8px] font-display tracking-wider text-marble/30 mb-0.5">PREDICTIONS</div>
+              <div className="text-lg font-display text-marble">{stats.totalPredictions}</div>
+              <div className="text-[8px] text-marble/20">{stats.totalPredictions - stats.totalEvaluated} pending</div>
             </div>
             <div className="bg-navy/40 rounded p-2 border border-gold/10">
               <div className="text-[8px] font-display tracking-wider text-marble/30 mb-0.5">STREAK</div>
@@ -124,20 +116,25 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
               <div className="text-[8px] text-marble/20">consecutive ✓</div>
             </div>
             <div className="bg-navy/40 rounded p-2 border border-gold/10">
-              <div className="text-[8px] font-display tracking-wider text-marble/30 mb-0.5">GENERATION</div>
-              <div className="text-lg font-display text-marble">{stats.generation}</div>
-              <div className="text-[8px] text-marble/20">learning cycles</div>
-            </div>
-            <div className="bg-navy/40 rounded p-2 border border-gold/10">
-              <div className="text-[8px] font-display tracking-wider text-marble/30 mb-0.5">CORRECTIONS</div>
-              <div className="text-lg font-display text-amber-400">{stats.corrections}</div>
-              <div className="text-[8px] text-marble/20">weight adjustments</div>
+              <div className="text-[8px] font-display tracking-wider text-marble/30 mb-0.5">GATE</div>
+              <div className={`text-lg font-display ${stats.aboveFloor ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {stats.adaptiveThreshold}
+              </div>
+              <div className="text-[8px] text-marble/20">min signals req.</div>
             </div>
           </div>
 
+          {/* Accuracy floor indicator */}
+          {!stats.aboveFloor && (
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20 text-[9px] text-red-400">
+              <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
+              Accuracy below 75% — confluence threshold raised to {stats.adaptiveThreshold} signals to recover
+            </div>
+          )}
+
           {/* Tab Switcher */}
           <div className="flex gap-1 border-b border-gold/10 pb-1">
-            {(['weights', 'history', 'timeline'] as const).map(tab => (
+            {(['predictions', 'weights', 'timeline'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -145,13 +142,54 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                   activeTab === tab ? 'bg-gold/10 text-gold border border-gold/20 border-b-0' : 'text-marble/30 hover:text-marble/50'
                 }`}
               >
+                {tab === 'predictions' && <Target className="w-3 h-3 inline mr-1" />}
                 {tab === 'weights' && <BarChart3 className="w-3 h-3 inline mr-1" />}
-                {tab === 'history' && <Target className="w-3 h-3 inline mr-1" />}
                 {tab === 'timeline' && <Activity className="w-3 h-3 inline mr-1" />}
                 {tab.toUpperCase()}
               </button>
             ))}
           </div>
+
+          {/* Prediction Log */}
+          {activeTab === 'predictions' && (
+            <div className="space-y-1 max-h-[280px] overflow-y-auto">
+              <div className="text-[8px] font-display tracking-wider text-marble/20 mb-2">
+                DIRECTIONAL PREDICTIONS · UP/DOWN ONLY · ACCURACY: {stats.totalEvaluated > 0 ? `${stats.accuracyPct.toFixed(1)}%` : '—'}
+              </div>
+              {stats.predictionLog.length === 0 && (
+                <div className="text-[10px] text-marble/20 text-center py-4">No directional predictions yet. APEX will predict when {stats.adaptiveThreshold}+ signals agree.</div>
+              )}
+              {stats.predictionLog.map((p) => {
+                const isEval = p.correct !== undefined;
+                return (
+                  <div key={p.id} className={`flex items-center gap-2 px-2 py-1.5 rounded text-[9px] font-mono border ${
+                    isEval
+                      ? p.correct ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-red-500/5 border-red-500/15'
+                      : 'bg-navy/30 border-gold/5'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      isEval ? (p.correct ? 'bg-emerald-400' : 'bg-red-400') : 'bg-marble/15 animate-pulse'
+                    }`} />
+                    <span className={`w-8 font-semibold ${p.direction === 'bullish' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {p.direction === 'bullish' ? '▲ UP' : '▼ DN'}
+                    </span>
+                    <span className="text-marble/30 w-8">{(p.probability * 100).toFixed(0)}%</span>
+                    <span className="text-[8px] text-marble/15 w-6">{p.confluence}sig</span>
+                    <span className="text-marble/20 flex-1 text-right">
+                      ${p.entryPrice.toFixed(2)}
+                    </span>
+                    {isEval && p.actualPrice !== undefined && (
+                      <span className={`w-16 text-right font-semibold ${p.correct ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {p.correct ? '✓ HIT' : '✗ MISS'}
+                      </span>
+                    )}
+                    {!isEval && <span className="w-16 text-right text-marble/15">pending…</span>}
+                    <span className="text-marble/15 w-12 text-right">{formatTimeAgo(p.timestamp)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Weight Evolution */}
           {activeTab === 'weights' && (
@@ -170,69 +208,11 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
             </div>
           )}
 
-          {/* Shot History */}
-          {activeTab === 'history' && (
-            <div className="space-y-1 max-h-[200px] overflow-y-auto">
-              <div className="text-[8px] font-display tracking-wider text-marble/20 mb-2">
-                PREDICTION LOG · LAST {Math.min(20, stats.shots.length)} SHOTS
-              </div>
-              {stats.shots.length === 0 && (
-                <div className="text-[10px] text-marble/20 text-center py-4">No shots recorded yet. Enable APEX to start tracking.</div>
-              )}
-              {stats.shots.slice(0, 20).map((shot, i) => {
-                const isEval = shot.correct !== undefined;
-                return (
-                  <div key={shot.id || i} className={`flex items-center gap-2 px-2 py-1.5 rounded text-[9px] font-mono border ${
-                    isEval
-                      ? shot.correct ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-red-500/5 border-red-500/15'
-                      : 'bg-navy/30 border-gold/5'
-                  }`}>
-                    {/* Status dot */}
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      isEval ? (shot.correct ? 'bg-emerald-400' : 'bg-red-400') : 'bg-marble/15 animate-pulse'
-                    }`} />
-
-                    {/* Direction */}
-                    <span className={`w-12 ${
-                      shot.predictedDirection === 'bullish' ? 'text-emerald-400' :
-                      shot.predictedDirection === 'bearish' ? 'text-red-400' : 'text-marble/30'
-                    }`}>
-                      {shot.predictedDirection === 'bullish' ? '▲ BULL' : shot.predictedDirection === 'bearish' ? '▼ BEAR' : '— FLAT'}
-                    </span>
-
-                    {/* Probability */}
-                    <span className="text-marble/30 w-8">
-                      {((shot.probability ?? 0.5) * 100).toFixed(0)}%
-                    </span>
-
-                    {/* Entry → Predicted */}
-                    <span className="text-marble/20 flex-1 text-right">
-                      ${shot.entryPrice.toFixed(2)} → ${shot.predictedPrice.toFixed(2)}
-                    </span>
-
-                    {/* Actual & Error */}
-                    {isEval && shot.actualPrice !== undefined && (
-                      <span className={`w-20 text-right ${shot.correct ? 'text-emerald-400' : 'text-red-400'}`}>
-                        ${shot.actualPrice.toFixed(2)} ({shot.error !== undefined && shot.error >= 0 ? '+' : ''}{(shot.error ?? 0).toFixed(2)})
-                      </span>
-                    )}
-                    {!isEval && <span className="w-20 text-right text-marble/15">pending…</span>}
-
-                    {/* Time ago */}
-                    <span className="text-marble/15 w-14 text-right">
-                      {formatTimeAgo(shot.timestamp)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
           {/* Correction Timeline */}
           {activeTab === 'timeline' && (
             <div className="space-y-1 max-h-[200px] overflow-y-auto">
               <div className="text-[8px] font-display tracking-wider text-marble/20 mb-2">
-                WEIGHT EVOLUTION TIMELINE · ACCURACY AT EACH GENERATION
+                WEIGHT EVOLUTION · ACCURACY AT EACH GENERATION
               </div>
               {stats.weightHistory.length === 0 && (
                 <div className="text-[10px] text-marble/20 text-center py-4">No correction cycles completed yet.</div>
@@ -242,46 +222,36 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                   snap.correctionApplied ? 'bg-amber-400/5 border-amber-400/15' : 'bg-navy/30 border-gold/5'
                 }`}>
                   <span className="text-marble/30 w-8">G{snap.generation}</span>
-                  
-                  {/* Accuracy bar */}
                   <div className="flex-1 flex items-center gap-1.5">
                     <div className="flex-1 h-2 bg-navy-dark/80 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          snap.accuracy >= 60 ? 'bg-emerald-500' : snap.accuracy >= 40 ? 'bg-amber-400' : 'bg-red-400'
+                          snap.accuracy >= 75 ? 'bg-emerald-500' : snap.accuracy >= 50 ? 'bg-amber-400' : 'bg-red-400'
                         }`}
                         style={{ width: `${snap.accuracy}%` }}
                       />
                     </div>
                     <span className={`w-10 text-right ${
-                      snap.accuracy >= 60 ? 'text-emerald-400' : snap.accuracy >= 40 ? 'text-amber-400' : 'text-red-400'
+                      snap.accuracy >= 75 ? 'text-emerald-400' : snap.accuracy >= 50 ? 'text-amber-400' : 'text-red-400'
                     }`}>
                       {snap.accuracy.toFixed(0)}%
                     </span>
                   </div>
-
-                  {/* Correction badge */}
                   {snap.correctionApplied && (
                     <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
                       CORRECTED
                     </span>
                   )}
-
-                  <span className="text-marble/15 w-14 text-right">
-                    {formatTimeAgo(snap.timestamp)}
-                  </span>
+                  <span className="text-marble/15 w-14 text-right">{formatTimeAgo(snap.timestamp)}</span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Reset Button */}
+          {/* Reset */}
           <div className="flex justify-end pt-1 border-t border-gold/5">
             <button
-              onClick={() => {
-                resetApexState();
-                setExpanded(false);
-              }}
+              onClick={() => { resetApexState(); setExpanded(false); }}
               className="flex items-center gap-1 px-2.5 py-1 text-[9px] font-display tracking-wider text-red-400/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors border border-transparent hover:border-red-500/20"
             >
               <RefreshCw className="w-3 h-3" />
