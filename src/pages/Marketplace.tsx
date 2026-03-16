@@ -187,7 +187,7 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-emerald-400">
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">
               VERIFIED
             </span>
             <span className="text-xs font-mono text-marble/45">{item.source}</span>
