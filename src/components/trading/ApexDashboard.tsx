@@ -2,13 +2,17 @@
  * APEX Performance Dashboard — Prediction log with accuracy %,
  * weight evolution, correction timeline, and adaptive threshold status.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
   BarChart3, Activity, Target, RefreshCw, Zap, Brain, Shield, ShieldAlert,
+  Timer, ArrowLeftRight, Trash2,
 } from 'lucide-react';
 import { getApexStats, resetApexState, DEFAULT_WEIGHTS, type ApexStats } from '@/lib/apexForecast';
-import { Timer, ArrowLeftRight } from 'lucide-react';
+
+// v5: Auto-reset poisoned data from v4 inverted signals on first load
+const V5_RESET_KEY = 'ga_apex_v5_reset_done';
+
 
 const WEIGHT_LABELS: Record<string, string> = {
   rsi: 'RSI', sma20: 'SMA 20', sma50: 'SMA 50', ema20: 'EMA 20',
