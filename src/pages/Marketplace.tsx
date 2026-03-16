@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -13,20 +13,11 @@ import { useBullionBars } from '@/hooks/useBullionBars';
 import { useCertificateReserveTotals } from '@/hooks/useCertificateReserveTotals';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import {
-  Search,
-  Shield,
-  Activity,
-  Coins,
-  Flame,
-  Gem,
-  ArrowUpRight,
-  TrendingUp,
-  TrendingDown,
-  Sparkles,
-  Landmark,
+  Search, Shield, Activity, Coins, Flame, Gem,
+  ArrowUpRight, TrendingUp, TrendingDown, Sparkles, Landmark,
 } from 'lucide-react';
 
-type FeedCategory = 'crypto' | 'energy';
+type FeedCategory = 'crypto' | 'energy' | 'metals';
 type BoardFilter = 'all' | FeedCategory;
 
 interface BoardItem {
@@ -50,77 +41,33 @@ interface ReserveCardData {
 }
 
 const CRYPTO_WS_KEYS = [
-  'bitcoin',
-  'ethereum',
-  'solana',
-  'xrp',
-  'bnb',
-  'cardano',
-  'avalanche',
-  'polkadot',
-  'chainlink',
-  'dogecoin',
-  'polygon',
-  'litecoin',
-  'uniswap',
-  'near',
-  'aptos',
-  'sui',
-  'arbitrum',
-  'optimism',
-  'injective',
-  'render',
-  'filecoin',
-  'cosmos',
-  'stellar',
-  'hedera',
-  'tron',
-  'shiba',
-  'pepe',
+  'bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano', 'avalanche',
+  'polkadot', 'chainlink', 'dogecoin', 'polygon', 'litecoin', 'uniswap',
+  'near', 'aptos', 'sui', 'arbitrum', 'optimism', 'injective', 'render',
+  'filecoin', 'cosmos', 'stellar', 'hedera', 'tron', 'shiba', 'pepe',
 ] as const;
 
 const WS_KEY_BY_SYMBOL: Record<string, string> = {
-  btc: 'bitcoin',
-  eth: 'ethereum',
-  sol: 'solana',
-  xrp: 'xrp',
-  bnb: 'bnb',
-  ada: 'cardano',
-  avax: 'avalanche',
-  dot: 'polkadot',
-  link: 'chainlink',
-  doge: 'dogecoin',
-  matic: 'polygon',
-  pol: 'polygon',
-  ltc: 'litecoin',
-  uni: 'uniswap',
-  near: 'near',
-  apt: 'aptos',
-  sui: 'sui',
-  arb: 'arbitrum',
-  op: 'optimism',
-  inj: 'injective',
-  render: 'render',
-  rndr: 'render',
-  fil: 'filecoin',
-  atom: 'cosmos',
-  xlm: 'stellar',
-  hbar: 'hedera',
-  trx: 'tron',
-  shib: 'shiba',
-  pepe: 'pepe',
+  btc: 'bitcoin', eth: 'ethereum', sol: 'solana', xrp: 'xrp', bnb: 'bnb',
+  ada: 'cardano', avax: 'avalanche', dot: 'polkadot', link: 'chainlink',
+  doge: 'dogecoin', matic: 'polygon', pol: 'polygon', ltc: 'litecoin',
+  uni: 'uniswap', near: 'near', apt: 'aptos', sui: 'sui', arb: 'arbitrum',
+  op: 'optimism', inj: 'injective', render: 'render', rndr: 'render',
+  fil: 'filecoin', atom: 'cosmos', xlm: 'stellar', hbar: 'hedera',
+  trx: 'tron', shib: 'shiba', pepe: 'pepe',
 };
 
 const ENERGY_ROUTE_BY_SYMBOL: Record<string, string> = {
-  CL: 'oil',
-  BZ: 'brent',
-  NG: 'natgas',
-  HO: 'heating_oil',
-  RB: 'rbob',
+  CL: 'oil', BZ: 'brent', NG: 'natgas', HO: 'heating_oil', RB: 'rbob',
+};
+
+const METAL_ROUTE_MAP: Record<string, string> = {
+  gold: 'gold', silver: 'silver', platinum: 'platinum',
 };
 
 const FILTERS: { key: BoardFilter; label: string; icon: typeof Activity }[] = [
-  { key: 'all', label: 'ALL VERIFIED FEEDS', icon: Activity },
+  { key: 'all', label: 'ALL FEEDS', icon: Activity },
+  { key: 'metals', label: 'METALS', icon: Gem },
   { key: 'crypto', label: 'CRYPTO', icon: Coins },
   { key: 'energy', label: 'ENERGY', icon: Flame },
 ];
@@ -136,8 +83,7 @@ const formatPrice = (value: number) => {
   if (value < 0.01) return `$${value.toFixed(6)}`;
   if (value < 1) return `$${value.toFixed(4)}`;
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+    style: 'currency', currency: 'USD',
     minimumFractionDigits: value >= 1000 ? 2 : value < 10 ? 4 : 2,
     maximumFractionDigits: value >= 1000 ? 2 : value < 10 ? 4 : 2,
   }).format(value);
@@ -146,27 +92,45 @@ const formatPrice = (value: number) => {
 const formatChange = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
 const formatCompact = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    maximumFractionDigits: value >= 1000 ? 1 : 0,
-  }).format(value);
+  new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
 
-const StatCard = ({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: string;
-  detail: string;
-}) => (
+/* ─── PriceFlash: flashes green/red when price changes ─── */
+const PriceFlash = ({ price, className = '' }: { price: number; className?: string }) => {
+  const prevRef = useRef(price);
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (price !== prevRef.current && prevRef.current > 0) {
+      setFlash(price > prevRef.current ? 'up' : 'down');
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setFlash(null), 600);
+    }
+    prevRef.current = price;
+    return () => clearTimeout(timerRef.current);
+  }, [price]);
+
+  const flashClass = flash === 'up'
+    ? 'text-emerald-300 transition-colors duration-150'
+    : flash === 'down'
+      ? 'text-red-300 transition-colors duration-150'
+      : 'text-marble transition-colors duration-500';
+
+  return <span className={`${flashClass} ${className}`}>{formatPrice(price)}</span>;
+};
+
+/* ─── LiveDot: pulsing dot for live feeds ─── */
+const LiveDot = () => (
+  <span className="relative flex h-2 w-2">
+    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+  </span>
+);
+
+const StatCard = ({ icon: Icon, label, value, detail }: { icon: typeof Activity; label: string; value: string; detail: string }) => (
   <div className="rounded-sm border border-gold/15 bg-secondary/40 p-5 shadow-card">
     <div className="mb-4 flex items-center gap-3 text-gold-light">
-      <div className="rounded-sm border border-gold/20 bg-gold/10 p-2.5">
-        <Icon className="h-5 w-5" />
-      </div>
+      <div className="rounded-sm border border-gold/20 bg-gold/10 p-2.5"><Icon className="h-5 w-5" /></div>
       <span className="font-display text-sm tracking-[0.18em] text-marble/80">{label}</span>
     </div>
     <div className="font-display text-3xl tracking-[0.04em] text-marble md:text-4xl">{value}</div>
@@ -177,7 +141,6 @@ const StatCard = ({
 const MoverCard = ({ item }: { item: BoardItem }) => {
   const navigate = useNavigate();
   const positive = item.change >= 0;
-
   return (
     <button
       type="button"
@@ -187,19 +150,20 @@ const MoverCard = ({ item }: { item: BoardItem }) => {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">
-              VERIFIED
-            </span>
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">VERIFIED</span>
+            <LiveDot />
             <span className="text-xs font-mono text-marble/45">{item.source}</span>
           </div>
           <h2 className="font-display text-2xl tracking-[0.06em] text-marble">{item.name}</h2>
           <p className="mt-1 text-sm text-marble/55">{item.ticker}</p>
         </div>
-        <ArrowUpRight className="h-5 w-5 text-gold/60 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        <div className="flex flex-col items-center gap-1">
+          <ArrowUpRight className="h-5 w-5 text-gold/60 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          <span className="text-[9px] font-display tracking-[0.2em] text-gold/50">SWAP</span>
+        </div>
       </div>
-
       <div className="flex items-end justify-between gap-4">
-        <div className="font-mono text-2xl font-semibold text-marble md:text-3xl">{formatPrice(item.price)}</div>
+        <PriceFlash price={item.price} className="font-mono text-2xl font-semibold md:text-3xl" />
         <div className={`flex items-center gap-1 text-sm font-semibold ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
           {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           {formatChange(item.change)}
@@ -214,13 +178,15 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
   const positive = item.change >= 0;
   const categoryClass = item.category === 'crypto'
     ? 'border-gold/20 bg-gold/10 text-gold-light'
-    : 'border-primary/20 bg-primary/10 text-primary';
+    : item.category === 'metals'
+      ? 'border-gold/25 bg-gold/15 text-gold'
+      : 'border-primary/20 bg-primary/10 text-primary';
 
   return (
     <button
       type="button"
       onClick={() => navigate(`/trading-bridge?symbol=${item.routeSymbol}`)}
-      className="grid w-full grid-cols-[52px_minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] items-center gap-4 border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6"
+      className="grid w-full grid-cols-[52px_minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)] items-center gap-4 border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6 group cursor-pointer"
     >
       <div className="text-right font-mono text-sm text-marble/40">{rank}</div>
       <div className="min-w-0">
@@ -228,51 +194,49 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
           <span className={`rounded-full border px-2 py-0.5 text-[11px] font-display tracking-[0.18em] ${categoryClass}`}>
             {item.category}
           </span>
-          {item.live && (
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-display tracking-[0.18em] text-primary">
-              LIVE
-            </span>
-          )}
+          {item.live && <LiveDot />}
+          <span className="text-[10px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">
+            OPEN IN SWAP →
+          </span>
         </div>
         <div className="font-display text-lg tracking-[0.04em] text-marble md:text-xl">{item.name}</div>
         <div className="text-sm text-marble/50">{item.ticker} · {item.source}</div>
       </div>
-      <div className="font-mono text-lg font-semibold text-marble md:text-xl">{formatPrice(item.price)}</div>
+      <PriceFlash price={item.price} className="font-mono text-lg font-semibold md:text-xl" />
       <div className="flex items-center justify-end gap-2">
         <div className={`flex items-center gap-1 font-mono text-sm font-semibold md:text-base ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
           {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           {formatChange(item.change)}
         </div>
-        <ArrowUpRight className="h-4 w-4 text-gold/55" />
+        <ArrowUpRight className="h-4 w-4 text-gold/55 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
       </div>
     </button>
   );
 };
 
-const ReserveCard = ({ card }: { card: ReserveCardData }) => {
+const ReserveCard = ({ card, onClick }: { card: ReserveCardData; onClick: () => void }) => {
   const meta = METAL_META[card.metal];
   const reserveValue = card.spotPrice ? card.certifiedOz * card.spotPrice : 0;
-
   return (
-    <div className="rounded-sm border border-gold/15 bg-secondary/40 p-6 shadow-card">
+    <button type="button" onClick={onClick} className="rounded-sm border border-gold/15 bg-secondary/40 p-6 shadow-card text-left transition-all hover:border-gold/30 hover:shadow-gold group w-full">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-display tracking-[0.18em] ${meta.chip}`}>
-            VERIFIED REGISTRY
-          </div>
+          <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-display tracking-[0.18em] ${meta.chip}`}>VERIFIED REGISTRY</div>
           <h3 className={`mt-3 font-display text-2xl tracking-[0.06em] ${meta.accent}`}>{meta.label}</h3>
         </div>
-        <Gem className={`h-5 w-5 ${meta.accent}`} />
+        <div className="flex flex-col items-center gap-1">
+          <Gem className={`h-5 w-5 ${meta.accent}`} />
+          <span className="text-[9px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">SWAP →</span>
+        </div>
       </div>
-
       <div className="grid gap-3 text-sm md:grid-cols-2">
+        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
+          <div className="text-marble/45">Spot price</div>
+          <PriceFlash price={card.spotPrice ?? 0} className="mt-1 font-mono text-2xl block" />
+        </div>
         <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
           <div className="text-marble/45">Vault ounces</div>
           <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.vaultOz)} oz</div>
-        </div>
-        <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
-          <div className="text-marble/45">Certified ounces</div>
-          <div className="mt-1 font-mono text-2xl text-marble">{formatCompact(card.certifiedOz)} oz</div>
         </div>
         <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
           <div className="text-marble/45">Bars in custody</div>
@@ -280,10 +244,10 @@ const ReserveCard = ({ card }: { card: ReserveCardData }) => {
         </div>
         <div className="rounded-sm border border-gold/10 bg-background/5 p-4">
           <div className="text-marble/45">Reserve value</div>
-          <div className="mt-1 font-mono text-2xl text-marble">{reserveValue > 0 ? formatPrice(reserveValue) : 'Feed unavailable'}</div>
+          <div className="mt-1 font-mono text-2xl text-marble">{reserveValue > 0 ? formatPrice(reserveValue) : '—'}</div>
         </div>
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -299,10 +263,29 @@ const Marketplace = () => {
   const { data: reserveTotals } = useCertificateReserveTotals();
   const { data: metalPrices } = useMetalPrices();
 
+  /* ─── Metals board items ─── */
+  const metalsBoard = useMemo<BoardItem[]>(() => {
+    if (!metalPrices) return [];
+    return (['gold', 'silver', 'platinum'] as const)
+      .filter(m => metalPrices[m]?.price_usd > 0)
+      .map(m => ({
+        id: `metal-${m}`,
+        name: m === 'gold' ? 'Gold (XAU)' : m === 'silver' ? 'Silver (XAG)' : 'Platinum (XPT)',
+        ticker: m === 'gold' ? 'XAU' : m === 'silver' ? 'XAG' : 'XPT',
+        category: 'metals' as const,
+        price: metalPrices[m].price_usd,
+        change: metalPrices[m].change_24h ?? 0,
+        source: 'Vault registry',
+        routeSymbol: METAL_ROUTE_MAP[m],
+        live: true,
+      }));
+  }, [metalPrices]);
+
+  /* ─── Crypto board items (WS-backed) ─── */
   const cryptoBoard = useMemo<BoardItem[]>(() => {
     return (crypto ?? [])
-      .filter((coin) => Boolean(WS_KEY_BY_SYMBOL[coin.symbol]) || coin.current_price > 0)
-      .map((coin) => {
+      .filter(coin => Boolean(WS_KEY_BY_SYMBOL[coin.symbol]) || coin.current_price > 0)
+      .map(coin => {
         const wsKey = WS_KEY_BY_SYMBOL[coin.symbol];
         const ws = wsKey ? wsPrices[wsKey] : undefined;
         return {
@@ -312,18 +295,19 @@ const Marketplace = () => {
           category: 'crypto' as const,
           price: ws?.price ?? coin.current_price,
           change: ws?.change24h ?? coin.price_change_percentage_24h ?? 0,
-          source: ws ? 'Binance stream' : 'CoinGecko market',
+          source: ws ? 'Binance stream' : 'CoinGecko',
           routeSymbol: wsKey ?? coin.symbol,
           live: Boolean(ws || coin.current_price),
         };
       })
-      .filter((item) => item.price > 0);
+      .filter(item => item.price > 0);
   }, [crypto, wsPrices]);
 
+  /* ─── Energy board items ─── */
   const energyBoard = useMemo<BoardItem[]>(() => {
     return (energy ?? [])
-      .filter((item) => ENERGY_ROUTE_BY_SYMBOL[item.symbol])
-      .map((item) => ({
+      .filter(item => ENERGY_ROUTE_BY_SYMBOL[item.symbol])
+      .map(item => ({
         id: item.symbol,
         name: item.name,
         ticker: item.symbol,
@@ -334,20 +318,18 @@ const Marketplace = () => {
         routeSymbol: ENERGY_ROUTE_BY_SYMBOL[item.symbol],
         live: true,
       }))
-      .filter((item) => item.price > 0);
+      .filter(item => item.price > 0);
   }, [energy]);
 
   const boardItems = useMemo(() => {
-    return [...cryptoBoard, ...energyBoard].sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
-  }, [cryptoBoard, energyBoard]);
+    return [...metalsBoard, ...cryptoBoard, ...energyBoard].sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  }, [metalsBoard, cryptoBoard, energyBoard]);
 
   const filteredBoard = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return boardItems.filter((item) => {
+    return boardItems.filter(item => {
       const matchesFilter = filter === 'all' ? true : item.category === filter;
-      const matchesQuery = query
-        ? item.name.toLowerCase().includes(query) || item.ticker.toLowerCase().includes(query)
-        : true;
+      const matchesQuery = query ? item.name.toLowerCase().includes(query) || item.ticker.toLowerCase().includes(query) : true;
       return matchesFilter && matchesQuery;
     });
   }, [boardItems, filter, search]);
@@ -355,14 +337,11 @@ const Marketplace = () => {
   const topMovers = useMemo(() => boardItems.slice(0, 4), [boardItems]);
 
   const reserveCards = useMemo<ReserveCardData[]>(() => {
-    const grouped = { gold: [], silver: [], platinum: [] } as Record<'gold' | 'silver' | 'platinum', typeof bars>;
-    (bars ?? []).forEach((bar) => {
-      grouped[bar.metal_type].push(bar);
-    });
-
-    return (['gold', 'silver', 'platinum'] as const).map((metal) => ({
+    const grouped = { gold: [] as any[], silver: [] as any[], platinum: [] as any[] };
+    (bars ?? []).forEach(bar => { grouped[bar.metal_type].push(bar); });
+    return (['gold', 'silver', 'platinum'] as const).map(metal => ({
       metal,
-      vaultOz: grouped[metal].reduce((sum, bar) => sum + Number(bar.weight_oz), 0),
+      vaultOz: grouped[metal].reduce((sum: number, bar: any) => sum + Number(bar.weight_oz), 0),
       certifiedOz: Number(reserveTotals?.[`${metal}_oz` as keyof typeof reserveTotals] ?? 0),
       barCount: grouped[metal].length,
       spotPrice: metalPrices?.[metal]?.price_usd ?? null,
@@ -385,7 +364,7 @@ const Marketplace = () => {
           <div className="mx-auto max-w-5xl text-center">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-display tracking-[0.24em] text-gold-light">
               <Shield className="h-4 w-4" />
-              VERIFIED MARKET INTELLIGENCE ONLY
+              VERIFIED REAL-TIME MARKET FEEDS
             </div>
 
             <h1 className="font-display text-5xl tracking-[0.08em] text-marble md:text-7xl lg:text-8xl">
@@ -394,42 +373,22 @@ const Marketplace = () => {
             </h1>
 
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-marble/72 md:text-xl">
-              No synthetic rows. No placeholder movers. Crypto and energy come from verified live feeds, while bullion is driven by vault, bar, and certificate intelligence.
+              Every price streams in real-time. Click any asset to open it directly in the SWAP trading terminal.
             </p>
           </div>
 
           <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              icon={Activity}
-              label="Verified feeds"
-              value={String(liveFeedCount)}
-              detail="Only rows with active market data are shown."
-            />
-            <StatCard
-              icon={Coins}
-              label="Crypto board"
-              value={String(cryptoBoard.length)}
-              detail="Stream-backed majors and liquid alts."
-            />
-            <StatCard
-              icon={Flame}
-              label="Energy board"
-              value={String(energyBoard.length)}
-              detail="Live petroleum and gas benchmarks."
-            />
-            <StatCard
-              icon={Landmark}
-              label="Certified reserve"
-              value={`${formatCompact(totalCertifiedOz)} oz`}
-              detail={`${totalBars} bars currently indexed in custody.`}
-            />
+            <StatCard icon={Activity} label="Live feeds" value={String(liveFeedCount)} detail="Real-time streaming prices." />
+            <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices from vault registry." />
+            <StatCard icon={Coins} label="Crypto board" value={String(cryptoBoard.length)} detail="WebSocket-backed majors & alts." />
+            <StatCard icon={Flame} label="Energy board" value={String(energyBoard.length)} detail="Live petroleum & gas benchmarks." />
           </div>
 
           <div className="mt-12">
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <p className="font-display text-sm tracking-[0.22em] text-gold-light">MARKET LEADERS</p>
-                <p className="mt-1 text-sm text-marble/55">Largest real moves across the verified live board.</p>
+                <p className="mt-1 text-sm text-marble/55">Click any asset to open in SWAP terminal.</p>
               </div>
               <button
                 type="button"
@@ -442,9 +401,7 @@ const Marketplace = () => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {topMovers.map((item) => (
-                <MoverCard key={item.id} item={item} />
-              ))}
+              {topMovers.map(item => <MoverCard key={item.id} item={item} />)}
             </div>
           </div>
         </div>
@@ -462,10 +419,10 @@ const Marketplace = () => {
               <div>
                 <p className="font-display text-sm tracking-[0.22em] text-gold-light">VERIFIED LIVE BOARD</p>
                 <h2 className="mt-2 font-display text-3xl tracking-[0.05em] text-marble md:text-4xl">
-                  Real feeds only
+                  Real-time feeds
                 </h2>
                 <p className="mt-2 max-w-2xl text-base text-marble/60">
-                  This board excludes every marketplace asset that still depends on synthetic or placeholder pricing.
+                  All prices stream live. Click any row to open the asset in the SWAP trading chart.
                 </p>
               </div>
 
@@ -474,8 +431,8 @@ const Marketplace = () => {
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-marble/35" />
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search a verified live feed"
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search assets..."
                     className="w-full rounded-sm border border-gold/15 bg-background/5 py-3 pl-11 pr-4 text-base text-marble placeholder:text-marble/35 focus:border-gold/35 focus:outline-none"
                   />
                 </label>
@@ -532,16 +489,20 @@ const Marketplace = () => {
           <div className="mb-6 max-w-3xl">
             <p className="font-display text-sm tracking-[0.22em] text-gold-light">BULLION RESERVE REGISTRY</p>
             <h2 className="mt-2 font-display text-3xl tracking-[0.05em] text-marble md:text-4xl">
-              Verified custody, not synthetic metals
+              Verified custody — click to trade
             </h2>
             <p className="mt-2 text-base text-marble/60">
-              Bullion is now represented through vault inventory, certificate totals, and custody records instead of fake trade rows.
+              Each metal card links directly to its SWAP chart. Prices update in real-time from vault registry feeds.
             </p>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-3">
-            {reserveCards.map((card) => (
-              <ReserveCard key={card.metal} card={card} />
+            {reserveCards.map(card => (
+              <ReserveCard
+                key={card.metal}
+                card={card}
+                onClick={() => navigate(`/trading-bridge?symbol=${METAL_ROUTE_MAP[card.metal]}`)}
+              />
             ))}
           </div>
         </section>
