@@ -32,6 +32,7 @@ import {
   computeMACD,
   computeBollingerBands,
 } from '@/components/trading/IndicatorOverlay';
+import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -683,13 +684,13 @@ function computeConsensus(
   weights: ApexWeights,
   regime: 'trending' | 'ranging',
   mutedSignals: string[],
-): { 
+ ): { 
   bias: number; probability: number; signals: SignalResult[]; 
   votes: Record<string, number>; confluenceCount: number; 
   currentATR: number; avgATR50: number; clusterVotes: ClusterVote[];
-  candleConfirmed: boolean;
+  candleConfirmed: boolean; technicalDecision: { direction: 'bullish' | 'bearish' | 'neutral'; confidence: number; aligned: boolean };
 } {
-  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0, clusterVotes: [], candleConfirmed: false };
+  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0, clusterVotes: [], candleConfirmed: false, technicalDecision: { direction: 'neutral', confidence: 0.5, aligned: false } };
 
   const atrArr = computeATR(highs, lows, values);
   const atr = atrArr[atrArr.length - 1] ?? values[values.length - 1] * 0.005;
@@ -746,13 +747,17 @@ function computeConsensus(
   const bias = clusterTotalWeight > 0 ? Math.max(-1, Math.min(1, clusterWeightedSum / clusterTotalWeight)) : 0;
 
   // v6: Candle confirmation check
+  const technicalSnapshot = buildTechnicalSnapshot({ closes: values, highs, lows });
+  const technicalDecision = technicalSnapshot?.decision ?? { direction: 'neutral' as const, confidence: 0.5, aligned: false };
+
   const tentativeDirection: 'bullish' | 'bearish' = bias > 0 ? 'bullish' : 'bearish';
   const { confirmed: candleConfirmed, strength: candleStrength } = candleConfirmation(values, tentativeDirection);
 
-  // Probability factors in cluster agreement + candle confirmation
   const clusterAgreement = clusterVotes.length > 0 ? clusterConfluence / clusterVotes.length : 0.5;
+  const technicalAligned = technicalDecision.direction === 'neutral' ? 0 : technicalDecision.direction === tentativeDirection ? 1 : -1;
   const candleBonus = candleConfirmed ? 0.08 : -0.10;
-  const rawProb = 0.5 + (clusterAgreement - 0.5) * Math.abs(bias) * 1.5 + candleBonus;
+  const technicalBonus = technicalAligned > 0 ? 0.10 + (technicalDecision.confidence - 0.5) * 0.3 : technicalAligned < 0 ? -0.18 : -0.04;
+  const rawProb = 0.5 + (clusterAgreement - 0.5) * Math.abs(bias) * 1.5 + candleBonus + technicalBonus;
   const probability = Math.max(0.1, Math.min(0.95, rawProb));
 
   // Build legacy signal results for dashboard
@@ -771,7 +776,7 @@ function computeConsensus(
     }
   }
 
-  return { bias, probability, signals, votes, confluenceCount: clusterConfluence, currentATR: atr, avgATR50, clusterVotes, candleConfirmed };
+  return { bias, probability, signals, votes, confluenceCount: clusterConfluence, currentATR: atr, avgATR50, clusterVotes, candleConfirmed, technicalDecision };
 }
 
 // ─── Timeframe-Adaptive Evaluation Delay ─────────────────
@@ -1173,7 +1178,7 @@ export function computeApexForecast(
   const activeWeights = regime === 'trending' ? correctedState.trendingWeights : correctedState.rangingWeights;
   const mutedSignals = correctedState._mutedSignals ?? [];
 
-  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50, clusterVotes, candleConfirmed } = 
+  const { bias, probability, signals, votes, confluenceCount, currentATR, avgATR50, clusterVotes, candleConfirmed, technicalDecision } = 
     computeConsensus(values, highs, lows, activeWeights, regime, mutedSignals);
 
   const adaptiveThreshold = getAdaptiveConfluenceThreshold(correctedState, currentATR, avgATR50);
@@ -1209,7 +1214,16 @@ export function computeApexForecast(
     rawDirection = 'neutral';
   }
 
-  // Mandatory abstain below probability threshold
+  if (rawDirection !== 'neutral' && technicalDecision.direction !== 'neutral' && technicalDecision.direction !== rawDirection) {
+    console.log(`[APEX v6] Technical stack vetoed ${rawDirection} — ${technicalDecision.direction} setup only`);
+    rawDirection = 'neutral';
+  }
+
+  if (rawDirection !== 'neutral' && technicalDecision.confidence < 0.62) {
+    console.log(`[APEX v6] Technical confidence too weak ${(technicalDecision.confidence * 100).toFixed(0)}% — abstaining`);
+    rawDirection = 'neutral';
+  }
+
   if (adjustedProbability < MIN_PREDICTION_PROBABILITY && rawDirection !== 'neutral') {
     console.log(`[APEX v6] Abstaining — probability ${(adjustedProbability * 100).toFixed(0)}% < ${MIN_PREDICTION_PROBABILITY * 100}%`);
     rawDirection = 'neutral';

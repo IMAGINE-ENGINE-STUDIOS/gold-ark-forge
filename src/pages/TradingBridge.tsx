@@ -421,13 +421,14 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
 // ─── Trade Tab Content (Collapsible Layout) ──────────────
 function TradeTabContent({ 
-  tradingMode, activeSymbol, activePrice, paper, activeConn 
+  tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles 
 }: { 
   tradingMode: 'live' | 'paper'; 
   activeSymbol: { key: string; label: string; ticker: string; cat: string }; 
   activePrice: number; 
   paper: ReturnType<typeof usePaperTrading>; 
   activeConn?: { id: string } | null;
+  activeCandles?: { closes: number[]; highs: number[]; lows: number[] } | null;
 }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -464,7 +465,7 @@ function TradeTabContent({
         </CollapsibleSection>
 
         <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
-          <GATechnicalGauge />
+          <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
         </CollapsibleSection>
       </div>
 
@@ -1084,6 +1085,7 @@ const TradingBridge = () => {
                     activePrice={activePrice}
                     paper={paper}
                     activeConn={activeConn}
+                    activeCandles={getCandleData(activeSymbol.ticker)}
                   />
                 )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
@@ -1213,7 +1215,7 @@ const TradingBridge = () => {
                   <div className="space-y-4">
                     <StrategiesPanel />
                     <div className="border-t border-gold/10 pt-4">
-                      <GATechnicalGauge />
+                      <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
                     </div>
                   </div>
                 )}
@@ -1388,10 +1390,11 @@ const TradingBridge = () => {
                   {bottomTab === 'trade' && (
                     <TradeTabContent 
                       tradingMode={tradingMode} 
-                      activeSymbol={activeSymbol} 
-                      activePrice={activePrice} 
-                      paper={paper} 
-                      activeConn={activeConn} 
+                      activeSymbol={activeSymbol}
+                      activePrice={activePrice}
+                      paper={paper}
+                      activeConn={activeConn}
+                      activeCandles={getCandleData(activeSymbol.ticker)}
                     />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
@@ -1540,7 +1543,7 @@ const TradingBridge = () => {
                     <div className="space-y-4">
                       <StrategiesPanel />
                       <div className="border-t border-gold/10 pt-4">
-                        <GATechnicalGauge />
+                        <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
                       </div>
                     </div>
                   )}
