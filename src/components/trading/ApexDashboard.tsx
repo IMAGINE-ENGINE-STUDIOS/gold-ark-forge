@@ -108,7 +108,7 @@ const ApexDashboard = ({ stats: externalStats }: { stats?: Partial<ApexStats> })
                   title={`${shot.direction}: ${shot.correct ? '✓' : '✗'}`}
                 />
               ))}
-              {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">v5 fresh</span>}
+              {stats.last5Detail.length === 0 && <span className="text-[8px] text-marble/20">v6 fresh</span>}
             </div>
             {expanded ? <ChevronUp className="w-3 h-3 text-marble/30" /> : <ChevronDown className="w-3 h-3 text-marble/30" />}
           </div>
