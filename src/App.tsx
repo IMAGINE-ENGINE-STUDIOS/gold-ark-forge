@@ -22,6 +22,7 @@ import LogRegistry from "./pages/LogRegistry";
 import LogRegistry2 from "./pages/LogRegistry2";
 import OldBots from "./pages/OldBots";
 import Login from "./pages/Login";
+import Deck from "./pages/Deck";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
