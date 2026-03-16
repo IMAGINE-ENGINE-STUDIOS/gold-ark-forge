@@ -689,7 +689,7 @@ function computeConsensus(
   currentATR: number; avgATR50: number; clusterVotes: ClusterVote[];
   candleConfirmed: boolean; technicalDecision: { direction: 'bullish' | 'bearish' | 'neutral'; confidence: number; aligned: boolean };
 } {
-  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0, clusterVotes: [], candleConfirmed: false };
+  if (values.length < 20) return { bias: 0, probability: 0.5, signals: [], votes: {}, confluenceCount: 0, currentATR: 0, avgATR50: 0, clusterVotes: [], candleConfirmed: false, technicalDecision: { direction: 'neutral', confidence: 0.5, aligned: false } };
 
   const atrArr = computeATR(highs, lows, values);
   const atr = atrArr[atrArr.length - 1] ?? values[values.length - 1] * 0.005;
