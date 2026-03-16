@@ -131,6 +131,7 @@ type MobileTab = (typeof MOBILE_TABS)[number]['key'];
 // ─── Bottom Panel Tabs ───────────────────────────────────
 const BOTTOM_TABS = [
   { key: 'trade', label: 'TRADE', icon: ArrowUpDown },
+  { key: 'genius', label: 'GENIUS', icon: Brain },
   { key: 'book', label: 'BOOK', icon: Briefcase },
   { key: 'bot', label: 'BOT', icon: Bot },
   { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
