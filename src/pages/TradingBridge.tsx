@@ -491,6 +491,119 @@ function TradeTabContent({
   );
 }
 
+// ─── Pending Limit Orders Display ────────────────────
+function PendingLimitOrders({ askPrices, buyPrices, positions, onCancelAsk, onCancelBuy }: {
+  askPrices: Record<string, number>;
+  buyPrices: Record<string, { symbol: string; qty: number; price: number }>;
+  positions: PaperPosition[];
+  onCancelAsk: (id: string) => void;
+  onCancelBuy: (id: string) => void;
+}) {
+  const askEntries = Object.entries(askPrices);
+  const buyEntries = Object.entries(buyPrices);
+  if (askEntries.length === 0 && buyEntries.length === 0) return null;
+  return (
+    <div className="border border-gold/10 rounded-lg p-2 space-y-1">
+      <div className="text-[8px] font-display tracking-wider text-gold/50 mb-1">PENDING LIMIT ORDERS</div>
+      {askEntries.map(([posId, price]) => {
+        const pos = positions.find(p => p.id === posId);
+        return (
+          <div key={posId} className="flex items-center justify-between text-[9px] font-mono">
+            <span className="text-red-400/70">SELL {pos?.symbol ?? '?'} @ ${price.toFixed(2)}</span>
+            <button onClick={() => onCancelAsk(posId)} className="text-marble/25 hover:text-red-400 text-[7px]">CANCEL</button>
+          </div>
+        );
+      })}
+      {buyEntries.map(([id, order]) => (
+        <div key={id} className="flex items-center justify-between text-[9px] font-mono">
+          <span className="text-emerald-400/70">BUY {order.qty} {order.symbol} @ ${order.price.toFixed(2)}</span>
+          <button onClick={() => onCancelBuy(id)} className="text-marble/25 hover:text-red-400 text-[7px]">CANCEL</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Buy Price Section ───────────────────────────────
+function BuyPriceSection({ symbols, resolvePrice, onSetBuyPrice }: {
+  symbols: typeof ALL_SYMBOLS;
+  resolvePrice: (ticker: string) => number;
+  onSetBuyPrice: (symbol: string, qty: number, price: number) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [selectedSymbol, setSelectedSymbol] = useState('');
+  const [buyQty, setBuyQty] = useState('');
+  const [buyPrice, setBuyPrice] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return [];
+    const q = search.toLowerCase();
+    return symbols.filter(s => s.label.toLowerCase().includes(q) || s.ticker.toLowerCase().includes(q)).slice(0, 8);
+  }, [search, symbols]);
+
+  const currentPrice = selectedSymbol ? resolvePrice(selectedSymbol) : 0;
+
+  return (
+    <div className="border-t border-gold/10 pt-3">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-[9px] font-display tracking-wider text-gold/60 hover:text-gold transition-colors mb-2">
+        <Tag className="w-3 h-3" /> SET BUY PRICE
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="space-y-2 bg-navy-light/20 rounded-lg p-2 border border-gold/10">
+          <input
+            type="text" value={search}
+            onChange={(e) => { setSearch(e.target.value); setSelectedSymbol(''); }}
+            placeholder="Search asset..."
+            className="w-full bg-navy-light/50 border border-gold/15 text-marble/80 text-[10px] font-mono rounded px-2 py-1.5 placeholder:text-marble/20 focus:outline-none focus:border-gold/40"
+          />
+          {filtered.length > 0 && !selectedSymbol && (
+            <div className="max-h-32 overflow-y-auto space-y-0.5">
+              {filtered.map(s => (
+                <button key={s.key} onClick={() => { setSelectedSymbol(s.ticker); setSearch(s.label); setBuyPrice(resolvePrice(s.ticker) > 0 ? (resolvePrice(s.ticker) * 0.98).toFixed(2) : ''); }}
+                  className="w-full text-left px-2 py-1 text-[9px] font-mono text-marble/50 hover:text-gold hover:bg-gold/5 rounded transition-colors">
+                  {s.ticker} — {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {selectedSymbol && (
+            <div className="space-y-1.5">
+              <div className="text-[8px] text-marble/30 font-mono">Current: ${currentPrice > 0 ? currentPrice.toFixed(2) : '—'}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[7px] font-display tracking-wider text-marble/30">QTY</span>
+                  <input type="number" value={buyQty} onChange={(e) => setBuyQty(e.target.value)} placeholder="1"
+                    className="w-full bg-navy-light/50 border border-gold/15 text-marble/80 text-[10px] font-mono rounded px-2 py-1 placeholder:text-marble/15 focus:outline-none focus:border-gold/40" />
+                </div>
+                <div>
+                  <span className="text-[7px] font-display tracking-wider text-marble/30">BUY AT $</span>
+                  <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} placeholder={currentPrice > 0 ? (currentPrice * 0.98).toFixed(2) : '0'}
+                    className="w-full bg-navy-light/50 border border-emerald-500/15 text-emerald-400/80 text-[10px] font-mono rounded px-2 py-1 placeholder:text-marble/15 focus:outline-none focus:border-emerald-500/40" />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const q = parseFloat(buyQty);
+                  const p = parseFloat(buyPrice);
+                  if (q > 0 && p > 0 && selectedSymbol) {
+                    onSetBuyPrice(selectedSymbol, q, p);
+                    setSelectedSymbol(''); setSearch(''); setBuyQty(''); setBuyPrice(''); setOpen(false);
+                  }
+                }}
+                className="w-full py-1.5 rounded text-[9px] font-display tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
+              >
+                SET BUY ORDER
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
