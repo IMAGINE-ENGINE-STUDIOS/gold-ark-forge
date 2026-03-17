@@ -52,6 +52,18 @@ export interface PaperAccount {
 const DEFAULT_FEES: FeeStructure = { spreadBps: 5, commissionPerTrade: 1.50, slippageBps: 2 };
 const STARTING_BALANCE = 100_000;
 
+const deriveStatsFromOrders = (orders: PaperOrder[]) => {
+  let totalFees = 0, realizedPnl = 0, winCount = 0, lossCount = 0;
+  for (const o of orders) {
+    totalFees += o.fees || 0;
+    if (o.closedPnl !== undefined) {
+      realizedPnl += o.closedPnl;
+      if (o.closedPnl >= 0) winCount++; else lossCount++;
+    }
+  }
+  return { totalFees, realizedPnl, winCount, lossCount };
+};
+
 const loadLocal = () => {
   try {
     const raw = localStorage.getItem('ga_paper_trading_v2');
