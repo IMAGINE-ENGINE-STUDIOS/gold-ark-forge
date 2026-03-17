@@ -324,14 +324,8 @@ export const useGeniusTrader = ({
       };
       setChatMessages(prev => [...prev, assistantMsg]);
 
-      // If user asked to buy/sell and AI suggested a trade, execute it
-      if (data.suggestedTrade && autoExecute) {
-        const t = data.suggestedTrade;
-        const livePrice = resolvePrice(t.ticker);
-        if (livePrice > 0) {
-          submitOrder({ symbol: t.ticker, side: t.action.toLowerCase() as 'buy' | 'sell', qty: t.qty, type: 'market', price: livePrice, botSource: true });
-        }
-      }
+      // Never auto-execute chat suggestions — user must click EXECUTE manually
+      // suggestedTrade will be shown as a button in the UI
     } catch (err) {
       setChatMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${err instanceof Error ? err.message : 'Failed'}`, timestamp: Date.now() }]);
     } finally {
@@ -373,21 +367,20 @@ export const useGeniusTrader = ({
     setGoalStartEquity(equity);
     setGoalPnl(0);
     setEnabled(true);
-    setAutoExecute(true);
+    // NEVER auto-execute — user must approve each trade
+    setAutoExecute(false);
     setStatus('goal-active');
 
-    // Execute initial trades from the plan
+    // Present initial trades as suggestions but don't execute them
     if (goalPlan.initialTrades?.length > 0) {
-      for (const trade of goalPlan.initialTrades) {
-        const livePrice = resolvePrice(trade.ticker);
-        if (livePrice > 0) {
-          try {
-            submitOrder({ symbol: trade.ticker, side: trade.action.toLowerCase() as 'buy' | 'sell', qty: trade.qty, type: 'market', price: livePrice, botSource: true });
-          } catch { /* ignore */ }
-        }
-      }
+      const tradeList = goalPlan.initialTrades.map(t => `${t.action} ${t.qty} ${t.ticker} @ $${t.entryPrice.toFixed(2)} — ${t.reason}`).join('\n');
+      setChatMessages(prev => [...prev, {
+        id: crypto.randomUUID(), role: 'assistant',
+        content: `📋 **Goal plan ready.** Here are the suggested initial trades:\n\n${tradeList}\n\nUse the EXECUTE buttons below each trade suggestion, or approve trades manually in the TRADE tab.`,
+        timestamp: Date.now(), suggestedTrade: goalPlan.initialTrades.length === 1 ? { action: goalPlan.initialTrades[0].action, ticker: goalPlan.initialTrades[0].ticker, qty: goalPlan.initialTrades[0].qty, reason: goalPlan.initialTrades[0].reason } : null,
+      }]);
     }
-  }, [goalPlan, equity, submitOrder, resolvePrice]);
+  }, [goalPlan, equity]);
 
   const cancelGoal = useCallback(() => {
     setActiveGoal(null);

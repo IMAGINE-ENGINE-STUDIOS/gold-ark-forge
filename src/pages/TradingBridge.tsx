@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain, Tag } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -61,7 +61,7 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
-import { usePaperTrading } from '@/hooks/usePaperTrading';
+import { usePaperTrading, type PaperPosition } from '@/hooks/usePaperTrading';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { useAutoSave } from '@/hooks/useAutoSave';
@@ -491,6 +491,119 @@ function TradeTabContent({
   );
 }
 
+// ─── Pending Limit Orders Display ────────────────────
+function PendingLimitOrders({ askPrices, buyPrices, positions, onCancelAsk, onCancelBuy }: {
+  askPrices: Record<string, number>;
+  buyPrices: Record<string, { symbol: string; qty: number; price: number }>;
+  positions: PaperPosition[];
+  onCancelAsk: (id: string) => void;
+  onCancelBuy: (id: string) => void;
+}) {
+  const askEntries = Object.entries(askPrices);
+  const buyEntries = Object.entries(buyPrices);
+  if (askEntries.length === 0 && buyEntries.length === 0) return null;
+  return (
+    <div className="border border-gold/10 rounded-lg p-2 space-y-1">
+      <div className="text-[8px] font-display tracking-wider text-gold/50 mb-1">PENDING LIMIT ORDERS</div>
+      {askEntries.map(([posId, price]) => {
+        const pos = positions.find(p => p.id === posId);
+        return (
+          <div key={posId} className="flex items-center justify-between text-[9px] font-mono">
+            <span className="text-red-400/70">SELL {pos?.symbol ?? '?'} @ ${price.toFixed(2)}</span>
+            <button onClick={() => onCancelAsk(posId)} className="text-marble/25 hover:text-red-400 text-[7px]">CANCEL</button>
+          </div>
+        );
+      })}
+      {buyEntries.map(([id, order]) => (
+        <div key={id} className="flex items-center justify-between text-[9px] font-mono">
+          <span className="text-emerald-400/70">BUY {order.qty} {order.symbol} @ ${order.price.toFixed(2)}</span>
+          <button onClick={() => onCancelBuy(id)} className="text-marble/25 hover:text-red-400 text-[7px]">CANCEL</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Buy Price Section ───────────────────────────────
+function BuyPriceSection({ symbols, resolvePrice, onSetBuyPrice }: {
+  symbols: typeof ALL_SYMBOLS;
+  resolvePrice: (ticker: string) => number;
+  onSetBuyPrice: (symbol: string, qty: number, price: number) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [selectedSymbol, setSelectedSymbol] = useState('');
+  const [buyQty, setBuyQty] = useState('');
+  const [buyPrice, setBuyPrice] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return [];
+    const q = search.toLowerCase();
+    return symbols.filter(s => s.label.toLowerCase().includes(q) || s.ticker.toLowerCase().includes(q)).slice(0, 8);
+  }, [search, symbols]);
+
+  const currentPrice = selectedSymbol ? resolvePrice(selectedSymbol) : 0;
+
+  return (
+    <div className="border-t border-gold/10 pt-3">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-[9px] font-display tracking-wider text-gold/60 hover:text-gold transition-colors mb-2">
+        <Tag className="w-3 h-3" /> SET BUY PRICE
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="space-y-2 bg-navy-light/20 rounded-lg p-2 border border-gold/10">
+          <input
+            type="text" value={search}
+            onChange={(e) => { setSearch(e.target.value); setSelectedSymbol(''); }}
+            placeholder="Search asset..."
+            className="w-full bg-navy-light/50 border border-gold/15 text-marble/80 text-[10px] font-mono rounded px-2 py-1.5 placeholder:text-marble/20 focus:outline-none focus:border-gold/40"
+          />
+          {filtered.length > 0 && !selectedSymbol && (
+            <div className="max-h-32 overflow-y-auto space-y-0.5">
+              {filtered.map(s => (
+                <button key={s.key} onClick={() => { setSelectedSymbol(s.ticker); setSearch(s.label); setBuyPrice(resolvePrice(s.ticker) > 0 ? (resolvePrice(s.ticker) * 0.98).toFixed(2) : ''); }}
+                  className="w-full text-left px-2 py-1 text-[9px] font-mono text-marble/50 hover:text-gold hover:bg-gold/5 rounded transition-colors">
+                  {s.ticker} — {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {selectedSymbol && (
+            <div className="space-y-1.5">
+              <div className="text-[8px] text-marble/30 font-mono">Current: ${currentPrice > 0 ? currentPrice.toFixed(2) : '—'}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[7px] font-display tracking-wider text-marble/30">QTY</span>
+                  <input type="number" value={buyQty} onChange={(e) => setBuyQty(e.target.value)} placeholder="1"
+                    className="w-full bg-navy-light/50 border border-gold/15 text-marble/80 text-[10px] font-mono rounded px-2 py-1 placeholder:text-marble/15 focus:outline-none focus:border-gold/40" />
+                </div>
+                <div>
+                  <span className="text-[7px] font-display tracking-wider text-marble/30">BUY AT $</span>
+                  <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} placeholder={currentPrice > 0 ? (currentPrice * 0.98).toFixed(2) : '0'}
+                    className="w-full bg-navy-light/50 border border-emerald-500/15 text-emerald-400/80 text-[10px] font-mono rounded px-2 py-1 placeholder:text-marble/15 focus:outline-none focus:border-emerald-500/40" />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const q = parseFloat(buyQty);
+                  const p = parseFloat(buyPrice);
+                  if (q > 0 && p > 0 && selectedSymbol) {
+                    onSetBuyPrice(selectedSymbol, q, p);
+                    setSelectedSymbol(''); setSearch(''); setBuyQty(''); setBuyPrice(''); setOpen(false);
+                  }
+                }}
+                className="w-full py-1.5 rounded text-[9px] font-display tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
+              >
+                SET BUY ORDER
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
@@ -887,6 +1000,76 @@ const TradingBridge = () => {
     });
   }, [paper.positions, paper.closePosition, toast]);
 
+  // ─── Sell All Positions ────────────────────────────
+  const handleSellAll = useCallback(() => {
+    const positions = [...paper.positions];
+    if (positions.length === 0) return;
+    let totalPnl = 0;
+    for (const pos of positions) {
+      const price = resolvePriceForTicker(pos.symbol);
+      if (price > 0) {
+        const pnl = (price - pos.entryPrice) * pos.qty * (pos.side === 'buy' ? 1 : -1);
+        totalPnl += pnl;
+        paper.closePosition(pos.id, price);
+      }
+    }
+    toast({
+      title: totalPnl >= 0 ? '🟢 All Positions Closed' : '🔴 All Positions Closed',
+      description: `${positions.length} positions closed. Net P&L: ${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`,
+    });
+  }, [paper.positions, paper.closePosition, resolvePriceForTicker, toast]);
+
+  // ─── Ask Price (Limit Sell) Triggers ───────────────
+  const [askPrices, setAskPrices] = useState<Record<string, number>>({});
+  const handleSetAskPrice = useCallback((posId: string, askPrice: number) => {
+    setAskPrices(prev => ({ ...prev, [posId]: askPrice }));
+    toast({ title: '📌 Ask Price Set', description: `Will auto-sell when price reaches $${askPrice.toFixed(2)}` });
+  }, [toast]);
+
+  // ─── Buy Price (Limit Buy) Triggers ────────────────
+  const [buyPrices, setBuyPrices] = useState<Record<string, { symbol: string; qty: number; price: number }>>({});
+  const handleSetBuyPrice = useCallback((symbol: string, qty: number, price: number) => {
+    const id = `${symbol}-${price}`;
+    setBuyPrices(prev => ({ ...prev, [id]: { symbol, qty, price } }));
+    toast({ title: '📌 Buy Price Set', description: `Will auto-buy ${qty} ${symbol} when price drops to $${price.toFixed(2)}` });
+  }, [toast]);
+
+  // ─── Monitor ask/buy prices for auto-execution ─────
+  const askPricesRef = useRef(askPrices);
+  const buyPricesRef = useRef(buyPrices);
+  useEffect(() => { askPricesRef.current = askPrices; }, [askPrices]);
+  useEffect(() => { buyPricesRef.current = buyPrices; }, [buyPrices]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check ask prices (auto-sell)
+      const asks = askPricesRef.current;
+      for (const [posId, askPrice] of Object.entries(asks)) {
+        const pos = paper.positions.find(p => p.id === posId);
+        if (!pos) { setAskPrices(prev => { const n = { ...prev }; delete n[posId]; return n; }); continue; }
+        const price = resolvePriceForTicker(pos.symbol);
+        if (price >= askPrice && price > 0) {
+          handleClosePosition(posId, price);
+          setAskPrices(prev => { const n = { ...prev }; delete n[posId]; return n; });
+          toast({ title: '✅ Ask Price Triggered', description: `${pos.symbol} sold at $${price.toFixed(2)} (ask: $${askPrice.toFixed(2)})` });
+        }
+      }
+      // Check buy prices (auto-buy)
+      const buys = buyPricesRef.current;
+      for (const [id, order] of Object.entries(buys)) {
+        const price = resolvePriceForTicker(order.symbol);
+        if (price <= order.price && price > 0) {
+          try {
+            paper.submitOrder({ symbol: order.symbol, side: 'buy', qty: order.qty, type: 'market', price });
+            setBuyPrices(prev => { const n = { ...prev }; delete n[id]; return n; });
+            toast({ title: '✅ Buy Price Triggered', description: `Bought ${order.qty} ${order.symbol} at $${price.toFixed(2)}` });
+          } catch { /* insufficient funds etc */ }
+        }
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [paper.positions, resolvePriceForTicker, handleClosePosition, paper.submitOrder, toast]);
+
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
     <div className="flex items-center gap-1 rounded-lg p-1 border border-gold/20 bg-navy-dark/80 backdrop-blur-sm shadow-sm">
@@ -1134,35 +1317,35 @@ const TradingBridge = () => {
                         <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
                         <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS</span>
                       </div>
-                      <GALivePriceNotice
-                        price={activePrice}
-                        symbol={activeSymbol.ticker}
-                        label={activeSymbol.label}
-                        change={activeChange}
-                        category={activeSymbol.cat}
-                        size="sm"
-                      />
+                      <div className="flex items-center gap-2">
+                        {paper.positions.length > 0 && (
+                          <button onClick={handleSellAll} className="text-[8px] font-display tracking-wider text-red-400 px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors">
+                            SELL ALL
+                          </button>
+                        )}
+                        <GALivePriceNotice price={activePrice} symbol={activeSymbol.ticker} label={activeSymbol.label} change={activeChange} category={activeSymbol.cat} size="sm" />
+                      </div>
                     </div>
                     {paper.positions.length > 0 ? (
                       <div className="space-y-2">
                         {paper.positions.map(pos => (
                           <PositionMiniCard
-                            key={pos.id}
-                            posId={pos.id}
-                            symbol={pos.symbol}
-                            side={pos.side}
-                            qty={pos.qty}
-                            entryPrice={pos.entryPrice}
-                            currentPrice={pos.currentPrice}
-                            pnl={pos.pnl}
-                            pnlPercent={pos.pnlPercent}
+                            key={pos.id} posId={pos.id} symbol={pos.symbol} side={pos.side} qty={pos.qty}
+                            entryPrice={pos.entryPrice} currentPrice={pos.currentPrice} pnl={pos.pnl} pnlPercent={pos.pnlPercent}
                             resolvedPrice={resolvePriceForTicker(pos.symbol)}
                             onClose={(id, price) => handleClosePosition(id, price)}
                             onNavigate={(sym) => { setActiveSymbol(sym); setDrawerOpen(false); }}
+                            onSetAskPrice={handleSetAskPrice}
                           />
                         ))}
                       </div>
                     ) : <EmptyState text="No open paper positions" />}
+                    {/* Pending Ask/Buy Prices */}
+                    {(Object.keys(askPrices).length > 0 || Object.keys(buyPrices).length > 0) && (
+                      <PendingLimitOrders askPrices={askPrices} buyPrices={buyPrices} positions={paper.positions} onCancelAsk={(id) => setAskPrices(prev => { const n = { ...prev }; delete n[id]; return n; })} onCancelBuy={(id) => setBuyPrices(prev => { const n = { ...prev }; delete n[id]; return n; })} />
+                    )}
+                    {/* Set Buy Price */}
+                    <BuyPriceSection symbols={ALL_SYMBOLS} resolvePrice={resolvePriceForTicker} onSetBuyPrice={handleSetBuyPrice} />
                     {paper.orders.length > 0 && (
                       <div className="border-t border-gold/10 pt-3 space-y-1">
                         <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
@@ -1446,36 +1629,35 @@ const TradingBridge = () => {
                           <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
                           <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS & ORDERS</span>
                         </div>
-                        <GALivePriceNotice
-                          price={activePrice}
-                          symbol={activeSymbol.ticker}
-                          label={activeSymbol.label}
-                          change={activeChange}
-                          category={activeSymbol.cat}
-                          size="sm"
-                        />
+                        <div className="flex items-center gap-2">
+                          {paper.positions.length > 0 && (
+                            <button onClick={handleSellAll} className="text-[8px] font-display tracking-wider text-red-400 px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors">
+                              SELL ALL
+                            </button>
+                          )}
+                          <GALivePriceNotice price={activePrice} symbol={activeSymbol.ticker} label={activeSymbol.label} change={activeChange} category={activeSymbol.cat} size="sm" />
+                        </div>
                       </div>
                       {paper.positions.length > 0 ? (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                           {paper.positions.map(pos => (
                             <PositionMiniCard
-                              key={pos.id}
-                              posId={pos.id}
-                              symbol={pos.symbol}
-                              side={pos.side}
-                              qty={pos.qty}
-                              entryPrice={pos.entryPrice}
-                              currentPrice={pos.currentPrice}
-                              pnl={pos.pnl}
-                              pnlPercent={pos.pnlPercent}
+                              key={pos.id} posId={pos.id} symbol={pos.symbol} side={pos.side} qty={pos.qty}
+                              entryPrice={pos.entryPrice} currentPrice={pos.currentPrice} pnl={pos.pnl} pnlPercent={pos.pnlPercent}
                               resolvedPrice={resolvePriceForTicker(pos.symbol)}
                               onClose={(id, price) => handleClosePosition(id, price)}
                               onNavigate={(sym) => setActiveSymbol(sym)}
+                              onSetAskPrice={handleSetAskPrice}
                             />
                           ))}
                         </div>
                       ) : <EmptyState text="No open paper positions" />}
-                      
+                      {/* Pending Limit Orders */}
+                      {(Object.keys(askPrices).length > 0 || Object.keys(buyPrices).length > 0) && (
+                        <PendingLimitOrders askPrices={askPrices} buyPrices={buyPrices} positions={paper.positions} onCancelAsk={(id) => setAskPrices(prev => { const n = { ...prev }; delete n[id]; return n; })} onCancelBuy={(id) => setBuyPrices(prev => { const n = { ...prev }; delete n[id]; return n; })} />
+                      )}
+                      {/* Set Buy Price */}
+                      <BuyPriceSection symbols={ALL_SYMBOLS} resolvePrice={resolvePriceForTicker} onSetBuyPrice={handleSetBuyPrice} />
                       {paper.orders.length > 0 && (
                         <div className="border-t border-gold/10 pt-3 space-y-1">
                           <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
