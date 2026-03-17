@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { TrendingUp, TrendingDown, ExternalLink, Tag } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import GALivePriceNotice from '@/components/ga-widgets/GALivePriceNotice';
