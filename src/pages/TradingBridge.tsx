@@ -1629,36 +1629,35 @@ const TradingBridge = () => {
                           <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
                           <span className="text-[10px] font-display tracking-wider text-emerald-400">PAPER POSITIONS & ORDERS</span>
                         </div>
-                        <GALivePriceNotice
-                          price={activePrice}
-                          symbol={activeSymbol.ticker}
-                          label={activeSymbol.label}
-                          change={activeChange}
-                          category={activeSymbol.cat}
-                          size="sm"
-                        />
+                        <div className="flex items-center gap-2">
+                          {paper.positions.length > 0 && (
+                            <button onClick={handleSellAll} className="text-[8px] font-display tracking-wider text-red-400 px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors">
+                              SELL ALL
+                            </button>
+                          )}
+                          <GALivePriceNotice price={activePrice} symbol={activeSymbol.ticker} label={activeSymbol.label} change={activeChange} category={activeSymbol.cat} size="sm" />
+                        </div>
                       </div>
                       {paper.positions.length > 0 ? (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                           {paper.positions.map(pos => (
                             <PositionMiniCard
-                              key={pos.id}
-                              posId={pos.id}
-                              symbol={pos.symbol}
-                              side={pos.side}
-                              qty={pos.qty}
-                              entryPrice={pos.entryPrice}
-                              currentPrice={pos.currentPrice}
-                              pnl={pos.pnl}
-                              pnlPercent={pos.pnlPercent}
+                              key={pos.id} posId={pos.id} symbol={pos.symbol} side={pos.side} qty={pos.qty}
+                              entryPrice={pos.entryPrice} currentPrice={pos.currentPrice} pnl={pos.pnl} pnlPercent={pos.pnlPercent}
                               resolvedPrice={resolvePriceForTicker(pos.symbol)}
                               onClose={(id, price) => handleClosePosition(id, price)}
                               onNavigate={(sym) => setActiveSymbol(sym)}
+                              onSetAskPrice={handleSetAskPrice}
                             />
                           ))}
                         </div>
                       ) : <EmptyState text="No open paper positions" />}
-                      
+                      {/* Pending Limit Orders */}
+                      {(Object.keys(askPrices).length > 0 || Object.keys(buyPrices).length > 0) && (
+                        <PendingLimitOrders askPrices={askPrices} buyPrices={buyPrices} positions={paper.positions} onCancelAsk={(id) => setAskPrices(prev => { const n = { ...prev }; delete n[id]; return n; })} onCancelBuy={(id) => setBuyPrices(prev => { const n = { ...prev }; delete n[id]; return n; })} />
+                      )}
+                      {/* Set Buy Price */}
+                      <BuyPriceSection symbols={ALL_SYMBOLS} resolvePrice={resolvePriceForTicker} onSetBuyPrice={handleSetBuyPrice} />
                       {paper.orders.length > 0 && (
                         <div className="border-t border-gold/10 pt-3 space-y-1">
                           <div className="text-[9px] font-display tracking-wider text-marble/25 mb-1">ORDER HISTORY ({paper.orders.length})</div>
