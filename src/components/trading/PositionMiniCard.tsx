@@ -150,11 +150,14 @@ const PositionMiniCard = ({
           {side === 'buy' ? 'Price' : 'Price'} {livePrice >= entryPrice ? 'rose' : 'fell'} from ${entryPrice.toFixed(2)} to ${livePrice < 10 ? livePrice.toFixed(4) : livePrice.toFixed(2)} × {qty} = {livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}
         </div>
 
-        {/* SELL button */}
-        <div className="flex items-center justify-end">
+        {/* Ask Price (Limit Sell) + Close */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {onSetAskPrice && (
+            <AskPriceInput posId={posId} entryPrice={entryPrice} livePrice={livePrice} onSet={onSetAskPrice} />
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onClose(posId, livePrice); }}
-            className="pointer-events-auto text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20"
+            className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 ml-auto"
           >
             CLOSE
           </button>
@@ -163,5 +166,50 @@ const PositionMiniCard = ({
     </div>
   );
 };
+
+/** Inline ask-price (limit sell) input */
+function AskPriceInput({ posId, entryPrice, livePrice, onSet }: { posId: string; entryPrice: number; livePrice: number; onSet: (id: string, price: number) => void }) {
+  const [askPrice, setAskPrice] = useState('');
+  const [active, setActive] = useState(false);
+
+  if (!active) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setActive(true); setAskPrice(livePrice > 0 ? livePrice.toFixed(2) : ''); }}
+        className="flex items-center gap-1 text-[7px] font-display tracking-wider text-gold/50 hover:text-gold transition-colors px-1.5 py-1 rounded border border-gold/15 bg-gold/5 hover:bg-gold/10"
+        title="Set asking price (auto-sell when reached)"
+      >
+        <Tag className="w-2.5 h-2.5" /> ASK PRICE
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <span className="text-[7px] font-display tracking-wider text-gold/50">ASK $</span>
+      <input
+        type="number"
+        value={askPrice}
+        onChange={(e) => setAskPrice(e.target.value)}
+        placeholder={livePrice.toFixed(2)}
+        className="w-16 bg-navy-light/50 border border-gold/20 text-gold/80 text-[9px] font-mono rounded px-1.5 py-0.5 placeholder:text-marble/15 focus:outline-none focus:border-gold/50"
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            const p = parseFloat(askPrice);
+            if (p > 0) { onSet(posId, p); setActive(false); }
+          }
+          if (e.key === 'Escape') setActive(false);
+        }}
+      />
+      <button
+        onClick={() => { const p = parseFloat(askPrice); if (p > 0) { onSet(posId, p); setActive(false); } }}
+        className="text-[7px] font-display text-gold px-1 py-0.5 rounded bg-gold/15 border border-gold/30 hover:bg-gold/25"
+      >
+        SET
+      </button>
+    </div>
+  );
+}
 
 export default PositionMiniCard;
