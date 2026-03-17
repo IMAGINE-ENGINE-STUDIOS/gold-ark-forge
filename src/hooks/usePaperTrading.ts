@@ -105,10 +105,15 @@ export const usePaperTrading = (userId?: string | null) => {
           const cloudPositions = (data.positions as any[]) ?? [];
           const cloudOrders = (data.orders as any[]) ?? [];
           const cloudCash = Number(data.cash) || STARTING_BALANCE;
+          const stats = deriveStatsFromOrders(cloudOrders);
           setPositions(cloudPositions);
           setOrders(cloudOrders);
           setCash(cloudCash);
-          saveLocal(cloudPositions, cloudOrders, cloudCash, 0, 0, 0, 0);
+          setTotalFees(stats.totalFees);
+          setRealizedPnl(stats.realizedPnl);
+          setWinCount(stats.winCount);
+          setLossCount(stats.lossCount);
+          saveLocal(cloudPositions, cloudOrders, cloudCash, stats.totalFees, stats.realizedPnl, stats.winCount, stats.lossCount);
         }
       } catch { /* fallback to local */ }
       setCloudLoaded(true);
