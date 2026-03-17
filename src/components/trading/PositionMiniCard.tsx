@@ -34,7 +34,7 @@ interface PositionMiniCardProps {
 /** Miniaturized Intelligence-grade position card with live sparkline + GALivePriceNotice */
 const PositionMiniCard = ({
   symbol, side, qty, entryPrice, currentPrice, pnl, pnlPercent,
-  posId, resolvedPrice, onClose, onNavigate,
+  posId, resolvedPrice, onClose, onNavigate, onSetAskPrice,
 }: PositionMiniCardProps) => {
   const sym = useMemo(() => ALL_SYMBOLS.find(s => s.ticker === symbol), [symbol]);
   const isCrypto = sym?.cat === 'crypto';
