@@ -324,14 +324,8 @@ export const useGeniusTrader = ({
       };
       setChatMessages(prev => [...prev, assistantMsg]);
 
-      // If user asked to buy/sell and AI suggested a trade, execute it
-      if (data.suggestedTrade && autoExecute) {
-        const t = data.suggestedTrade;
-        const livePrice = resolvePrice(t.ticker);
-        if (livePrice > 0) {
-          submitOrder({ symbol: t.ticker, side: t.action.toLowerCase() as 'buy' | 'sell', qty: t.qty, type: 'market', price: livePrice, botSource: true });
-        }
-      }
+      // Never auto-execute chat suggestions — user must click EXECUTE manually
+      // suggestedTrade will be shown as a button in the UI
     } catch (err) {
       setChatMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${err instanceof Error ? err.message : 'Failed'}`, timestamp: Date.now() }]);
     } finally {
