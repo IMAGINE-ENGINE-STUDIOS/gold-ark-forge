@@ -61,7 +61,7 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
-import { usePaperTrading } from '@/hooks/usePaperTrading';
+import { usePaperTrading, type PaperPosition } from '@/hooks/usePaperTrading';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { useAutoSave } from '@/hooks/useAutoSave';
