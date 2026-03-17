@@ -887,6 +887,76 @@ const TradingBridge = () => {
     });
   }, [paper.positions, paper.closePosition, toast]);
 
+  // ─── Sell All Positions ────────────────────────────
+  const handleSellAll = useCallback(() => {
+    const positions = [...paper.positions];
+    if (positions.length === 0) return;
+    let totalPnl = 0;
+    for (const pos of positions) {
+      const price = resolvePriceForTicker(pos.symbol);
+      if (price > 0) {
+        const pnl = (price - pos.entryPrice) * pos.qty * (pos.side === 'buy' ? 1 : -1);
+        totalPnl += pnl;
+        paper.closePosition(pos.id, price);
+      }
+    }
+    toast({
+      title: totalPnl >= 0 ? '🟢 All Positions Closed' : '🔴 All Positions Closed',
+      description: `${positions.length} positions closed. Net P&L: ${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`,
+    });
+  }, [paper.positions, paper.closePosition, resolvePriceForTicker, toast]);
+
+  // ─── Ask Price (Limit Sell) Triggers ───────────────
+  const [askPrices, setAskPrices] = useState<Record<string, number>>({});
+  const handleSetAskPrice = useCallback((posId: string, askPrice: number) => {
+    setAskPrices(prev => ({ ...prev, [posId]: askPrice }));
+    toast({ title: '📌 Ask Price Set', description: `Will auto-sell when price reaches $${askPrice.toFixed(2)}` });
+  }, [toast]);
+
+  // ─── Buy Price (Limit Buy) Triggers ────────────────
+  const [buyPrices, setBuyPrices] = useState<Record<string, { symbol: string; qty: number; price: number }>>({});
+  const handleSetBuyPrice = useCallback((symbol: string, qty: number, price: number) => {
+    const id = `${symbol}-${price}`;
+    setBuyPrices(prev => ({ ...prev, [id]: { symbol, qty, price } }));
+    toast({ title: '📌 Buy Price Set', description: `Will auto-buy ${qty} ${symbol} when price drops to $${price.toFixed(2)}` });
+  }, [toast]);
+
+  // ─── Monitor ask/buy prices for auto-execution ─────
+  const askPricesRef = useRef(askPrices);
+  const buyPricesRef = useRef(buyPrices);
+  useEffect(() => { askPricesRef.current = askPrices; }, [askPrices]);
+  useEffect(() => { buyPricesRef.current = buyPrices; }, [buyPrices]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check ask prices (auto-sell)
+      const asks = askPricesRef.current;
+      for (const [posId, askPrice] of Object.entries(asks)) {
+        const pos = paper.positions.find(p => p.id === posId);
+        if (!pos) { setAskPrices(prev => { const n = { ...prev }; delete n[posId]; return n; }); continue; }
+        const price = resolvePriceForTicker(pos.symbol);
+        if (price >= askPrice && price > 0) {
+          handleClosePosition(posId, price);
+          setAskPrices(prev => { const n = { ...prev }; delete n[posId]; return n; });
+          toast({ title: '✅ Ask Price Triggered', description: `${pos.symbol} sold at $${price.toFixed(2)} (ask: $${askPrice.toFixed(2)})` });
+        }
+      }
+      // Check buy prices (auto-buy)
+      const buys = buyPricesRef.current;
+      for (const [id, order] of Object.entries(buys)) {
+        const price = resolvePriceForTicker(order.symbol);
+        if (price <= order.price && price > 0) {
+          try {
+            paper.submitOrder({ symbol: order.symbol, side: 'buy', qty: order.qty, type: 'market', price });
+            setBuyPrices(prev => { const n = { ...prev }; delete n[id]; return n; });
+            toast({ title: '✅ Buy Price Triggered', description: `Bought ${order.qty} ${order.symbol} at $${price.toFixed(2)}` });
+          } catch { /* insufficient funds etc */ }
+        }
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [paper.positions, resolvePriceForTicker, handleClosePosition, paper.submitOrder, toast]);
+
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
     <div className="flex items-center gap-1 rounded-lg p-1 border border-gold/20 bg-navy-dark/80 backdrop-blur-sm shadow-sm">
