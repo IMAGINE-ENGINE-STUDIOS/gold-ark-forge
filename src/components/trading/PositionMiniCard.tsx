@@ -28,6 +28,7 @@ interface PositionMiniCardProps {
   resolvedPrice: number;
   onClose: (id: string, price: number) => void;
   onNavigate: (sym: WatchlistSymbol) => void;
+  onSetAskPrice?: (id: string, askPrice: number) => void;
 }
 
 /** Miniaturized Intelligence-grade position card with live sparkline + GALivePriceNotice */
