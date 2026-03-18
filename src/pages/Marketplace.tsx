@@ -537,7 +537,7 @@ const Marketplace = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-[52px_minmax(0,1.2fr)_minmax(0,1fr)] gap-4 px-4 py-3 text-xs font-display tracking-[0.22em] text-marble/45 md:px-6">
+          <div className="hidden md:grid grid-cols-[52px_minmax(0,1.2fr)_minmax(0,1fr)] gap-4 px-4 py-3 text-xs font-display tracking-[0.22em] text-marble/45 md:px-6">
             <div className="text-right">#</div>
             <div>INSTRUMENT</div>
             <div>LIVE SPOT</div>
