@@ -1225,26 +1225,26 @@ const TradingBridge = () => {
           )}
         </div>
 
-        {/* Bottom Tab Bar — always visible, tapping opens drawer */}
+        {/* Bottom Tab Bar — always visible, scrollable on mobile */}
         <div className="flex-shrink-0 border-t border-gold/10 bg-navy-dark">
           {/* Swipe-up handle */}
           <button
             onClick={() => { setDrawerOpen(true); setDrawerSnap(0.5); }}
-            className="w-full flex justify-center py-1.5"
+            className="w-full flex justify-center py-1"
           >
             <div className="w-10 h-1 rounded-full bg-marble/15" />
           </button>
-          <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)]">
+          <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)] px-1">
             {BOTTOM_TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => handleTabClick(tab.key)}
-                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-1.5 transition-colors flex-shrink-0 ${
+                className={`flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[48px] transition-colors flex-shrink-0 ${
                   drawerOpen && bottomTab === tab.key ? 'text-gold' : 'text-marble/30'
                 }`}
               >
                 <tab.icon className="w-3.5 h-3.5" />
-                <span className="text-[7px] font-display tracking-wider">{tab.label}</span>
+                <span className="text-[6px] font-display tracking-wider whitespace-nowrap">{tab.label}</span>
               </button>
             ))}
           </div>

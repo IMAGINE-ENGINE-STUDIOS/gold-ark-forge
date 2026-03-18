@@ -965,31 +965,31 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
         </div>
       )}
 
-      {/* Header — clean 2-row layout from GALiveStandalone */}
+      {/* Header — responsive layout */}
       <div className="flex flex-col border-b border-gold/10 flex-shrink-0 bg-navy-dark/30">
-        {/* Row 1: Symbol + Price */}
-        <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <BarChart3 className="w-4 h-4 text-gold flex-shrink-0" />
-            {headerLeftSlot}
-            <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={20} />
+        {/* Row 1: Symbol + Price — stacks on mobile */}
+        <div className={`flex items-center justify-between px-2 sm:px-4 py-1.5 sm:py-2 gap-1 ${isMobile ? 'flex-wrap' : ''}`}>
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-hidden">
+            {!isMobile && <BarChart3 className="w-4 h-4 text-gold flex-shrink-0" />}
+            {headerLeftSlot && <div className="flex-shrink-0">{headerLeftSlot}</div>}
+            <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={isMobile ? 16 : 20} />
             <button onClick={() => { setSearchOpen(true); setSearchQuery(''); }}
-              className="flex items-center gap-1 hover:bg-gold/10 rounded px-1.5 py-0.5 transition-colors group" title="Search symbol (press /)">
-              <span className="font-display text-sm tracking-wider text-marble group-hover:text-gold truncate max-w-[80px] sm:max-w-none">{label}</span>
+              className="flex items-center gap-1 hover:bg-gold/10 rounded px-1 py-0.5 transition-colors group min-w-0" title="Search symbol (press /)">
+              <span className="font-display text-xs sm:text-sm tracking-wider text-marble group-hover:text-gold truncate max-w-[60px] sm:max-w-none">{label}</span>
               <Search className="w-3 h-3 text-marble/20 group-hover:text-gold/60 flex-shrink-0" />
             </button>
-            {isWsLive ? (
+            {!isMobile && (isWsLive ? (
               <span className="flex items-center gap-0.5 text-[8px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20"><Wifi className="w-2.5 h-2.5" /> WS</span>
             ) : (
               <LivePulse label="LIVE" />
-            )}
+            ))}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {headerRightSlot}
-            <span className="font-display text-lg text-marble">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {headerRightSlot && <div className="flex-shrink-0">{headerRightSlot}</div>}
+            <span className="font-display text-sm sm:text-lg text-marble whitespace-nowrap">
               ${price < 10 ? price.toFixed(3) : price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
-            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${change >= 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
+            <span className={`text-[10px] sm:text-xs font-medium px-1 sm:px-1.5 py-0.5 rounded whitespace-nowrap ${change >= 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
               {change >= 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : <TrendingDown className="w-3 h-3 inline mr-0.5" />}
               {change >= 0 ? '+' : ''}{change.toFixed(2)}%
             </span>
