@@ -157,20 +157,20 @@ const clients = [
   {
     Icon: InstitutionalIcon,
     title: 'Institutional Investors',
-    subtitle: 'Bespoke Services',
-    description: 'Dedicated account management, custom allocation strategies, and direct vault access.',
+    subtitle: 'Tokenized Portfolios',
+    description: 'Trade tokenized commodities at scale with real-time settlement, full transparency, and on-chain audit trails.',
   },
   {
     Icon: FamilyOfficeIcon,
     title: 'Family Offices',
-    subtitle: 'Wealth Preservation',
-    description: 'Multi-generational asset protection with full transparency and succession planning.',
+    subtitle: 'Generational Wealth',
+    description: 'Diversify into tokenized real-world assets — precious metals, energy, agriculture — with non-custodial ownership.',
   },
   {
     Icon: GovernmentIcon,
-    title: 'Government & Sovereigns',
-    subtitle: 'Secure Reserves',
-    description: 'National reserve management with diplomatic protocols and sovereign guarantees.',
+    title: 'Sovereign & Institutional',
+    subtitle: 'Reserve Tokenization',
+    description: 'Tokenize and manage national reserves with blockchain-verified provenance and cross-border interoperability.',
   },
 ];
 
@@ -196,12 +196,12 @@ const ClientTypes = () => {
           <div className="inline-block mb-6">
             <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-4" />
             <h2 className="font-display text-4xl md:text-5xl text-marble mb-4">
-              Trusted by <span className="text-gradient-gold">Elite Institutions</span>
+              Built for <span className="text-gradient-gold">Serious Capital</span>
             </h2>
             <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mt-4" />
           </div>
           <p className="text-marble/70 max-w-2xl mx-auto text-lg">
-            Built for the most discerning investors who demand security, transparency, and excellence.
+            The new standard for trading tokenized commodities — designed for institutions, family offices, and sovereign entities.
           </p>
         </div>
 

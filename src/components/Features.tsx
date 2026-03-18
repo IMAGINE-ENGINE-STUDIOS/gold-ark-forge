@@ -142,18 +142,18 @@ const CertifiedIcon = () => (
 const features = [
   {
     Icon: MarketplaceIcon,
-    title: 'Live Marketplace',
-    description: 'Trade Gold, Silver, & Platinum with Real-Time Pricing.',
+    title: 'Tokenized Marketplace',
+    description: 'Trade tokenized commodities — metals, energy, agriculture — with real-time pricing and instant settlement.',
   },
   {
     Icon: VaultIcon,
-    title: 'Secure Vault',
-    description: 'Institutional-Grade Storage & Protection.',
+    title: 'Digital Vault',
+    description: 'Hold tokenized assets in your own wallet. Non-custodial, transparent, and fully auditable on-chain.',
   },
   {
     Icon: CertifiedIcon,
-    title: 'Certified Assets',
-    description: 'Fully Verified & Authenticated Bullion.',
+    title: 'Blockchain Certified',
+    description: 'Every token is backed by verified physical assets, anchored to Bitcoin, and attested by independent authorities.',
   },
 ];
 

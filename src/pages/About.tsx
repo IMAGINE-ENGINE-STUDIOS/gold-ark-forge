@@ -44,11 +44,11 @@ const About = () => {
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}
         <div className="text-center mb-16">
-          <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
+         <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
             ABOUT GOLD ARROW
           </h1>
           <p className="text-marble/70 max-w-2xl mx-auto text-lg">
-            The New Standard in Asset Certification
+            The New Standard for Trading Tokenized Commodities
           </p>
         </div>
 
@@ -59,10 +59,11 @@ const About = () => {
             Our Mission
           </h2>
           <p className="text-marble/80 text-lg leading-relaxed text-center">
-            Gold Arrow bridges the ancient stability of precious metals with 
-            cutting-edge blockchain verification. We provide institutional-grade 
-            bullion ownership through a non-custodial platform backed by 
-            cryptographic proof and government attestations.
+            Gold Arrow is creating a new standard for commodity trading through 
+            tokenization. We transform physical assets — precious metals, energy, 
+            agricultural products — into blockchain-verified digital tokens, enabling 
+            instant settlement, transparent provenance, and non-custodial ownership 
+            for investors worldwide.
           </p>
           <div className="greek-key-border h-1 mt-8" />
         </div>
@@ -74,13 +75,12 @@ const About = () => {
               <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
                 <Lock className="text-gold" size={28} />
               </div>
-              <h3 className="font-display text-xl text-gold-light mb-4">
-                Non-Custodial
+               <h3 className="font-display text-xl text-gold-light mb-4">
+                Non-Custodial Ownership
               </h3>
               <p className="text-marble/60">
-                You maintain complete control of your assets. We never hold 
-                private keys or custody funds. Your MetaMask wallet is your 
-                Vault—directly connected to verified bullion.
+                You hold your tokenized assets directly in your own wallet. 
+                No intermediaries, no custody risk. Your keys, your commodities.
               </p>
             </CardContent>
           </Card>
@@ -90,13 +90,13 @@ const About = () => {
               <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
                 <Shield className="text-gold" size={28} />
               </div>
-              <h3 className="font-display text-xl text-gold-light mb-4">
-                Fully Verified
+               <h3 className="font-display text-xl text-gold-light mb-4">
+                Asset-Backed Tokens
               </h3>
               <p className="text-marble/60">
-                Every bar is attested by government authorities, verified by 
-                Chainlink Proof-of-Reserve oracles, and anchored immutably 
-                to the Bitcoin blockchain.
+                Every token represents a verified physical commodity — attested 
+                by independent authorities and anchored to the Bitcoin blockchain 
+                for immutable proof.
               </p>
             </CardContent>
           </Card>
@@ -106,13 +106,13 @@ const About = () => {
               <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
                 <Building2 className="text-gold" size={28} />
               </div>
-              <h3 className="font-display text-xl text-gold-light mb-4">
-                Institutional Grade
+               <h3 className="font-display text-xl text-gold-light mb-4">
+                Instant Settlement
               </h3>
               <p className="text-marble/60">
-                Built for family offices, wealth managers, and high-net-worth 
-                individuals who demand the highest standards of security 
-                and verification.
+                Trade tokenized commodities with real-time pricing and 
+                near-instant on-chain settlement — no clearing houses, 
+                no T+2 delays.
               </p>
             </CardContent>
           </Card>

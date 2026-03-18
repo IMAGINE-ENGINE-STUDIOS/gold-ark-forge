@@ -26,7 +26,7 @@ const Hero = () => {
             boxShadow: '0 8px 32px rgba(184, 134, 11, 0.5), inset 0 1px 0 rgba(255, 215, 0, 0.4)'
           }}
         >
-          ★ Enter Marketplace ★
+          ★ Start Trading Tokenized Assets ★
         </Link>
       </div>
 
