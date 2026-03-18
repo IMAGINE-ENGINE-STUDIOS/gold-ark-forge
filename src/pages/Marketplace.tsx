@@ -513,7 +513,7 @@ const Marketplace = () => {
                   />
                 </label>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex overflow-x-auto scrollbar-hide gap-1.5 sm:gap-2 sm:flex-wrap">
                   {FILTERS.map(({ key, label, icon: Icon }) => {
                     const active = filter === key;
                     return (
@@ -521,13 +521,13 @@ const Marketplace = () => {
                         key={key}
                         type="button"
                         onClick={() => setFilter(key)}
-                        className={`inline-flex items-center gap-2 rounded-sm border px-4 py-3 text-sm font-display tracking-[0.16em] transition-all ${
+                        className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm font-display tracking-[0.12em] sm:tracking-[0.16em] transition-all flex-shrink-0 ${
                           active
                             ? 'border-gold/40 bg-gold/15 text-gold-light'
                             : 'border-gold/10 bg-secondary/30 text-marble/70 hover:border-gold/25 hover:text-marble'
                         }`}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         {label}
                       </button>
                     );

@@ -640,7 +640,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
         <MoreHorizontal className="w-3 h-3" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+        <div className="absolute right-0 bottom-full mb-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
           <div className="px-3 py-1 text-[8px] font-display tracking-wider text-marble/30 bg-navy-dark/80 border-b border-gold/10">SHORT</div>
           {shortTimeframes.map((t) => (
             <button
