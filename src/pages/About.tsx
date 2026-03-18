@@ -75,13 +75,12 @@ const About = () => {
               <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
                 <Lock className="text-gold" size={28} />
               </div>
-              <h3 className="font-display text-xl text-gold-light mb-4">
-                Non-Custodial
+               <h3 className="font-display text-xl text-gold-light mb-4">
+                Non-Custodial Ownership
               </h3>
               <p className="text-marble/60">
-                You maintain complete control of your assets. We never hold 
-                private keys or custody funds. Your MetaMask wallet is your 
-                Vault—directly connected to verified bullion.
+                You hold your tokenized assets directly in your own wallet. 
+                No intermediaries, no custody risk. Your keys, your commodities.
               </p>
             </CardContent>
           </Card>
