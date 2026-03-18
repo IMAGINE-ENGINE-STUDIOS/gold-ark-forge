@@ -187,34 +187,40 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
     <button
       type="button"
       onClick={() => navigate(`/trading-bridge?symbol=${item.routeSymbol}`)}
-      className="grid w-full grid-cols-[52px_minmax(0,1.2fr)_minmax(0,1fr)] items-center gap-4 border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6 group cursor-pointer"
+      className="flex flex-col gap-3 w-full border-b border-gold/10 px-4 py-4 text-left transition-colors hover:bg-secondary/35 md:px-6 group cursor-pointer md:grid md:grid-cols-[52px_minmax(0,1.2fr)_minmax(0,1fr)] md:items-center md:gap-4"
     >
-      <div className="text-right font-mono text-sm text-marble/40">{rank}</div>
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-display tracking-[0.18em] ${categoryColors[item.category]}`}>
-            {item.category}
-          </span>
-          {item.live && <LiveDot />}
-          <span className="text-[10px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100">
-            OPEN CHART →
-          </span>
+      {/* Rank + instrument info row */}
+      <div className="flex items-start gap-3 md:contents">
+        <div className="text-right font-mono text-sm text-marble/40 pt-1 md:pt-0 w-8 flex-shrink-0 md:w-auto">{rank}</div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-display tracking-[0.14em] ${categoryColors[item.category]}`}>
+              {item.category}
+            </span>
+            {item.live && <LiveDot />}
+            <span className="text-[10px] font-display tracking-[0.16em] text-gold/40 opacity-0 transition-opacity group-hover:opacity-100 hidden sm:inline">
+              OPEN CHART →
+            </span>
+          </div>
+          <div className="font-display text-base tracking-[0.04em] text-marble md:text-xl">{item.name}</div>
+          <div className="text-xs text-marble/50 md:text-sm">{item.ticker} · {item.source}</div>
         </div>
-        <div className="font-display text-lg tracking-[0.04em] text-marble md:text-xl">{item.name}</div>
-        <div className="text-sm text-marble/50">{item.ticker} · {item.source}</div>
       </div>
 
-      <MarketplaceSpotWidget
-        symbolKey={item.routeSymbol}
-        label={item.ticker}
-        basePrice={item.price}
-        baseChange={item.change}
-        accentColor={item.accentColor}
-        compact
-        wsPrice={item.isWsLive ? item.price : undefined}
-        wsChange={item.isWsLive ? item.change : undefined}
-        isWsLive={item.isWsLive}
-      />
+      {/* Spot widget — full width on mobile, inline on desktop */}
+      <div className="w-full md:w-auto">
+        <MarketplaceSpotWidget
+          symbolKey={item.routeSymbol}
+          label={item.ticker}
+          basePrice={item.price}
+          baseChange={item.change}
+          accentColor={item.accentColor}
+          compact
+          wsPrice={item.isWsLive ? item.price : undefined}
+          wsChange={item.isWsLive ? item.change : undefined}
+          isWsLive={item.isWsLive}
+        />
+      </div>
     </button>
   );
 };
