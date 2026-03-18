@@ -20,10 +20,10 @@ const Index = () => {
             <div className="text-center mb-8">
               <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-6" />
               <h2 className="font-display text-3xl md:text-4xl text-gold-light mb-3">
-                MARKET OVERVIEW
+                LIVE MARKETS
               </h2>
               <p className="text-marble/60 max-w-xl mx-auto text-sm">
-                Live precious metals and Bitcoin trends — powered by Gold Arrow proprietary analytics.
+                Real-time pricing across tokenized commodities — powered by Gold Arrow analytics.
               </p>
             </div>
             <GAMiniCharts />

@@ -106,13 +106,13 @@ const About = () => {
               <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
                 <Building2 className="text-gold" size={28} />
               </div>
-              <h3 className="font-display text-xl text-gold-light mb-4">
-                Institutional Grade
+               <h3 className="font-display text-xl text-gold-light mb-4">
+                Instant Settlement
               </h3>
               <p className="text-marble/60">
-                Built for family offices, wealth managers, and high-net-worth 
-                individuals who demand the highest standards of security 
-                and verification.
+                Trade tokenized commodities with real-time pricing and 
+                near-instant on-chain settlement — no clearing houses, 
+                no T+2 delays.
               </p>
             </CardContent>
           </Card>

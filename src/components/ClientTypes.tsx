@@ -196,12 +196,12 @@ const ClientTypes = () => {
           <div className="inline-block mb-6">
             <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mb-4" />
             <h2 className="font-display text-4xl md:text-5xl text-marble mb-4">
-              Trusted by <span className="text-gradient-gold">Elite Institutions</span>
+              Built for <span className="text-gradient-gold">Serious Capital</span>
             </h2>
             <div className="h-1 w-24 mx-auto bg-gradient-to-r from-transparent via-gold to-transparent mt-4" />
           </div>
           <p className="text-marble/70 max-w-2xl mx-auto text-lg">
-            Built for the most discerning investors who demand security, transparency, and excellence.
+            The new standard for trading tokenized commodities — designed for institutions, family offices, and sovereign entities.
           </p>
         </div>
 

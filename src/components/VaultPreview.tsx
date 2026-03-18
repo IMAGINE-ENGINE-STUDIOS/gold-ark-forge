@@ -73,10 +73,10 @@ const VaultPreview = () => {
             {/* Content */}
             <div className="relative z-10 p-10 md:p-14 w-full">
               <h3 className="font-display text-3xl md:text-4xl text-gold mb-3 tracking-[0.1em] uppercase text-gradient-gold">
-                Access The Vault
+                Your Digital Vault
               </h3>
               <p className="text-marble/80 font-display text-base tracking-wider uppercase">
-                Safeguard Your Investments
+                Hold & Manage Your Tokenized Assets
               </p>
               <div className="mt-4 w-24 h-1 bg-gradient-to-r from-gold to-transparent" />
             </div>
