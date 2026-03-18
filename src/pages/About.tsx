@@ -90,13 +90,13 @@ const About = () => {
               <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
                 <Shield className="text-gold" size={28} />
               </div>
-              <h3 className="font-display text-xl text-gold-light mb-4">
-                Fully Verified
+               <h3 className="font-display text-xl text-gold-light mb-4">
+                Asset-Backed Tokens
               </h3>
               <p className="text-marble/60">
-                Every bar is attested by government authorities, verified by 
-                Chainlink Proof-of-Reserve oracles, and anchored immutably 
-                to the Bitcoin blockchain.
+                Every token represents a verified physical commodity — attested 
+                by independent authorities and anchored to the Bitcoin blockchain 
+                for immutable proof.
               </p>
             </CardContent>
           </Card>
