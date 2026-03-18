@@ -59,10 +59,11 @@ const About = () => {
             Our Mission
           </h2>
           <p className="text-marble/80 text-lg leading-relaxed text-center">
-            Gold Arrow bridges the ancient stability of precious metals with 
-            cutting-edge blockchain verification. We provide institutional-grade 
-            bullion ownership through a non-custodial platform backed by 
-            cryptographic proof and government attestations.
+            Gold Arrow is creating a new standard for commodity trading through 
+            tokenization. We transform physical assets — precious metals, energy, 
+            agricultural products — into blockchain-verified digital tokens, enabling 
+            instant settlement, transparent provenance, and non-custodial ownership 
+            for investors worldwide.
           </p>
           <div className="greek-key-border h-1 mt-8" />
         </div>
