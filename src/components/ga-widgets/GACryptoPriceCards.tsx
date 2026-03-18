@@ -76,23 +76,23 @@ const GACryptoPriceCards = () => {
         const color = liveChange >= 0 ? 'hsl(145, 70%, 45%)' : 'hsl(0, 70%, 55%)';
 
         return (
-          <div key={coin.id} className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/20 p-4 group hover:border-gold/40 transition-all overflow-hidden">
+          <div key={coin.id} className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/20 p-3 sm:p-4 group hover:border-gold/40 transition-all overflow-hidden">
             <div className="ornate-corner ornate-corner-tl" />
             <div className="ornate-corner ornate-corner-tr" />
 
-            <div className="flex items-center gap-2 mb-2">
-              <img src={coin.image} alt={coin.name} className="w-5 h-5 rounded-full" />
-              <span className="font-display text-[10px] tracking-[0.2em] text-marble/50">{coin.symbol.toUpperCase()}</span>
-              <div className="ml-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+              <img src={coin.image} alt={coin.name} className="w-4 h-4 sm:w-5 sm:h-5 rounded-full flex-shrink-0" />
+              <span className="font-display text-[9px] sm:text-[10px] tracking-[0.15em] sm:tracking-[0.2em] text-marble/50 truncate">{coin.symbol.toUpperCase()}</span>
+              <div className="ml-auto flex-shrink-0">
                 <LivePulse connected={!!wsData} label={wsData ? 'LIVE' : ''} />
               </div>
             </div>
 
-            <div className="font-display text-xl text-marble font-semibold">
+            <div className="font-display text-base sm:text-xl text-marble font-semibold">
               ${livePrice < 1 ? livePrice.toFixed(4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
 
-            <div className={`flex items-center gap-1 text-xs font-medium mt-1 ${
+            <div className={`flex items-center gap-1 text-[10px] sm:text-xs font-medium mt-1 ${
               liveChange >= 0 ? 'text-emerald-400' : 'text-red-400'
             }`}>
               {liveChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -100,7 +100,7 @@ const GACryptoPriceCards = () => {
             </div>
 
             {sparkData.length > 0 && (
-              <div className="h-12 mt-2 -mx-1">
+              <div className="h-8 sm:h-12 mt-1.5 sm:mt-2 -mx-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={sparkData}>
                     <defs>

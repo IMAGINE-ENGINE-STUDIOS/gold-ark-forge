@@ -64,26 +64,28 @@ const AssetCard = ({
       <div className="ornate-corner ornate-corner-tl" />
       <div className="ornate-corner ornate-corner-tr" />
 
-      <div className="relative z-10 p-4">
+      <div className="relative z-10 p-3 sm:p-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-            <span className="font-display text-[9px] tracking-[0.2em] text-marble/45 truncate max-w-[80px]">{label}</span>
+        <div className="flex items-center justify-between mb-1 gap-1">
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            <span className="font-display text-[8px] sm:text-[9px] tracking-[0.15em] sm:tracking-[0.2em] text-marble/45 truncate">{label}</span>
           </div>
-          <LivePulse connected={isWsLive || basePrice > 0} label={isWsLive ? 'WS' : ''} />
+          <div className="flex-shrink-0">
+            <LivePulse connected={isWsLive || basePrice > 0} label={isWsLive ? 'WS' : ''} />
+          </div>
         </div>
 
         {/* Ticker */}
-        <span className="text-[8px] font-mono text-marble/25">{ticker}</span>
+        <span className="text-[7px] sm:text-[8px] font-mono text-marble/25">{ticker}</span>
 
         {/* Price */}
-        <div className="font-display text-lg text-marble font-semibold tracking-tight mt-0.5">
+        <div className="font-display text-base sm:text-lg text-marble font-semibold tracking-tight mt-0.5">
           {cat === 'forex' ? '' : '$'}{formatP(livePrice)}
         </div>
 
         {/* Change */}
-        <div className={`flex items-center gap-1 text-[10px] font-mono mt-0.5 ${
+        <div className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-mono mt-0.5 ${
           isPos ? 'text-emerald-400' : isNeg ? 'text-red-400' : 'text-marble/30'
         }`}>
           {isPos ? <TrendingUp className="w-2.5 h-2.5" /> : isNeg ? <TrendingDown className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
@@ -92,7 +94,7 @@ const AssetCard = ({
 
         {/* Sparkline */}
         {spark.length > 2 && (
-          <div className="h-10 mt-1.5 -mx-1">
+          <div className="h-8 sm:h-10 mt-1.5 -mx-1">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={spark}>
                 <defs>

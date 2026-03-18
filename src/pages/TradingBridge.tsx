@@ -1072,26 +1072,26 @@ const TradingBridge = () => {
 
   // ─── Mode Toggle ───────────────────────────────────
   const ModeToggle = () => (
-    <div className="flex items-center gap-1 rounded-lg p-1 border border-gold/20 bg-navy-dark/80 backdrop-blur-sm shadow-sm">
+    <div className="flex items-center gap-0.5 sm:gap-1 rounded-lg p-0.5 sm:p-1 border border-gold/20 bg-navy-dark/80 backdrop-blur-sm shadow-sm">
       <button
         onClick={() => setTradingMode('paper')}
-        className={`px-2 py-1 rounded-md text-[8px] sm:text-[9px] font-display tracking-[0.15em] transition-all flex items-center gap-1.5 ${
+        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[7px] sm:text-[9px] font-display tracking-[0.1em] sm:tracking-[0.15em] transition-all flex items-center gap-1 ${
           tradingMode === 'paper'
             ? 'bg-blue-500/20 text-blue-400 border border-blue-500/35'
             : 'text-marble/35 border border-transparent hover:text-marble/60'
         }`}
       >
-        <FlaskConical className="w-3 h-3" /> DEMO
+        <FlaskConical className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> <span className="hidden xs:inline">DEMO</span>
       </button>
       <button
         onClick={() => setTradingMode('live')}
-        className={`px-2 py-1 rounded-md text-[8px] sm:text-[9px] font-display tracking-[0.15em] transition-all flex items-center gap-1.5 ${
+        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[7px] sm:text-[9px] font-display tracking-[0.1em] sm:tracking-[0.15em] transition-all flex items-center gap-1 ${
           tradingMode === 'live'
             ? 'bg-gold/20 text-gold border border-gold/35'
             : 'text-marble/35 border border-transparent hover:text-marble/60'
         }`}
       >
-        <DollarSign className="w-3 h-3" /> REAL
+        <DollarSign className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> <span className="hidden xs:inline">REAL</span>
       </button>
     </div>
   );
@@ -1099,12 +1099,12 @@ const TradingBridge = () => {
   const BrokerHeaderButton = () => (
     <button
       onClick={() => setBrokerDialogOpen(true)}
-      className="inline-flex items-center gap-1.5 rounded-md border border-gold/30 bg-gold/10 px-2 py-1 text-[8px] sm:text-[9px] font-display tracking-[0.14em] text-gold hover:bg-gold/20 transition-colors"
+      className="inline-flex items-center gap-1 rounded-md border border-gold/30 bg-gold/10 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[7px] sm:text-[9px] font-display tracking-[0.1em] sm:tracking-[0.14em] text-gold hover:bg-gold/20 transition-colors"
       title="Connect broker"
     >
-      <Activity className="w-3 h-3" />
-      <span>BROKER</span>
-      <span className={`px-1 py-0.5 rounded text-[8px] font-mono border ${
+      <Activity className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+      <span className="hidden sm:inline">BROKER</span>
+      <span className={`px-1 py-0.5 rounded text-[7px] sm:text-[8px] font-mono border ${
         (connections?.length || 0) > 0
           ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
           : 'bg-marble/10 text-marble/60 border-marble/20'
@@ -1225,26 +1225,26 @@ const TradingBridge = () => {
           )}
         </div>
 
-        {/* Bottom Tab Bar — always visible, tapping opens drawer */}
+        {/* Bottom Tab Bar — always visible, scrollable on mobile */}
         <div className="flex-shrink-0 border-t border-gold/10 bg-navy-dark">
           {/* Swipe-up handle */}
           <button
             onClick={() => { setDrawerOpen(true); setDrawerSnap(0.5); }}
-            className="w-full flex justify-center py-1.5"
+            className="w-full flex justify-center py-1"
           >
             <div className="w-10 h-1 rounded-full bg-marble/15" />
           </button>
-          <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)]">
+          <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)] px-1">
             {BOTTOM_TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => handleTabClick(tab.key)}
-                className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-1.5 transition-colors flex-shrink-0 ${
+                className={`flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[48px] transition-colors flex-shrink-0 ${
                   drawerOpen && bottomTab === tab.key ? 'text-gold' : 'text-marble/30'
                 }`}
               >
                 <tab.icon className="w-3.5 h-3.5" />
-                <span className="text-[7px] font-display tracking-wider">{tab.label}</span>
+                <span className="text-[6px] font-display tracking-wider whitespace-nowrap">{tab.label}</span>
               </button>
             ))}
           </div>
