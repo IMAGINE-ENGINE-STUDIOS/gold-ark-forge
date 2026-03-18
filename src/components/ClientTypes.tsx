@@ -157,20 +157,20 @@ const clients = [
   {
     Icon: InstitutionalIcon,
     title: 'Institutional Investors',
-    subtitle: 'Bespoke Services',
-    description: 'Dedicated account management, custom allocation strategies, and direct vault access.',
+    subtitle: 'Tokenized Portfolios',
+    description: 'Trade tokenized commodities at scale with real-time settlement, full transparency, and on-chain audit trails.',
   },
   {
     Icon: FamilyOfficeIcon,
     title: 'Family Offices',
-    subtitle: 'Wealth Preservation',
-    description: 'Multi-generational asset protection with full transparency and succession planning.',
+    subtitle: 'Generational Wealth',
+    description: 'Diversify into tokenized real-world assets — precious metals, energy, agriculture — with non-custodial ownership.',
   },
   {
     Icon: GovernmentIcon,
-    title: 'Government & Sovereigns',
-    subtitle: 'Secure Reserves',
-    description: 'National reserve management with diplomatic protocols and sovereign guarantees.',
+    title: 'Sovereign & Institutional',
+    subtitle: 'Reserve Tokenization',
+    description: 'Tokenize and manage national reserves with blockchain-verified provenance and cross-border interoperability.',
   },
 ];
 
