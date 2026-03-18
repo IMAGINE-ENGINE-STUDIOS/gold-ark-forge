@@ -6,18 +6,22 @@ import TitleSlide from '@/components/deck/slides/TitleSlide';
 import AboutSlide from '@/components/deck/slides/AboutSlide';
 import ProblemSlide from '@/components/deck/slides/ProblemSlide';
 import SolutionSlide from '@/components/deck/slides/SolutionSlide';
+import AssetClassesSlide from '@/components/deck/slides/AssetClassesSlide';
+import PlatformSlide from '@/components/deck/slides/PlatformSlide';
 import MarketSlide from '@/components/deck/slides/MarketSlide';
 import AskSlide from '@/components/deck/slides/AskSlide';
 import TeamSlide from '@/components/deck/slides/TeamSlide';
 
 const slideComponents = [
-  <TitleSlide />,
-  <AboutSlide />,
-  <ProblemSlide />,
-  <SolutionSlide />,
-  <MarketSlide />,
-  <AskSlide />,
-  <TeamSlide />,
+  <TitleSlide />,        // 1 — Cover
+  <AboutSlide />,        // 2 — What is Gold Arrow
+  <ProblemSlide />,      // 3 — The Problem
+  <SolutionSlide />,     // 4 — The Solution
+  <AssetClassesSlide />, // 5 — 9 Asset Classes
+  <PlatformSlide />,     // 6 — Platform Features
+  <MarketSlide />,       // 7 — Market Opportunity
+  <AskSlide />,          // 8 — The Ask & Financials
+  <TeamSlide />,         // 9 — Team
 ];
 
 const Deck = () => {

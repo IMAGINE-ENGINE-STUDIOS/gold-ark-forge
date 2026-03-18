@@ -2,18 +2,18 @@ import SlideLayout from '../SlideLayout';
 import { AlertTriangle, Eye, Lock, Globe } from 'lucide-react';
 
 const problems = [
-  { icon: Eye, title: 'Opacity', desc: 'No transparent, verifiable chain-of-custody for physical bullion assets across global markets.' },
-  { icon: Lock, title: 'Counterparty Risk', desc: 'Paper certificates lack cryptographic proof, enabling fraud and double-pledging of assets.' },
-  { icon: Globe, title: 'Fragmented Markets', desc: '$12T+ in precious metals with no unified digital registry or cross-border verification standard.' },
-  { icon: AlertTriangle, title: 'Audit Gaps', desc: 'Annual audits leave 364 days of unverified custody status, undermining institutional confidence.' },
+  { icon: Eye, title: 'Opacity', desc: 'No transparent, verifiable chain-of-custody for physical commodities — metals, energy, agriculture — across global markets.' },
+  { icon: Lock, title: 'Counterparty Risk', desc: 'Paper certificates and legacy registries lack cryptographic proof, enabling fraud and double-pledging of $85T+ in real assets.' },
+  { icon: Globe, title: 'Fragmented Markets', desc: 'Nine major commodity classes with no unified digital registry, no cross-border verification, and no interoperable standard.' },
+  { icon: AlertTriangle, title: 'Audit Gaps', desc: 'Annual audits leave 364 days of unverified custody status across metals, bonds, REITs, and government surplus assets.' },
 ];
 
 const ProblemSlide = () => (
   <SlideLayout>
     <div className="flex flex-col h-full px-[120px] py-[80px]">
-      <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3" style={{ fontFamily: 'Source Sans 3' }}>The Problem</p>
+      <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Problem</p>
       <h2 className="text-[56px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
-        Bullion Markets Are <span className="text-gradient-gold">Broken</span>
+        Commodity Markets Are <span className="text-gradient-gold">Broken</span>
       </h2>
       <div className="w-[100px] h-[3px] bg-primary/40 mb-12" />
 
@@ -25,7 +25,7 @@ const ProblemSlide = () => (
             </div>
             <div>
               <h3 className="text-[28px] text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>{p.title}</h3>
-              <p className="text-[20px] leading-relaxed text-secondary-foreground/60" style={{ fontFamily: 'Source Sans 3' }}>{p.desc}</p>
+              <p className="text-[20px] leading-relaxed text-secondary-foreground/60">{p.desc}</p>
             </div>
           </div>
         ))}
