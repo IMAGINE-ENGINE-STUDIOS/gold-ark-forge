@@ -13,7 +13,7 @@ const AskSlide = () => (
       <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
         Seed Round: <span className="text-gradient-gold">$5M</span>
       </h2>
-      <div className="w-[100px] h-[3px] bg-primary/40 mb-10" />
+      <div className="greek-key-border-rich w-[120px] h-[4px] mb-10 rounded-sm" />
 
       {/* Use of funds */}
       <div className="grid grid-cols-3 gap-10 mb-10">
@@ -22,7 +22,13 @@ const AskSlide = () => (
           { label: 'Go-to-Market', pct: '30%' },
           { label: 'Operations & Legal', pct: '20%' },
         ].map((u, i) => (
-          <div key={i} className="border border-primary/15 rounded-lg p-6 bg-secondary/20 text-center">
+          <div key={i} className="rounded-lg p-6 text-center"
+            style={{
+              border: '1px solid hsla(43,72%,50%,0.2)',
+              background: 'linear-gradient(135deg, hsla(213,32%,16%,0.5) 0%, hsla(213,35%,10%,0.3) 100%)',
+              boxShadow: '0 0 20px hsla(43,72%,50%,0.05)',
+            }}
+          >
             <p className="text-[40px] font-bold text-primary mb-1" style={{ fontFamily: 'Cinzel, serif' }}>{u.pct}</p>
             <p className="text-[17px] text-secondary-foreground/55">{u.label}</p>
           </div>
@@ -31,10 +37,10 @@ const AskSlide = () => (
 
       {/* Financial projections table */}
       <p className="text-[16px] tracking-[0.2em] uppercase text-primary/50 mb-4">Financial Projections</p>
-      <div className="border border-primary/15 rounded-lg overflow-hidden mb-8">
+      <div className="rounded-lg overflow-hidden mb-8" style={{ border: '1px solid hsla(43,72%,50%,0.15)' }}>
         <table className="w-full text-left">
           <thead>
-            <tr className="bg-primary/10 border-b border-primary/15">
+            <tr style={{ background: 'hsla(43,72%,50%,0.08)', borderBottom: '1px solid hsla(43,72%,50%,0.15)' }}>
               <th className="text-[18px] text-secondary-foreground/70 py-4 px-8 font-normal tracking-wider">Period</th>
               <th className="text-[18px] text-secondary-foreground/70 py-4 px-8 font-normal tracking-wider">Revenue</th>
               <th className="text-[18px] text-secondary-foreground/70 py-4 px-8 font-normal tracking-wider">Users</th>
@@ -43,7 +49,7 @@ const AskSlide = () => (
           </thead>
           <tbody>
             {projections.map((p, i) => (
-              <tr key={i} className="border-b border-primary/10 last:border-0">
+              <tr key={i} style={{ borderBottom: i < 2 ? '1px solid hsla(43,72%,50%,0.1)' : 'none' }}>
                 <td className="text-[20px] text-secondary-foreground/80 py-4 px-8" style={{ fontFamily: 'Cinzel, serif' }}>{p.year}</td>
                 <td className="text-[22px] text-primary font-bold py-4 px-8">{p.revenue}</td>
                 <td className="text-[20px] text-secondary-foreground/70 py-4 px-8">{p.users}</td>

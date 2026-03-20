@@ -1,47 +1,75 @@
 import SlideLayout from '../SlideLayout';
-import { Gem, Flame, Wheat, FileText, Beef, Building2, Landmark, Palette, Package } from 'lucide-react';
+import goldBullion from '@/assets/gold-bars-rich.jpg';
+import categoryEnergy from '@/assets/category-energy.jpg';
+import categoryAgricultural from '@/assets/category-agricultural.jpg';
+import categoryBonds from '@/assets/category-bonds.jpg';
+import categoryLivestock from '@/assets/category-livestock.jpg';
+import categoryCorporateBonds from '@/assets/category-corporate-bonds.jpg';
+import categoryReits from '@/assets/category-reits.jpg';
+import categoryArt from '@/assets/category-art.jpg';
+import categorySurplus from '@/assets/category-gov-surplus.jpg';
 
 const assets = [
-  { icon: Gem,       name: 'Precious Metals',    desc: 'Gold, Silver, Platinum, Palladium', size: '$12.1T' },
-  { icon: Flame,     name: 'Energy',              desc: 'Crude Oil, Natural Gas, Uranium',   size: '$6.2T' },
-  { icon: Wheat,     name: 'Agricultural',         desc: 'Grains, Coffee, Sugar, Cotton',     size: '$4.8T' },
-  { icon: FileText,  name: 'Bonds',               desc: 'T-Bills, CDs, TIPS, Agency MBS',    size: '$46T' },
-  { icon: Beef,      name: 'Livestock',            desc: 'Cattle, Hogs, Feeder Cattle',       size: '$1.4T' },
-  { icon: Building2, name: 'Corporate Bonds',     desc: 'Investment Grade, High-Yield',       size: '$10.5T' },
-  { icon: Landmark,  name: 'REITs',               desc: 'Commercial, Residential, Industrial', size: '$2.5T' },
-  { icon: Palette,   name: 'Art & Collectibles',  desc: 'Fine Art, Rare Assets, Antiques',    size: '$1.7T' },
-  { icon: Package,   name: 'Gov. Surplus',         desc: 'Equipment, Fleet, Infrastructure',  size: '$0.5T' },
+  { name: 'Precious Metals', desc: 'Gold, Silver, Platinum', size: '$12.1T', image: goldBullion },
+  { name: 'Energy', desc: 'Crude Oil, Natural Gas, Uranium', size: '$6.2T', image: categoryEnergy },
+  { name: 'Agricultural', desc: 'Grains, Coffee, Sugar, Cotton', size: '$4.8T', image: categoryAgricultural },
+  { name: 'Bonds', desc: 'T-Bills, CDs, TIPS, MBS', size: '$46T', image: categoryBonds },
+  { name: 'Livestock', desc: 'Cattle, Hogs, Feeder Cattle', size: '$1.4T', image: categoryLivestock },
+  { name: 'Corporate Bonds', desc: 'Investment Grade, High-Yield', size: '$10.5T', image: categoryCorporateBonds },
+  { name: 'REITs', desc: 'Commercial, Residential', size: '$2.5T', image: categoryReits },
+  { name: 'Art & Collectibles', desc: 'Fine Art, Rare Assets', size: '$1.7T', image: categoryArt },
+  { name: 'Gov. Surplus', desc: 'Equipment, Fleet, Infra', size: '$0.5T', image: categorySurplus },
 ];
 
 const AssetClassesSlide = () => (
   <SlideLayout>
-    <div className="flex flex-col h-full px-[100px] py-[70px]">
+    <div className="flex flex-col h-full px-[80px] py-[60px]">
       <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">Asset Universe</p>
       <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
         Nine <span className="text-gradient-gold">Tokenizable</span> Asset Classes
       </h2>
-      <div className="w-[100px] h-[3px] bg-primary/40 mb-10" />
+      <div className="greek-key-border-rich w-[120px] h-[4px] mb-8 rounded-sm" />
 
-      <div className="grid grid-cols-3 gap-6 flex-1 items-start">
+      <div className="grid grid-cols-3 gap-5 flex-1">
         {assets.map((a, i) => (
-          <div key={i} className="flex gap-5 items-start border border-primary/10 rounded-lg px-6 py-5 bg-secondary/20">
-            <div className="w-[52px] h-[52px] rounded flex items-center justify-center bg-primary/10 border border-primary/20 shrink-0">
-              <a.icon className="w-6 h-6 text-primary" />
-            </div>
-            <div className="flex-1">
+          <div key={i} className="relative rounded-lg overflow-hidden group"
+            style={{
+              border: '1px solid hsla(43,72%,50%,0.25)',
+              boxShadow: '0 4px 20px hsla(43,72%,50%,0.08)',
+            }}
+          >
+            <img src={a.image} alt={a.name} className="absolute inset-0 w-full h-full object-cover" />
+            {/* Dark overlay */}
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, hsla(213,35%,10%,0.5) 0%, hsla(213,35%,10%,0.85) 100%)' }} />
+            
+            {/* Ornate corners */}
+            <span className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
+            <span className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
+            <span className="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
+            <span className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
+
+            {/* Content */}
+            <div className="relative z-10 p-5 flex flex-col h-full justify-end">
               <div className="flex items-baseline justify-between mb-1">
                 <h3 className="text-[22px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{a.name}</h3>
-                <span className="text-[16px] text-primary font-semibold">{a.size}</span>
+                <span className="text-[18px] text-primary font-bold" style={{ fontFamily: 'Cinzel, serif' }}>{a.size}</span>
               </div>
-              <p className="text-[16px] leading-relaxed text-secondary-foreground/50">{a.desc}</p>
+              <p className="text-[15px] text-secondary-foreground/50">{a.desc}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <p className="text-[18px] text-secondary-foreground/40 text-center mt-6">
-        Combined addressable market: <span className="text-primary font-semibold">$85T+</span> in tokenizable real-world assets
-      </p>
+      <div className="mt-6 text-center rounded-lg py-4"
+        style={{
+          background: 'linear-gradient(90deg, hsla(43,72%,50%,0.06) 0%, hsla(43,72%,50%,0.12) 50%, hsla(43,72%,50%,0.06) 100%)',
+          border: '1px solid hsla(43,72%,50%,0.15)',
+        }}
+      >
+        <p className="text-[20px] text-secondary-foreground/60">
+          Combined addressable market: <span className="text-gradient-gold text-[24px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$85T+</span> in tokenizable real-world assets
+        </p>
+      </div>
     </div>
   </SlideLayout>
 );
