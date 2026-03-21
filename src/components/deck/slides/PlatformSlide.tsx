@@ -88,8 +88,8 @@ const PlatformSlide = () => {
                       <img src={s.src} alt={s.label} className="w-full h-full object-cover object-top" />
                     </div>
                     <div>
-                      <h4 className="text-[20px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
-                      <p className="text-[14px] text-secondary-foreground/45 mt-1 line-clamp-2">{s.desc}</p>
+                      <h4 className="text-[17px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
+                      <p className="text-[12px] text-secondary-foreground/45 mt-0.5 line-clamp-2">{s.desc}</p>
                     </div>
                   </div>
                   {/* Progress bar for active */}
