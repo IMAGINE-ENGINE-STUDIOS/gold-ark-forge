@@ -6,9 +6,9 @@ import categoryEnergy from '@/assets/category-energy.jpg';
 import categoryBonds from '@/assets/category-bonds.jpg';
 
 const pillars = [
+  { icon: Flame, title: 'Tokenization of Physical Commodities', desc: 'Convert barrels of crude oil, natural gas, and energy reserves into blockchain-verified digital tokens with full chain-of-custody.', image: categoryEnergy },
   { icon: Coins, title: 'Tokenize', desc: 'Transform physical assets into fractional, tradeable digital tokens backed 1:1 by verified reserves.', image: goldBullion },
-  { icon: Globe, title: 'Trade', desc: 'Buy and sell tokenized commodities instantly with T+0 settlement and 24/7 global access.', image: categoryEnergy },
-  { icon: ShieldCheck, title: 'Trust', desc: 'Every token is anchored to Bitcoin with cryptographic proof-of-reserves and full chain-of-custody.', image: categoryBonds },
+  { icon: Globe, title: 'Trade', desc: 'Buy and sell tokenized commodities instantly with T+0 settlement and 24/7 global access.', image: categoryBonds },
 ];
 
 const assetClasses = [
