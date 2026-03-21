@@ -99,7 +99,7 @@ const PlatformSlide = () => {
                         className="h-full"
                         style={{
                           background: 'linear-gradient(90deg, hsla(43,72%,50%,0.8), hsla(43,72%,50%,0.4))',
-                          animation: 'platformProgress 4s linear both',
+                          animation: 'platformProgress 3.5s linear both',
                         }}
                       />
                     </div>
