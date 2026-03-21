@@ -45,7 +45,7 @@ const AboutSlide = () => {
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s' }}
           >
             <p className="mb-4">
-              Gold Arrow is an <span className="text-primary font-semibold">institutional-grade platform</span> that tokenizes physical commodities into blockchain-verified digital tokens.
+              Gold Arrow is an <span className="text-primary font-semibold">institutional-grade platform</span> that tokenizes, trades, and monitors commodities through blockchain infrastructure.
             </p>
             <p className="text-[18px] text-secondary-foreground/55 leading-relaxed">
               Starting with <span className="text-primary font-medium">crude oil and energy reserves</span>, we create a new global standard for trading, custody, and settlement — spanning precious metals, agriculture, rare earth minerals, and beyond.
