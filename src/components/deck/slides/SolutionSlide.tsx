@@ -71,7 +71,7 @@ const SolutionSlide = () => {
         </p>
 
         {/* Pipeline */}
-        <div className="flex-1 flex items-start relative">
+        <div className="flex-1 flex items-center relative">
           {/* Connecting line background (grey track) */}
           <div
             className="absolute h-[3px] rounded-full"
