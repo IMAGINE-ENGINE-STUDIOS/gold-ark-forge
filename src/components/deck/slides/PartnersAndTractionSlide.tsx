@@ -84,25 +84,6 @@ const PartnersAndTractionSlide = () => {
               </div>
             ))}
 
-            {/* Lobby callout */}
-            <div
-              className="rounded-xl px-10 py-6 mt-2"
-              style={{
-                border: '1px solid hsla(43,72%,50%,0.25)',
-                background: 'linear-gradient(135deg, hsla(43,72%,50%,0.08) 0%, hsla(213,32%,16%,0.5) 100%)',
-                opacity: progress,
-                transform: progress ? 'translateY(0)' : 'translateY(20px)',
-                transition: 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.9s',
-              }}
-            >
-              <h4 className="text-[22px] text-primary mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
-                🏛️ Gold Arrow Lobby Program
-              </h4>
-              <p className="text-[17px] text-secondary-foreground/60 leading-relaxed">
-                $100,000/year subscription connecting governments around the globe through exclusive events
-                to promote international trade, diplomacy, and strategic relationships.
-              </p>
-            </div>
           </div>
 
           {/* Right: Traction metrics */}
