@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import SlideLayout from '../SlideLayout';
 import { Handshake, TrendingUp, Globe, Award } from 'lucide-react';
 import hsbcLogo from '@/assets/hsbc-logo.png';
+import treasuryLogo from '@/assets/treasury-logo.jpg';
 
 const partners = [
   {
@@ -11,8 +12,8 @@ const partners = [
   },
   {
     name: 'U.S. Department of the Treasury',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/US-DeptOfTheTreasury-Seal.svg/200px-US-DeptOfTheTreasury-Seal.svg.png',
-    desc: 'Regulatory alignment & compliance framework',
+    logo: treasuryLogo,
+    desc: 'Selling bonds & regulatory compliance framework',
   },
 ];
 
