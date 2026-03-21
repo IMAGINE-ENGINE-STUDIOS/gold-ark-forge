@@ -165,7 +165,7 @@ const AskSlide = () => {
               ))}
             </div>
 
-            <p className="text-[14px] text-secondary-foreground/35 mt-4 text-right">Revenue model: SaaS fees + 0.15% transaction spread + custody fees</p>
+            <p className="text-[14px] text-secondary-foreground/35 mt-4 text-right">Revenue: SaaS fees + 0.15% spread + custody fees + $100K/yr Gold Arrow Lobby subscriptions</p>
           </div>
         </div>
 
