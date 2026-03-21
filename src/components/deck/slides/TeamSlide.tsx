@@ -9,7 +9,7 @@ const team = [
   { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development', photo: khaliaPadilla as string | null },
   { name: 'Ricardo Font', role: 'Co-Founder', bg: 'Technology vision & platform architecture', photo: ricardoFont as string | null },
   { name: 'James Stuber', role: 'Legal Counsel', bg: 'Securities law, regulatory compliance & international trade', photo: jamesStuber as string | null },
-  { name: 'N. MacDonnell Ulsch', role: 'Senior Advisor', bg: 'Government relations, diplomacy & institutional partnerships', photo: null as string | null },
+  { name: 'N. MacDonnell Ulsch', role: 'Senior Advisor', bg: 'Government relations, diplomacy & institutional partnerships', photo: macdonnellUlsch as string | null },
 ];
 
 const TeamSlide = () => (
