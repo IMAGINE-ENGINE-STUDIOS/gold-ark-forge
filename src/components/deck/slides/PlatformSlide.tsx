@@ -66,7 +66,7 @@ const PlatformSlide = () => {
           </div>
 
           {/* Thumbnail selector */}
-          <div className="w-[400px] flex flex-col gap-5 justify-center">
+          <div className="w-[400px] flex flex-col gap-3 justify-start overflow-y-auto pr-2" style={{ maxHeight: '100%' }}>
             {screenshots.map((s, i) => {
               const isActive = i === activeIndex;
               return (
