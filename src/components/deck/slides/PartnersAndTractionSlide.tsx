@@ -13,15 +13,15 @@ const partners = [
   {
     name: 'U.S. Department of the Treasury',
     logo: treasuryLogo,
-    desc: 'Selling bonds & regulatory compliance framework',
+    desc: 'Bonds provider for the regular market',
   },
 ];
 
 const tractionItems = [
-  { icon: TrendingUp, label: 'Platform Built', value: '100%', desc: '9 asset classes, 101+ instruments live' },
-  { icon: Globe, label: 'Global Reach', value: '6+', desc: 'Jurisdictions with vault partnerships' },
-  { icon: Handshake, label: 'Gold Arrow Lobby', value: '$100K/yr', desc: 'Annual subscription — trade & diplomacy events' },
-  { icon: Award, label: 'Certificates', value: 'Live', desc: 'Digital certification & blockchain anchoring' },
+  { icon: Award, label: 'Certificates', value: 'Live', desc: 'Digital certification & blockchain anchoring — fully operational' },
+  { icon: TrendingUp, label: 'Oil Suppliers', value: 'Tokenizing', desc: 'Onboarding oil suppliers for commodity tokenization' },
+  { icon: Globe, label: 'Secure Vaults', value: 'Partnering', desc: 'Building a global network of secure vault partnerships' },
+  { icon: Handshake, label: 'Government MoUs', value: 'Signing', desc: 'MoUs with local & international governments underway' },
 ];
 
 const PartnersAndTractionSlide = () => {
