@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
 import SlideLayout from '../SlideLayout';
+import screenshotHomepage from '@/assets/screenshot-homepage.png';
 import screenshotIntelligence from '@/assets/screenshot-intelligence.png';
 import screenshotTrading from '@/assets/screenshot-trading.png';
 import screenshotMarketplace from '@/assets/screenshot-marketplace.png';
+import screenshotVault from '@/assets/screenshot-vault.png';
+import screenshotOilgas from '@/assets/screenshot-oilgas.png';
 
 const screenshots = [
-  { src: screenshotIntelligence, label: 'Market Intelligence', desc: '35+ proprietary analytics sections with real-time data across metals, crypto, forex, and energy markets.' },
+  { src: screenshotHomepage, label: 'Homepage', desc: 'Institutional landing with Hellenic design, nine asset class marketplace, and live market data.' },
+  { src: screenshotIntelligence, label: 'Market Intelligence', desc: '35+ proprietary analytics widgets with real-time data across metals, crypto, forex, and energy markets.' },
   { src: screenshotTrading, label: 'Trading Bridge', desc: 'Paper & live trading with one-click execution, bot automation, backtest engine, and cross-asset portfolio management.' },
-  { src: screenshotMarketplace, label: 'Pax Romana Marketplace', desc: '101+ instruments across 6 asset classes with live WebSocket pricing and instant T+0 settlement.' },
+  { src: screenshotMarketplace, label: 'Pax Romana Marketplace', desc: '101+ instruments across 9 asset classes with live WebSocket pricing and instant T+0 settlement.' },
+  { src: screenshotVault, label: 'The Vault', desc: 'Institutional-grade custody with insured, encrypted, and verified bullion holdings and redemption options.' },
+  { src: screenshotOilgas, label: 'Oil & Gas Intelligence', desc: 'Real-time energy analytics powered by EIA, Baker Hughes, IEA, and OPEC data streams.' },
 ];
 
 const PlatformSlide = () => {
@@ -21,7 +27,7 @@ const PlatformSlide = () => {
         setFadeKey(k => k + 1);
         return next;
       });
-    }, 4000);
+    }, 3500);
     return () => clearInterval(interval);
   }, []);
 
@@ -60,7 +66,7 @@ const PlatformSlide = () => {
           </div>
 
           {/* Thumbnail selector */}
-          <div className="w-[400px] flex flex-col gap-5 justify-center">
+          <div className="w-[400px] flex flex-col gap-3 justify-start overflow-y-auto pr-2" style={{ maxHeight: '100%' }}>
             {screenshots.map((s, i) => {
               const isActive = i === activeIndex;
               return (
@@ -77,13 +83,13 @@ const PlatformSlide = () => {
                     transform: isActive ? 'scale(1.02)' : 'scale(1)',
                   }}
                 >
-                  <div className="flex items-center gap-5 p-5">
-                    <div className="w-[100px] h-[60px] rounded-md overflow-hidden shrink-0" style={{ border: '1px solid hsla(43,72%,50%,0.2)' }}>
+                  <div className="flex items-center gap-4 p-4">
+                    <div className="w-[80px] h-[48px] rounded-md overflow-hidden shrink-0" style={{ border: '1px solid hsla(43,72%,50%,0.2)' }}>
                       <img src={s.src} alt={s.label} className="w-full h-full object-cover object-top" />
                     </div>
                     <div>
-                      <h4 className="text-[20px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
-                      <p className="text-[14px] text-secondary-foreground/45 mt-1 line-clamp-2">{s.desc}</p>
+                      <h4 className="text-[17px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
+                      <p className="text-[12px] text-secondary-foreground/45 mt-0.5 line-clamp-2">{s.desc}</p>
                     </div>
                   </div>
                   {/* Progress bar for active */}
@@ -93,7 +99,7 @@ const PlatformSlide = () => {
                         className="h-full"
                         style={{
                           background: 'linear-gradient(90deg, hsla(43,72%,50%,0.8), hsla(43,72%,50%,0.4))',
-                          animation: 'platformProgress 4s linear both',
+                          animation: 'platformProgress 3.5s linear both',
                         }}
                       />
                     </div>
