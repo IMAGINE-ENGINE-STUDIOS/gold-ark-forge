@@ -1,10 +1,11 @@
 import SlideLayout from '../SlideLayout';
 
 const streams = [
-  { name: 'Certification Fees', pct: '45%', desc: 'Per-certificate issuance fees charged to vault partners and dealers for minting digital certificates.' },
-  { name: 'Trading Commissions', pct: '30%', desc: 'Basis-point fees on peer-to-peer transfers and marketplace transactions settled through the platform.' },
-  { name: 'API & Data Licensing', pct: '15%', desc: 'Enterprise API access for verification endpoints, real-time pricing feeds, and reserve proof data.' },
-  { name: 'Premium Intelligence', pct: '10%', desc: 'Subscription revenue from advanced AI analysis, bot automation, and institutional dashboards.' },
+  { name: 'Certification Fees', pct: '35%', desc: 'Per-certificate issuance fees charged to vault partners and dealers for minting digital certificates.' },
+  { name: 'Trading Commissions', pct: '25%', desc: 'Basis-point fees on peer-to-peer transfers and marketplace transactions settled through the platform.' },
+  { name: 'Gold Arrow Lobby', pct: '20%', desc: '$100,000/year subscription — exclusive events connecting governments globally to promote trade, diplomacy & international relationships.' },
+  { name: 'API & Data Licensing', pct: '12%', desc: 'Enterprise API access for verification endpoints, real-time pricing feeds, and reserve proof data.' },
+  { name: 'Premium Intelligence', pct: '8%', desc: 'Subscription revenue from advanced AI analysis, bot automation, and institutional dashboards.' },
 ];
 
 const BusinessModelSlide = () => (

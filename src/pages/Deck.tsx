@@ -8,6 +8,7 @@ import ProblemSlide from '@/components/deck/slides/ProblemSlide';
 import SolutionSlide from '@/components/deck/slides/SolutionSlide';
 import AssetClassesSlide from '@/components/deck/slides/AssetClassesSlide';
 import PlatformSlide from '@/components/deck/slides/PlatformSlide';
+import BusinessModelSlide from '@/components/deck/slides/BusinessModelSlide';
 import MarketSlide from '@/components/deck/slides/MarketSlide';
 import AskSlide from '@/components/deck/slides/AskSlide';
 import TeamSlide from '@/components/deck/slides/TeamSlide';
@@ -19,9 +20,10 @@ const slideComponents = [
   <SolutionSlide />,     // 4 — The Solution
   <AssetClassesSlide />, // 5 — 9 Asset Classes
   <PlatformSlide />,     // 6 — Platform Features
-  <MarketSlide />,       // 7 — Market Opportunity
-  <AskSlide />,          // 8 — The Ask & Financials
-  <TeamSlide />,         // 9 — Team
+  <BusinessModelSlide />,// 7 — Business Model
+  <MarketSlide />,       // 8 — Market Opportunity
+  <AskSlide />,          // 9 — The Ask & Financials
+  <TeamSlide />,         // 10 — Team
 ];
 
 const Deck = () => {
