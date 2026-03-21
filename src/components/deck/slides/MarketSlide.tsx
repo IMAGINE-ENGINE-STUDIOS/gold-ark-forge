@@ -3,11 +3,11 @@ import SlideLayout from '../SlideLayout';
 
 /* ── 5-Year commodity market growth projections ── */
 const markets = [
-  { label: 'Bonds & Fixed Income', now: 46, y5: 58, color: 'hsla(43,72%,55%,1)' },
+  { label: 'Bonds & Fixed Income', now: 56.5, y5: 68, color: 'hsla(43,72%,55%,1)' },
   { label: 'Precious Metals', now: 12.1, y5: 16.8, color: 'hsla(43,72%,50%,0.9)' },
-  { label: 'Corporate Bonds', now: 10.5, y5: 14.2, color: 'hsla(43,72%,45%,0.85)' },
-  { label: 'Energy', now: 6.2, y5: 9.1, color: 'hsla(43,60%,48%,0.8)' },
-  { label: 'Agricultural', now: 4.8, y5: 6.5, color: 'hsla(43,55%,44%,0.75)' },
+  { label: 'Energy', now: 6.2, y5: 9.1, color: 'hsla(43,72%,45%,0.85)' },
+  { label: 'Agricultural', now: 4.8, y5: 6.5, color: 'hsla(43,60%,48%,0.8)' },
+  { label: 'Rare Earth Minerals', now: 3.2, y5: 5.4, color: 'hsla(43,55%,44%,0.75)' },
   { label: 'REITs', now: 2.5, y5: 3.8, color: 'hsla(43,50%,42%,0.7)' },
   { label: 'Art & Collectibles', now: 1.7, y5: 2.9, color: 'hsla(43,45%,40%,0.65)' },
   { label: 'Livestock', now: 1.4, y5: 1.9, color: 'hsla(43,40%,38%,0.6)' },
