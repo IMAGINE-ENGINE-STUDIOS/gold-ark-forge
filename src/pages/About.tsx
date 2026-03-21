@@ -59,11 +59,11 @@ const About = () => {
             Our Mission
           </h2>
           <p className="text-marble/80 text-lg leading-relaxed text-center">
-            Gold Arrow is creating a new standard for commodity trading through 
-            tokenization. We transform physical assets — precious metals, energy, 
-            agricultural products — into blockchain-verified digital tokens, enabling 
-            instant settlement, transparent provenance, and non-custodial ownership 
-            for investors worldwide.
+            Gold Arrow is an institutional-grade platform that tokenizes, trades, 
+            and monitors commodities through blockchain infrastructure. Starting with 
+            crude oil and energy reserves, we create a new global standard for trading, 
+            custody, and settlement — spanning precious metals, agriculture, rare earth 
+            minerals, and beyond.
           </p>
           <div className="greek-key-border h-1 mt-8" />
         </div>
