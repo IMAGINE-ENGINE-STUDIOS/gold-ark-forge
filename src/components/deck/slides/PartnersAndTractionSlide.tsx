@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import SlideLayout from '../SlideLayout';
 import { Handshake, TrendingUp, Globe, Award } from 'lucide-react';
+import hsbcLogo from '@/assets/hsbc-logo.png';
 
 const partners = [
   {
     name: 'HSBC',
-    logo: 'https://logo.clearbit.com/hsbc.com',
+    logo: hsbcLogo,
     desc: 'Global banking & custody partnership',
   },
   {
