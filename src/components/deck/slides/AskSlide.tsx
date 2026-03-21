@@ -100,11 +100,11 @@ const AskSlide = () => {
           <div className="flex-1 flex flex-col">
             <p className="text-[15px] tracking-[0.2em] uppercase text-primary/50 mb-6">5-Year Revenue Projection</p>
 
-            <div className="flex-1 flex items-end gap-6 pb-2">
+            <div className="flex items-end gap-6 pb-2" style={{ height: '380px' }}>
               {earnings.map((e, i) => {
-                const heightPct = (e.revenue / maxRevenue) * 100;
+                const barHeight = (e.revenue / maxRevenue) * 340;
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-3">
+                  <div key={i} className="flex-1 flex flex-col items-center gap-3" style={{ height: '100%', justifyContent: 'flex-end' }}>
                     {/* Value label */}
                     <span
                       className="text-[18px] font-bold text-primary"
@@ -120,15 +120,13 @@ const AskSlide = () => {
                     <div
                       className="w-full rounded-t-lg relative overflow-hidden"
                       style={{
-                        height: barsVisible ? `${Math.max(heightPct, 5)}%` : '0%',
-                        maxHeight: '380px',
+                        height: barsVisible ? `${Math.max(barHeight, 16)}px` : '0px',
                         background: `linear-gradient(to top, hsla(43,72%,50%,${0.3 + i * 0.12}), hsla(43,72%,50%,${0.6 + i * 0.08}))`,
                         border: '1px solid hsla(43,72%,50%,0.3)',
                         borderBottom: 'none',
                         transition: `height 1s cubic-bezier(0.22, 1, 0.36, 1) ${0.4 + i * 0.2}s`,
                       }}
                     >
-                      {/* Shimmer */}
                       <div
                         className="absolute inset-0"
                         style={{
