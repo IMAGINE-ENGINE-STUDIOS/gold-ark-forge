@@ -12,8 +12,8 @@ const pillars = [
 ];
 
 const assetClasses = [
+  { icon: Flame, name: 'Energy (Oil & Gas)' },
   { icon: Gem, name: 'Precious Metals' },
-  { icon: Flame, name: 'Energy' },
   { icon: Wheat, name: 'Agriculture' },
   { icon: FileText, name: 'Bonds' },
   { icon: Beef, name: 'Livestock' },
