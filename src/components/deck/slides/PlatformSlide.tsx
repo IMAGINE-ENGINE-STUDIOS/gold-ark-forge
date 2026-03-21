@@ -84,7 +84,7 @@ const PlatformSlide = () => {
                   }}
                 >
                   <div className="flex items-center gap-4 p-4">
-                    <div className="w-[100px] h-[60px] rounded-md overflow-hidden shrink-0" style={{ border: '1px solid hsla(43,72%,50%,0.2)' }}>
+                    <div className="w-[80px] h-[48px] rounded-md overflow-hidden shrink-0" style={{ border: '1px solid hsla(43,72%,50%,0.2)' }}>
                       <img src={s.src} alt={s.label} className="w-full h-full object-cover object-top" />
                     </div>
                     <div>
