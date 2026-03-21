@@ -12,8 +12,8 @@ const pillars = [
 ];
 
 const assetClasses = [
+  { icon: Flame, name: 'Energy (Oil & Gas)' },
   { icon: Gem, name: 'Precious Metals' },
-  { icon: Flame, name: 'Energy' },
   { icon: Wheat, name: 'Agriculture' },
   { icon: FileText, name: 'Bonds' },
   { icon: Beef, name: 'Livestock' },
@@ -40,13 +40,17 @@ const AboutSlide = () => {
             <div className="greek-key-border-rich w-[120px] h-[4px] mb-8 rounded-sm" />
           </div>
 
-          <p
-            className="text-[22px] leading-relaxed text-secondary-foreground/70 mb-10 max-w-[750px]"
+          <div
+            className="text-[20px] leading-[1.8] text-secondary-foreground/70 mb-10 max-w-[750px]"
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s' }}
           >
-            Gold Arrow is an institutional-grade platform that{' '}
-            <span className="text-primary font-semibold">tokenizes physical commodities</span> — precious metals, energy, and agricultural assets — into blockchain-verified digital tokens, creating a new global standard for trading, custody, and settlement.
-          </p>
+            <p className="mb-4">
+              Gold Arrow is an <span className="text-primary font-semibold">institutional-grade platform</span> that tokenizes physical commodities into blockchain-verified digital tokens.
+            </p>
+            <p className="text-[18px] text-secondary-foreground/55 leading-relaxed">
+              Starting with <span className="text-primary font-medium">crude oil and energy reserves</span>, we create a new global standard for trading, custody, and settlement — spanning precious metals, agriculture, rare earth minerals, and beyond.
+            </p>
+          </div>
 
           {/* Asset classes */}
           <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1) 0.5s' }}>
