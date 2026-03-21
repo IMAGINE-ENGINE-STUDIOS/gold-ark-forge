@@ -96,77 +96,47 @@ const AskSlide = () => {
             </div>
           </div>
 
-          {/* Right: 5-Year Earnings Growth — Animated Curve */}
+          {/* Right: 5-Year Earnings Growth */}
           <div className="flex-1 flex flex-col">
             <p className="text-[15px] tracking-[0.2em] uppercase text-primary/50 mb-6">5-Year Revenue Projection</p>
 
-            {(() => {
-              const cW = 580, cH = 380;
-              const pL = 55, pR = 25, pT = 40, pB = 50;
-              const plotW = cW - pL - pR, plotH = cH - pT - pB;
+            <div className="flex items-end gap-6 pb-2" style={{ height: '380px' }}>
+              {earnings.map((e, i) => {
+                const barHeight = (e.revenue / maxRevenue) * 340;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-3" style={{ height: '100%', justifyContent: 'flex-end' }}>
+                    <span
+                      className="text-[18px] font-bold text-primary"
+                      style={{
+                        fontFamily: 'Cinzel, serif',
+                        opacity: barsVisible ? 1 : 0,
+                        transition: `opacity 0.5s ease ${0.8 + i * 0.15}s`,
+                      }}
+                    >
+                      ${e.revenue}M
+                    </span>
+                    <div
+                      className="w-full rounded-t-lg relative overflow-hidden"
+                      style={{
+                        height: barsVisible ? `${Math.max(barHeight, 16)}px` : '0px',
+                        background: `linear-gradient(to top, hsla(43,72%,50%,${0.3 + i * 0.12}), hsla(43,72%,50%,${0.6 + i * 0.08}))`,
+                        border: '1px solid hsla(43,72%,50%,0.3)',
+                        borderBottom: 'none',
+                        transition: `height 1s cubic-bezier(0.22, 1, 0.36, 1) ${0.4 + i * 0.2}s`,
+                      }}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{ background: 'linear-gradient(180deg, hsla(43,72%,70%,0.15) 0%, transparent 60%)' }}
+                      />
+                    </div>
+                    <span className="text-[16px] text-secondary-foreground/50" style={{ fontFamily: 'Cinzel, serif' }}>{e.year}</span>
+                  </div>
+                );
+              })}
+            </div>
 
-              const pts = earnings.map((e, i) => ({
-                x: pL + (i / (earnings.length - 1)) * plotW,
-                y: pT + plotH - (e.revenue / maxRevenue) * plotH,
-                ...e,
-              }));
-
-              const linePath = pts.reduce((acc, p, i) => {
-                if (i === 0) return `M ${p.x} ${p.y}`;
-                const prev = pts[i - 1];
-                const cx1 = prev.x + (p.x - prev.x) * 0.4;
-                const cx2 = p.x - (p.x - prev.x) * 0.4;
-                return `${acc} C ${cx1} ${prev.y}, ${cx2} ${p.y}, ${p.x} ${p.y}`;
-              }, '');
-
-              const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${pT + plotH} L ${pts[0].x} ${pT + plotH} Z`;
-
-              return (
-                <div className="relative" style={{ width: cW, height: cH }}>
-                  <svg width={cW} height={cH}>
-                    {[0, 50, 100, 150].map(v => {
-                      const y = pT + plotH - (v / maxRevenue) * plotH;
-                      return (
-                        <g key={v}>
-                          <line x1={pL} y1={y} x2={pL + plotW} y2={y} stroke="hsla(43,72%,50%,0.07)" strokeWidth="1" />
-                          <text x={pL - 8} y={y + 4} textAnchor="end" fill="hsla(0,0%,100%,0.3)" fontSize="12" fontFamily="Source Sans 3, sans-serif">${v}M</text>
-                        </g>
-                      );
-                    })}
-                    <defs>
-                      <linearGradient id="askAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsla(43,72%,50%,0.3)" />
-                        <stop offset="100%" stopColor="hsla(43,72%,50%,0)" />
-                      </linearGradient>
-                      <clipPath id="askReveal">
-                        <rect x={pL} y={pT} height={plotH} style={{ width: barsVisible ? plotW : 0, transition: 'width 2.5s cubic-bezier(0.22,1,0.36,1) 0.3s' }} />
-                      </clipPath>
-                    </defs>
-                    <path d={areaPath} fill="url(#askAreaGrad)" clipPath="url(#askReveal)" />
-                    <path d={linePath} fill="none" stroke="hsla(43,72%,50%,1)" strokeWidth="3" strokeLinecap="round"
-                      strokeDasharray="1200" strokeDashoffset={barsVisible ? 0 : 1200}
-                      style={{ transition: 'stroke-dashoffset 2.5s cubic-bezier(0.22,1,0.36,1) 0.3s', filter: 'drop-shadow(0 0 6px hsla(43,72%,50%,0.4))' }} />
-                    {pts.map((p, i) => (
-                      <g key={i}>
-                        <line x1={p.x} y1={p.y} x2={p.x} y2={pT + plotH} stroke="hsla(43,72%,50%,0.1)" strokeDasharray="4 4"
-                          style={{ opacity: barsVisible ? 1 : 0, transition: `opacity 0.4s ease ${1 + i * 0.3}s` }} />
-                        <circle cx={p.x} cy={p.y} r="10" fill="hsla(43,72%,50%,0.12)"
-                          style={{ opacity: barsVisible ? 1 : 0, transition: `opacity 0.3s ease ${0.9 + i * 0.35}s` }} />
-                        <circle cx={p.x} cy={p.y} r="5" fill="hsla(43,72%,50%,1)" stroke="hsla(213,35%,10%,1)" strokeWidth="2.5"
-                          style={{ opacity: barsVisible ? 1 : 0, transition: `opacity 0.3s ease ${0.9 + i * 0.35}s` }} />
-                        <text x={p.x} y={p.y - 16} textAnchor="middle" fill="hsla(43,72%,50%,1)" fontSize="15" fontWeight="bold" fontFamily="Cinzel, serif"
-                          style={{ opacity: barsVisible ? 1 : 0, transition: `opacity 0.4s ease ${1.2 + i * 0.35}s` }}>
-                          ${p.revenue}M
-                        </text>
-                        <text x={p.x} y={pT + plotH + 26} textAnchor="middle" fill="hsla(0,0%,100%,0.45)" fontSize="15" fontFamily="Cinzel, serif">
-                          {p.year}
-                        </text>
-                      </g>
-                    ))}
-                  </svg>
-                </div>
-              );
-            })()}
+            <div className="h-[2px] rounded-full mt-1" style={{ background: 'hsla(43,72%,50%,0.2)' }} />
 
             {/* Metrics row */}
             <div className="grid grid-cols-3 gap-4 mt-6">
