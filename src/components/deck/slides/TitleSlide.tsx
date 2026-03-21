@@ -30,7 +30,7 @@ const TitleSlide = () => (
       <div className="greek-key-border-rich w-[200px] h-[4px] my-10 rounded-sm" />
 
       <p className="text-[22px] text-secondary-foreground/50 max-w-[1100px] leading-relaxed mb-8 tracking-wide">
-        Precious Metals <span className="text-gradient-gold mx-2">·</span> Energy <span className="text-gradient-gold mx-2">·</span> Agriculture <span className="text-gradient-gold mx-2">·</span> Bonds <span className="text-gradient-gold mx-2">·</span> Livestock <span className="text-gradient-gold mx-2">·</span> Corporate Bonds <span className="text-gradient-gold mx-2">·</span> REITs <span className="text-gradient-gold mx-2">·</span> Art <span className="text-gradient-gold mx-2">·</span> Gov. Surplus
+        Precious Metals <span className="text-gradient-gold mx-2">·</span> Energy <span className="text-gradient-gold mx-2">·</span> Agriculture <span className="text-gradient-gold mx-2">·</span> Bonds <span className="text-gradient-gold mx-2">·</span> Livestock <span className="text-gradient-gold mx-2">·</span> Rare Earth Minerals <span className="text-gradient-gold mx-2">·</span> REITs <span className="text-gradient-gold mx-2">·</span> Art <span className="text-gradient-gold mx-2">·</span> Gov. Surplus
       </p>
 
       <p className="text-[24px] text-primary/80 tracking-[0.15em]" style={{ fontFamily: 'Cinzel, serif' }}>
