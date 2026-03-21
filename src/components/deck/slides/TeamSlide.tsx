@@ -1,11 +1,12 @@
 import SlideLayout from '../SlideLayout';
 import { User } from 'lucide-react';
+import jamesStuber from '@/assets/james-stuber.jpg';
 
 const team = [
-  { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development' },
-  { name: 'Ricardo Font', role: 'Co-Founder', bg: 'Technology vision & platform architecture' },
-  { name: 'James Stuber', role: 'Legal Counsel', bg: 'Securities law, regulatory compliance & international trade' },
-  { name: 'N. MacDonnell Ulsch', role: 'Senior Advisor', bg: 'Government relations, diplomacy & institutional partnerships' },
+  { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development', photo: null as string | null },
+  { name: 'Ricardo Font', role: 'Co-Founder', bg: 'Technology vision & platform architecture', photo: null as string | null },
+  { name: 'James Stuber', role: 'Legal Counsel', bg: 'Securities law, regulatory compliance & international trade', photo: jamesStuber as string | null },
+  { name: 'N. MacDonnell Ulsch', role: 'Senior Advisor', bg: 'Government relations, diplomacy & institutional partnerships', photo: null as string | null },
 ];
 
 const TeamSlide = () => (
@@ -20,14 +21,18 @@ const TeamSlide = () => (
       <div className="grid grid-cols-4 gap-10 flex-1 items-start">
         {team.map((t, i) => (
           <div key={i} className="flex flex-col items-center text-center group">
-            <div className="w-[140px] h-[140px] rounded-full flex items-center justify-center mb-6 transition-all duration-500 group-hover:scale-105"
+            <div className="w-[140px] h-[140px] rounded-full flex items-center justify-center mb-6 transition-all duration-500 group-hover:scale-105 overflow-hidden"
               style={{
                 border: '2px solid hsla(43,72%,50%,0.35)',
-                background: 'radial-gradient(circle, hsla(43,72%,50%,0.1) 0%, transparent 70%)',
+                background: t.photo ? 'transparent' : 'radial-gradient(circle, hsla(43,72%,50%,0.1) 0%, transparent 70%)',
                 boxShadow: '0 0 30px hsla(43,72%,50%,0.08)',
               }}
             >
-              <User className="w-14 h-14 text-primary/40" />
+              {t.photo ? (
+                <img src={t.photo} alt={t.name} className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-14 h-14 text-primary/40" />
+              )}
             </div>
             <h3 className="text-[26px] text-secondary-foreground mb-1" style={{ fontFamily: 'Cinzel, serif' }}>{t.name}</h3>
             <p className="text-[19px] text-primary/70 mb-3">{t.role}</p>
