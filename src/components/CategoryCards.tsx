@@ -7,9 +7,9 @@ import categoryAgricultural from '@/assets/category-agricultural.jpg';
 import categoryBonds from '@/assets/category-bonds.jpg';
 import categorySurplus from '@/assets/category-gov-surplus.jpg';
 import categoryLivestock from '@/assets/category-livestock.jpg';
-import categoryCorporateBonds from '@/assets/category-corporate-bonds.jpg';
 import categoryReits from '@/assets/category-reits.jpg';
 import categoryArt from '@/assets/category-art.jpg';
+import categoryRareEarth from '@/assets/category-rare-earth.jpg';
 
 const categories = [
   {
@@ -50,7 +50,7 @@ const categories = [
   },
   {
     name: 'Bonds',
-    description: 'CDs, T-Bills, TIPS, Agency MBS & High-Yield Savings',
+    description: 'T-Bills, CDs, TIPS, Corporate IG/HY & Agency MBS',
     image: categoryBonds,
     href: '/marketplace',
     accentClass: 'from-sky-400/80 to-sky-400/20',
@@ -61,17 +61,18 @@ const categories = [
       'Treasury Bills (T-Bills)',
       'Treasury Inflation-Protected Securities (TIPS)',
       'Agency Mortgage-Backed Securities (MBS)',
-      'High-Yield Savings & Money Market Accounts',
+      'Investment Grade Corporate Bonds',
+      'High-Yield Corporate Bonds',
     ],
   },
   {
-    name: 'Corporate Bonds',
-    description: 'High-grade AAA/AA corporate debt instruments',
-    image: categoryCorporateBonds,
+    name: 'Rare Earth Minerals',
+    description: 'Lithium, cobalt, neodymium & critical elements',
+    image: categoryRareEarth,
     href: '/marketplace',
-    accentClass: 'from-indigo-400/80 to-indigo-400/20',
-    borderClass: 'border-indigo-400/30 hover:border-indigo-400/60',
-    tagClass: 'bg-indigo-400/20 text-indigo-300',
+    accentClass: 'from-cyan-400/80 to-cyan-400/20',
+    borderClass: 'border-cyan-400/30 hover:border-cyan-400/60',
+    tagClass: 'bg-cyan-400/20 text-cyan-300',
   },
   {
     name: 'REITs',

@@ -17,8 +17,8 @@ const assetClasses = [
   { icon: Wheat, name: 'Agriculture' },
   { icon: FileText, name: 'Bonds' },
   { icon: Beef, name: 'Livestock' },
-  { icon: Building2, name: 'Corporate Bonds' },
-  { icon: Landmark, name: 'REITs' },
+  { icon: Landmark, name: 'Rare Earth Minerals' },
+  { icon: Building2, name: 'REITs' },
   { icon: Palette, name: 'Art & Collectibles' },
   { icon: Package, name: 'Gov. Surplus' },
 ];
