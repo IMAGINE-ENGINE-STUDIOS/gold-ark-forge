@@ -3,6 +3,7 @@ import { User } from 'lucide-react';
 import jamesStuber from '@/assets/james-stuber.jpg';
 import ricardoFont from '@/assets/ricardo-font.png';
 import khaliaPadilla from '@/assets/khalia-padilla.png';
+import macdonnellUlsch from '@/assets/macdonnell-ulsch.jpg';
 
 const team = [
   { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development', photo: khaliaPadilla as string | null },
