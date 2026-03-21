@@ -27,7 +27,7 @@ const PlatformSlide = () => {
         setFadeKey(k => k + 1);
         return next;
       });
-    }, 4000);
+    }, 3500);
     return () => clearInterval(interval);
   }, []);
 
