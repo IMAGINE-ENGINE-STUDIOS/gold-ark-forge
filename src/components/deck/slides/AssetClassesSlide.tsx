@@ -67,7 +67,7 @@ const AssetClassesSlide = () => (
         }}
       >
         <p className="text-[20px] text-secondary-foreground/60">
-          Combined addressable market: <span className="text-gradient-gold text-[24px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$85T+</span> in tokenizable real-world assets
+          Combined addressable market: <span className="text-gradient-gold text-[24px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$88T+</span> in tokenizable real-world assets
         </p>
       </div>
     </div>
