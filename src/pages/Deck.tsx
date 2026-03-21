@@ -13,6 +13,7 @@ import MarketSlide from '@/components/deck/slides/MarketSlide';
 import AskSlide from '@/components/deck/slides/AskSlide';
 import TeamSlide from '@/components/deck/slides/TeamSlide';
 import PartnersAndTractionSlide from '@/components/deck/slides/PartnersAndTractionSlide';
+import ThankYouSlide from '@/components/deck/slides/ThankYouSlide';
 
 const slideComponents = [
   <TitleSlide />,                // 1 — Cover
@@ -26,6 +27,7 @@ const slideComponents = [
   <AskSlide />,                  // 9 — The Ask & Financials
   <TeamSlide />,                 // 10 — Team
   <PartnersAndTractionSlide />,  // 11 — Partners & Traction
+  <ThankYouSlide />,             // 12 — Thank You
 ];
 
 const Deck = () => {
