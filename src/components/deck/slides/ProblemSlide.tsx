@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import SlideLayout from '../SlideLayout';
-import { AlertTriangle, Eye, Lock, Globe } from 'lucide-react';
+import { TrendingDown, Store, SearchX, Building2 } from 'lucide-react';
 
 const problems = [
-  { icon: Eye, title: 'Opacity', desc: 'No transparent, verifiable chain-of-custody for physical commodities across global institutional markets.', stat: '0%', statLabel: 'Digital Verification' },
-  { icon: Lock, title: 'Counterparty Risk', desc: 'Paper certificates and legacy registries lack cryptographic proof, enabling fraud and double-pledging.', stat: '$85T+', statLabel: 'Exposed Assets' },
-  { icon: Globe, title: 'Fragmented Markets', desc: 'Nine major commodity classes with no unified digital registry, no cross-border verification standard.', stat: '9', statLabel: 'Siloed Markets' },
-  { icon: AlertTriangle, title: 'Audit Gaps', desc: 'Annual audits leave 364 days of unverified custody status across metals, bonds, REITs, and surplus assets.', stat: '364', statLabel: 'Blind Days/Year' },
+  { icon: TrendingDown, title: 'No Real-Time Tracking', desc: 'Commodities markets lack unified real-time tracking tools, leaving institutions blind to price movements, supply shifts, and custody status across global markets.', stat: '0', statLabel: 'Real-Time Platforms' },
+  { icon: Store, title: 'No Unified Marketplace', desc: 'There is no single marketplace to acquire national and international commodity assets — buyers must navigate fragmented brokers, exchanges, and OTC desks across jurisdictions.', stat: '50+', statLabel: 'Fragmented Exchanges' },
+  { icon: SearchX, title: 'Unreliable Sources', desc: 'Finding trustworthy, verified sources for physical commodities requires extensive research and due diligence, with no standardized vetting or transparent provenance system.', stat: '6–12mo', statLabel: 'Avg. Due Diligence' },
+  { icon: Building2, title: 'No Tokenization Infrastructure', desc: 'Governments and institutions have no existing infrastructure to tokenize physical commodities — no digital registry, no blockchain verification, no fractional ownership framework.', stat: '$0', statLabel: 'Tokenized Gov. Assets' },
 ];
 
 const ProblemSlide = () => {
