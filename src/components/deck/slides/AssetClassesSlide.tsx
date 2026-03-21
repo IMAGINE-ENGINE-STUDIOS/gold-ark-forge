@@ -4,18 +4,18 @@ import categoryEnergy from '@/assets/category-energy.jpg';
 import categoryAgricultural from '@/assets/category-agricultural.jpg';
 import categoryBonds from '@/assets/category-bonds.jpg';
 import categoryLivestock from '@/assets/category-livestock.jpg';
-import categoryCorporateBonds from '@/assets/category-corporate-bonds.jpg';
 import categoryReits from '@/assets/category-reits.jpg';
 import categoryArt from '@/assets/category-art.jpg';
 import categorySurplus from '@/assets/category-gov-surplus.jpg';
+import categoryRareEarth from '@/assets/category-rare-earth.jpg';
 
 const assets = [
   { name: 'Precious Metals', desc: 'Gold, Silver, Platinum', size: '$12.1T', image: goldBullion },
   { name: 'Energy', desc: 'Crude Oil, Natural Gas, Uranium', size: '$6.2T', image: categoryEnergy },
   { name: 'Agricultural', desc: 'Grains, Coffee, Sugar, Cotton', size: '$4.8T', image: categoryAgricultural },
-  { name: 'Bonds', desc: 'T-Bills, CDs, TIPS, MBS', size: '$46T', image: categoryBonds },
+  { name: 'Bonds', desc: 'T-Bills, CDs, TIPS, Corporate IG/HY', size: '$56.5T', image: categoryBonds },
   { name: 'Livestock', desc: 'Cattle, Hogs, Feeder Cattle', size: '$1.4T', image: categoryLivestock },
-  { name: 'Corporate Bonds', desc: 'Investment Grade, High-Yield', size: '$10.5T', image: categoryCorporateBonds },
+  { name: 'Rare Earth Minerals', desc: 'Lithium, Cobalt, Neodymium', size: '$3.2T', image: categoryRareEarth },
   { name: 'REITs', desc: 'Commercial, Residential', size: '$2.5T', image: categoryReits },
   { name: 'Art & Collectibles', desc: 'Fine Art, Rare Assets', size: '$1.7T', image: categoryArt },
   { name: 'Gov. Surplus', desc: 'Equipment, Fleet, Infra', size: '$0.5T', image: categorySurplus },
@@ -67,7 +67,7 @@ const AssetClassesSlide = () => (
         }}
       >
         <p className="text-[20px] text-secondary-foreground/60">
-          Combined addressable market: <span className="text-gradient-gold text-[24px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$85T+</span> in tokenizable real-world assets
+          Combined addressable market: <span className="text-gradient-gold text-[24px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$88T+</span> in tokenizable real-world assets
         </p>
       </div>
     </div>
