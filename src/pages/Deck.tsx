@@ -12,18 +12,20 @@ import BusinessModelSlide from '@/components/deck/slides/BusinessModelSlide';
 import MarketSlide from '@/components/deck/slides/MarketSlide';
 import AskSlide from '@/components/deck/slides/AskSlide';
 import TeamSlide from '@/components/deck/slides/TeamSlide';
+import PartnersAndTractionSlide from '@/components/deck/slides/PartnersAndTractionSlide';
 
 const slideComponents = [
-  <TitleSlide />,        // 1 — Cover
-  <AboutSlide />,        // 2 — What is Gold Arrow
-  <ProblemSlide />,      // 3 — The Problem
-  <SolutionSlide />,     // 4 — The Solution
-  <AssetClassesSlide />, // 5 — 9 Asset Classes
-  <PlatformSlide />,     // 6 — Platform Features
-  <BusinessModelSlide />,// 7 — Business Model
-  <MarketSlide />,       // 8 — Market Opportunity
-  <AskSlide />,          // 9 — The Ask & Financials
-  <TeamSlide />,         // 10 — Team
+  <TitleSlide />,                // 1 — Cover
+  <AboutSlide />,                // 2 — What is Gold Arrow
+  <ProblemSlide />,              // 3 — The Problem
+  <SolutionSlide />,             // 4 — The Solution
+  <AssetClassesSlide />,         // 5 — 9 Asset Classes
+  <PlatformSlide />,             // 6 — Platform Features
+  <BusinessModelSlide />,        // 7 — Business Model
+  <MarketSlide />,               // 8 — Market Opportunity
+  <AskSlide />,                  // 9 — The Ask & Financials
+  <TeamSlide />,                 // 10 — Team
+  <PartnersAndTractionSlide />,  // 11 — Partners & Traction
 ];
 
 const Deck = () => {
