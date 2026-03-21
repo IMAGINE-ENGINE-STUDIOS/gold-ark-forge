@@ -1,52 +1,122 @@
+import { useState, useEffect } from 'react';
 import SlideLayout from '../SlideLayout';
-import { ShoppingCart, Vault, BarChart3, ArrowLeftRight, Bot, Shield } from 'lucide-react';
+import screenshotIntelligence from '@/assets/screenshot-intelligence.png';
+import screenshotTrading from '@/assets/screenshot-trading.png';
+import screenshotMarketplace from '@/assets/screenshot-marketplace.png';
 
-const features = [
-  { icon: ShoppingCart, name: 'Tokenized Marketplace', desc: 'Browse, verify, and acquire tokenized commodity assets with full provenance and instant T+0 settlement across nine asset classes.' },
-  { icon: Shield, name: 'Digital Certificates', desc: 'Cryptographic certificates with multi-party signatures, Bitcoin anchoring, and tamper-proof chain-of-custody for every tokenized asset.' },
-  { icon: ArrowLeftRight, name: 'Trading Bridge', desc: 'Paper and live trading with broker integration, one-click execution, limit-order automation, and cross-asset portfolio management.' },
-  { icon: BarChart3, name: 'Real-Time Verification', desc: 'Any counterparty can verify asset authenticity, custody status, and chain-of-title in seconds — accessible from anywhere globally.' },
-  { icon: Vault, name: 'International Vault Network', desc: 'Non-custodial ownership across insured vaults worldwide. Manage holdings, track custody, and initiate peer-to-peer transfers on-chain.' },
-  { icon: Bot, name: 'AI Trading Intelligence', desc: 'Genius strategy advisor, Wave bot, backtest engine, and automated risk management powered by AI across all asset classes.' },
+const screenshots = [
+  { src: screenshotIntelligence, label: 'Market Intelligence', desc: '35+ proprietary analytics sections with real-time data across metals, crypto, forex, and energy markets.' },
+  { src: screenshotTrading, label: 'Trading Bridge', desc: 'Paper & live trading with one-click execution, bot automation, backtest engine, and cross-asset portfolio management.' },
+  { src: screenshotMarketplace, label: 'Pax Romana Marketplace', desc: '101+ instruments across 6 asset classes with live WebSocket pricing and instant T+0 settlement.' },
 ];
 
-const PlatformSlide = () => (
-  <SlideLayout>
-    <div className="flex flex-col h-full px-[100px] py-[70px]">
-      <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Platform</p>
-      <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
-        Tokenization <span className="text-gradient-gold">Platform</span>
-      </h2>
-      <div className="greek-key-border-rich w-[120px] h-[4px] mb-10 rounded-sm" />
+const PlatformSlide = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [fadeKey, setFadeKey] = useState(0);
 
-      <div className="grid grid-cols-2 gap-7 flex-1">
-        {features.map((f, i) => (
-          <div key={i} className="rounded-lg p-7 flex gap-6 items-start"
-            style={{
-              borderLeft: '3px solid hsla(43,72%,50%,0.4)',
-              border: '1px solid hsla(43,72%,50%,0.12)',
-              borderLeftWidth: '3px',
-              borderLeftColor: 'hsla(43,72%,50%,0.4)',
-              background: 'linear-gradient(135deg, hsla(213,32%,16%,0.5) 0%, hsla(213,35%,10%,0.3) 100%)',
-            }}
-          >
-            <div className="w-[64px] h-[64px] rounded-lg flex items-center justify-center shrink-0"
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveIndex(prev => {
+        const next = (prev + 1) % screenshots.length;
+        setFadeKey(k => k + 1);
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const active = screenshots[activeIndex];
+
+  return (
+    <SlideLayout>
+      <div className="flex flex-col h-full px-[100px] py-[70px]">
+        <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Platform</p>
+        <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
+          Tokenization <span className="text-gradient-gold">Platform</span>
+        </h2>
+        <div className="greek-key-border-rich w-[120px] h-[4px] mb-8 rounded-sm" />
+
+        <div className="flex gap-10 flex-1 min-h-0">
+          {/* Screenshot area */}
+          <div className="flex-1 relative rounded-xl overflow-hidden" style={{ border: '2px solid hsla(43,72%,50%,0.25)', boxShadow: '0 0 60px hsla(43,72%,50%,0.1), 0 20px 60px hsla(0,0%,0%,0.4)' }}>
+            <img
+              key={fadeKey}
+              src={active.src}
+              alt={active.label}
+              className="w-full h-full object-cover object-top"
               style={{
-                background: 'radial-gradient(circle, hsla(43,72%,50%,0.12) 0%, transparent 70%)',
-                border: '1px solid hsla(43,72%,50%,0.2)',
+                animation: 'platformFadeIn 0.8s ease-out both',
               }}
-            >
-              <f.icon className="w-8 h-8 text-primary" />
+            />
+            {/* Gradient overlay at bottom */}
+            <div className="absolute inset-x-0 bottom-0 h-[120px]" style={{ background: 'linear-gradient(to top, hsla(213,35%,8%,0.95) 0%, transparent 100%)' }} />
+            <div className="absolute bottom-0 inset-x-0 px-8 pb-6">
+              <h3 className="text-[28px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{active.label}</h3>
+              <p className="text-[16px] text-secondary-foreground/60 mt-1">{active.desc}</p>
             </div>
-            <div>
-              <h3 className="text-[24px] text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>{f.name}</h3>
-              <p className="text-[17px] leading-relaxed text-secondary-foreground/55">{f.desc}</p>
-            </div>
+            {/* Corner accents */}
+            <span className="absolute top-0 left-0 w-[32px] h-[32px] border-t-2 border-l-2 rounded-tl-xl" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
+            <span className="absolute top-0 right-0 w-[32px] h-[32px] border-t-2 border-r-2 rounded-tr-xl" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
           </div>
-        ))}
+
+          {/* Thumbnail selector */}
+          <div className="w-[400px] flex flex-col gap-5 justify-center">
+            {screenshots.map((s, i) => {
+              const isActive = i === activeIndex;
+              return (
+                <button
+                  key={i}
+                  onClick={() => { setActiveIndex(i); setFadeKey(k => k + 1); }}
+                  className="relative rounded-lg overflow-hidden text-left transition-all duration-500"
+                  style={{
+                    border: isActive ? '2px solid hsla(43,72%,50%,0.5)' : '1px solid hsla(43,72%,50%,0.12)',
+                    background: isActive
+                      ? 'linear-gradient(135deg, hsla(213,32%,16%,0.8) 0%, hsla(43,72%,50%,0.06) 100%)'
+                      : 'linear-gradient(135deg, hsla(213,32%,16%,0.4) 0%, hsla(213,35%,10%,0.3) 100%)',
+                    boxShadow: isActive ? '0 0 30px hsla(43,72%,50%,0.12)' : 'none',
+                    transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                  }}
+                >
+                  <div className="flex items-center gap-5 p-5">
+                    <div className="w-[100px] h-[60px] rounded-md overflow-hidden shrink-0" style={{ border: '1px solid hsla(43,72%,50%,0.2)' }}>
+                      <img src={s.src} alt={s.label} className="w-full h-full object-cover object-top" />
+                    </div>
+                    <div>
+                      <h4 className="text-[20px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
+                      <p className="text-[14px] text-secondary-foreground/45 mt-1 line-clamp-2">{s.desc}</p>
+                    </div>
+                  </div>
+                  {/* Progress bar for active */}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[3px]">
+                      <div
+                        className="h-full"
+                        style={{
+                          background: 'linear-gradient(90deg, hsla(43,72%,50%,0.8), hsla(43,72%,50%,0.4))',
+                          animation: 'platformProgress 4s linear both',
+                        }}
+                      />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
-    </div>
-  </SlideLayout>
-);
+
+      <style>{`
+        @keyframes platformFadeIn {
+          0% { opacity: 0; transform: scale(1.03); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes platformProgress {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+      `}</style>
+    </SlideLayout>
+  );
+};
 
 export default PlatformSlide;
