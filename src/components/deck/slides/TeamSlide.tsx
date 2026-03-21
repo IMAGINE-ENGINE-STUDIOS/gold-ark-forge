@@ -4,8 +4,8 @@ import { User } from 'lucide-react';
 const team = [
   { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development' },
   { name: 'Ricardo Font', role: 'Co-Founder', bg: 'Technology vision & platform architecture' },
-  { name: 'James Tuber', role: 'Legal Advisor', bg: 'Securities law, regulatory compliance & international trade' },
-  { name: 'MacDonells Ulsch', role: 'Strategic Advisor', bg: 'Government relations, diplomacy & institutional partnerships' },
+  { name: 'James Stuber', role: 'Legal Counsel', bg: 'Securities law, regulatory compliance & international trade' },
+  { name: 'N. MacDonnell Ulsch', role: 'Senior Advisor', bg: 'Government relations, diplomacy & institutional partnerships' },
 ];
 
 const TeamSlide = () => (
