@@ -10,45 +10,63 @@ import GAPerformanceDashboard from '@/components/ga-widgets/GAPerformanceDashboa
 
 const tabs: SubTab[] = [
   {
-    key: 'flow',
-    label: 'ORDER FLOW & JOURNAL',
+    key: 'tape',
+    label: 'TIME & SALES',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="TIME & SALES (TAPE READER)" />
-          <WidgetDocWrapper widgetId="tape"><GATimeSales /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="TRADE JOURNAL" />
-          <WidgetDocWrapper widgetId="journal"><GATradeJournal /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="TIME & SALES (TAPE READER)" />
+        <WidgetDocWrapper widgetId="tape"><GATimeSales /></WidgetDocWrapper>
+      </section>
     ),
   },
   {
-    key: 'tools',
-    label: 'CALCULATORS & SESSIONS',
+    key: 'journal',
+    label: 'TRADE JOURNAL',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="TRADING SESSIONS" />
-          <WidgetDocWrapper widgetId="sessions"><GATradingSessions /></WidgetDocWrapper>
-        </section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section>
-            <SectionDivider label="MARGIN CALCULATOR" />
-            <WidgetDocWrapper widgetId="margin-calc"><GAMarginCalc /></WidgetDocWrapper>
-          </section>
-          <section>
-            <SectionDivider label="PIP CALCULATOR" />
-            <WidgetDocWrapper widgetId="pip-calc"><GAPipCalculator /></WidgetDocWrapper>
-          </section>
-        </div>
-        <section>
-          <SectionDivider label="PERFORMANCE DASHBOARD" />
-          <WidgetDocWrapper widgetId="performance"><GAPerformanceDashboard /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="TRADE JOURNAL" />
+        <WidgetDocWrapper widgetId="journal"><GATradeJournal /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'sessions',
+    label: 'SESSIONS',
+    content: () => (
+      <section>
+        <SectionDivider label="TRADING SESSIONS" />
+        <WidgetDocWrapper widgetId="sessions"><GATradingSessions /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'margin',
+    label: 'MARGIN CALC',
+    content: () => (
+      <section>
+        <SectionDivider label="MARGIN CALCULATOR" />
+        <WidgetDocWrapper widgetId="margin-calc"><GAMarginCalc /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'pip',
+    label: 'PIP CALC',
+    content: () => (
+      <section>
+        <SectionDivider label="PIP CALCULATOR" />
+        <WidgetDocWrapper widgetId="pip-calc"><GAPipCalculator /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'performance',
+    label: 'PERFORMANCE',
+    content: () => (
+      <section>
+        <SectionDivider label="PERFORMANCE DASHBOARD" />
+        <WidgetDocWrapper widgetId="performance"><GAPerformanceDashboard /></WidgetDocWrapper>
+      </section>
     ),
   },
 ];

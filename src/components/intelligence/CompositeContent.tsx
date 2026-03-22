@@ -13,58 +13,82 @@ import GAYieldMonitor from '@/components/ga-widgets/GAYieldMonitor';
 const tabs: SubTab[] = [
   {
     key: 'pulse',
-    label: 'PULSE & CORRELATION',
+    label: 'MARKET PULSE',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="MARKET PULSE COMMAND CENTER" />
-          <WidgetDocWrapper widgetId="pulse"><GAMarketPulse /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="CROSS-ASSET CORRELATION" />
-          <WidgetDocWrapper widgetId="correlation"><GACrossAssetDashboard /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="MARKET PULSE COMMAND CENTER" />
+        <WidgetDocWrapper widgetId="pulse"><GAMarketPulse /></WidgetDocWrapper>
+      </section>
     ),
   },
   {
-    key: 'commodity-fx',
-    label: 'COMMODITY & FOREX',
+    key: 'correlation',
+    label: 'CORRELATION',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
-          <WidgetDocWrapper widgetId="chain-hub"><GABlockchainHub /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="COMMODITY RADAR" />
-          <WidgetDocWrapper widgetId="commodity-radar"><GACommodityRadar /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="FOREX WAR ROOM" />
-          <WidgetDocWrapper widgetId="forex-room"><GAForexWarRoom /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="CROSS-ASSET CORRELATION" />
+        <WidgetDocWrapper widgetId="correlation"><GACrossAssetDashboard /></WidgetDocWrapper>
+      </section>
     ),
   },
   {
-    key: 'risk-alloc',
-    label: 'VOLATILITY & YIELD',
+    key: 'chain-hub',
+    label: 'BLOCKCHAIN HUB',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="VOLATILITY MATRIX" />
-          <WidgetDocWrapper widgetId="volatility"><GAVolatilityMatrix /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="PORTFOLIO ALLOCATOR" />
-          <WidgetDocWrapper widgetId="portfolios"><GAPortfolioAllocator /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="DeFi YIELD MONITOR" />
-          <WidgetDocWrapper widgetId="yields"><GAYieldMonitor /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
+        <WidgetDocWrapper widgetId="chain-hub"><GABlockchainHub /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'commodity',
+    label: 'COMMODITY RADAR',
+    content: () => (
+      <section>
+        <SectionDivider label="COMMODITY RADAR" />
+        <WidgetDocWrapper widgetId="commodity-radar"><GACommodityRadar /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'forex-room',
+    label: 'FOREX WAR ROOM',
+    content: () => (
+      <section>
+        <SectionDivider label="FOREX WAR ROOM" />
+        <WidgetDocWrapper widgetId="forex-room"><GAForexWarRoom /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'volatility',
+    label: 'VOLATILITY',
+    content: () => (
+      <section>
+        <SectionDivider label="VOLATILITY MATRIX" />
+        <WidgetDocWrapper widgetId="volatility"><GAVolatilityMatrix /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'portfolio',
+    label: 'PORTFOLIO',
+    content: () => (
+      <section>
+        <SectionDivider label="PORTFOLIO ALLOCATOR" />
+        <WidgetDocWrapper widgetId="portfolios"><GAPortfolioAllocator /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'yields',
+    label: 'YIELD MONITOR',
+    content: () => (
+      <section>
+        <SectionDivider label="DeFi YIELD MONITOR" />
+        <WidgetDocWrapper widgetId="yields"><GAYieldMonitor /></WidgetDocWrapper>
+      </section>
     ),
   },
 ];
