@@ -104,6 +104,7 @@ const Vault = () => {
   const { data: transfers, isLoading: transfersLoading } = useWalletTransfers(walletId ?? null);
   const { data: anchors, isLoading: anchorsLoading } = useAnchors(1);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<VaultCategory>('metals');
 
   const dataLoading = walletIdLoading || certsLoading;
   const latestAnchor = anchors?.[0] ?? null;
