@@ -88,6 +88,7 @@ const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof A
 
 /* Sub-categories per main category */
 const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]> = {
+  overview: [],
   metals: [
     { key: 'all', label: 'ALL METALS' },
     { key: 'spot', label: 'SPOT PRICES' },
