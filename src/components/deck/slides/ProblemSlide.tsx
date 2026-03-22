@@ -145,7 +145,7 @@ const ProblemSlide = () => {
                 {[620, 1060].map((sx, i) => (
                   <circle
                     key={`smoke-${i}`}
-                    cx={sx} cy={280} r={20}
+                    cx={sx} cy={230} r={20}
                     fill="hsla(0,0%,60%,0.15)"
                     style={{ animation: `smokeRise 2s ease-out ${0.3 + i * 0.2}s forwards`, opacity: 0 }}
                   />
