@@ -115,7 +115,7 @@ const GAMarketPulse = () => {
                   <div key={s.label} className="flex items-center justify-between">
                     <span className="text-[10px] font-display tracking-wider text-marble/50">{s.label}</span>
                     <div className="text-right">
-                      <span className="text-xs font-mono text-marble">${s.price.toLocaleString('en-US', { maximumFractionDigits: s.price < 10 ? 4 : 2 })}</span>
+                      <span className="text-[10px] font-mono text-marble">${s.price.toLocaleString('en-US', { maximumFractionDigits: s.price < 10 ? 4 : 2 })}</span>
                       <span className={`text-[9px] font-mono ml-2 ${s.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {s.change >= 0 ? '+' : ''}{s.change.toFixed(2)}%
                       </span>
