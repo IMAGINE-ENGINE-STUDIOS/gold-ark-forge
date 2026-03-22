@@ -75,7 +75,7 @@ const GAMarketPulse = () => {
             <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
               <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">MARKET SENTIMENT</div>
               <div className="text-center">
-                <div className={`text-4xl font-mono ${fgColor}`}>{fearGreed}</div>
+                <div className={`text-2xl font-mono ${fgColor}`}>{fearGreed}</div>
                 <div className={`text-[10px] font-display tracking-wider mt-1 ${fgColor}`}>{fgLabel}</div>
                 <div className="mt-3 h-2 bg-navy-dark/50 rounded-full overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-red-500 via-gold to-emerald-500 rounded-full" style={{ width: `${fearGreed}%` }} />
@@ -95,7 +95,7 @@ const GAMarketPulse = () => {
                     <div key={m.id} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <img src={m.image} alt={m.name} className="w-4 h-4 rounded-full" />
-                        <span className="text-[10px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
+                        <span className="text-[9px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
                       </div>
                       <span className={`text-[10px] font-mono flex items-center gap-0.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -115,7 +115,7 @@ const GAMarketPulse = () => {
                   <div key={s.label} className="flex items-center justify-between">
                     <span className="text-[10px] font-display tracking-wider text-marble/50">{s.label}</span>
                     <div className="text-right">
-                      <span className="text-xs font-mono text-marble">${s.price.toLocaleString('en-US', { maximumFractionDigits: s.price < 10 ? 4 : 2 })}</span>
+                      <span className="text-[10px] font-mono text-marble">${s.price.toLocaleString('en-US', { maximumFractionDigits: s.price < 10 ? 4 : 2 })}</span>
                       <span className={`text-[9px] font-mono ml-2 ${s.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {s.change >= 0 ? '+' : ''}{s.change.toFixed(2)}%
                       </span>
