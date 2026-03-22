@@ -60,45 +60,45 @@ const GAMarketPulse = () => {
       <div className="ornate-corner ornate-corner-bl" />
       <div className="ornate-corner ornate-corner-br" />
 
-      <div className="p-6 md:p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <Zap className="w-5 h-5 text-gold" />
-          <h3 className="font-display text-lg tracking-[0.1em] text-gold-light">MARKET PULSE</h3>
+      <div className="p-3 md:p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="w-4 h-4 text-gold" />
+          <h3 className="font-display text-xs tracking-[0.1em] text-gold-light">MARKET PULSE</h3>
           <LivePulse label="STREAMING" />
         </div>
 
         {isLoading ? (
-          <div className="h-40 bg-navy-light/30 rounded animate-pulse" />
+          <div className="h-28 bg-navy-light/30 rounded animate-pulse" />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {/* Sentiment */}
-            <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
-              <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">MARKET SENTIMENT</div>
+            <div className="bg-navy-light/15 rounded-lg p-2.5 border border-gold/10">
+              <div className="text-[7px] font-display tracking-[0.2em] text-marble/30 mb-2">MARKET SENTIMENT</div>
               <div className="text-center">
-                <div className={`text-2xl font-mono ${fgColor}`}>{fearGreed}</div>
-                <div className={`text-[10px] font-display tracking-wider mt-1 ${fgColor}`}>{fgLabel}</div>
-                <div className="mt-3 h-2 bg-navy-dark/50 rounded-full overflow-hidden">
+                <div className={`text-lg font-mono ${fgColor}`}>{fearGreed}</div>
+                <div className={`text-[8px] font-display tracking-wider mt-0.5 ${fgColor}`}>{fgLabel}</div>
+                <div className="mt-2 h-1.5 bg-navy-dark/50 rounded-full overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-red-500 via-gold to-emerald-500 rounded-full" style={{ width: `${fearGreed}%` }} />
                 </div>
               </div>
             </div>
 
             {/* Top Movers */}
-            <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
-              <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">TOP MOVERS (24H)</div>
-              <div className="space-y-1.5">
+            <div className="bg-navy-light/15 rounded-lg p-2.5 border border-gold/10">
+              <div className="text-[7px] font-display tracking-[0.2em] text-marble/30 mb-2">TOP MOVERS (24H)</div>
+              <div className="space-y-1">
                 {movers.map(m => {
                   const wsKey = CRYPTO_WS_KEYS.find(k => k === m.id);
                   const ws = wsKey ? wsPrices[wsKey] : undefined;
                   const change = ws?.change24h ?? m.price_change_percentage_24h ?? 0;
                   return (
                     <div key={m.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img src={m.image} alt={m.name} className="w-4 h-4 rounded-full" />
-                        <span className="text-[9px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
+                      <div className="flex items-center gap-1.5">
+                        <img src={m.image} alt={m.name} className="w-3 h-3 rounded-full" />
+                        <span className="text-[8px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
                       </div>
-                      <span className={`text-[10px] font-mono flex items-center gap-0.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      <span className={`text-[8px] font-mono flex items-center gap-0.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {change >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
                         {change.toFixed(1)}%
                       </span>
                     </div>
@@ -108,15 +108,15 @@ const GAMarketPulse = () => {
             </div>
 
             {/* Spot Prices */}
-            <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
-              <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">SPOT PRICES · LIVE</div>
-              <div className="space-y-2">
+            <div className="bg-navy-light/15 rounded-lg p-2.5 border border-gold/10">
+              <div className="text-[7px] font-display tracking-[0.2em] text-marble/30 mb-2">SPOT PRICES · LIVE</div>
+              <div className="space-y-1">
                 {spots.map(s => (
                   <div key={s.label} className="flex items-center justify-between">
-                    <span className="text-[10px] font-display tracking-wider text-marble/50">{s.label}</span>
+                    <span className="text-[8px] font-display tracking-wider text-marble/50">{s.label}</span>
                     <div className="text-right">
-                      <span className="text-[10px] font-mono text-marble">${s.price.toLocaleString('en-US', { maximumFractionDigits: s.price < 10 ? 4 : 2 })}</span>
-                      <span className={`text-[9px] font-mono ml-2 ${s.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className="text-[8px] font-mono text-marble">${s.price.toLocaleString('en-US', { maximumFractionDigits: s.price < 10 ? 4 : 2 })}</span>
+                      <span className={`text-[7px] font-mono ml-1 ${s.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {s.change >= 0 ? '+' : ''}{s.change.toFixed(2)}%
                       </span>
                     </div>
