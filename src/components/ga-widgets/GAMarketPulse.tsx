@@ -95,7 +95,7 @@ const GAMarketPulse = () => {
                     <div key={m.id} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <img src={m.image} alt={m.name} className="w-4 h-4 rounded-full" />
-                        <span className="text-[10px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
+                        <span className="text-[9px] font-mono text-marble/60">{m.symbol.toUpperCase()}</span>
                       </div>
                       <span className={`text-[10px] font-mono flex items-center gap-0.5 ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
