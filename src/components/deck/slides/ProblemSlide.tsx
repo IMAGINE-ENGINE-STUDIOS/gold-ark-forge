@@ -65,23 +65,23 @@ const ProblemSlide = () => {
         }
       `}</style>
 
-      <div className="flex flex-col h-full px-[100px] py-[60px]">
+      <div className="flex flex-col h-full px-[100px] py-[40px]">
         {/* Header */}
         <div style={{ opacity: phase >= 1 ? 1 : 0, transform: phase >= 1 ? 'translateY(0)' : 'translateY(-20px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1)' }}>
           <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Institutional Crisis</p>
           <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
             A <span className="text-gradient-gold">Broken</span> Machine
           </h2>
-          <div className="greek-key-border-rich w-[120px] h-[4px] mb-6 rounded-sm" />
+          <div className="greek-key-border-rich w-[120px] h-[4px] mb-3 rounded-sm" />
           <p className="text-[20px] text-secondary-foreground/50 max-w-[800px]">
             The <span className="text-primary font-semibold">$85 trillion</span> commodity market runs on infrastructure that was never designed for the digital age.
           </p>
         </div>
 
         {/* Gear mechanism area */}
-        <div className="flex-1 relative mt-4 flex items-center justify-center">
+        <div className="flex-1 relative mt-2 flex items-center justify-center">
           {/* Central gear SVG mechanism */}
-          <svg viewBox="0 0 1720 580" className="absolute inset-0 w-full h-full" style={{ overflow: 'visible' }}>
+          <svg viewBox="0 0 1720 480" className="absolute inset-0 w-full h-full" style={{ overflow: 'visible' }}>
             <defs>
               <radialGradient id="gearGold" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="hsla(43,72%,55%,0.25)" />
@@ -102,10 +102,10 @@ const ProblemSlide = () => {
               <g>
                 {/* Crack lines */}
                 {[
-                  'M 580,290 L 620,270 L 640,295 L 680,280 L 720,290',
-                  'M 1000,290 L 1040,270 L 1060,295 L 1100,280 L 1140,290',
-                  'M 400,400 L 430,430 L 460,410',
-                  'M 1260,400 L 1290,430 L 1320,410',
+                  'M 580,240 L 620,220 L 640,245 L 680,230 L 720,240',
+                  'M 1000,240 L 1040,220 L 1060,245 L 1100,230 L 1140,240',
+                  'M 400,350 L 430,380 L 460,360',
+                  'M 1260,350 L 1290,380 L 1320,360',
                 ].map((d, i) => (
                   <path
                     key={i}
@@ -125,7 +125,7 @@ const ProblemSlide = () => {
                 {/* Sparks */}
                 {Array.from({ length: 12 }).map((_, i) => {
                   const cx = [620, 1060, 440, 1300][i % 4];
-                  const cy = [280, 280, 420, 420][i % 4];
+                  const cy = [230, 230, 370, 370][i % 4];
                   return (
                     <circle
                       key={`spark-${i}`}
@@ -145,7 +145,7 @@ const ProblemSlide = () => {
                 {[620, 1060].map((sx, i) => (
                   <circle
                     key={`smoke-${i}`}
-                    cx={sx} cy={280} r={20}
+                    cx={sx} cy={230} r={20}
                     fill="hsla(0,0%,60%,0.15)"
                     style={{ animation: `smokeRise 2s ease-out ${0.3 + i * 0.2}s forwards`, opacity: 0 }}
                   />
@@ -156,10 +156,10 @@ const ProblemSlide = () => {
             {/* 4 gears — each representing a broken problem */}
             {problems.map((p, i) => {
               const positions = [
-                { cx: 380, cy: 290, r: 160, ir: 120, teeth: 18, dir: 1 },
-                { cx: 820, cy: 290, r: 140, ir: 105, teeth: 16, dir: -1 },
-                { cx: 1200, cy: 290, r: 155, ir: 115, teeth: 17, dir: 1 },
-                { cx: 1540, cy: 290, r: 130, ir: 98, teeth: 15, dir: -1 },
+                { cx: 380, cy: 240, r: 160, ir: 120, teeth: 18, dir: 1 },
+                { cx: 820, cy: 240, r: 140, ir: 105, teeth: 16, dir: -1 },
+                { cx: 1200, cy: 240, r: 155, ir: 115, teeth: 17, dir: 1 },
+                { cx: 1540, cy: 240, r: 130, ir: 98, teeth: 15, dir: -1 },
               ];
               const g = positions[i];
               const isJammed = phase >= 2;
