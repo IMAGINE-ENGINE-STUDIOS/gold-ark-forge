@@ -75,7 +75,7 @@ const METAL_META = {
 } as const;
 
 /* ─── Category definitions ─── */
-type MarketCategoryKey = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
+type MarketCategoryKey = 'overview' | 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
 
 const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof Activity }[] = [
   { key: 'metals', label: 'Precious Metals', icon: Gem },
