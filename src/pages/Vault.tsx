@@ -16,6 +16,18 @@ import {
   Lock,
   CheckCircle,
   ArrowRightLeft,
+  Gem,
+  Coins,
+  Fuel,
+  BarChart3,
+  DollarSign,
+  Landmark,
+  Atom,
+  Wheat,
+  Beef,
+  Building2,
+  Palette,
+  Package,
 } from 'lucide-react';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import TransferInitiateDialog from '@/components/vault/TransferInitiateDialog';
@@ -23,6 +35,41 @@ import TransferCard from '@/components/vault/TransferCard';
 import { Link } from 'react-router-dom';
 import vaultDoor from '@/assets/vault-door-rich.jpg';
 import type { CertificateMetadata } from '@/hooks/useCertificates';
+
+/* ─── Asset Category Types ─── */
+
+type VaultCategory = 'metals' | 'crypto' | 'energy' | 'rare-earth' | 'agriculture' | 'livestock' | 'equities' | 'forex' | 'bonds' | 'reits' | 'art' | 'gov-surplus';
+
+const VAULT_CATEGORIES: { key: VaultCategory; label: string; icon: any }[] = [
+  { key: 'metals', label: 'Precious Metals', icon: Gem },
+  { key: 'crypto', label: 'Crypto', icon: Coins },
+  { key: 'energy', label: 'Energy', icon: Fuel },
+  { key: 'rare-earth', label: 'Rare Earth', icon: Atom },
+  { key: 'agriculture', label: 'Agriculture', icon: Wheat },
+  { key: 'livestock', label: 'Livestock', icon: Beef },
+  { key: 'equities', label: 'Equities', icon: BarChart3 },
+  { key: 'forex', label: 'Forex', icon: DollarSign },
+  { key: 'bonds', label: 'Bonds', icon: Landmark },
+  { key: 'reits', label: 'REITs', icon: Building2 },
+  { key: 'art', label: 'Art', icon: Palette },
+  { key: 'gov-surplus', label: 'Gov. Surplus', icon: Package },
+];
+
+/* ─── Empty Inventory Placeholder ─── */
+
+const EmptyInventory = ({ label }: { label: string }) => (
+  <div className="text-center py-20">
+    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gold/5 border border-gold/20 flex items-center justify-center">
+      <Lock className="text-gold/30 w-10 h-10" />
+    </div>
+    <div className="text-marble/50 text-lg mb-2 font-display tracking-wider">
+      {label} INVENTORY
+    </div>
+    <p className="text-marble/30 text-sm max-w-md mx-auto">
+      No tokenized {label.toLowerCase()} assets in your vault yet. Visit the Marketplace to acquire verified certificates.
+    </p>
+  </div>
+);
 
 /* ─── Helpers ─── */
 
