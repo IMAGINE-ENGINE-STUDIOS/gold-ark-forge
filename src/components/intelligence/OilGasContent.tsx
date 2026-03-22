@@ -20,7 +20,7 @@ import OGNewsFeed from '@/components/og-widgets/OGNewsFeed';
 const tabs: SubTab[] = [
   {
     key: 'prices',
-    label: 'PRICES & FUTURES',
+    label: 'PRICES',
     content: () => (
       <div className="space-y-12">
         <OGMultiTicker />
@@ -28,76 +28,118 @@ const tabs: SubTab[] = [
           <SectionDivider label="SPOT & FUTURES PRICES" />
           <WidgetDocWrapper widgetId="og-prices"><OGPriceCards /></WidgetDocWrapper>
         </section>
-        <section>
-          <SectionDivider label="FUTURES CURVE" />
-          <WidgetDocWrapper widgetId="og-futures"><OGFuturesCurve /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="WTI-BRENT SPREAD TRACKER" />
-          <WidgetDocWrapper widgetId="og-wti-brent"><OGWtiBrentSpread /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="SPREADS & MARGINS" />
-          <WidgetDocWrapper widgetId="og-spreads"><OGCrackSpreads /></WidgetDocWrapper>
-        </section>
       </div>
     ),
   },
   {
-    key: 'fundamentals',
-    label: 'SUPPLY & OPEC',
+    key: 'futures',
+    label: 'FUTURES',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="EIA CRUDE OIL INVENTORY" />
-          <WidgetDocWrapper widgetId="og-inventory"><OGInventoryGauge /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="BAKER HUGHES RIG COUNT" />
-          <WidgetDocWrapper widgetId="og-rigs"><OGRigCount /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="GLOBAL SUPPLY / DEMAND BALANCE" />
-          <WidgetDocWrapper widgetId="og-supply-demand"><OGSupplyDemand /></WidgetDocWrapper>
-        </section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section>
-            <SectionDivider label="OPEC+ COMPLIANCE" />
-            <WidgetDocWrapper widgetId="og-opec"><OGOPECTracker /></WidgetDocWrapper>
-          </section>
-          <section>
-            <SectionDivider label="TOP PRODUCERS" />
-            <WidgetDocWrapper widgetId="og-production"><OGProductionMap /></WidgetDocWrapper>
-          </section>
-        </div>
-      </div>
+      <section>
+        <SectionDivider label="FUTURES CURVE" />
+        <WidgetDocWrapper widgetId="og-futures"><OGFuturesCurve /></WidgetDocWrapper>
+      </section>
     ),
   },
   {
-    key: 'infra',
-    label: 'INFRASTRUCTURE & NEWS',
+    key: 'wti-brent',
+    label: 'WTI-BRENT',
+    content: () => (
+      <section>
+        <SectionDivider label="WTI-BRENT SPREAD TRACKER" />
+        <WidgetDocWrapper widgetId="og-wti-brent"><OGWtiBrentSpread /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'spreads',
+    label: 'SPREADS',
+    content: () => (
+      <section>
+        <SectionDivider label="SPREADS & MARGINS" />
+        <WidgetDocWrapper widgetId="og-spreads"><OGCrackSpreads /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'inventory',
+    label: 'INVENTORY',
+    content: () => (
+      <section>
+        <SectionDivider label="EIA CRUDE OIL INVENTORY" />
+        <WidgetDocWrapper widgetId="og-inventory"><OGInventoryGauge /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'rigs',
+    label: 'RIG COUNT',
+    content: () => (
+      <section>
+        <SectionDivider label="BAKER HUGHES RIG COUNT" />
+        <WidgetDocWrapper widgetId="og-rigs"><OGRigCount /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'supply-demand',
+    label: 'S/D BALANCE',
+    content: () => (
+      <section>
+        <SectionDivider label="GLOBAL SUPPLY / DEMAND BALANCE" />
+        <WidgetDocWrapper widgetId="og-supply-demand"><OGSupplyDemand /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'opec',
+    label: 'OPEC+',
+    content: () => (
+      <section>
+        <SectionDivider label="OPEC+ COMPLIANCE" />
+        <WidgetDocWrapper widgetId="og-opec"><OGOPECTracker /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'producers',
+    label: 'PRODUCERS',
+    content: () => (
+      <section>
+        <SectionDivider label="TOP PRODUCERS" />
+        <WidgetDocWrapper widgetId="og-production"><OGProductionMap /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'pipelines',
+    label: 'PIPELINES',
+    content: () => (
+      <section>
+        <SectionDivider label="GLOBAL PIPELINE FLOW" />
+        <WidgetDocWrapper widgetId="og-pipelines"><OGPipelineFlow /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'chokepoints',
+    label: 'CHOKEPOINTS',
+    content: () => (
+      <section>
+        <SectionDivider label="GEOPOLITICAL CHOKEPOINT RISK" />
+        <WidgetDocWrapper widgetId="og-chokepoints"><OGChokepoints /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'news',
+    label: 'NEWS',
     content: () => (
       <div className="space-y-12">
-        <section>
-          <SectionDivider label="GLOBAL PIPELINE FLOW" />
-          <WidgetDocWrapper widgetId="og-pipelines"><OGPipelineFlow /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="GEOPOLITICAL CHOKEPOINT RISK" />
-          <WidgetDocWrapper widgetId="og-chokepoints"><OGChokepoints /></WidgetDocWrapper>
-        </section>
         <section>
           <SectionDivider label="ENERGY INTELLIGENCE FEED" />
           <WidgetDocWrapper widgetId="og-news"><OGNewsFeed /></WidgetDocWrapper>
         </section>
-      </div>
-    ),
-  },
-  {
-    key: 'composite',
-    label: 'EXECUTIVE ANALYTICS',
-    content: () => (
-      <div className="space-y-12">
         <section>
           <SectionDivider label="ENERGY EXECUTIVE DASHBOARD" />
           <WidgetDocWrapper widgetId="og-energy-dashboard"><OGEnergyDashboard /></WidgetDocWrapper>
