@@ -72,7 +72,7 @@ const ProblemSlide = () => {
           <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
             A <span className="text-gradient-gold">Broken</span> Machine
           </h2>
-          <div className="greek-key-border-rich w-[120px] h-[4px] mb-6 rounded-sm" />
+          <div className="greek-key-border-rich w-[120px] h-[4px] mb-3 rounded-sm" />
           <p className="text-[20px] text-secondary-foreground/50 max-w-[800px]">
             The <span className="text-primary font-semibold">$85 trillion</span> commodity market runs on infrastructure that was never designed for the digital age.
           </p>
