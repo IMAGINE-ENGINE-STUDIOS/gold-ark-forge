@@ -1,45 +1,56 @@
 
 
-# Deck Slide Redesign: About Slide + Solution Slide
+## Plan: Navigation Icons + Intelligence Tab-Based Layout
 
-## 1. AboutSlide — Pillar Cards as Image Squares + Hover Animations
+### Two changes requested:
 
-**Current**: Three pillars (Tokenize/Trade/Trust) on the right column are circular icons with text beneath — static and plain.
+---
 
-**Change**: Replace the three circular pillar icons with **square image cards** matching the CategoryCards style from the homepage:
-- Each card is a square with a background image, dark gradient overlay, ornate gold corner brackets, and a gold bottom accent line
-- Images: use thematic assets (gold-bars-rich.jpg for Tokenize, a relevant asset for Trade, another for Trust) or use solid radial-gradient backgrounds with large icons
-- On hover (CSS transitions): scale up slightly (`transform: scale(1.05)`), increase gold border glow (`box-shadow` brightens), and the icon pulses
-- Title overlaid on card in Cinzel with `text-gradient-gold`
-- Description below the card
-- Add `transition-all duration-500` and `group-hover` classes for smooth interaction
+### 1. Header Navigation — Add Gold Icons & Fix Overflow
 
-**Layout stays**: Left column = mission text + 9 asset class grid. Right column = 3 square pillar cards stacked vertically with hover effects.
+**Problem**: Nav items are text-only and overflow beyond the screen at 1512px viewport (10 items with `gap-12` and `tracking-[0.15em]` is too wide).
 
-## 2. SolutionSlide — Animated Infrastructure Pipeline
+**Solution** in `src/components/Header.tsx`:
+- Add an `icon` property (Lucide) to each nav item in the `navItems` array
+- Render the icon next to each label in the nav bar (gold colored, ~14px)
+- Reduce `gap-12` between items to `gap-6` and between item+diamond to `gap-6`
+- Reduce tracking from `0.15em` to `0.1em` and font size to `text-xs`
+- Remove the diamond separators to save space, or replace with a thin `|` divider
+- This ensures all 10 items fit within the viewport width
 
-**Current**: Three static pillars side-by-side with a connecting gold line. Boring.
+**Icon mapping**:
+- Marketplace → `Store`, Markets → `BarChart3`, Swap → `ArrowLeftRight`, Intelligence → `Brain`, The Vault → `Vault`, Verify → `ShieldCheck`, About Us → `Info`, Oil & Gas → `Fuel`, Insights → `Lightbulb`, Admin → `Settings`
 
-**Change**: Redesign as a **step-by-step infrastructure animation** showing how the platform builds the tokenization pipeline. Use CSS `@keyframes` with staggered `animation-delay` to reveal each step sequentially:
+---
 
-**5 pipeline steps** (vertical or diagonal flow):
-1. **Connect** — "Institutional Onboarding" — connecting with banks, vaults, custodians
-2. **Digitize** — "Asset Digitization" — physical assets scanned, verified, catalogued
-3. **Tokenize** — "Blockchain Certification" — mint tokens, anchor to Bitcoin
-4. **Trade** — "Global Trading" — T+0 settlement, 24/7 market access
-5. **Monitor** — "Real-Time Surveillance" — live verification, proof-of-reserves
+### 2. Intelligence Page — Category Tabs Instead of Full Page Scroll
 
-**Visual structure**:
-- Left-to-right horizontal pipeline with gold connecting lines that "draw" in via CSS (`stroke-dashoffset` animation or width transition)
-- Each step is a numbered node (gold circle with step number) connected by animated gold lines
-- Below each node: icon + title + short description
-- Steps fade in sequentially with `animation-delay: 0s, 0.4s, 0.8s, 1.2s, 1.6s`
-- A gold "pulse" travels along the connecting line after all steps appear
-- Background: subtle grid pattern overlay for "infrastructure" feel
+**Problem**: All 40+ widgets render on one long page. User wants to click a category tag and see only that category's widgets below the tags, switching in-place.
 
-**CSS approach**: Define keyframes in inline styles or use Tailwind's `animate-fade-in` with custom delays via `style={{ animationDelay }}`. The connecting lines use `transition: width 1s` triggered by a state that sets on mount.
+**Solution** in `src/pages/Intelligence.tsx`:
+- Group sections into categories (matching existing tiers): Market Data, Blockchain Live, DeFi & Sentiment, Composite Tools, Proprietary Data, Trading Tools, Oil & Gas
+- Replace the current scroll-to buttons with tab-style category buttons
+- Use `useState` to track the active category
+- Only render the widgets belonging to the active category below the tag bar
+- Default to "Market Data" on load
+- Remove the `scrollTo` behavior — content appears inline below the tabs
+- Keep the `TierBanner` and `SectionDivider` within each category group
+- Each category maps to its existing tier block of sections
 
-## Files Modified
-1. `src/components/deck/slides/AboutSlide.tsx` — square pillar cards with hover animations
-2. `src/components/deck/slides/SolutionSlide.tsx` — 5-step animated infrastructure pipeline
+**Structure**:
+```text
+[Header]
+[GAMultiTicker]
+[Hero Banner]
+  [ Market Data | Blockchain | DeFi | Composite | Proprietary | Trading | Oil & Gas ]
+  ─────────────────────────────────────────────────
+  [ Active category's widgets rendered here ]
+[Footer]
+```
+
+---
+
+### Files Modified
+- `src/components/Header.tsx` — icons + compact spacing
+- `src/pages/Intelligence.tsx` — tab-based category switching
 
