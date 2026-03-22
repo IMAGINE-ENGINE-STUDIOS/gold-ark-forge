@@ -156,10 +156,10 @@ const ProblemSlide = () => {
             {/* 4 gears — each representing a broken problem */}
             {problems.map((p, i) => {
               const positions = [
-                { cx: 380, cy: 290, r: 160, ir: 120, teeth: 18, dir: 1 },
-                { cx: 820, cy: 290, r: 140, ir: 105, teeth: 16, dir: -1 },
-                { cx: 1200, cy: 290, r: 155, ir: 115, teeth: 17, dir: 1 },
-                { cx: 1540, cy: 290, r: 130, ir: 98, teeth: 15, dir: -1 },
+                { cx: 380, cy: 240, r: 160, ir: 120, teeth: 18, dir: 1 },
+                { cx: 820, cy: 240, r: 140, ir: 105, teeth: 16, dir: -1 },
+                { cx: 1200, cy: 240, r: 155, ir: 115, teeth: 17, dir: 1 },
+                { cx: 1540, cy: 240, r: 130, ir: 98, teeth: 15, dir: -1 },
               ];
               const g = positions[i];
               const isJammed = phase >= 2;
