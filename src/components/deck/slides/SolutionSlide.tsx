@@ -8,14 +8,14 @@ const steps = [
     num: '01',
     title: 'Connect',
     subtitle: 'Institutional Onboarding',
-    desc: 'Banks, vaults, and custodians are onboarded with mTLS credentials and compliance verification.',
+    desc: 'Connect to institutions, banks, vaults, and compliance frameworks through secure mTLS credentialing.',
   },
   {
     icon: ScanLine,
     num: '02',
     title: 'Digitize',
     subtitle: 'Asset Digitization',
-    desc: 'Physical assets are scanned, weighed, assayed, and catalogued with unique serial identifiers.',
+    desc: 'Transform physical commodities into digital representations — capturing weight, purity, serial identity, and provenance on-chain.',
   },
   {
     icon: Link2,
@@ -29,7 +29,7 @@ const steps = [
     num: '04',
     title: 'Trade',
     subtitle: 'Global Trading',
-    desc: 'T+0 atomic settlement, 24/7 market access, no intermediaries — fractional ownership enabled.',
+    desc: '24/7 market access, no intermediaries — fractional ownership enabled across global exchanges.',
   },
   {
     icon: Eye,
