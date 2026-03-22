@@ -1,4 +1,5 @@
 import { SectionDivider, SubTab, SubTabLayout } from './SubTabLayout';
+import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 
 import OGMultiTicker from '@/components/og-widgets/OGMultiTicker';
 import OGPriceCards from '@/components/og-widgets/OGPriceCards';
@@ -19,29 +20,26 @@ import OGNewsFeed from '@/components/og-widgets/OGNewsFeed';
 const tabs: SubTab[] = [
   {
     key: 'prices',
-    label: 'PRICES & DASHBOARD',
+    label: 'PRICES & FUTURES',
     content: () => (
       <div className="space-y-12">
         <OGMultiTicker />
         <section>
-          <SectionDivider label="ENERGY DASHBOARD" />
-          <OGPriceCards />
-          <div className="mt-6"><OGEnergyDashboard /></div>
+          <SectionDivider label="SPOT & FUTURES PRICES" />
+          <WidgetDocWrapper widgetId="og-prices"><OGPriceCards /></WidgetDocWrapper>
         </section>
         <section>
           <SectionDivider label="FUTURES CURVE" />
-          <OGFuturesCurve />
+          <WidgetDocWrapper widgetId="og-futures"><OGFuturesCurve /></WidgetDocWrapper>
         </section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section>
-            <SectionDivider label="INVENTORY GAUGE" />
-            <OGInventoryGauge />
-          </section>
-          <section>
-            <SectionDivider label="WTI-BRENT SPREAD" />
-            <OGWtiBrentSpread />
-          </section>
-        </div>
+        <section>
+          <SectionDivider label="WTI-BRENT SPREAD TRACKER" />
+          <WidgetDocWrapper widgetId="og-wti-brent"><OGWtiBrentSpread /></WidgetDocWrapper>
+        </section>
+        <section>
+          <SectionDivider label="SPREADS & MARGINS" />
+          <WidgetDocWrapper widgetId="og-spreads"><OGCrackSpreads /></WidgetDocWrapper>
+        </section>
       </div>
     ),
   },
@@ -51,21 +49,25 @@ const tabs: SubTab[] = [
     content: () => (
       <div className="space-y-12">
         <section>
-          <SectionDivider label="OPEC TRACKER" />
-          <OGOPECTracker />
+          <SectionDivider label="EIA CRUDE OIL INVENTORY" />
+          <WidgetDocWrapper widgetId="og-inventory"><OGInventoryGauge /></WidgetDocWrapper>
         </section>
         <section>
-          <SectionDivider label="SUPPLY & DEMAND" />
-          <OGSupplyDemand />
+          <SectionDivider label="BAKER HUGHES RIG COUNT" />
+          <WidgetDocWrapper widgetId="og-rigs"><OGRigCount /></WidgetDocWrapper>
+        </section>
+        <section>
+          <SectionDivider label="GLOBAL SUPPLY / DEMAND BALANCE" />
+          <WidgetDocWrapper widgetId="og-supply-demand"><OGSupplyDemand /></WidgetDocWrapper>
         </section>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section>
-            <SectionDivider label="RIG COUNT" />
-            <OGRigCount />
+            <SectionDivider label="OPEC+ COMPLIANCE" />
+            <WidgetDocWrapper widgetId="og-opec"><OGOPECTracker /></WidgetDocWrapper>
           </section>
           <section>
-            <SectionDivider label="CRACK SPREADS" />
-            <OGCrackSpreads />
+            <SectionDivider label="TOP PRODUCERS" />
+            <WidgetDocWrapper widgetId="og-production"><OGProductionMap /></WidgetDocWrapper>
           </section>
         </div>
       </div>
@@ -77,24 +79,32 @@ const tabs: SubTab[] = [
     content: () => (
       <div className="space-y-12">
         <section>
-          <SectionDivider label="PRODUCTION MAP" />
-          <OGProductionMap />
+          <SectionDivider label="GLOBAL PIPELINE FLOW" />
+          <WidgetDocWrapper widgetId="og-pipelines"><OGPipelineFlow /></WidgetDocWrapper>
         </section>
         <section>
-          <SectionDivider label="PIPELINE FLOW" />
-          <OGPipelineFlow />
+          <SectionDivider label="GEOPOLITICAL CHOKEPOINT RISK" />
+          <WidgetDocWrapper widgetId="og-chokepoints"><OGChokepoints /></WidgetDocWrapper>
         </section>
         <section>
-          <SectionDivider label="CHOKEPOINTS" />
-          <OGChokepoints />
+          <SectionDivider label="ENERGY INTELLIGENCE FEED" />
+          <WidgetDocWrapper widgetId="og-news"><OGNewsFeed /></WidgetDocWrapper>
+        </section>
+      </div>
+    ),
+  },
+  {
+    key: 'composite',
+    label: 'EXECUTIVE ANALYTICS',
+    content: () => (
+      <div className="space-y-12">
+        <section>
+          <SectionDivider label="ENERGY EXECUTIVE DASHBOARD" />
+          <WidgetDocWrapper widgetId="og-energy-dashboard"><OGEnergyDashboard /></WidgetDocWrapper>
         </section>
         <section>
-          <SectionDivider label="RISK ANALYZER" />
-          <OGRiskAnalyzer />
-        </section>
-        <section>
-          <SectionDivider label="ENERGY NEWS" />
-          <OGNewsFeed />
+          <SectionDivider label="RISK & SPREADS ANALYZER" />
+          <WidgetDocWrapper widgetId="og-risk-analyzer"><OGRiskAnalyzer /></WidgetDocWrapper>
         </section>
       </div>
     ),
@@ -102,7 +112,7 @@ const tabs: SubTab[] = [
 ];
 
 const OilGasContent = () => (
-  <SubTabLayout banner="OIL & GAS INTELLIGENCE" bannerSub="ENERGY SECTOR · INSTITUTIONAL ANALYTICS" tabs={tabs} />
+  <SubTabLayout banner="OIL & GAS INTELLIGENCE" bannerSub="ENERGY SECTOR · INSTITUTIONAL ANALYTICS · EIA · OPEC · CME" tabs={tabs} />
 );
 
 export default OilGasContent;
