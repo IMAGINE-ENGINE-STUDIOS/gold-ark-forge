@@ -125,7 +125,7 @@ const ProblemSlide = () => {
                 {/* Sparks */}
                 {Array.from({ length: 12 }).map((_, i) => {
                   const cx = [620, 1060, 440, 1300][i % 4];
-                  const cy = [280, 280, 420, 420][i % 4];
+                  const cy = [230, 230, 370, 370][i % 4];
                   return (
                     <circle
                       key={`spark-${i}`}
