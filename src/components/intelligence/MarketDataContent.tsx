@@ -4,31 +4,10 @@ import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
 import GAAllAssetPriceCards from '@/components/ga-widgets/GAAllAssetPriceCards';
-import GALiveTicker from '@/components/ga-widgets/GALiveTicker';
 import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
 import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
-import GAMetalChart from '@/components/ga-widgets/GAMetalChart';
-import GALiveStandalone from '@/components/ga-widgets/GALiveStandalone';
-import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
-import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
-import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
-import GATopMovers from '@/components/ga-widgets/GATopMovers';
-import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
-import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
-import GAMarketHeatmap from '@/components/ga-widgets/GAMarketHeatmap';
-import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 
 const tabs: SubTab[] = [
-  {
-    key: 'ticker',
-    label: 'LIVE TICKER',
-    content: () => (
-      <section>
-        <SectionDivider label="LIVE TICKER TAPE" />
-        <GALiveTicker />
-      </section>
-    ),
-  },
   {
     key: 'spot-prices',
     label: 'SPOT PRICES',
