@@ -5,7 +5,7 @@ import { BarChart3, LineChart, ArrowLeftRight, Vault, Fuel, Globe } from 'lucide
 /* Lazy-load heavy widgets so the slide itself stays snappy */
 const GAMarketSummary = lazy(() => import('@/components/ga-widgets/GAMarketSummary'));
 const GACrossAssetDashboard = lazy(() => import('@/components/ga-widgets/GACrossAssetDashboard'));
-const GALiveChart = lazy(() => import('@/components/trading/GALiveChart'));
+const GALiveStandalone = lazy(() => import('@/components/ga-widgets/GALiveStandalone'));
 const GAVaultMatrix = lazy(() => import('@/components/ga-widgets/GAVaultMatrix'));
 const OGEnergyDashboard = lazy(() => import('@/components/og-widgets/OGEnergyDashboard'));
 const GAMarketPulse = lazy(() => import('@/components/ga-widgets/GAMarketPulse'));
