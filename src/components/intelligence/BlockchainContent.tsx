@@ -10,45 +10,63 @@ import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 
 const tabs: SubTab[] = [
   {
-    key: 'networks',
-    label: 'NETWORKS',
+    key: 'bitcoin',
+    label: 'BITCOIN',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="BITCOIN NETWORK" />
-          <WidgetDocWrapper widgetId="bitcoin"><GABitcoinNetwork /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="ETHEREUM NETWORK" />
-          <WidgetDocWrapper widgetId="ethereum"><GAEthereumNetwork /></WidgetDocWrapper>
-        </section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section>
-            <SectionDivider label="XRP LEDGER" />
-            <WidgetDocWrapper widgetId="xrp"><GAXRPLedger /></WidgetDocWrapper>
-          </section>
-          <section>
-            <SectionDivider label="TRON NETWORK" />
-            <WidgetDocWrapper widgetId="tron"><GATronNetwork /></WidgetDocWrapper>
-          </section>
-        </div>
-      </div>
+      <section>
+        <SectionDivider label="BITCOIN NETWORK" />
+        <WidgetDocWrapper widgetId="bitcoin"><GABitcoinNetwork /></WidgetDocWrapper>
+      </section>
     ),
   },
   {
-    key: 'intelligence',
-    label: 'WHALES & SEC',
+    key: 'ethereum',
+    label: 'ETHEREUM',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="SEC EDGAR FILINGS" />
-          <WidgetDocWrapper widgetId="sec"><GASECFilings /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="WHALE WATCH" />
-          <WidgetDocWrapper widgetId="whales"><GAWhaleWatch /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="ETHEREUM NETWORK" />
+        <WidgetDocWrapper widgetId="ethereum"><GAEthereumNetwork /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'xrp',
+    label: 'XRP LEDGER',
+    content: () => (
+      <section>
+        <SectionDivider label="XRP LEDGER" />
+        <WidgetDocWrapper widgetId="xrp"><GAXRPLedger /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'tron',
+    label: 'TRON',
+    content: () => (
+      <section>
+        <SectionDivider label="TRON NETWORK" />
+        <WidgetDocWrapper widgetId="tron"><GATronNetwork /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'sec',
+    label: 'SEC FILINGS',
+    content: () => (
+      <section>
+        <SectionDivider label="SEC EDGAR FILINGS" />
+        <WidgetDocWrapper widgetId="sec"><GASECFilings /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'whales',
+    label: 'WHALE WATCH',
+    content: () => (
+      <section>
+        <SectionDivider label="WHALE WATCH" />
+        <WidgetDocWrapper widgetId="whales"><GAWhaleWatch /></WidgetDocWrapper>
+      </section>
     ),
   },
 ];

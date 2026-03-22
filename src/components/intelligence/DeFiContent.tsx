@@ -7,19 +7,23 @@ import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 
 const tabs: SubTab[] = [
   {
-    key: 'crypto',
-    label: 'CRYPTO OVERVIEW',
+    key: 'market',
+    label: 'CRYPTO MARKET',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="CRYPTO MARKET OVERVIEW" />
-          <WidgetDocWrapper widgetId="crypto-market"><GACryptoMarket /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="CRYPTO HEATMAP" />
-          <WidgetDocWrapper widgetId="crypto-heatmap"><GACryptoHeatmap /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="CRYPTO MARKET OVERVIEW" />
+        <WidgetDocWrapper widgetId="crypto-market"><GACryptoMarket /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'heatmap',
+    label: 'CRYPTO HEATMAP',
+    content: () => (
+      <section>
+        <SectionDivider label="CRYPTO HEATMAP" />
+        <WidgetDocWrapper widgetId="crypto-heatmap"><GACryptoHeatmap /></WidgetDocWrapper>
+      </section>
     ),
   },
   {

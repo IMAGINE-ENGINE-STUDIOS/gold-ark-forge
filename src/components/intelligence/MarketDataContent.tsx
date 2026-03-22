@@ -20,35 +20,44 @@ import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 
 const tabs: SubTab[] = [
   {
-    key: 'prices',
-    label: 'PRICES & TICKER',
+    key: 'ticker',
+    label: 'LIVE TICKER',
+    content: () => (
+      <section>
+        <SectionDivider label="LIVE TICKER TAPE" />
+        <GALiveTicker />
+      </section>
+    ),
+  },
+  {
+    key: 'spot-prices',
+    label: 'SPOT PRICES',
     content: () => (
       <div className="space-y-12">
         <section>
-          <SectionDivider label="LIVE TICKER TAPE" />
-          <GALiveTicker />
+          <SectionDivider label="METAL SPOT PRICES" />
+          <WidgetDocWrapper widgetId="prices"><GAPriceCards /></WidgetDocWrapper>
         </section>
         <section>
-          <SectionDivider label="SPOT PRICES" />
-          <WidgetDocWrapper widgetId="prices">
-            <GAPriceCards />
-            <div className="mt-6"><GACryptoPriceCards /></div>
-            <div className="mt-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1 h-6 bg-gold rounded-full" />
-                <span className="font-display text-sm tracking-[0.15em] text-gold-light">ALL SWAP ASSETS — REAL-TIME</span>
-                <span className="text-[10px] text-marble/25 font-mono">200+ instruments</span>
-              </div>
-              <GAAllAssetPriceCards />
-            </div>
-          </WidgetDocWrapper>
+          <SectionDivider label="CRYPTO SPOT PRICES" />
+          <WidgetDocWrapper widgetId="prices"><GACryptoPriceCards /></WidgetDocWrapper>
         </section>
       </div>
     ),
   },
   {
+    key: 'all-assets',
+    label: 'ALL ASSETS',
+    content: () => (
+      <section>
+        <SectionDivider label="ALL SWAP ASSETS — REAL-TIME" />
+        <WidgetDocWrapper widgetId="prices"><GAAllAssetPriceCards /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
     key: 'charts',
-    label: 'CHARTS & OVERVIEW',
+    label: 'CHARTS',
     content: () => (
       <div className="space-y-12">
         <section>
@@ -56,66 +65,104 @@ const tabs: SubTab[] = [
           <WidgetDocWrapper widgetId="mini-charts"><GAMiniCharts /></WidgetDocWrapper>
         </section>
         <section>
-          <SectionDivider label="MULTI-ASSET OVERVIEW" />
-          <WidgetDocWrapper widgetId="overview"><GAAssetOverview /></WidgetDocWrapper>
-        </section>
-        <section>
           <SectionDivider label="GOLD ARROW LIVE" />
           <WidgetDocWrapper widgetId="chart"><GALiveStandalone /></WidgetDocWrapper>
-          <div className="mt-8">
-            <SectionDivider label="METALS CHART" />
-            <WidgetDocWrapper widgetId="chart"><GAMetalChart /></WidgetDocWrapper>
-          </div>
+        </section>
+        <section>
+          <SectionDivider label="METALS CHART" />
+          <WidgetDocWrapper widgetId="chart"><GAMetalChart /></WidgetDocWrapper>
         </section>
       </div>
     ),
   },
   {
-    key: 'analysis',
-    label: 'ANALYSIS & QUOTES',
+    key: 'overview',
+    label: 'OVERVIEW',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="TECHNICAL ANALYSIS" />
-          <WidgetDocWrapper widgetId="analysis"><GATechnicalGauge /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="GLOBAL MARKET OVERVIEW" />
-          <WidgetDocWrapper widgetId="market-summary"><GAMarketSummary /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="MARKET QUOTES" />
-          <WidgetDocWrapper widgetId="quotes"><GAMarketQuotes /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="TOP MOVERS" />
-          <WidgetDocWrapper widgetId="movers"><GATopMovers /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="MULTI-ASSET OVERVIEW" />
+        <WidgetDocWrapper widgetId="overview"><GAAssetOverview /></WidgetDocWrapper>
+      </section>
     ),
   },
   {
-    key: 'news-fx',
-    label: 'NEWS & FOREX',
+    key: 'technical',
+    label: 'TECHNICAL',
     content: () => (
-      <div className="space-y-12">
-        <section>
-          <SectionDivider label="MARKET INTELLIGENCE FEED" />
-          <WidgetDocWrapper widgetId="news"><GANewsFeed /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="FOREX INTELLIGENCE" />
-          <WidgetDocWrapper widgetId="forex"><GAForexMatrix /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="MULTI-MARKET HEATMAP" />
-          <WidgetDocWrapper widgetId="heatmap"><GAMarketHeatmap /></WidgetDocWrapper>
-        </section>
-        <section>
-          <SectionDivider label="ECONOMIC CALENDAR" />
-          <WidgetDocWrapper widgetId="calendar"><GAEconomicCalendar /></WidgetDocWrapper>
-        </section>
-      </div>
+      <section>
+        <SectionDivider label="TECHNICAL ANALYSIS" />
+        <WidgetDocWrapper widgetId="analysis"><GATechnicalGauge /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'summary',
+    label: 'MARKET SUMMARY',
+    content: () => (
+      <section>
+        <SectionDivider label="GLOBAL MARKET OVERVIEW" />
+        <WidgetDocWrapper widgetId="market-summary"><GAMarketSummary /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'quotes',
+    label: 'QUOTES',
+    content: () => (
+      <section>
+        <SectionDivider label="MARKET QUOTES" />
+        <WidgetDocWrapper widgetId="quotes"><GAMarketQuotes /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'movers',
+    label: 'TOP MOVERS',
+    content: () => (
+      <section>
+        <SectionDivider label="TOP MOVERS" />
+        <WidgetDocWrapper widgetId="movers"><GATopMovers /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'news',
+    label: 'NEWS',
+    content: () => (
+      <section>
+        <SectionDivider label="MARKET INTELLIGENCE FEED" />
+        <WidgetDocWrapper widgetId="news"><GANewsFeed /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'forex',
+    label: 'FOREX',
+    content: () => (
+      <section>
+        <SectionDivider label="FOREX INTELLIGENCE" />
+        <WidgetDocWrapper widgetId="forex"><GAForexMatrix /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'heatmap',
+    label: 'HEATMAP',
+    content: () => (
+      <section>
+        <SectionDivider label="MULTI-MARKET HEATMAP" />
+        <WidgetDocWrapper widgetId="heatmap"><GAMarketHeatmap /></WidgetDocWrapper>
+      </section>
+    ),
+  },
+  {
+    key: 'calendar',
+    label: 'ECONOMIC CALENDAR',
+    content: () => (
+      <section>
+        <SectionDivider label="ECONOMIC CALENDAR" />
+        <WidgetDocWrapper widgetId="calendar"><GAEconomicCalendar /></WidgetDocWrapper>
+      </section>
     ),
   },
 ];
