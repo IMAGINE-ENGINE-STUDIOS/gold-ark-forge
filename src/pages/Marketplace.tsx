@@ -75,7 +75,7 @@ const METAL_META = {
 } as const;
 
 /* ─── Category definitions ─── */
-type MarketCategoryKey = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
+type MarketCategoryKey = 'overview' | 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
 
 const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof Activity }[] = [
   { key: 'metals', label: 'Precious Metals', icon: Gem },
@@ -88,6 +88,7 @@ const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof A
 
 /* Sub-categories per main category */
 const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]> = {
+  overview: [],
   metals: [
     { key: 'all', label: 'ALL METALS' },
     { key: 'spot', label: 'SPOT PRICES' },
@@ -317,7 +318,7 @@ const InstrumentList = ({ items, search, setSearch }: { items: BoardItem[]; sear
 
 const Marketplace = () => {
   const navigate = useNavigate();
-  const [activeCategory, setActiveCategory] = useState<MarketCategoryKey>('metals');
+  const [activeCategory, setActiveCategory] = useState<MarketCategoryKey>('overview');
   const [activeSubCategory, setActiveSubCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
 
@@ -444,6 +445,7 @@ const Marketplace = () => {
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({
+    overview: [],
     metals: metalsBoard,
     crypto: cryptoBoard,
     energy: energyBoard,
@@ -515,56 +517,42 @@ const Marketplace = () => {
     <div className="min-h-screen bg-navy text-marble">
       <Header />
 
-      {/* Hero */}
+      {/* Compact Hero */}
       <section className="relative overflow-hidden border-b border-gold/10 bg-gradient-navy">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--gold)/0.14),transparent_42%)]" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
 
-        <div className="container relative z-10 px-4 py-16 md:py-20">
+        <div className="container relative z-10 px-4 py-10 md:py-14">
           <div className="mx-auto max-w-5xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-display tracking-[0.24em] text-gold-light">
-              <Shield className="h-4 w-4" />
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-1.5 text-xs font-display tracking-[0.24em] text-gold-light">
+              <Shield className="h-3.5 w-3.5" />
               LIVE MARKET DATA
             </div>
 
-            <h1 className="font-display text-5xl tracking-[0.08em] text-marble md:text-7xl lg:text-8xl">
-              PAX ROMANA
-              <span className="mt-2 block gold-shimmer">MARKETPLACE</span>
+            <h1 className="font-display text-4xl tracking-[0.08em] text-marble md:text-5xl lg:text-6xl">
+              PAX ROMANA <span className="gold-shimmer">MARKETPLACE</span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-marble/72 md:text-xl">
-              Browse {totalAssets}+ instruments across 6 asset classes. Tap any asset to open its live chart and trade instantly.
+            <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-marble/60">
+              {totalAssets}+ instruments across 6 asset classes. Tap any asset to trade instantly.
             </p>
           </div>
 
-          {/* Stats */}
-          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard icon={Activity} label="Instruments" value={String(totalAssets)} detail="Available to trade now" />
-            <StatCard icon={Coins} label="Cryptocurrencies" value={String(cryptoBoard.length)} detail="Live WebSocket prices" />
-            <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices updated live" />
-            <StatCard icon={BarChart3} label="Asset classes" value="6" detail="Metals · Crypto · Energy · Equities · Forex · Bonds" />
-          </div>
-
-          {/* Top movers */}
-          <div className="mt-12">
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-display text-sm tracking-[0.22em] text-gold-light">TOP MOVERS</p>
-                <p className="mt-1 text-sm text-marble/55">Biggest 24h moves — tap to trade</p>
-              </div>
-              <button type="button" onClick={() => navigate('/intelligence')}
-                className="inline-flex items-center gap-2 rounded-sm border border-gold/20 bg-secondary/35 px-4 py-2 text-sm font-display tracking-[0.16em] text-marble transition-colors hover:border-gold/35 hover:text-gold-light">
-                <Sparkles className="h-4 w-4" /> Intelligence
-              </button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {topMovers.map(item => <MoverCard key={item.id} item={item} />)}
-            </div>
-          </div>
-
-          {/* Category Tabs */}
-          <div className="mt-14 -mx-4 px-4 overflow-x-auto scrollbar-thin">
+          {/* Category Tabs — immediately visible */}
+          <div className="mt-8 -mx-4 px-4 overflow-x-auto scrollbar-thin">
             <div className="flex flex-nowrap md:flex-wrap md:justify-center gap-2 min-w-max md:min-w-0">
+              {/* Overview tab */}
+              <button
+                onClick={() => handleCategoryChange('overview' as any)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded border transition-all text-[10px] font-display tracking-[0.2em] whitespace-nowrap shrink-0 md:shrink ${
+                  activeCategory === ('overview' as any)
+                    ? 'border-gold bg-gold/10 text-gold shadow-[0_0_12px_hsla(43,72%,50%,0.15)]'
+                    : 'border-gold/20 text-marble/50 hover:text-gold hover:border-gold/50'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                OVERVIEW
+              </button>
               {MARKET_CATEGORIES.map((cat) => {
                 const Icon = cat.icon;
                 const isActive = activeCategory === cat.key;
@@ -594,42 +582,69 @@ const Marketplace = () => {
 
       {/* Active Category Content */}
       <main className="container px-4 py-10 md:py-14">
-        {/* Sub-category pills */}
-        {subCats.length > 1 && (
-          <div className="overflow-x-auto scrollbar-thin mb-8 -mx-4 px-4">
-            <div className="flex flex-nowrap md:flex-wrap md:justify-center gap-1.5 min-w-max md:min-w-0">
-              {subCats.map((sub) => {
-                const isActive = activeSubCategory === sub.key;
-                return (
-                  <button
-                    key={sub.key}
-                    onClick={() => setActiveSubCategory(sub.key)}
-                    className={`px-3 py-1.5 rounded text-[9px] font-display tracking-[0.15em] whitespace-nowrap transition-all border ${
-                      isActive
-                        ? 'border-gold/60 bg-gold/10 text-gold'
-                        : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
-                    }`}
-                  >
-                    {sub.label}
-                  </button>
-                );
-              })}
+        {activeCategory === ('overview' as any) ? (
+          /* ─── Overview tab: stats + movers + market summary ─── */
+          <div className="space-y-10">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <StatCard icon={Activity} label="Instruments" value={String(totalAssets)} detail="Available to trade now" />
+              <StatCard icon={Coins} label="Cryptocurrencies" value={String(cryptoBoard.length)} detail="Live WebSocket prices" />
+              <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices updated live" />
+              <StatCard icon={BarChart3} label="Asset classes" value="6" detail="Metals · Crypto · Energy · Equities · Forex · Bonds" />
             </div>
-          </div>
-        )}
 
-        {/* Market summary for overview context */}
-        {activeCategory === 'metals' && activeSubCategory === 'all' && (
-          <div className="mb-8">
+            <div>
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-display text-sm tracking-[0.22em] text-gold-light">TOP MOVERS</p>
+                  <p className="mt-1 text-sm text-marble/55">Biggest 24h moves — tap to trade</p>
+                </div>
+                <button type="button" onClick={() => navigate('/intelligence')}
+                  className="inline-flex items-center gap-2 rounded-sm border border-gold/20 bg-secondary/35 px-4 py-2 text-sm font-display tracking-[0.16em] text-marble transition-colors hover:border-gold/35 hover:text-gold-light">
+                  <Sparkles className="h-4 w-4" /> Intelligence
+                </button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {topMovers.map(item => <MoverCard key={item.id} item={item} />)}
+              </div>
+            </div>
+
             <GAMarketSummary />
+            <GACryptoPriceCards />
           </div>
+        ) : (
+          /* ─── Category content with sub-tabs ─── */
+          <>
+            {/* Sub-category pills */}
+            {subCats.length > 1 && (
+              <div className="overflow-x-auto scrollbar-thin mb-8 -mx-4 px-4">
+                <div className="flex flex-nowrap md:flex-wrap md:justify-center gap-1.5 min-w-max md:min-w-0">
+                  {subCats.map((sub) => {
+                    const isActive = activeSubCategory === sub.key;
+                    return (
+                      <button
+                        key={sub.key}
+                        onClick={() => setActiveSubCategory(sub.key)}
+                        className={`px-3 py-1.5 rounded text-[9px] font-display tracking-[0.15em] whitespace-nowrap transition-all border ${
+                          isActive
+                            ? 'border-gold/60 bg-gold/10 text-gold'
+                            : 'border-gold/15 text-marble/40 hover:text-gold/70 hover:border-gold/30'
+                        }`}
+                      >
+                        {sub.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Instrument list */}
+            <InstrumentList items={activeCategoryItems} search={search} setSearch={setSearch} />
+
+            {/* Extra widgets per sub-category */}
+            {renderExtraWidgets()}
+          </>
         )}
-
-        {/* Instrument list */}
-        <InstrumentList items={activeCategoryItems} search={search} setSearch={setSearch} />
-
-        {/* Extra widgets per sub-category */}
-        {renderExtraWidgets()}
       </main>
 
       <div className="greek-key-border-rich h-2" />
