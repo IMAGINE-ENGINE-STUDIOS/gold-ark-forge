@@ -445,6 +445,7 @@ const Marketplace = () => {
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({
+    overview: [],
     metals: metalsBoard,
     crypto: cryptoBoard,
     energy: energyBoard,
