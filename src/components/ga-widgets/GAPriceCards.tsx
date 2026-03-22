@@ -101,7 +101,7 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
 
         <h3 className="font-display text-lg tracking-[0.15em] text-gold-light mb-1">{config.label}</h3>
 
-        <div className="font-display text-3xl text-marble font-semibold tracking-tight">
+        <div className="font-display text-xl md:text-2xl text-marble font-semibold tracking-tight truncate">
           ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
 
