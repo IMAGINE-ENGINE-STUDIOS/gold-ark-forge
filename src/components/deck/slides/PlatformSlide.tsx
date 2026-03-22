@@ -34,7 +34,7 @@ const screens: Screen[] = [
     label: 'Trading Bridge',
     desc: 'Paper & live trading with one-click execution, bot automation, and cross-asset management.',
     icon: LineChart,
-    component: <GALiveChart />,
+    component: <GALiveStandalone />,
   },
   {
     label: 'Marketplace',
