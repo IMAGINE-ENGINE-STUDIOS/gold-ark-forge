@@ -79,7 +79,7 @@ const ProblemSlide = () => {
         </div>
 
         {/* Gear mechanism area */}
-        <div className="flex-1 relative mt-4">
+        <div className="flex-1 relative mt-4 flex items-center justify-center">
           {/* Central gear SVG mechanism */}
           <svg viewBox="0 0 1720 580" className="absolute inset-0 w-full h-full" style={{ overflow: 'visible' }}>
             <defs>
@@ -219,7 +219,7 @@ const ProblemSlide = () => {
           </svg>
 
           {/* Problem labels below/over each gear */}
-          <div className="absolute bottom-[40px] left-0 right-0 flex justify-between px-[20px]">
+          <div className="absolute bottom-0 left-0 right-0 flex justify-between px-[20px]">
             {problems.map((p, i) => (
               <div
                 key={i}
