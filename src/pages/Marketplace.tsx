@@ -317,7 +317,7 @@ const InstrumentList = ({ items, search, setSearch }: { items: BoardItem[]; sear
 
 const Marketplace = () => {
   const navigate = useNavigate();
-  const [activeCategory, setActiveCategory] = useState<MarketCategoryKey>('metals');
+  const [activeCategory, setActiveCategory] = useState<MarketCategoryKey>('overview');
   const [activeSubCategory, setActiveSubCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
 
