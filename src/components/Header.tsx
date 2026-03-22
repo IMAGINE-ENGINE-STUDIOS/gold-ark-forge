@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, LogIn, LogOut } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, Store, BarChart3, ArrowLeftRight, Brain, Vault, ShieldCheck, Info, Fuel, Lightbulb, Settings } from 'lucide-react';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -8,16 +8,16 @@ const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navItems = [
-    { label: 'Marketplace', href: '/marketplace' },
-    { label: 'Markets', href: '/markets' },
-    { label: 'Swap', href: '/trading-bridge' },
-    { label: 'Intelligence', href: '/intelligence' },
-    { label: 'The Vault', href: '/vault' },
-    { label: 'Verify', href: '/verify' },
-    { label: 'About Us', href: '/about' },
-    { label: 'Oil & Gas', href: '/oil-gas' },
-    { label: 'Insights', href: '/certification' },
-    { label: 'Admin', href: '/admin' },
+    { label: 'Marketplace', href: '/marketplace', icon: Store },
+    { label: 'Markets', href: '/markets', icon: BarChart3 },
+    { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
+    { label: 'Intelligence', href: '/intelligence', icon: Brain },
+    { label: 'The Vault', href: '/vault', icon: Vault },
+    { label: 'Verify', href: '/verify', icon: ShieldCheck },
+    { label: 'About Us', href: '/about', icon: Info },
+    { label: 'Oil & Gas', href: '/oil-gas', icon: Fuel },
+    { label: 'Insights', href: '/certification', icon: Lightbulb },
+    { label: 'Admin', href: '/admin', icon: Settings },
   ];
 
   return (
@@ -91,22 +91,26 @@ const Header = () => {
       {/* Navigation Bar - Cream/Marble Background */}
       <div className="bg-gradient-to-b from-marble-warm to-marble border-b-2 border-gold/30 hidden lg:block">
         <div className="h-2 greek-key-border opacity-50" />
-        <nav className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-center gap-12">
-            {navItems.map((item, index) => (
-              <div key={item.label} className="flex items-center gap-12">
-                <Link
-                  to={item.href}
-                  className="font-display text-sm tracking-[0.15em] text-navy/80 hover:text-gold-dark transition-colors uppercase relative group"
-                >
-                  {item.label}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gold group-hover:w-full transition-all" />
-                </Link>
-                {index < navItems.length - 1 && (
-                  <span className="text-gold/40">◆</span>
-                )}
-              </div>
-            ))}
+        <nav className="container mx-auto px-4 py-2.5">
+          <div className="flex items-center justify-center gap-1">
+            {navItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="flex items-center gap-1">
+                  <Link
+                    to={item.href}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 font-display text-xs tracking-[0.1em] text-navy/80 hover:text-gold-dark transition-colors uppercase relative group"
+                  >
+                    <Icon className="w-3.5 h-3.5 text-gold" />
+                    {item.label}
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gold group-hover:w-full transition-all" />
+                  </Link>
+                  {index < navItems.length - 1 && (
+                    <span className="text-gold/30 text-[8px]">|</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </nav>
         <div className="h-2 greek-key-border opacity-50" />
@@ -116,16 +120,20 @@ const Header = () => {
       {isMenuOpen && (
         <div className="lg:hidden absolute top-full left-0 right-0 bg-navy border-b-2 border-gold">
           <nav className="container mx-auto px-4 py-6 flex flex-col gap-4">
-            {navItems.map((item) => (
-              <Link
-                key={item.label}
-                to={item.href}
-                className="font-display text-sm tracking-wider text-gold hover:text-gold-light transition-colors uppercase py-2 border-b border-gold/20"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.label}
+                  to={item.href}
+                  className="flex items-center gap-2 font-display text-sm tracking-wider text-gold hover:text-gold-light transition-colors uppercase py-2 border-b border-gold/20"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Icon className="w-4 h-4 text-gold" />
+                  {item.label}
+                </Link>
+              );
+            })}
             <div className="pt-4 flex flex-col gap-3">
               {user ? (
                 <button onClick={() => { signOut(); setIsMenuOpen(false); }} className="flex items-center gap-1 text-gold/60 hover:text-gold text-sm font-display tracking-wider transition-colors">

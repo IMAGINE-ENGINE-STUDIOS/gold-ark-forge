@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-// GA Custom Widgets — NO TradingView
+// GA Custom Widgets
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
@@ -26,15 +27,11 @@ import GAForexWarRoom from '@/components/ga-widgets/GAForexWarRoom';
 import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
 import GAPortfolioAllocator from '@/components/ga-widgets/GAPortfolioAllocator';
 import GAYieldMonitor from '@/components/ga-widgets/GAYieldMonitor';
-
-// Blockchain live widgets (free APIs)
 import GABitcoinNetwork from '@/components/ga-widgets/GABitcoinNetwork';
 import GAEthereumNetwork from '@/components/ga-widgets/GAEthereumNetwork';
 import GAXRPLedger from '@/components/ga-widgets/GAXRPLedger';
 import GATronNetwork from '@/components/ga-widgets/GATronNetwork';
 import GASECFilings from '@/components/ga-widgets/GASECFilings';
-
-// Proprietary widgets (Lovable Cloud DB)
 import GAReserveGauge from '@/components/ga-widgets/GAReserveGauge';
 import GAVaultMatrix from '@/components/ga-widgets/GAVaultMatrix';
 import GACertificateFlow from '@/components/ga-widgets/GACertificateFlow';
@@ -46,7 +43,6 @@ import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
 import GAAnchorStatus from '@/components/ga-widgets/GAAnchorStatus';
 import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
 import GAAllAssetPriceCards from '@/components/ga-widgets/GAAllAssetPriceCards';
-
 import GADeFiDashboard from '@/components/ga-widgets/GADeFiDashboard';
 import GAWhaleWatch from '@/components/ga-widgets/GAWhaleWatch';
 import GAGoldRatio from '@/components/ga-widgets/GAGoldRatio';
@@ -59,7 +55,6 @@ import GAPipCalculator from '@/components/ga-widgets/GAPipCalculator';
 import GAPerformanceDashboard from '@/components/ga-widgets/GAPerformanceDashboard';
 import GATradingSessions from '@/components/ga-widgets/GATradingSessions';
 
-// Oil & Gas Widgets
 import OGMultiTicker from '@/components/og-widgets/OGMultiTicker';
 import OGPriceCards from '@/components/og-widgets/OGPriceCards';
 import OGNewsFeed from '@/components/og-widgets/OGNewsFeed';
@@ -79,64 +74,23 @@ import OGRiskAnalyzer from '@/components/og-widgets/OGRiskAnalyzer';
 import WidgetDocWrapper from '@/components/ga-widgets/WidgetDocWrapper';
 
 import {
-  Shield, BarChart3, Vault, FileCheck2, History, Grid3X3, TrendingUp,
-  Gauge, Building2, Network, SlidersHorizontal, Layers,
-  Bitcoin, Newspaper, CalendarDays, LayoutGrid, FileText, Fish,
-  DollarSign, LineChart, Eye, Globe, Flame, BarChart, ArrowLeftRight,
-  Zap, Crosshair, Activity, PieChart as PieChartIcon, Landmark,
+  TrendingUp, LineChart, Eye, BarChart3, Gauge, Globe, BarChart, Flame,
+  Newspaper, ArrowLeftRight, LayoutGrid, CalendarDays, Bitcoin, Network,
+  Layers, Fish, FileText, Zap, Crosshair, Activity, PieChart as PieChartIcon,
+  Landmark, SlidersHorizontal, DollarSign, Building2, Fuel,
+  Shield, Database,
 } from 'lucide-react';
-import { useRef } from 'react';
 
-const sections = [
-  // Market Data
-  { id: 'prices', label: 'PRICES', icon: TrendingUp },
-  { id: 'mini-charts', label: 'CHARTS', icon: LineChart },
-  { id: 'overview', label: 'OVERVIEW', icon: Eye },
-  { id: 'chart', label: 'ADV CHART', icon: BarChart3 },
-  { id: 'analysis', label: 'ANALYSIS', icon: Gauge },
-  { id: 'market-summary', label: 'MARKETS', icon: Globe },
-  { id: 'quotes', label: 'QUOTES', icon: BarChart },
-  { id: 'movers', label: 'MOVERS', icon: Flame },
-  { id: 'news', label: 'NEWS', icon: Newspaper },
-  { id: 'forex', label: 'FOREX', icon: ArrowLeftRight },
-  { id: 'heatmap', label: 'HEATMAP', icon: LayoutGrid },
-  { id: 'calendar', label: 'CALENDAR', icon: CalendarDays },
-  // Blockchain Live
-  { id: 'bitcoin', label: 'BITCOIN', icon: Bitcoin },
-  { id: 'ethereum', label: 'ETHEREUM', icon: Network },
-  { id: 'xrp', label: 'XRP', icon: Layers },
-  { id: 'tron', label: 'TRON', icon: Layers },
-  { id: 'whales', label: 'WHALES', icon: Fish },
-  { id: 'sec', label: 'SEC', icon: FileText },
-  // DeFi & Sentiment
-  { id: 'crypto-market', label: 'COINS', icon: Layers },
-  { id: 'crypto-heatmap', label: 'CRYPTO MAP', icon: LayoutGrid },
-  { id: 'defi', label: 'DeFi TVL', icon: Layers },
-  // Composite Tools
-  { id: 'pulse', label: 'PULSE', icon: Zap },
-  { id: 'correlation', label: 'CORR', icon: ArrowLeftRight },
-  { id: 'chain-hub', label: 'CHAINS', icon: Network },
-  { id: 'commodity-radar', label: 'RADAR', icon: Crosshair },
-  { id: 'forex-room', label: 'FX ROOM', icon: Globe },
-  { id: 'volatility', label: 'VOL', icon: Activity },
-  { id: 'portfolios', label: 'ALLOC', icon: PieChartIcon },
-  { id: 'yields', label: 'YIELDS', icon: Landmark },
-  // Proprietary
-  { id: 'ratios', label: 'RATIOS', icon: BarChart3 },
-  // Trading Tools
-  { id: 'tape', label: 'TAPE', icon: Activity },
-  { id: 'journal', label: 'JOURNAL', icon: BarChart3 },
-  { id: 'sessions', label: 'SESSIONS', icon: Globe },
-  { id: 'margin-calc', label: 'MARGIN', icon: SlidersHorizontal },
-  { id: 'pip-calc', label: 'PIP CALC', icon: DollarSign },
-  { id: 'performance', label: 'PERF', icon: TrendingUp },
-  // Oil & Gas
-  { id: 'og-energy', label: 'ENERGY', icon: Flame },
-  { id: 'og-futures', label: 'FUTURES', icon: LineChart },
-  { id: 'og-opec', label: 'OPEC', icon: Globe },
-  { id: 'og-supply', label: 'SUPPLY', icon: BarChart },
-  { id: 'og-rigs', label: 'RIGS', icon: Building2 },
-  { id: 'og-pipelines', label: 'PIPES', icon: Network },
+type CategoryKey = 'market' | 'blockchain' | 'defi' | 'composite' | 'proprietary' | 'trading' | 'oilgas';
+
+const categories: { key: CategoryKey; label: string; icon: any; sub: string }[] = [
+  { key: 'market', label: 'Market Data', icon: TrendingUp, sub: 'LIVE AUTO-REFRESH · FREE PUBLIC APIs · ZERO INTERMEDIARIES' },
+  { key: 'blockchain', label: 'Blockchain', icon: Bitcoin, sub: 'DIRECT FROM NETWORKS · ZERO INTERMEDIARIES' },
+  { key: 'defi', label: 'DeFi & Sentiment', icon: Layers, sub: 'FREE PUBLIC APIs · AUTO-REFRESH' },
+  { key: 'composite', label: 'Composite Tools', icon: Zap, sub: 'MULTI-SOURCE · CROSS-ASSET ANALYSIS' },
+  { key: 'proprietary', label: 'Proprietary', icon: Shield, sub: 'GOLD ARROW INTERNAL · LOVABLE CLOUD' },
+  { key: 'trading', label: 'Trading Tools', icon: Activity, sub: 'ORDER FLOW · JOURNALING · PROFESSIONAL ANALYTICS' },
+  { key: 'oilgas', label: 'Oil & Gas', icon: Fuel, sub: 'ENERGY SECTOR · INSTITUTIONAL ANALYTICS' },
 ];
 
 const SectionDivider = ({ label }: { label: string }) => (
@@ -155,16 +109,336 @@ const TierBanner = ({ label, sub }: { label: string; sub: string }) => (
   </div>
 );
 
+const MarketDataContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="MARKET DATA" sub="LIVE AUTO-REFRESH · FREE PUBLIC APIs · ZERO INTERMEDIARIES" />
+    <section>
+      <SectionDivider label="LIVE TICKER TAPE" />
+      <GALiveTicker />
+    </section>
+    <section>
+      <SectionDivider label="SPOT PRICES" />
+      <WidgetDocWrapper widgetId="prices">
+        <GAPriceCards />
+        <div className="mt-6"><GACryptoPriceCards /></div>
+        <div className="mt-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1 h-6 bg-gold rounded-full" />
+            <span className="font-display text-sm tracking-[0.15em] text-gold-light">ALL SWAP ASSETS — REAL-TIME</span>
+            <span className="text-[10px] text-marble/25 font-mono">200+ instruments</span>
+          </div>
+          <GAAllAssetPriceCards />
+        </div>
+      </WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="COMPACT CHARTS" />
+      <WidgetDocWrapper widgetId="mini-charts"><GAMiniCharts /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="MULTI-ASSET OVERVIEW" />
+      <WidgetDocWrapper widgetId="overview"><GAAssetOverview /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="GOLD ARROW LIVE" />
+      <WidgetDocWrapper widgetId="chart"><GALiveStandalone /></WidgetDocWrapper>
+      <div className="mt-8">
+        <SectionDivider label="METALS CHART" />
+        <WidgetDocWrapper widgetId="chart"><GAMetalChart /></WidgetDocWrapper>
+      </div>
+    </section>
+    <section>
+      <SectionDivider label="TECHNICAL ANALYSIS" />
+      <WidgetDocWrapper widgetId="analysis"><GATechnicalGauge /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="GLOBAL MARKET OVERVIEW" />
+      <WidgetDocWrapper widgetId="market-summary"><GAMarketSummary /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="MARKET QUOTES" />
+      <WidgetDocWrapper widgetId="quotes"><GAMarketQuotes /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="TOP MOVERS" />
+      <WidgetDocWrapper widgetId="movers"><GATopMovers /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="MARKET INTELLIGENCE FEED" />
+      <WidgetDocWrapper widgetId="news"><GANewsFeed /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="FOREX INTELLIGENCE" />
+      <WidgetDocWrapper widgetId="forex"><GAForexMatrix /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="MULTI-MARKET HEATMAP" />
+      <WidgetDocWrapper widgetId="heatmap"><GAMarketHeatmap /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="ECONOMIC CALENDAR" />
+      <WidgetDocWrapper widgetId="calendar"><GAEconomicCalendar /></WidgetDocWrapper>
+    </section>
+  </div>
+);
+
+const BlockchainContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="BLOCKCHAIN LIVE" sub="DIRECT FROM NETWORKS · ZERO INTERMEDIARIES" />
+    <section>
+      <SectionDivider label="BITCOIN NETWORK" />
+      <WidgetDocWrapper widgetId="bitcoin"><GABitcoinNetwork /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="ETHEREUM NETWORK" />
+      <WidgetDocWrapper widgetId="ethereum"><GAEthereumNetwork /></WidgetDocWrapper>
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="XRP LEDGER" />
+        <WidgetDocWrapper widgetId="xrp"><GAXRPLedger /></WidgetDocWrapper>
+      </section>
+      <section>
+        <SectionDivider label="TRON NETWORK" />
+        <WidgetDocWrapper widgetId="tron"><GATronNetwork /></WidgetDocWrapper>
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="SEC EDGAR FILINGS" />
+      <WidgetDocWrapper widgetId="sec"><GASECFilings /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="WHALE WATCH" />
+      <WidgetDocWrapper widgetId="whales"><GAWhaleWatch /></WidgetDocWrapper>
+    </section>
+  </div>
+);
+
+const DeFiContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="DeFi & SENTIMENT" sub="FREE PUBLIC APIs · AUTO-REFRESH" />
+    <section>
+      <SectionDivider label="CRYPTO MARKET OVERVIEW" />
+      <WidgetDocWrapper widgetId="crypto-market"><GACryptoMarket /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="CRYPTO HEATMAP" />
+      <WidgetDocWrapper widgetId="crypto-heatmap"><GACryptoHeatmap /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="DeFi TOTAL VALUE LOCKED" />
+      <WidgetDocWrapper widgetId="defi"><GADeFiDashboard /></WidgetDocWrapper>
+    </section>
+  </div>
+);
+
+const CompositeContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="COMPOSITE TOOLS" sub="MULTI-SOURCE · CROSS-ASSET ANALYSIS" />
+    <section>
+      <SectionDivider label="MARKET PULSE COMMAND CENTER" />
+      <WidgetDocWrapper widgetId="pulse"><GAMarketPulse /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="CROSS-ASSET CORRELATION" />
+      <WidgetDocWrapper widgetId="correlation"><GACrossAssetDashboard /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
+      <WidgetDocWrapper widgetId="chain-hub"><GABlockchainHub /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="COMMODITY RADAR" />
+      <WidgetDocWrapper widgetId="commodity-radar"><GACommodityRadar /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="FOREX WAR ROOM" />
+      <WidgetDocWrapper widgetId="forex-room"><GAForexWarRoom /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="VOLATILITY MATRIX" />
+      <WidgetDocWrapper widgetId="volatility"><GAVolatilityMatrix /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="PORTFOLIO ALLOCATOR" />
+      <WidgetDocWrapper widgetId="portfolios"><GAPortfolioAllocator /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="DeFi YIELD MONITOR" />
+      <WidgetDocWrapper widgetId="yields"><GAYieldMonitor /></WidgetDocWrapper>
+    </section>
+  </div>
+);
+
+const ProprietaryContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="PROPRIETARY DATA" sub="GOLD ARROW INTERNAL · LOVABLE CLOUD" />
+    <section>
+      <SectionDivider label="METAL RATIOS" />
+      <WidgetDocWrapper widgetId="ratios"><GAGoldRatio /></WidgetDocWrapper>
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="RESERVE BACKING" />
+        <WidgetDocWrapper widgetId="reserves"><GAReserveGauge /></WidgetDocWrapper>
+      </section>
+      <section>
+        <SectionDivider label="RESERVE HISTORY" />
+        <WidgetDocWrapper widgetId="timeline"><GAReserveTimeline /></WidgetDocWrapper>
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="METAL PROFILES" />
+      <WidgetDocWrapper widgetId="profiles"><GAMetalProfile /></WidgetDocWrapper>
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="VAULT INVENTORY" />
+        <WidgetDocWrapper widgetId="vault"><GAVaultMatrix /></WidgetDocWrapper>
+      </section>
+      <section>
+        <SectionDivider label="BULLION HEATMAP" />
+        <WidgetDocWrapper widgetId="bullion-heatmap"><GABullionHeatmap /></WidgetDocWrapper>
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="BULLION SCREENER" />
+      <WidgetDocWrapper widgetId="screener"><GAMetalScreener /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="CERTIFICATE REGISTRY" />
+      <WidgetDocWrapper widgetId="certs"><GACertificateFlow /></WidgetDocWrapper>
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="BITCOIN ANCHORS" />
+        <WidgetDocWrapper widgetId="anchors"><GAAnchorStatus /></WidgetDocWrapper>
+      </section>
+      <section>
+        <SectionDivider label="ANCHORED ACTIVITY" />
+        <WidgetDocWrapper widgetId="activity"><GAActivityFeed /></WidgetDocWrapper>
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="PARTNER NETWORK" />
+      <WidgetDocWrapper widgetId="partners"><GAPartnerNetwork /></WidgetDocWrapper>
+    </section>
+  </div>
+);
+
+const TradingContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="TRADING TOOLS" sub="ORDER FLOW · JOURNALING · PROFESSIONAL ANALYTICS" />
+    <section>
+      <SectionDivider label="TIME & SALES (TAPE READER)" />
+      <WidgetDocWrapper widgetId="tape"><GATimeSales /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="TRADE JOURNAL" />
+      <WidgetDocWrapper widgetId="journal"><GATradeJournal /></WidgetDocWrapper>
+    </section>
+    <section>
+      <SectionDivider label="TRADING SESSIONS" />
+      <WidgetDocWrapper widgetId="sessions"><GATradingSessions /></WidgetDocWrapper>
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="MARGIN CALCULATOR" />
+        <WidgetDocWrapper widgetId="margin-calc"><GAMarginCalc /></WidgetDocWrapper>
+      </section>
+      <section>
+        <SectionDivider label="PIP CALCULATOR" />
+        <WidgetDocWrapper widgetId="pip-calc"><GAPipCalculator /></WidgetDocWrapper>
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="PERFORMANCE DASHBOARD" />
+      <WidgetDocWrapper widgetId="performance"><GAPerformanceDashboard /></WidgetDocWrapper>
+    </section>
+  </div>
+);
+
+const OilGasContent = () => (
+  <div className="space-y-12">
+    <TierBanner label="OIL & GAS INTELLIGENCE" sub="ENERGY SECTOR · INSTITUTIONAL ANALYTICS" />
+    <OGMultiTicker />
+    <section>
+      <SectionDivider label="ENERGY DASHBOARD" />
+      <OGPriceCards />
+      <div className="mt-6"><OGEnergyDashboard /></div>
+    </section>
+    <section>
+      <SectionDivider label="FUTURES CURVE" />
+      <OGFuturesCurve />
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="INVENTORY GAUGE" />
+        <OGInventoryGauge />
+      </section>
+      <section>
+        <SectionDivider label="WTI-BRENT SPREAD" />
+        <OGWtiBrentSpread />
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="OPEC TRACKER" />
+      <OGOPECTracker />
+    </section>
+    <section>
+      <SectionDivider label="SUPPLY & DEMAND" />
+      <OGSupplyDemand />
+    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section>
+        <SectionDivider label="RIG COUNT" />
+        <OGRigCount />
+      </section>
+      <section>
+        <SectionDivider label="CRACK SPREADS" />
+        <OGCrackSpreads />
+      </section>
+    </div>
+    <section>
+      <SectionDivider label="PRODUCTION MAP" />
+      <OGProductionMap />
+    </section>
+    <section>
+      <SectionDivider label="PIPELINE FLOW" />
+      <OGPipelineFlow />
+    </section>
+    <section>
+      <SectionDivider label="CHOKEPOINTS" />
+      <OGChokepoints />
+    </section>
+    <section>
+      <SectionDivider label="RISK ANALYZER" />
+      <OGRiskAnalyzer />
+    </section>
+    <section>
+      <SectionDivider label="ENERGY NEWS" />
+      <OGNewsFeed />
+    </section>
+  </div>
+);
+
+const categoryContent: Record<CategoryKey, React.FC> = {
+  market: MarketDataContent,
+  blockchain: BlockchainContent,
+  defi: DeFiContent,
+  composite: CompositeContent,
+  proprietary: ProprietaryContent,
+  trading: TradingContent,
+  oilgas: OilGasContent,
+};
+
 const Intelligence = () => {
-  const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>('market');
+  const ActiveContent = categoryContent[activeCategory];
 
   return (
     <div className="min-h-screen bg-navy">
       <Header />
-
-      {/* Live Ticker — GA Custom */}
       <GAMultiTicker />
 
       {/* Hero Banner */}
@@ -186,19 +460,24 @@ const Intelligence = () => {
             and Gold Arrow's internal data streams — all in one view, zero intermediaries.
           </p>
 
-          {/* Section Nav — horizontal scroll on mobile */}
+          {/* Category Tabs */}
           <div className="mt-10 -mx-6 px-6 overflow-x-auto scrollbar-thin">
             <div className="flex flex-nowrap md:flex-wrap md:justify-center gap-2 min-w-max md:min-w-0">
-              {sections.map((s) => {
-                const Icon = s.icon;
+              {categories.map((cat) => {
+                const Icon = cat.icon;
+                const isActive = activeCategory === cat.key;
                 return (
                   <button
-                    key={s.id}
-                    onClick={() => scrollTo(s.id)}
-                    className="flex items-center gap-2 px-4 py-2 rounded border border-gold/20 text-marble/50 hover:text-gold hover:border-gold/50 transition-all text-[10px] font-display tracking-[0.2em] whitespace-nowrap shrink-0 md:shrink"
+                    key={cat.key}
+                    onClick={() => setActiveCategory(cat.key)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded border transition-all text-[10px] font-display tracking-[0.2em] whitespace-nowrap shrink-0 md:shrink ${
+                      isActive
+                        ? 'border-gold bg-gold/10 text-gold shadow-[0_0_12px_hsla(43,72%,50%,0.15)]'
+                        : 'border-gold/20 text-marble/50 hover:text-gold hover:border-gold/50'
+                    }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
-                    {s.label}
+                    {cat.label.toUpperCase()}
                   </button>
                 );
               })}
@@ -209,472 +488,9 @@ const Intelligence = () => {
 
       <div className="greek-key-border-rich h-2" />
 
-      {/* ═══════════════ TIER 1: MARKET DATA ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="MARKET DATA" sub="LIVE AUTO-REFRESH · FREE PUBLIC APIs · ZERO INTERMEDIARIES" />
-
-        <section id="live-ticker" className="mb-8">
-          <SectionDivider label="LIVE TICKER TAPE" />
-          <GALiveTicker />
-        </section>
-
-        <section id="prices">
-          <SectionDivider label="SPOT PRICES" />
-          <WidgetDocWrapper widgetId="prices">
-            <GAPriceCards />
-            <div className="mt-6">
-              <GACryptoPriceCards />
-            </div>
-            <div className="mt-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1 h-6 bg-gold rounded-full" />
-                <span className="font-display text-sm tracking-[0.15em] text-gold-light">ALL SWAP ASSETS — REAL-TIME</span>
-                <span className="text-[10px] text-marble/25 font-mono">200+ instruments</span>
-              </div>
-              <GAAllAssetPriceCards />
-            </div>
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="mini-charts">
-          <SectionDivider label="COMPACT CHARTS" />
-          <WidgetDocWrapper widgetId="mini-charts">
-            <GAMiniCharts />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="overview">
-          <SectionDivider label="MULTI-ASSET OVERVIEW" />
-          <WidgetDocWrapper widgetId="overview">
-            <GAAssetOverview />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="chart">
-          <SectionDivider label="GOLD ARROW LIVE" />
-          <WidgetDocWrapper widgetId="chart">
-            <GALiveStandalone />
-          </WidgetDocWrapper>
-          <div className="mt-8">
-            <SectionDivider label="METALS CHART" />
-            <WidgetDocWrapper widgetId="chart">
-              <GAMetalChart />
-            </WidgetDocWrapper>
-          </div>
-        </section>
-
-        <section id="analysis">
-          <SectionDivider label="TECHNICAL ANALYSIS" />
-          <WidgetDocWrapper widgetId="analysis">
-            <GATechnicalGauge />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="market-summary">
-          <SectionDivider label="GLOBAL MARKET OVERVIEW" />
-          <WidgetDocWrapper widgetId="market-summary">
-            <GAMarketSummary />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="quotes">
-          <SectionDivider label="MARKET QUOTES" />
-          <WidgetDocWrapper widgetId="quotes">
-            <GAMarketQuotes />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="movers">
-          <SectionDivider label="TOP MOVERS" />
-          <WidgetDocWrapper widgetId="movers">
-            <GATopMovers />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="news">
-          <SectionDivider label="MARKET INTELLIGENCE FEED" />
-          <WidgetDocWrapper widgetId="news">
-            <GANewsFeed />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="forex">
-          <SectionDivider label="FOREX INTELLIGENCE" />
-          <WidgetDocWrapper widgetId="forex">
-            <GAForexMatrix />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="heatmap">
-          <SectionDivider label="MULTI-MARKET HEATMAP" />
-          <WidgetDocWrapper widgetId="heatmap">
-            <GAMarketHeatmap />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="calendar">
-          <SectionDivider label="ECONOMIC CALENDAR" />
-          <WidgetDocWrapper widgetId="calendar">
-            <GAEconomicCalendar />
-          </WidgetDocWrapper>
-        </section>
-      </div>
-
-      <div className="greek-key-border-rich h-2" />
-
-      {/* ═══════════════ TIER 2: BLOCKCHAIN LIVE ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="BLOCKCHAIN LIVE" sub="DIRECT FROM NETWORKS · ZERO INTERMEDIARIES" />
-
-        <section id="bitcoin">
-          <SectionDivider label="BITCOIN NETWORK" />
-          <WidgetDocWrapper widgetId="bitcoin">
-            <GABitcoinNetwork />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="ethereum">
-          <SectionDivider label="ETHEREUM NETWORK" />
-          <WidgetDocWrapper widgetId="ethereum">
-            <GAEthereumNetwork />
-          </WidgetDocWrapper>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="xrp">
-            <SectionDivider label="XRP LEDGER" />
-            <WidgetDocWrapper widgetId="xrp">
-              <GAXRPLedger />
-            </WidgetDocWrapper>
-          </section>
-          <section id="tron">
-            <SectionDivider label="TRON NETWORK" />
-            <WidgetDocWrapper widgetId="tron">
-              <GATronNetwork />
-            </WidgetDocWrapper>
-          </section>
-        </div>
-
-        <section id="sec">
-          <SectionDivider label="SEC EDGAR FILINGS" />
-          <WidgetDocWrapper widgetId="sec">
-            <GASECFilings />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="whales">
-          <SectionDivider label="WHALE WATCH" />
-          <WidgetDocWrapper widgetId="whales">
-            <GAWhaleWatch />
-          </WidgetDocWrapper>
-        </section>
-      </div>
-
-      <div className="greek-key-border-rich h-2" />
-
-      {/* ═══════════════ TIER 2.5: DeFi & SENTIMENT ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="DeFi & SENTIMENT" sub="FREE PUBLIC APIs · AUTO-REFRESH" />
-
-        <section id="crypto-market">
-          <SectionDivider label="CRYPTO MARKET OVERVIEW" />
-          <WidgetDocWrapper widgetId="crypto-market">
-            <GACryptoMarket />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="crypto-heatmap">
-          <SectionDivider label="CRYPTO HEATMAP" />
-          <WidgetDocWrapper widgetId="crypto-heatmap">
-            <GACryptoHeatmap />
-          </WidgetDocWrapper>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="defi">
-            <SectionDivider label="DeFi TOTAL VALUE LOCKED" />
-            <WidgetDocWrapper widgetId="defi">
-              <GADeFiDashboard />
-            </WidgetDocWrapper>
-          </section>
-        </div>
-      </div>
-
-      {/* ═══════════════ TIER 2.75: COMPOSITE TOOLS ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="COMPOSITE TOOLS" sub="MULTI-SOURCE · CROSS-ASSET ANALYSIS" />
-
-        <section id="pulse">
-          <SectionDivider label="MARKET PULSE COMMAND CENTER" />
-          <WidgetDocWrapper widgetId="pulse">
-            <GAMarketPulse />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="correlation">
-          <SectionDivider label="CROSS-ASSET CORRELATION" />
-          <WidgetDocWrapper widgetId="correlation">
-            <GACrossAssetDashboard />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="chain-hub">
-          <SectionDivider label="BLOCKCHAIN ANALYTICS HUB" />
-          <WidgetDocWrapper widgetId="chain-hub">
-            <GABlockchainHub />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="commodity-radar">
-          <SectionDivider label="COMMODITY RADAR" />
-          <WidgetDocWrapper widgetId="commodity-radar">
-            <GACommodityRadar />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="forex-room">
-          <SectionDivider label="FOREX WAR ROOM" />
-          <WidgetDocWrapper widgetId="forex-room">
-            <GAForexWarRoom />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="volatility">
-          <SectionDivider label="VOLATILITY MATRIX" />
-          <WidgetDocWrapper widgetId="volatility">
-            <GAVolatilityMatrix />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="portfolios">
-          <SectionDivider label="PORTFOLIO ALLOCATOR" />
-          <WidgetDocWrapper widgetId="portfolios">
-            <GAPortfolioAllocator />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="yields">
-          <SectionDivider label="DeFi YIELD MONITOR" />
-          <WidgetDocWrapper widgetId="yields">
-            <GAYieldMonitor />
-          </WidgetDocWrapper>
-        </section>
-      </div>
-
-      <div className="greek-key-border-rich h-2" />
-
-      {/* ═══════════════ TIER 3: PROPRIETARY ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="PROPRIETARY DATA" sub="GOLD ARROW INTERNAL · LOVABLE CLOUD" />
-
-        <section id="ratios">
-          <SectionDivider label="METAL RATIOS" />
-          <WidgetDocWrapper widgetId="ratios">
-            <GAGoldRatio />
-          </WidgetDocWrapper>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="reserves">
-            <SectionDivider label="RESERVE BACKING" />
-            <WidgetDocWrapper widgetId="reserves">
-              <GAReserveGauge />
-            </WidgetDocWrapper>
-          </section>
-          <section id="timeline">
-            <SectionDivider label="RESERVE HISTORY" />
-            <WidgetDocWrapper widgetId="timeline">
-              <GAReserveTimeline />
-            </WidgetDocWrapper>
-          </section>
-        </div>
-
-        <section id="profiles">
-          <SectionDivider label="METAL PROFILES" />
-          <WidgetDocWrapper widgetId="profiles">
-            <GAMetalProfile />
-          </WidgetDocWrapper>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="vault">
-            <SectionDivider label="VAULT INVENTORY" />
-            <WidgetDocWrapper widgetId="vault">
-              <GAVaultMatrix />
-            </WidgetDocWrapper>
-          </section>
-          <section id="bullion-heatmap">
-            <SectionDivider label="BULLION HEATMAP" />
-            <WidgetDocWrapper widgetId="bullion-heatmap">
-              <GABullionHeatmap />
-            </WidgetDocWrapper>
-          </section>
-        </div>
-
-        <section id="screener">
-          <SectionDivider label="BULLION SCREENER" />
-          <WidgetDocWrapper widgetId="screener">
-            <GAMetalScreener />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="certs">
-          <SectionDivider label="CERTIFICATE REGISTRY" />
-          <WidgetDocWrapper widgetId="certs">
-            <GACertificateFlow />
-          </WidgetDocWrapper>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="anchors">
-            <SectionDivider label="BITCOIN ANCHORS" />
-            <WidgetDocWrapper widgetId="anchors">
-              <GAAnchorStatus />
-            </WidgetDocWrapper>
-          </section>
-          <section id="activity">
-            <SectionDivider label="ANCHORED ACTIVITY" />
-            <WidgetDocWrapper widgetId="activity">
-              <GAActivityFeed />
-            </WidgetDocWrapper>
-          </section>
-        </div>
-
-        <section id="partners">
-          <SectionDivider label="PARTNER NETWORK" />
-          <WidgetDocWrapper widgetId="partners">
-            <GAPartnerNetwork />
-          </WidgetDocWrapper>
-        </section>
-      </div>
-
-      <div className="greek-key-border-rich h-2" />
-
-      {/* ═══════════════ TRADING TOOLS ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="TRADING TOOLS" sub="ORDER FLOW · JOURNALING · PROFESSIONAL ANALYTICS" />
-
-        <section id="tape">
-          <SectionDivider label="TIME & SALES (TAPE READER)" />
-          <WidgetDocWrapper widgetId="tape">
-            <GATimeSales />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="journal">
-          <SectionDivider label="TRADE JOURNAL" />
-          <WidgetDocWrapper widgetId="journal">
-            <GATradeJournal />
-          </WidgetDocWrapper>
-        </section>
-
-        <section id="sessions">
-          <SectionDivider label="TRADING SESSIONS" />
-          <WidgetDocWrapper widgetId="sessions">
-            <GATradingSessions />
-          </WidgetDocWrapper>
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="margin-calc">
-            <SectionDivider label="MARGIN CALCULATOR" />
-            <WidgetDocWrapper widgetId="margin-calc">
-              <GAMarginCalc />
-            </WidgetDocWrapper>
-          </section>
-          <section id="pip-calc">
-            <SectionDivider label="PIP CALCULATOR" />
-            <WidgetDocWrapper widgetId="pip-calc">
-              <GAPipCalculator />
-            </WidgetDocWrapper>
-          </section>
-        </div>
-
-        <section id="performance">
-          <SectionDivider label="PERFORMANCE DASHBOARD" />
-          <WidgetDocWrapper widgetId="performance">
-            <GAPerformanceDashboard />
-          </WidgetDocWrapper>
-        </section>
-      </div>
-
-      <div className="greek-key-border-rich h-2" />
-
-      {/* ═══════════════ OIL & GAS INTELLIGENCE ═══════════════ */}
-      <div className="container mx-auto px-6 py-12 space-y-12">
-        <TierBanner label="OIL & GAS INTELLIGENCE" sub="ENERGY SECTOR · INSTITUTIONAL ANALYTICS" />
-
-        <OGMultiTicker />
-
-        <section id="og-energy">
-          <SectionDivider label="ENERGY DASHBOARD" />
-          <OGPriceCards />
-          <div className="mt-6">
-            <OGEnergyDashboard />
-          </div>
-        </section>
-
-        <section id="og-futures">
-          <SectionDivider label="FUTURES CURVE" />
-          <OGFuturesCurve />
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section>
-            <SectionDivider label="INVENTORY GAUGE" />
-            <OGInventoryGauge />
-          </section>
-          <section>
-            <SectionDivider label="WTI-BRENT SPREAD" />
-            <OGWtiBrentSpread />
-          </section>
-        </div>
-
-        <section id="og-opec">
-          <SectionDivider label="OPEC TRACKER" />
-          <OGOPECTracker />
-        </section>
-
-        <section id="og-supply">
-          <SectionDivider label="SUPPLY & DEMAND" />
-          <OGSupplyDemand />
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section id="og-rigs">
-            <SectionDivider label="RIG COUNT" />
-            <OGRigCount />
-          </section>
-          <section>
-            <SectionDivider label="CRACK SPREADS" />
-            <OGCrackSpreads />
-          </section>
-        </div>
-
-        <section>
-          <SectionDivider label="PRODUCTION MAP" />
-          <OGProductionMap />
-        </section>
-
-        <section id="og-pipelines">
-          <SectionDivider label="PIPELINE FLOW" />
-          <OGPipelineFlow />
-        </section>
-
-        <section>
-          <SectionDivider label="CHOKEPOINTS" />
-          <OGChokepoints />
-        </section>
-
-        <section>
-          <SectionDivider label="RISK ANALYZER" />
-          <OGRiskAnalyzer />
-        </section>
-
-        <section>
-          <SectionDivider label="ENERGY NEWS" />
-          <OGNewsFeed />
-        </section>
+      {/* Active Category Content */}
+      <div className="container mx-auto px-6 py-12">
+        <ActiveContent />
       </div>
 
       <div className="greek-key-border-rich h-2" />
