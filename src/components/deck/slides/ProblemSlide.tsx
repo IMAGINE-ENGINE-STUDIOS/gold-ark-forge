@@ -219,7 +219,7 @@ const ProblemSlide = () => {
           </svg>
 
           {/* Problem labels below/over each gear */}
-          <div className="absolute bottom-[40px] left-0 right-0 flex justify-between px-[20px]">
+          <div className="absolute bottom-0 left-0 right-0 flex justify-between px-[20px]">
             {problems.map((p, i) => (
               <div
                 key={i}
