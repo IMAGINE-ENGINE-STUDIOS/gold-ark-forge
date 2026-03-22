@@ -2,7 +2,7 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import LivePulse from './LivePulse';
 
 const metalConfig = {
@@ -39,18 +39,14 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
   const basePrice = feed?.price_usd ?? 0;
   const change = feed?.change_24h ?? 0;
 
-  // Live-streaming price
   const { price: livePrice } = useSimulatedStream(basePrice, change, metalType);
 
-  // Live sparkline that accumulates ticks
   const [sparkData, setSparkData] = useState<{ v: number }[]>([]);
   const prevBasePrice = useRef(0);
 
-  // Reset sparkline when base price changes (different data load)
   useEffect(() => {
     if (basePrice > 0 && basePrice !== prevBasePrice.current) {
       prevBasePrice.current = basePrice;
-      // Seed with synthetic history
       const start = basePrice / (1 + change / 100);
       const seed = Array.from({ length: 20 }, (_, i) => {
         const progress = i / 19;
@@ -61,7 +57,6 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
     }
   }, [basePrice, change]);
 
-  // Append live ticks
   useEffect(() => {
     if (livePrice > 0) {
       setSparkData(prev => [...prev.slice(-MAX_SPARK_POINTS + 1), { v: livePrice }]);
@@ -70,43 +65,37 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
 
   if (isLoading) {
     return (
-      <div className={`relative rounded-sm p-6 ${config.bgClass} border ${config.frameClass} h-48 animate-pulse`}>
-        <div className="h-4 w-24 bg-gold/10 rounded mb-3" />
-        <div className="h-8 w-32 bg-gold/10 rounded" />
+      <div className={`relative rounded-sm p-3 ${config.bgClass} border ${config.frameClass} h-20 animate-pulse`}>
+        <div className="h-3 w-16 bg-gold/10 rounded mb-2" />
+        <div className="h-4 w-20 bg-gold/10 rounded" />
       </div>
     );
   }
 
   return (
     <div className={`relative rounded-sm overflow-hidden ${config.bgClass} border ${config.frameClass} group transition-all duration-300 hover:border-gold/60`}>
-      <div className="ornate-corner ornate-corner-tl" />
-      <div className="ornate-corner ornate-corner-tr" />
-      <div className="ornate-corner ornate-corner-bl" />
-      <div className="ornate-corner ornate-corner-br" />
-
-      <div className="relative z-10 p-6">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${config.dotColor}`} />
-            <span className="font-display text-[10px] tracking-[0.25em] text-marble/50">{config.symbol}</span>
+      <div className="relative z-10 flex items-center gap-3 p-3">
+        {/* Left: info */}
+        <div className="flex-shrink-0 min-w-0">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <div className={`w-2 h-2 rounded-full ${config.dotColor}`} />
+            <span className="font-display text-[8px] tracking-[0.2em] text-marble/50">{config.symbol}</span>
             <LivePulse label="LIVE" />
           </div>
-          <div className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded ${
-            change > 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'
+          <span className="font-display text-[10px] tracking-[0.12em] text-gold-light">{config.label}</span>
+          <div className="font-display text-sm text-marble font-semibold tracking-tight">
+            ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className={`flex items-center gap-0.5 text-[9px] font-medium mt-0.5 ${
+            change > 0 ? 'text-emerald-400' : 'text-red-400'
           }`}>
-            {change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {change > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
             {change > 0 ? '+' : ''}{change.toFixed(2)}%
           </div>
         </div>
 
-        <h3 className="font-display text-lg tracking-[0.15em] text-gold-light mb-1">{config.label}</h3>
-
-        <div className="font-display text-xl md:text-2xl text-marble font-semibold tracking-tight truncate">
-          ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </div>
-
-        {/* Live Sparkline */}
-        <div className="mt-3 h-16 -mx-2">
+        {/* Right: sparkline */}
+        <div className="flex-1 h-12 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparkData}>
               <defs>
@@ -127,18 +116,13 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
             </AreaChart>
           </ResponsiveContainer>
         </div>
-
-        <p className="text-[10px] text-marble/30 mt-2 font-mono flex items-center gap-1.5">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Streaming live
-        </p>
       </div>
     </div>
   );
 };
 
 const GAPriceCards = () => (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div className="grid grid-cols-3 gap-3">
     <GAPriceCard metalType="gold" />
     <GAPriceCard metalType="silver" />
     <GAPriceCard metalType="platinum" />
