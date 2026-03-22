@@ -9,7 +9,7 @@ const Header = () => {
   const { user, signOut } = useAuth();
   const navItems = [
     { label: 'Marketplace', href: '/marketplace', icon: Store },
-    { label: 'Markets', href: '/markets', icon: BarChart3 },
+    { label: 'Markets', href: '/marketplace', icon: BarChart3 },
     { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
     { label: 'Intelligence', href: '/intelligence', icon: Brain },
     { label: 'The Vault', href: '/vault', icon: Vault },
