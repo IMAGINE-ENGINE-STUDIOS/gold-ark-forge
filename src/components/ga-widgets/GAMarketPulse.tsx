@@ -75,7 +75,7 @@ const GAMarketPulse = () => {
             <div className="bg-navy-light/15 rounded-lg p-4 border border-gold/10">
               <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-3">MARKET SENTIMENT</div>
               <div className="text-center">
-                <div className={`text-4xl font-mono ${fgColor}`}>{fearGreed}</div>
+                <div className={`text-2xl font-mono ${fgColor}`}>{fearGreed}</div>
                 <div className={`text-[10px] font-display tracking-wider mt-1 ${fgColor}`}>{fgLabel}</div>
                 <div className="mt-3 h-2 bg-navy-dark/50 rounded-full overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-red-500 via-gold to-emerald-500 rounded-full" style={{ width: `${fearGreed}%` }} />
