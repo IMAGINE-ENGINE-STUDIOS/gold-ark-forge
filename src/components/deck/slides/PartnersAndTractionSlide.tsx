@@ -13,7 +13,7 @@ const partners = [
   {
     name: 'U.S. Department of the Treasury',
     logo: treasuryLogo,
-    desc: 'Bonds provider for the regular market',
+    desc: 'Data provider for bonds & government securities',
   },
 ];
 
