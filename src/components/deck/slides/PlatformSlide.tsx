@@ -5,7 +5,7 @@ import { BarChart3, LineChart, ArrowLeftRight, Vault, Fuel, Globe } from 'lucide
 /* Lazy-load heavy widgets so the slide itself stays snappy */
 const GAMarketSummary = lazy(() => import('@/components/ga-widgets/GAMarketSummary'));
 const GACrossAssetDashboard = lazy(() => import('@/components/ga-widgets/GACrossAssetDashboard'));
-const GALiveStandalone = lazy(() => import('@/components/ga-widgets/GALiveStandalone'));
+const TradingPanel = lazy(() => import('@/components/trading/TradingPanel'));
 const GAVaultMatrix = lazy(() => import('@/components/ga-widgets/GAVaultMatrix'));
 const OGEnergyDashboard = lazy(() => import('@/components/og-widgets/OGEnergyDashboard'));
 const GAMarketPulse = lazy(() => import('@/components/ga-widgets/GAMarketPulse'));
@@ -32,9 +32,9 @@ const screens: Screen[] = [
   },
   {
     label: 'Trading Bridge',
-    desc: 'Paper & live trading with one-click execution, bot automation, and cross-asset management.',
+    desc: 'Full trading suite — order entry, positions, history, broker connections, and multi-asset swap execution.',
     icon: LineChart,
-    component: <GALiveStandalone />,
+    component: <TradingPanel activeSymbol="XAUUSD" />,
   },
   {
     label: 'Marketplace',
@@ -71,14 +71,14 @@ const PlatformSlide = () => {
 
   return (
     <SlideLayout>
-      <div className="flex flex-col h-full px-[100px] py-[60px]">
-        <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Platform</p>
-        <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
+      <div className="flex flex-col h-full px-[80px] py-[50px]">
+        <p className="text-[20px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Platform</p>
+        <h2 className="text-[60px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
           Tokenization <span className="text-gradient-gold">Platform</span>
         </h2>
-        <div className="greek-key-border-rich w-[120px] h-[4px] mb-8 rounded-sm" />
+        <div className="greek-key-border-rich w-[140px] h-[4px] mb-6 rounded-sm" />
 
-        <div className="flex gap-10 flex-1 min-h-0">
+        <div className="flex gap-8 flex-1 min-h-0">
           {/* Interactive widget area */}
           <div
             className="flex-1 relative rounded-xl overflow-hidden"
@@ -88,7 +88,7 @@ const PlatformSlide = () => {
               background: 'hsla(213,35%,8%,0.9)',
             }}
           >
-            {/* Embedded widget — rendered at scale to fit */}
+            {/* Embedded widget */}
             <div className="absolute inset-0 overflow-auto">
               <Suspense fallback={<WidgetFallback />}>
                 <div className="p-4 min-h-full">
@@ -98,10 +98,10 @@ const PlatformSlide = () => {
             </div>
 
             {/* Label overlay at bottom */}
-            <div className="absolute inset-x-0 bottom-0 h-[80px] pointer-events-none" style={{ background: 'linear-gradient(to top, hsla(213,35%,8%,0.95) 0%, transparent 100%)' }} />
+            <div className="absolute inset-x-0 bottom-0 h-[90px] pointer-events-none" style={{ background: 'linear-gradient(to top, hsla(213,35%,8%,0.95) 0%, transparent 100%)' }} />
             <div className="absolute bottom-0 inset-x-0 px-8 pb-5 pointer-events-none">
-              <h3 className="text-[26px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{active.label}</h3>
-              <p className="text-[14px] text-secondary-foreground/50 mt-0.5">{active.desc}</p>
+              <h3 className="text-[30px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{active.label}</h3>
+              <p className="text-[16px] text-secondary-foreground/50 mt-0.5">{active.desc}</p>
             </div>
 
             {/* Corner accents */}
@@ -109,8 +109,8 @@ const PlatformSlide = () => {
             <span className="absolute top-0 right-0 w-[32px] h-[32px] border-t-2 border-r-2 rounded-tr-xl pointer-events-none" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
           </div>
 
-          {/* Selector sidebar — click only, no auto-rotate */}
-          <div className="w-[380px] flex flex-col gap-3 justify-start overflow-y-auto pr-2" style={{ maxHeight: '100%' }}>
+          {/* Selector sidebar */}
+          <div className="w-[420px] flex flex-col gap-3 justify-start overflow-y-auto pr-2" style={{ maxHeight: '100%' }}>
             {screens.map((s, i) => {
               const isActive = i === activeIndex;
               return (
@@ -128,9 +128,9 @@ const PlatformSlide = () => {
                     padding: isActive ? undefined : '1px',
                   }}
                 >
-                  <div className="flex items-center gap-4 p-4">
+                  <div className="flex items-center gap-4 p-5">
                     <div
-                      className="w-[48px] h-[48px] rounded-lg flex items-center justify-center shrink-0"
+                      className="w-[52px] h-[52px] rounded-lg flex items-center justify-center shrink-0"
                       style={{
                         border: `1px solid hsla(43,72%,50%,${isActive ? 0.4 : 0.15})`,
                         background: isActive
@@ -138,11 +138,11 @@ const PlatformSlide = () => {
                           : 'hsla(213,35%,12%,0.5)',
                       }}
                     >
-                      <s.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-secondary-foreground/40'}`} />
+                      <s.icon className={`w-6 h-6 ${isActive ? 'text-primary' : 'text-secondary-foreground/40'}`} />
                     </div>
                     <div>
-                      <h4 className="text-[17px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
-                      <p className="text-[12px] text-secondary-foreground/45 mt-0.5 line-clamp-2">{s.desc}</p>
+                      <h4 className="text-[20px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{s.label}</h4>
+                      <p className="text-[14px] text-secondary-foreground/45 mt-0.5 line-clamp-2">{s.desc}</p>
                     </div>
                   </div>
 
