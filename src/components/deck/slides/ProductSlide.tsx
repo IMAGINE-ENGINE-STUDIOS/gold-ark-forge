@@ -11,8 +11,8 @@ const products = [
 const ProductSlide = () => (
   <SlideLayout>
     <div className="flex flex-col h-full px-[120px] py-[80px]">
-      <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Product</p>
-      <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
+      <p className="text-[20px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Product</p>
+      <h2 className="text-[64px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
         Four <span className="text-gradient-gold">Pillars</span>
       </h2>
       <div className="w-[100px] h-[3px] bg-primary/40 mb-12" />
@@ -24,8 +24,8 @@ const ProductSlide = () => (
               <p.icon className="w-7 h-7 text-primary" />
             </div>
             <div>
-              <h3 className="text-[28px] text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>{p.name}</h3>
-              <p className="text-[20px] leading-relaxed text-secondary-foreground/60">{p.desc}</p>
+              <h3 className="text-[34px] text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>{p.name}</h3>
+              <p className="text-[24px] leading-relaxed text-secondary-foreground/60">{p.desc}</p>
             </div>
           </div>
         ))}

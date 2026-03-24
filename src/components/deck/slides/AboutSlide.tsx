@@ -33,28 +33,28 @@ const AboutSlide = () => {
         {/* Left column */}
         <div className="w-[52%] flex flex-col justify-center px-[100px] py-[60px]">
           <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(-20px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1) 0.1s' }}>
-            <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">About Us</p>
-            <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
+            <p className="text-[20px] tracking-[0.3em] uppercase text-primary/60 mb-3">About Us</p>
+            <h2 className="text-[64px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
               What is <span className="text-gradient-gold">Gold Arrow</span>?
             </h2>
             <div className="greek-key-border-rich w-[120px] h-[4px] mb-8 rounded-sm" />
           </div>
 
           <div
-            className="text-[20px] leading-[1.8] text-secondary-foreground/70 mb-10 max-w-[750px]"
+            className="text-[24px] leading-[1.8] text-secondary-foreground/70 mb-10 max-w-[750px]"
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s' }}
           >
             <p className="mb-4">
               Gold Arrow is an <span className="text-primary font-semibold">institutional-grade platform</span> that tokenizes, trades, and monitors commodities through blockchain infrastructure.
             </p>
-            <p className="text-[18px] text-secondary-foreground/55 leading-relaxed">
+            <p className="text-[22px] text-secondary-foreground/55 leading-relaxed">
               Starting with <span className="text-primary font-medium">crude oil and energy reserves</span>, we create a new global standard for trading, custody, and settlement — spanning precious metals, agriculture, rare earth minerals, and beyond.
             </p>
           </div>
 
           {/* Asset classes */}
           <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(15px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1) 0.5s' }}>
-            <p className="text-[13px] tracking-[0.25em] uppercase text-primary/50 mb-4">Nine Tokenizable Asset Classes</p>
+            <p className="text-[16px] tracking-[0.25em] uppercase text-primary/50 mb-4">Nine Tokenizable Asset Classes</p>
             <div className="grid grid-cols-3 gap-2.5">
               {assetClasses.map((a, i) => (
                 <div
@@ -69,7 +69,7 @@ const AboutSlide = () => {
                   }}
                 >
                   <a.icon className="w-5 h-5 text-primary/70 shrink-0" />
-                  <span className="text-[14px] text-secondary-foreground/65">{a.name}</span>
+                  <span className="text-[17px] text-secondary-foreground/65">{a.name}</span>
                 </div>
               ))}
             </div>
@@ -121,10 +121,10 @@ const AboutSlide = () => {
                     <p.icon className="w-7 h-7 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-[28px] text-secondary-foreground mb-1 transition-colors duration-300 group-hover:text-primary" style={{ fontFamily: 'Cinzel, serif' }}>
+                    <h3 className="text-[34px] text-secondary-foreground mb-1 transition-colors duration-300 group-hover:text-primary" style={{ fontFamily: 'Cinzel, serif' }}>
                       {p.title}
                     </h3>
-                    <p className="text-[15px] text-secondary-foreground/50 leading-snug">{p.desc}</p>
+                    <p className="text-[18px] text-secondary-foreground/50 leading-snug">{p.desc}</p>
                   </div>
                 </div>
 

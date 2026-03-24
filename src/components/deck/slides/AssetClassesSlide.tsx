@@ -24,8 +24,8 @@ const assets = [
 const AssetClassesSlide = () => (
   <SlideLayout>
     <div className="flex flex-col h-full px-[80px] py-[60px]">
-      <p className="text-[16px] tracking-[0.3em] uppercase text-primary/60 mb-3">Asset Universe</p>
-      <h2 className="text-[52px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
+      <p className="text-[20px] tracking-[0.3em] uppercase text-primary/60 mb-3">Asset Universe</p>
+      <h2 className="text-[64px] leading-tight text-secondary-foreground mb-2" style={{ fontFamily: 'Cinzel, serif' }}>
         Nine <span className="text-gradient-gold">Tokenizable</span> Asset Classes
       </h2>
       <div className="greek-key-border-rich w-[120px] h-[4px] mb-8 rounded-sm" />
@@ -39,22 +39,19 @@ const AssetClassesSlide = () => (
             }}
           >
             <img src={a.image} alt={a.name} className="absolute inset-0 w-full h-full object-cover" />
-            {/* Dark overlay */}
             <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, hsla(213,35%,10%,0.5) 0%, hsla(213,35%,10%,0.85) 100%)' }} />
             
-            {/* Ornate corners */}
             <span className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
             <span className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
             <span className="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
             <span className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2" style={{ borderColor: 'hsla(43,72%,50%,0.5)' }} />
 
-            {/* Content */}
             <div className="relative z-10 p-5 flex flex-col h-full justify-end">
               <div className="flex items-baseline justify-between mb-1">
-                <h3 className="text-[22px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{a.name}</h3>
-                <span className="text-[18px] text-primary font-bold" style={{ fontFamily: 'Cinzel, serif' }}>{a.size}</span>
+                <h3 className="text-[26px] text-secondary-foreground" style={{ fontFamily: 'Cinzel, serif' }}>{a.name}</h3>
+                <span className="text-[22px] text-primary font-bold" style={{ fontFamily: 'Cinzel, serif' }}>{a.size}</span>
               </div>
-              <p className="text-[15px] text-secondary-foreground/50">{a.desc}</p>
+              <p className="text-[18px] text-secondary-foreground/50">{a.desc}</p>
             </div>
           </div>
         ))}
@@ -66,8 +63,8 @@ const AssetClassesSlide = () => (
           border: '1px solid hsla(43,72%,50%,0.15)',
         }}
       >
-        <p className="text-[20px] text-secondary-foreground/60">
-          Combined addressable market: <span className="text-gradient-gold text-[24px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$88T+</span> in tokenizable real-world assets
+        <p className="text-[24px] text-secondary-foreground/60">
+          Combined addressable market: <span className="text-gradient-gold text-[28px] font-bold" style={{ fontFamily: 'Cinzel, serif' }}>$88T+</span> in tokenizable real-world assets
         </p>
       </div>
     </div>

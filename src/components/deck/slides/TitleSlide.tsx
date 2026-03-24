@@ -17,23 +17,23 @@ const TitleSlide = () => (
       <div className="greek-key-border-rich w-[900px] h-[8px] mb-20 rounded-sm" />
 
       <h1
-        className="text-[120px] leading-none tracking-[0.08em] text-gradient-gold mb-8"
+        className="text-[140px] leading-none tracking-[0.08em] text-gradient-gold mb-8"
         style={{ fontFamily: 'Cinzel, serif', backgroundSize: '200% auto', animation: 'shimmer 4s ease-in-out infinite' }}
       >
         GOLD ARROW
       </h1>
 
-      <p className="text-[30px] tracking-[0.3em] uppercase text-secondary-foreground/70 mb-4" style={{ fontFamily: 'Source Sans 3, sans-serif' }}>
+      <p className="text-[36px] tracking-[0.3em] uppercase text-secondary-foreground/70 mb-4" style={{ fontFamily: 'Source Sans 3, sans-serif' }}>
         The New Standard for Trading Tokenized Commodities
       </p>
 
       <div className="greek-key-border-rich w-[200px] h-[4px] my-10 rounded-sm" />
 
-      <p className="text-[22px] text-secondary-foreground/50 max-w-[1100px] leading-relaxed mb-8 tracking-wide">
+      <p className="text-[26px] text-secondary-foreground/50 max-w-[1100px] leading-relaxed mb-8 tracking-wide">
         Oil & Gas <span className="text-gradient-gold mx-2">·</span> Precious Metals <span className="text-gradient-gold mx-2">·</span> Agriculture <span className="text-gradient-gold mx-2">·</span> Bonds <span className="text-gradient-gold mx-2">·</span> Livestock <span className="text-gradient-gold mx-2">·</span> Rare Earth Minerals <span className="text-gradient-gold mx-2">·</span> REITs <span className="text-gradient-gold mx-2">·</span> Art <span className="text-gradient-gold mx-2">·</span> Gov. Surplus
       </p>
 
-      <p className="text-[24px] text-primary/80 tracking-[0.15em]" style={{ fontFamily: 'Cinzel, serif' }}>
+      <p className="text-[28px] text-primary/80 tracking-[0.15em]" style={{ fontFamily: 'Cinzel, serif' }}>
         Investor Presentation · 2026
       </p>
 
