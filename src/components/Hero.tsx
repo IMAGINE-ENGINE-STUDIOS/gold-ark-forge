@@ -29,6 +29,7 @@ const Hero = () => {
         >
           ★ Start Trading Tokenized Assets ★
         </Link>
+        <img src={goldArrowLogo} alt="Gold Arrow" className="w-[160px] md:w-[220px] h-auto drop-shadow-2xl mt-2" />
       </div>
 
       {/* Greek Key Border Bottom */}

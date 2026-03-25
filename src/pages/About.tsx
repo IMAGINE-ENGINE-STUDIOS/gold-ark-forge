@@ -45,7 +45,8 @@ const About = () => {
       <main className="container mx-auto px-4 py-12">
         {/* Page Header */}
         <div className="text-center mb-16">
-         <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
+          <img src={goldArrowLogo} alt="Gold Arrow" className="w-[100px] h-auto mx-auto mb-6 drop-shadow-xl" />
+          <h1 className="font-display text-4xl md:text-5xl text-gold-light mb-4">
             ABOUT GOLD ARROW
           </h1>
           <p className="text-marble/70 max-w-2xl mx-auto text-lg">
