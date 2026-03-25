@@ -22,6 +22,7 @@ import {
   Search, Shield, Activity, Coins, Flame, Gem,
   ArrowUpRight, Sparkles, Landmark, BarChart3, DollarSign,
 } from 'lucide-react';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 /* ─── Types ─── */
 type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
