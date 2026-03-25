@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import heroVideo from '@/assets/hero-background.mp4';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 const Hero = () => {
   return (
@@ -16,6 +17,11 @@ const Hero = () => {
 
       {/* Subtle overlay for text readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-navy/20" />
+
+      {/* Logo overlay */}
+      <div className="absolute top-1/4 left-0 right-0 z-10 flex justify-center">
+        <img src={goldArrowLogo} alt="Gold Arrow" className="w-[220px] md:w-[320px] h-auto drop-shadow-2xl" />
+      </div>
 
       {/* Content - CTA Button at bottom */}
       <div className="absolute bottom-24 left-0 right-0 z-10 flex justify-center">

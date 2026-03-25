@@ -65,7 +65,7 @@ const ProblemSlide = () => {
         }
       `}</style>
 
-      <div className="flex flex-col h-full px-[100px] py-[40px]">
+      <div className="flex flex-col h-full px-[100px] py-[30px]">
         {/* Header */}
         <div style={{ opacity: phase >= 1 ? 1 : 0, transform: phase >= 1 ? 'translateY(0)' : 'translateY(-20px)', transition: 'all 0.8s cubic-bezier(0.22,1,0.36,1)' }}>
           <p className="text-[20px] tracking-[0.3em] uppercase text-primary/60 mb-3">The Institutional Crisis</p>
@@ -79,7 +79,7 @@ const ProblemSlide = () => {
         </div>
 
         {/* Gear mechanism area */}
-        <div className="flex-1 relative mt-2 flex items-center justify-center">
+        <div className="flex-1 relative mt-0 flex items-start justify-center pt-2">
           <svg viewBox="0 0 1720 480" className="absolute inset-0 w-full h-full" style={{ overflow: 'visible' }}>
             <defs>
               <radialGradient id="gearGold" cx="50%" cy="50%" r="50%">
