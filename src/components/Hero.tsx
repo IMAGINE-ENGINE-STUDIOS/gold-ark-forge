@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import heroVideo from '@/assets/hero-background.mp4';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 const Hero = () => {
   return (
