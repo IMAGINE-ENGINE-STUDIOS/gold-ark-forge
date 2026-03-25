@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -34,20 +35,7 @@ const Footer = () => {
           {/* Brand Column */}
           <div className="lg:col-span-2">
             <Link to="/" className="flex items-center gap-3 mb-6">
-              <svg 
-                viewBox="0 0 60 50" 
-                className="w-12 h-10 text-gold"
-                fill="currentColor"
-              >
-                <polygon points="30,2 58,18 2,18" />
-                <rect x="5" y="18" width="50" height="4" />
-                <rect x="8" y="22" width="5" height="26" />
-                <rect x="18" y="22" width="5" height="26" />
-                <rect x="28" y="22" width="5" height="26" />
-                <rect x="38" y="22" width="5" height="26" />
-                <rect x="48" y="22" width="5" height="26" />
-                <rect x="3" y="48" width="54" height="2" />
-              </svg>
+              <img src={goldArrowLogo} alt="Gold Arrow" className="w-10 h-10 object-contain" />
               <div className="flex flex-col">
                 <span className="font-display text-xl tracking-wider text-gold-light">
                   GOLD ARROW

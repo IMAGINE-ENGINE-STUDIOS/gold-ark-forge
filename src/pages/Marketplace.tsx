@@ -22,6 +22,7 @@ import {
   Search, Shield, Activity, Coins, Flame, Gem,
   ArrowUpRight, Sparkles, Landmark, BarChart3, DollarSign,
 } from 'lucide-react';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 /* ─── Types ─── */
 type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
@@ -529,8 +530,9 @@ const Marketplace = () => {
               LIVE MARKET DATA
             </div>
 
-            <h1 className="font-display text-4xl tracking-[0.08em] text-marble md:text-5xl lg:text-6xl">
-              PAX ROMANA <span className="gold-shimmer">MARKETPLACE</span>
+            <h1 className="font-display text-4xl tracking-[0.08em] text-marble md:text-5xl lg:text-6xl flex items-center justify-center gap-4">
+              <img src={goldArrowLogo} alt="Gold Arrow" className="w-10 h-10 md:w-14 md:h-14 object-contain" />
+              GOLD ARROW <span className="gold-shimmer">MARKETPLACE</span>
             </h1>
 
             <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-marble/60">
