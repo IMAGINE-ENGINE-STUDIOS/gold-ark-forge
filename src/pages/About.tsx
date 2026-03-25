@@ -4,6 +4,7 @@ import Footer from '@/components/Footer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Shield, Bitcoin, Link as LinkIcon, Building2, Users, Lock, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 // Read paper trading state from localStorage for the indicator
 function usePaperMoneySnapshot() {
