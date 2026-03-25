@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Menu, X, LogIn, LogOut, Store, BarChart3, ArrowLeftRight, Brain, Vault, ShieldCheck, Info, Fuel, Lightbulb, Settings } from 'lucide-react';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import { useAuth } from '@/hooks/useAuth';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
