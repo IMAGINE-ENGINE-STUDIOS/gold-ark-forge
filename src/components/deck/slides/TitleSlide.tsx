@@ -1,4 +1,5 @@
 import SlideLayout from '../SlideLayout';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 const TitleSlide = () => (
   <SlideLayout>
@@ -14,7 +15,9 @@ const TitleSlide = () => (
     }} />
 
     <div className="flex flex-col items-center justify-center h-full text-center px-40 relative z-10">
-      <div className="greek-key-border-rich w-[900px] h-[8px] mb-20 rounded-sm" />
+      <div className="greek-key-border-rich w-[900px] h-[8px] mb-12 rounded-sm" />
+
+      <img src={goldArrowLogo} alt="Gold Arrow" className="w-[280px] h-auto mb-6" />
 
       <h1
         className="text-[140px] leading-none tracking-[0.08em] text-gradient-gold mb-8"

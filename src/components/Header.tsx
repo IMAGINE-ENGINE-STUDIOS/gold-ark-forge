@@ -32,27 +32,7 @@ const Header = () => {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group">
-              {/* Temple Icon */}
-              <div className="relative">
-                <svg 
-                  viewBox="0 0 60 50" 
-                  className="w-14 h-12 text-gold"
-                  fill="currentColor"
-                >
-                  {/* Roof */}
-                  <polygon points="30,0 58,16 2,16" />
-                  {/* Frieze */}
-                  <rect x="5" y="16" width="50" height="4" />
-                  {/* Columns */}
-                  <rect x="8" y="20" width="5" height="26" />
-                  <rect x="18" y="20" width="5" height="26" />
-                  <rect x="28" y="20" width="5" height="26" />
-                  <rect x="38" y="20" width="5" height="26" />
-                  <rect x="48" y="20" width="5" height="26" />
-                  {/* Base */}
-                  <rect x="3" y="46" width="54" height="4" />
-                </svg>
-              </div>
+              <img src={goldArrowLogo} alt="Gold Arrow" className="w-14 h-12 object-contain" />
               <div className="flex flex-col">
                 <span className="font-display text-2xl md:text-3xl tracking-[0.1em] text-gold group-hover:text-gold-light transition-colors">
                   GOLD ARROW

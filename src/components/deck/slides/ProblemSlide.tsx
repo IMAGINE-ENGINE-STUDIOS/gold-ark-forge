@@ -79,7 +79,7 @@ const ProblemSlide = () => {
         </div>
 
         {/* Gear mechanism area */}
-        <div className="flex-1 relative mt-2 flex items-center justify-center">
+        <div className="flex-1 relative mt-0 flex items-start justify-center pt-2">
           <svg viewBox="0 0 1720 480" className="absolute inset-0 w-full h-full" style={{ overflow: 'visible' }}>
             <defs>
               <radialGradient id="gearGold" cx="50%" cy="50%" r="50%">
