@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
