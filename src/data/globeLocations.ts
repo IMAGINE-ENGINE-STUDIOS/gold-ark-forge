@@ -1,4 +1,17 @@
-export type MarkerCategory = 'chokepoint' | 'producer' | 'exchange' | 'venezuela';
+export type MarkerCategory = 'chokepoint' | 'producer' | 'exchange' | 'venezuela' | 'organization';
+
+export interface EconomicData {
+  gdp?: number;          // USD billions
+  gdpGrowth?: number;    // % YoY
+  population?: number;   // millions
+  tradeVolume?: number;  // USD billions
+  creditRating?: string;
+  inflation?: number;    // %
+  unemployment?: number; // %
+  keyIndustries?: string[];
+  oilReserves?: number;  // billion barrels
+  debtToGdp?: number;    // %
+}
 
 export interface GlobeMarker {
   id: string;
@@ -6,10 +19,11 @@ export interface GlobeMarker {
   category: MarkerCategory;
   lat: number;
   lng: number;
-  color: string;         // CSS colour
+  color: string;
   riskLevel?: string;
   description: string;
   meta?: Record<string, string | number>;
+  economicData?: EconomicData;
 }
 
 // ─── CHOKEPOINTS ──────────────────────────────────────
@@ -26,16 +40,16 @@ export const CHOKEPOINT_MARKERS: GlobeMarker[] = [
 
 // ─── PRODUCERS ────────────────────────────────────────
 export const PRODUCER_MARKERS: GlobeMarker[] = [
-  { id: 'us', name: 'United States', category: 'producer', lat: 38.9, lng: -77.04, color: '#3b82f6', description: 'World\'s top producer — 13.3 mbpd.', meta: { production: 13.3, change: 0.4, flag: '🇺🇸' } },
-  { id: 'saudi', name: 'Saudi Arabia', category: 'producer', lat: 24.71, lng: 46.68, color: '#3b82f6', description: 'OPEC+ leader — 9.0 mbpd.', meta: { production: 9.0, change: -0.2, flag: '🇸🇦' } },
-  { id: 'russia', name: 'Russia', category: 'producer', lat: 55.75, lng: 37.62, color: '#3b82f6', description: 'Under sanctions — 9.2 mbpd.', meta: { production: 9.2, change: -0.5, flag: '🇷🇺' } },
-  { id: 'canada', name: 'Canada', category: 'producer', lat: 45.42, lng: -75.70, color: '#3b82f6', description: 'Oil sands expansion — 5.8 mbpd.', meta: { production: 5.8, change: 0.3, flag: '🇨🇦' } },
-  { id: 'iraq', name: 'Iraq', category: 'producer', lat: 33.31, lng: 44.37, color: '#3b82f6', description: 'OPEC member — 4.3 mbpd.', meta: { production: 4.3, change: 0.1, flag: '🇮🇶' } },
-  { id: 'china', name: 'China', category: 'producer', lat: 39.91, lng: 116.39, color: '#3b82f6', description: 'Major consumer & producer — 4.2 mbpd.', meta: { production: 4.2, change: 0.0, flag: '🇨🇳' } },
-  { id: 'uae', name: 'UAE', category: 'producer', lat: 24.45, lng: 54.65, color: '#3b82f6', description: 'OPEC+ — 2.95 mbpd.', meta: { production: 2.95, change: -0.1, flag: '🇦🇪' } },
-  { id: 'brazil', name: 'Brazil', category: 'producer', lat: -15.79, lng: -47.88, color: '#3b82f6', description: 'Pre-salt deepwater — 3.7 mbpd.', meta: { production: 3.7, change: 0.5, flag: '🇧🇷' } },
-  { id: 'kuwait', name: 'Kuwait', category: 'producer', lat: 29.38, lng: 47.99, color: '#3b82f6', description: 'OPEC member — 2.55 mbpd.', meta: { production: 2.55, change: -0.1, flag: '🇰🇼' } },
-  { id: 'norway', name: 'Norway', category: 'producer', lat: 59.91, lng: 10.75, color: '#3b82f6', description: 'North Sea — 1.8 mbpd.', meta: { production: 1.8, change: 0.0, flag: '🇳🇴' } },
+  { id: 'us', name: 'United States', category: 'producer', lat: 38.9, lng: -77.04, color: '#3b82f6', description: 'World\'s top producer — 13.3 mbpd.', meta: { production: 13.3, change: 0.4, flag: '🇺🇸' }, economicData: { gdp: 27360, gdpGrowth: 2.5, population: 334, tradeVolume: 7100, creditRating: 'AA+', inflation: 3.1, unemployment: 3.7, keyIndustries: ['Technology', 'Finance', 'Energy', 'Healthcare', 'Defense'], oilReserves: 44.4, debtToGdp: 123 } },
+  { id: 'saudi', name: 'Saudi Arabia', category: 'producer', lat: 24.71, lng: 46.68, color: '#3b82f6', description: 'OPEC+ leader — 9.0 mbpd.', meta: { production: 9.0, change: -0.2, flag: '🇸🇦' }, economicData: { gdp: 1069, gdpGrowth: -0.8, population: 36, tradeVolume: 580, creditRating: 'A', inflation: 1.6, unemployment: 4.9, keyIndustries: ['Oil & Gas', 'Petrochemicals', 'Mining', 'Tourism'], oilReserves: 258.6, debtToGdp: 26 } },
+  { id: 'russia', name: 'Russia', category: 'producer', lat: 55.75, lng: 37.62, color: '#3b82f6', description: 'Under sanctions — 9.2 mbpd.', meta: { production: 9.2, change: -0.5, flag: '🇷🇺' }, economicData: { gdp: 2240, gdpGrowth: 3.6, population: 144, tradeVolume: 890, creditRating: 'NR', inflation: 7.4, unemployment: 2.9, keyIndustries: ['Oil & Gas', 'Metals', 'Defense', 'Agriculture'], oilReserves: 80, debtToGdp: 15 } },
+  { id: 'canada', name: 'Canada', category: 'producer', lat: 45.42, lng: -75.70, color: '#3b82f6', description: 'Oil sands expansion — 5.8 mbpd.', meta: { production: 5.8, change: 0.3, flag: '🇨🇦' }, economicData: { gdp: 2140, gdpGrowth: 1.1, population: 40, tradeVolume: 1200, creditRating: 'AAA', inflation: 2.8, unemployment: 6.1, keyIndustries: ['Energy', 'Mining', 'Finance', 'Technology'], oilReserves: 168, debtToGdp: 106 } },
+  { id: 'iraq', name: 'Iraq', category: 'producer', lat: 33.31, lng: 44.37, color: '#3b82f6', description: 'OPEC member — 4.3 mbpd.', meta: { production: 4.3, change: 0.1, flag: '🇮🇶' }, economicData: { gdp: 264, gdpGrowth: -2.9, population: 44, tradeVolume: 130, creditRating: 'B-', inflation: 4.4, unemployment: 15.5, keyIndustries: ['Oil & Gas', 'Agriculture'], oilReserves: 145, debtToGdp: 44 } },
+  { id: 'china', name: 'China', category: 'producer', lat: 39.91, lng: 116.39, color: '#3b82f6', description: 'Major consumer & producer — 4.2 mbpd.', meta: { production: 4.2, change: 0.0, flag: '🇨🇳' }, economicData: { gdp: 18530, gdpGrowth: 5.2, population: 1425, tradeVolume: 6300, creditRating: 'A+', inflation: 0.2, unemployment: 5.2, keyIndustries: ['Manufacturing', 'Technology', 'Construction', 'Finance'], oilReserves: 26.2, debtToGdp: 83 } },
+  { id: 'uae', name: 'UAE', category: 'producer', lat: 24.45, lng: 54.65, color: '#3b82f6', description: 'OPEC+ — 2.95 mbpd.', meta: { production: 2.95, change: -0.1, flag: '🇦🇪' }, economicData: { gdp: 509, gdpGrowth: 3.4, population: 10, tradeVolume: 760, creditRating: 'AA', inflation: 2.3, unemployment: 2.7, keyIndustries: ['Oil & Gas', 'Finance', 'Tourism', 'Aviation', 'Real Estate'], oilReserves: 97.8, debtToGdp: 30 } },
+  { id: 'brazil', name: 'Brazil', category: 'producer', lat: -15.79, lng: -47.88, color: '#3b82f6', description: 'Pre-salt deepwater — 3.7 mbpd.', meta: { production: 3.7, change: 0.5, flag: '🇧🇷' }, economicData: { gdp: 2130, gdpGrowth: 2.9, population: 216, tradeVolume: 640, creditRating: 'BB', inflation: 4.6, unemployment: 7.8, keyIndustries: ['Agriculture', 'Mining', 'Energy', 'Aerospace'], oilReserves: 12.7, debtToGdp: 75 } },
+  { id: 'kuwait', name: 'Kuwait', category: 'producer', lat: 29.38, lng: 47.99, color: '#3b82f6', description: 'OPEC member — 2.55 mbpd.', meta: { production: 2.55, change: -0.1, flag: '🇰🇼' }, economicData: { gdp: 164, gdpGrowth: -0.6, population: 4.3, tradeVolume: 110, creditRating: 'A+', inflation: 3.6, unemployment: 2.1, keyIndustries: ['Oil & Gas', 'Finance'], oilReserves: 101.5, debtToGdp: 3 } },
+  { id: 'norway', name: 'Norway', category: 'producer', lat: 59.91, lng: 10.75, color: '#3b82f6', description: 'North Sea — 1.8 mbpd.', meta: { production: 1.8, change: 0.0, flag: '🇳🇴' }, economicData: { gdp: 579, gdpGrowth: 0.5, population: 5.5, tradeVolume: 310, creditRating: 'AAA', inflation: 4.8, unemployment: 3.5, keyIndustries: ['Oil & Gas', 'Shipping', 'Fish', 'Renewables'], oilReserves: 8.1, debtToGdp: 43 } },
 ];
 
 // ─── VENEZUELA ────────────────────────────────────────
@@ -43,6 +57,7 @@ export const VENEZUELA_MARKER: GlobeMarker = {
   id: 'venezuela', name: 'Venezuela', category: 'venezuela', lat: 10.49, lng: -66.88, color: '#a855f7',
   description: 'PDVSA output recovering from 2020 lows — 0.88 mbpd. Sanctions snapback curtailed exports. Chevron JV provides ~25 % of output.',
   meta: { production: 0.88, exports: 0.67, darkFleet: 48, sanctionsPressure: 78 },
+  economicData: { gdp: 100, gdpGrowth: 4.0, population: 28, tradeVolume: 35, creditRating: 'SD', inflation: 190, unemployment: 33, keyIndustries: ['Oil & Gas'], oilReserves: 303.8, debtToGdp: 350 },
 };
 
 // ─── EXCHANGES ────────────────────────────────────────
@@ -54,9 +69,26 @@ export const EXCHANGE_MARKERS: GlobeMarker[] = [
   { id: 'shfe', name: 'Shanghai Futures', category: 'exchange', lat: 31.23, lng: 121.47, color: '#eab308', description: 'Shanghai — gold, copper, crude futures (INE).' },
 ];
 
+// ─── ORGANIZATIONS ────────────────────────────────────
+export const ORGANIZATION_MARKERS: GlobeMarker[] = [
+  { id: 'worldbank', name: 'World Bank', category: 'organization', lat: 38.8993, lng: -77.0426, color: '#10b981', description: 'Global development data — GDP, poverty, trade, debt statistics for 189 member countries. Open Data API.', meta: { members: 189, dataPoints: 16000 } },
+  { id: 'imf', name: 'IMF', category: 'organization', lat: 38.8987, lng: -77.0432, color: '#10b981', description: 'International Monetary Fund — global financial stability, exchange rates, fiscal policy monitoring.', meta: { members: 190, reserves: 1000 } },
+  { id: 'fda', name: 'FDA', category: 'organization', lat: 39.0285, lng: -76.9795, color: '#10b981', description: 'U.S. Food & Drug Administration — drug approvals, clinical trials, food safety alerts, medical device recalls.', meta: { approvalsYtd: 37, recallsYtd: 145 } },
+  { id: 'faa', name: 'FAA', category: 'organization', lat: 38.8860, lng: -77.0222, color: '#10b981', description: 'Federal Aviation Administration — air traffic data, NOTAMs, airspace management, drone regulations.', meta: { dailyFlights: 45000, activeNotams: 12500 } },
+  { id: 'wto', name: 'WTO', category: 'organization', lat: 46.2204, lng: 6.1420, color: '#10b981', description: 'World Trade Organization — global trade rules, dispute resolution, tariff data for 164 members.', meta: { members: 164, disputes: 623 } },
+  { id: 'un', name: 'United Nations', category: 'organization', lat: 40.7489, lng: -73.9680, color: '#10b981', description: 'UN Comtrade — largest repository of international trade statistics. UNCTAD investment data.', meta: { members: 193, sdgIndicators: 231 } },
+  { id: 'opec', name: 'OPEC', category: 'organization', lat: 48.2277, lng: 16.3589, color: '#10b981', description: 'Organization of Petroleum Exporting Countries — production quotas, market monitoring, monthly oil reports.', meta: { members: 13, quotaMbpd: 36.2 } },
+  { id: 'bis', name: 'BIS', category: 'organization', lat: 47.5471, lng: 7.5886, color: '#10b981', description: 'Bank for International Settlements — central banks\' bank. Global financial statistics, Basel accords.', meta: { centralBanks: 63, assetsB: 356 } },
+  { id: 'ecb', name: 'ECB', category: 'organization', lat: 50.1098, lng: 8.6715, color: '#10b981', description: 'European Central Bank — eurozone monetary policy, interest rates, financial stability assessments.', meta: { members: 20, ratesPct: 4.5 } },
+  { id: 'iea', name: 'IEA', category: 'organization', lat: 48.8637, lng: 2.3220, color: '#10b981', description: 'International Energy Agency — energy security, market analysis, clean energy transition data.', meta: { members: 31, reportsYr: 250 } },
+  { id: 'icao', name: 'ICAO', category: 'organization', lat: 45.4806, lng: -73.5632, color: '#10b981', description: 'International Civil Aviation Organization — global aviation safety, emissions data, air traffic statistics.', meta: { members: 193, airlines: 1300 } },
+  { id: 'imo', name: 'IMO', category: 'organization', lat: 51.4960, lng: -0.1089, color: '#10b981', description: 'International Maritime Organization — shipping regulations, emissions standards, vessel tracking data.', meta: { members: 175, vessels: 105000 } },
+];
+
 export const ALL_MARKERS: GlobeMarker[] = [
   ...CHOKEPOINT_MARKERS,
   ...PRODUCER_MARKERS,
   VENEZUELA_MARKER,
   ...EXCHANGE_MARKERS,
+  ...ORGANIZATION_MARKERS,
 ];
