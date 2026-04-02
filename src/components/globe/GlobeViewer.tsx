@@ -3,12 +3,12 @@ import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { ALL_MARKERS, GlobeMarker } from '@/data/globeLocations';
 
-// Cesium Ion token — stored as VITE_ env var via secret
 const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 
 interface Props {
   onMarkerClick: (marker: GlobeMarker) => void;
   visibleCategories: Set<string>;
+  showHeatmap?: boolean;
 }
 
 const RISK_COLORS: Record<string, Cesium.Color> = {
@@ -24,22 +24,37 @@ const CATEGORY_COLORS: Record<string, Cesium.Color> = {
   producer: Cesium.Color.fromCssColorString('#3b82f6'),
   exchange: Cesium.Color.fromCssColorString('#eab308'),
   venezuela: Cesium.Color.fromCssColorString('#a855f7'),
+  organization: Cesium.Color.fromCssColorString('#10b981'),
 };
 
-const GlobeViewer = ({ onMarkerClick, visibleCategories }: Props) => {
+// GDP-based heatmap color
+const getHeatColor = (gdpGrowth?: number): Cesium.Color => {
+  if (gdpGrowth == null) return Cesium.Color.GRAY.withAlpha(0.15);
+  if (gdpGrowth > 4) return Cesium.Color.fromCssColorString('#22c55e').withAlpha(0.25);
+  if (gdpGrowth > 2) return Cesium.Color.fromCssColorString('#84cc16').withAlpha(0.20);
+  if (gdpGrowth > 0) return Cesium.Color.fromCssColorString('#eab308').withAlpha(0.18);
+  return Cesium.Color.fromCssColorString('#ef4444').withAlpha(0.22);
+};
+
+const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: Props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const spinRef = useRef<number | null>(null);
+  const markerMapRef = useRef<Map<string, GlobeMarker>>(new Map());
 
-  // Build entities once, toggling show later
   const addMarkers = useCallback((viewer: Cesium.Viewer) => {
     ALL_MARKERS.forEach((m) => {
+      markerMapRef.current.set(m.id, m);
+
       const pointColor =
         m.category === 'chokepoint' && m.riskLevel
           ? RISK_COLORS[m.riskLevel] ?? CATEGORY_COLORS.chokepoint
           : CATEGORY_COLORS[m.category] ?? Cesium.Color.WHITE;
 
-      const pixelSize = m.category === 'chokepoint' ? 14 : m.category === 'venezuela' ? 16 : 10;
+      const pixelSize = m.category === 'chokepoint' ? 14
+        : m.category === 'venezuela' ? 16
+        : m.category === 'organization' ? 12
+        : 10;
 
       viewer.entities.add({
         id: m.id,
@@ -67,9 +82,25 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories }: Props) => {
           scaleByDistance: new Cesium.NearFarScalar(1.5e6, 1, 8e6, 0.4),
           translucencyByDistance: new Cesium.NearFarScalar(1.5e6, 1, 1.2e7, 0),
         },
-        properties: { marker: m } as any,
         show: visibleCategories.has(m.category),
       });
+
+      // Economic heatmap circle
+      if (m.economicData?.gdp) {
+        const radius = Math.sqrt(m.economicData.gdp) * 8000;
+        viewer.entities.add({
+          id: `heatmap-${m.id}`,
+          position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
+          ellipse: {
+            semiMinorAxis: radius,
+            semiMajorAxis: radius,
+            material: getHeatColor(m.economicData.gdpGrowth),
+            height: 0,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
+          show: showHeatmap,
+        });
+      }
     });
   }, []);
 
@@ -78,10 +109,15 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories }: Props) => {
     const viewer = viewerRef.current;
     if (!viewer) return;
     viewer.entities.values.forEach((e) => {
-      const marker = (e.properties as any)?.marker;
-      if (marker) e.show = visibleCategories.has(marker.category);
+      const id = typeof e.id === 'string' ? e.id : '';
+      if (id.startsWith('heatmap-')) {
+        e.show = showHeatmap;
+      } else {
+        const marker = markerMapRef.current.get(id);
+        if (marker) e.show = visibleCategories.has(marker.category);
+      }
     });
-  }, [visibleCategories]);
+  }, [visibleCategories, showHeatmap]);
 
   // Init viewer
   useEffect(() => {
@@ -101,8 +137,23 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories }: Props) => {
       fullscreenButton: false,
       infoBox: false,
       selectionIndicator: false,
-      creditContainer: document.createElement('div'), // hide credits
+      creditContainer: document.createElement('div'),
     });
+
+    // Load 3D buildings — Google Photorealistic first, OSM Buildings fallback
+    (async () => {
+      try {
+        const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207);
+        viewer.scene.primitives.add(tileset);
+      } catch {
+        try {
+          const osm = await Cesium.Cesium3DTileset.fromIonAssetId(96188);
+          viewer.scene.primitives.add(osm);
+        } catch (e) {
+          console.warn('3D buildings unavailable:', e);
+        }
+      }
+    })();
 
     // Dark atmosphere
     viewer.scene.skyAtmosphere.hueShift = -0.05;
@@ -125,12 +176,13 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories }: Props) => {
       if (spinRef.current) { clearInterval(spinRef.current); spinRef.current = null; }
     }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
 
-    // Click handler
+    // Click handler — uses markerMap for reliable lookup
     handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
       const picked = viewer.scene.pick(click.position);
       if (Cesium.defined(picked) && picked.id) {
         const entity = picked.id as Cesium.Entity;
-        const marker = (entity.properties as any)?.marker as GlobeMarker | undefined;
+        const entityId = typeof entity.id === 'string' ? entity.id : '';
+        const marker = markerMapRef.current.get(entityId);
         if (marker) {
           onMarkerClick(marker);
           viewer.camera.flyTo({
@@ -144,7 +196,6 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories }: Props) => {
     addMarkers(viewer);
     viewerRef.current = viewer;
 
-    // Initial camera
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(40, 25, 20_000_000),
       duration: 0,
