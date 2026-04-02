@@ -19,6 +19,7 @@ const Header = () => {
     { label: 'Oil & Gas', href: '/oil-gas', icon: Fuel },
     { label: 'Insights', href: '/certification', icon: Lightbulb },
     { label: 'Admin', href: '/admin', icon: Settings },
+    { label: 'Globe', href: '/globe', icon: Globe },
   ];
 
   return (
