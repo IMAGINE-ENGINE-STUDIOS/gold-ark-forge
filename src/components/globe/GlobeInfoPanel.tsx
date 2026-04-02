@@ -1,4 +1,4 @@
-import { X, TrendingUp, TrendingDown, Minus, Ship, Shield, AlertTriangle, Droplets, MapPin, Building2, DollarSign, Users, BarChart3, Fuel } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Ship, Shield, AlertTriangle, Droplets, MapPin, DollarSign, Users, BarChart3, Fuel } from 'lucide-react';
 import type { GlobeMarker } from '@/data/globeLocations';
 
 interface Props {
