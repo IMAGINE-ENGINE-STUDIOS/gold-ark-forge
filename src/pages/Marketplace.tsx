@@ -22,6 +22,7 @@ import {
 import {
   Search, Shield, Activity, Coins, Flame, Gem,
   ArrowUpRight, Sparkles, Landmark, BarChart3, DollarSign,
+  Wheat, Mountain, Building2, TrendingUp,
 } from 'lucide-react';
 import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
