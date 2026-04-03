@@ -39,7 +39,7 @@ const TeamSlide = () => {
               <div key={i} className="flex flex-col items-center text-center group"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.92)', transition: `all 0.9s cubic-bezier(0.22, 1, 0.36, 1) ${0.3 + i * 0.15}s` }}>
                 <div className="relative mb-5">
-                  <div className="w-[300px] h-[340px] rounded-2xl overflow-hidden transition-all duration-700 group-hover:scale-[1.03] group-hover:shadow-[0_12px_50px_hsla(43,72%,50%,0.2)]"
+                  <div className="w-[260px] h-[300px] rounded-2xl overflow-hidden transition-all duration-700 group-hover:scale-[1.03] group-hover:shadow-[0_12px_50px_hsla(43,72%,50%,0.2)]"
                     style={{ border: '2px solid hsla(43,72%,50%,0.25)', boxShadow: '0 10px 50px hsla(0,0%,0%,0.5), 0 0 30px hsla(43,72%,50%,0.06)' }}>
                     <img src={t.photo} alt={t.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" />
                     <div className="absolute inset-x-0 bottom-0 h-[120px] pointer-events-none rounded-b-2xl" style={{ background: 'linear-gradient(to top, hsla(213,32%,10%,0.85) 0%, transparent 100%)' }} />
