@@ -554,7 +554,7 @@ const Marketplace = () => {
     }));
   }, [bars, metalPrices]);
 
-  const totalAssets = allItems.length;
+  const totalAssets = TOTAL_INSTRUMENT_COUNT;
   const subCats = SUB_CATEGORIES[activeCategory];
 
   /* ─── Render extra widgets for certain sub-categories ─── */
