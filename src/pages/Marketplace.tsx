@@ -173,6 +173,8 @@ const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]
 const CRYPTO_MAJOR_KEYS = new Set(['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano', 'avalanche', 'polkadot', 'chainlink', 'dogecoin']);
 const OG_COMPANY_KEYS = new Set(['xom', 'cvx', 'cop', 'eog', 'slb', 'hal', 'bp', 'shel', 'tte', 'oxy', 'psx', 'mpc', 'vlo', 'dvn', 'fang', 'eni', 'eqnr', 'cnq', 'su', 'pba', 'wds', 'ptr', 'snp', 'pBr', 'ec']);
 
+const fallbackCryptoName = (label: string) => label.replace('/USD', '').replace('/', ' ');
+
 const formatCompact = (value: number) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
 
