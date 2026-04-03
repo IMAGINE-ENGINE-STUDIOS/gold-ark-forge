@@ -17,15 +17,17 @@ import {
   ALL_SYMBOLS,
   CATEGORY_COLORS,
   SYNTHETIC_PRICES,
+  TOTAL_INSTRUMENT_COUNT,
 } from '@/data/tradingSymbols';
 import {
   Search, Shield, Activity, Coins, Flame, Gem,
   ArrowUpRight, Sparkles, Landmark, BarChart3, DollarSign,
+  Wheat, Mountain, Building2, TrendingUp,
 } from 'lucide-react';
 import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 /* ─── Types ─── */
-type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
+type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds' | 'agriculture' | 'minerals' | 'reits' | 'etfs';
 
 interface BoardItem {
   id: string;
@@ -76,7 +78,7 @@ const METAL_META = {
 } as const;
 
 /* ─── Category definitions ─── */
-type MarketCategoryKey = 'overview' | 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
+type MarketCategoryKey = 'overview' | 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds' | 'agriculture' | 'minerals' | 'reits' | 'etfs';
 
 const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof Activity }[] = [
   { key: 'metals', label: 'Precious Metals', icon: Gem },
@@ -85,6 +87,10 @@ const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof A
   { key: 'stocks', label: 'Equities', icon: BarChart3 },
   { key: 'forex', label: 'Forex', icon: DollarSign },
   { key: 'bonds', label: 'Bonds', icon: Landmark },
+  { key: 'agriculture', label: 'Agriculture', icon: Wheat },
+  { key: 'minerals', label: 'Rare Earth', icon: Mountain },
+  { key: 'reits', label: 'REITs', icon: Building2 },
+  { key: 'etfs', label: 'ETFs', icon: TrendingUp },
 ];
 
 /* Sub-categories per main category */
@@ -93,12 +99,14 @@ const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]
   metals: [
     { key: 'all', label: 'ALL METALS' },
     { key: 'spot', label: 'SPOT PRICES' },
+    { key: 'industrial', label: 'INDUSTRIAL' },
     { key: 'vault', label: 'VAULT & RESERVES' },
   ],
   crypto: [
     { key: 'all', label: 'ALL CRYPTO' },
     { key: 'major', label: 'MAJOR' },
     { key: 'alt', label: 'ALTCOINS' },
+    { key: 'stable', label: 'STABLECOINS' },
   ],
   energy: [
     { key: 'all', label: 'ALL ENERGY' },
@@ -107,34 +115,63 @@ const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]
   ],
   stocks: [
     { key: 'all', label: 'ALL EQUITIES' },
-    { key: 'indices', label: 'INDICES & MEGA CAP' },
+    { key: 'indices', label: 'US INDICES' },
+    { key: 'mega', label: 'MEGA CAP' },
     { key: 'tech', label: 'TECH & GROWTH' },
-    { key: 'financial', label: 'FINANCIALS & MINING' },
+    { key: 'financial', label: 'FINANCIALS' },
+    { key: 'mining', label: 'MINING' },
+    { key: 'healthcare', label: 'HEALTHCARE' },
+    { key: 'consumer', label: 'CONSUMER' },
+    { key: 'industrial', label: 'INDUSTRIALS' },
+    { key: 'global_idx', label: 'GLOBAL INDICES' },
+    { key: 'semis', label: 'SEMICONDUCTORS' },
+    { key: 'oil_gas', label: 'OIL & GAS' },
   ],
   forex: [
     { key: 'all', label: 'ALL FOREX' },
+    { key: 'major', label: 'MAJOR' },
+    { key: 'cross', label: 'CROSS' },
+    { key: 'em', label: 'EMERGING' },
   ],
   bonds: [
     { key: 'all', label: 'ALL BONDS' },
+    { key: 'us_treasury', label: 'US TREASURY' },
+    { key: 'corporate', label: 'CORPORATE' },
+    { key: 'aggregate', label: 'AGGREGATE' },
+    { key: 'intl', label: 'INTERNATIONAL' },
+  ],
+  agriculture: [
+    { key: 'all', label: 'ALL AGRICULTURE' },
+    { key: 'grains', label: 'GRAINS' },
+    { key: 'softs', label: 'SOFTS' },
+    { key: 'livestock', label: 'LIVESTOCK' },
+  ],
+  minerals: [
+    { key: 'all', label: 'ALL MINERALS' },
+    { key: 'battery', label: 'BATTERY' },
+    { key: 'rare_earth', label: 'RARE EARTH' },
+    { key: 'semiconductor', label: 'SEMICONDUCTOR' },
+    { key: 'industrial_min', label: 'INDUSTRIAL' },
+  ],
+  reits: [
+    { key: 'all', label: 'ALL REITS' },
+    { key: 'tower', label: 'TOWER' },
+    { key: 'data_center', label: 'DATA CENTER' },
+    { key: 'residential', label: 'RESIDENTIAL' },
+    { key: 'retail', label: 'RETAIL' },
+    { key: 'office', label: 'OFFICE' },
+  ],
+  etfs: [
+    { key: 'all', label: 'ALL ETFS' },
+    { key: 'equity_etf', label: 'EQUITY' },
+    { key: 'commodity_etf', label: 'COMMODITY' },
+    { key: 'thematic', label: 'THEMATIC' },
   ],
 };
 
 /* ─── Crypto sub-cat assignment ─── */
 const CRYPTO_MAJOR_KEYS = new Set(['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano', 'avalanche', 'polkadot', 'chainlink', 'dogecoin']);
-const OG_COMPANY_KEYS = new Set(['xom', 'cvx', 'cop', 'eog', 'slb', 'hal', 'bp', 'shel', 'tte', 'oxy', 'psx', 'mpc', 'vlo', 'dvn', 'fang']);
-const INDICES_MEGA_KEYS = new Set(['sp500', 'nasdaq', 'dow', 'russell', 'aapl', 'msft', 'nvda', 'googl', 'amzn', 'meta', 'tsla', 'brk', 'jpm', 'v', 'unh']);
-const TECH_KEYS = new Set(['crm', 'adbe', 'nflx', 'amd', 'intc', 'avgo', 'csco', 'orcl', 'snow', 'pltr', 'coin', 'sq', 'shop', 'uber', 'abnb']);
-const FINANCIAL_KEYS = new Set(['gs', 'ms', 'bac', 'c', 'wfc', 'nem', 'gold_stock', 'fmg', 'rio', 'bhp', 'vale']);
-
-/* ─── Helpers ─── */
-const catToFeedCategory = (cat: string): FeedCategory => {
-  if (cat === 'metals') return 'metals';
-  if (cat === 'crypto') return 'crypto';
-  if (cat === 'energy') return 'energy';
-  if (cat === 'forex') return 'forex';
-  if (cat === 'bonds') return 'bonds';
-  return 'stocks';
-};
+const OG_COMPANY_KEYS = new Set(['xom', 'cvx', 'cop', 'eog', 'slb', 'hal', 'bp', 'shel', 'tte', 'oxy', 'psx', 'mpc', 'vlo', 'dvn', 'fang', 'eni', 'eqnr', 'cnq', 'su', 'pba', 'wds', 'ptr', 'snp', 'pBr', 'ec']);
 
 const fallbackCryptoName = (label: string) => label.replace('/USD', '').replace('/', ' ');
 
@@ -205,6 +242,10 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
     stocks: 'border-accent/20 bg-accent/10 text-accent',
     forex: 'border-primary/20 bg-primary/10 text-primary',
     bonds: 'border-muted/30 bg-muted/10 text-muted-foreground',
+    agriculture: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+    minerals: 'border-purple-500/20 bg-purple-500/10 text-purple-400',
+    reits: 'border-rose-500/20 bg-rose-500/10 text-rose-400',
+    etfs: 'border-sky-500/20 bg-sky-500/10 text-sky-400',
   };
 
   return (
@@ -418,7 +459,7 @@ const Marketplace = () => {
         category: 'stocks' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
         accentColor: CATEGORY_COLORS.stocks,
-        subCategory: INDICES_MEGA_KEYS.has(s.key) ? 'indices' : TECH_KEYS.has(s.key) ? 'tech' : FINANCIAL_KEYS.has(s.key) ? 'financial' : 'indices',
+        subCategory: s.sub ?? 'indices',
       }));
   }, []);
 
@@ -429,7 +470,7 @@ const Marketplace = () => {
         id: s.key, name: s.label, ticker: s.ticker,
         category: 'forex' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
-        accentColor: CATEGORY_COLORS.forex, subCategory: 'all',
+        accentColor: CATEGORY_COLORS.forex, subCategory: s.sub ?? 'major',
       }));
   }, []);
 
@@ -440,9 +481,25 @@ const Marketplace = () => {
         id: s.key, name: s.label, ticker: s.ticker,
         category: 'bonds' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
-        accentColor: CATEGORY_COLORS.bonds, subCategory: 'all',
+        accentColor: CATEGORY_COLORS.bonds, subCategory: s.sub ?? 'all',
       }));
   }, []);
+
+  const buildSyntheticBoard = (catKey: FeedCategory): BoardItem[] => {
+    return ALL_SYMBOLS
+      .filter(s => s.cat === catKey && SYNTHETIC_PRICES[s.key])
+      .map(s => ({
+        id: s.key, name: s.label, ticker: s.ticker,
+        category: catKey, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
+        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        accentColor: CATEGORY_COLORS[catKey] ?? CATEGORY_COLORS.stocks, subCategory: s.sub ?? 'all',
+      }));
+  };
+
+  const agricultureBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('agriculture'), []);
+  const mineralsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('minerals'), []);
+  const reitsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('reits'), []);
+  const etfsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('etfs'), []);
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({
@@ -453,9 +510,17 @@ const Marketplace = () => {
     stocks: stocksBoard,
     forex: forexBoard,
     bonds: bondsBoard,
-  }), [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard]);
+    agriculture: agricultureBoard,
+    minerals: mineralsBoard,
+    reits: reitsBoard,
+    etfs: etfsBoard,
+  }), [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard, agricultureBoard, mineralsBoard, reitsBoard, etfsBoard]);
 
-  const allItems = useMemo(() => [...metalsBoard, ...cryptoBoard, ...energyBoard, ...stocksBoard, ...forexBoard, ...bondsBoard], [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard]);
+  const allItems = useMemo(() => [
+    ...metalsBoard, ...cryptoBoard, ...energyBoard, ...stocksBoard,
+    ...forexBoard, ...bondsBoard, ...agricultureBoard, ...mineralsBoard,
+    ...reitsBoard, ...etfsBoard,
+  ], [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard, agricultureBoard, mineralsBoard, reitsBoard, etfsBoard]);
   const topMovers = useMemo(() => allItems.filter(i => i.price > 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 4), [allItems]);
 
   const activeCategoryItems = useMemo(() => {
@@ -476,7 +541,7 @@ const Marketplace = () => {
     }));
   }, [bars, metalPrices]);
 
-  const totalAssets = allItems.length;
+  const totalAssets = TOTAL_INSTRUMENT_COUNT;
   const subCats = SUB_CATEGORIES[activeCategory];
 
   /* ─── Render extra widgets for certain sub-categories ─── */
@@ -536,7 +601,7 @@ const Marketplace = () => {
             </h1>
 
             <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-marble/60">
-              {totalAssets}+ instruments across 6 asset classes. Tap any asset to trade instantly.
+              {totalAssets} instruments across 10 asset classes. Tap any asset to trade instantly.
             </p>
           </div>
 
@@ -591,7 +656,7 @@ const Marketplace = () => {
               <StatCard icon={Activity} label="Instruments" value={String(totalAssets)} detail="Available to trade now" />
               <StatCard icon={Coins} label="Cryptocurrencies" value={String(cryptoBoard.length)} detail="Live WebSocket prices" />
               <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices updated live" />
-              <StatCard icon={BarChart3} label="Asset classes" value="6" detail="Metals · Crypto · Energy · Equities · Forex · Bonds" />
+              <StatCard icon={BarChart3} label="Asset classes" value="10" detail="Metals · Crypto · Energy · Equities · Forex · Bonds · Agri · Minerals · REITs · ETFs" />
             </div>
 
             <div>
