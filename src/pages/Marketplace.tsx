@@ -17,6 +17,7 @@ import {
   ALL_SYMBOLS,
   CATEGORY_COLORS,
   SYNTHETIC_PRICES,
+  TOTAL_INSTRUMENT_COUNT,
 } from '@/data/tradingSymbols';
 import {
   Search, Shield, Activity, Coins, Flame, Gem,
