@@ -669,7 +669,7 @@ const Marketplace = () => {
               <StatCard icon={Activity} label="Instruments" value={String(totalAssets)} detail="Available to trade now" />
               <StatCard icon={Coins} label="Cryptocurrencies" value={String(cryptoBoard.length)} detail="Live WebSocket prices" />
               <StatCard icon={Gem} label="Precious metals" value={String(metalsBoard.length)} detail="Spot prices updated live" />
-              <StatCard icon={BarChart3} label="Asset classes" value="6" detail="Metals · Crypto · Energy · Equities · Forex · Bonds" />
+              <StatCard icon={BarChart3} label="Asset classes" value="10" detail="Metals · Crypto · Energy · Equities · Forex · Bonds · Agri · Minerals · REITs · ETFs" />
             </div>
 
             <div>
