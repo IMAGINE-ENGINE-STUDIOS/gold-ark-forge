@@ -472,7 +472,7 @@ const Marketplace = () => {
         category: 'stocks' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
         accentColor: CATEGORY_COLORS.stocks,
-        subCategory: INDICES_MEGA_KEYS.has(s.key) ? 'indices' : TECH_KEYS.has(s.key) ? 'tech' : FINANCIAL_KEYS.has(s.key) ? 'financial' : 'indices',
+        subCategory: s.sub ?? 'indices',
       }));
   }, []);
 
@@ -483,7 +483,7 @@ const Marketplace = () => {
         id: s.key, name: s.label, ticker: s.ticker,
         category: 'forex' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
-        accentColor: CATEGORY_COLORS.forex, subCategory: 'all',
+        accentColor: CATEGORY_COLORS.forex, subCategory: s.sub ?? 'major',
       }));
   }, []);
 
