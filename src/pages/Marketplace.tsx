@@ -255,6 +255,10 @@ const FeedRow = ({ item, rank }: { item: BoardItem; rank: number }) => {
     stocks: 'border-accent/20 bg-accent/10 text-accent',
     forex: 'border-primary/20 bg-primary/10 text-primary',
     bonds: 'border-muted/30 bg-muted/10 text-muted-foreground',
+    agriculture: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+    minerals: 'border-purple-500/20 bg-purple-500/10 text-purple-400',
+    reits: 'border-rose-500/20 bg-rose-500/10 text-rose-400',
+    etfs: 'border-sky-500/20 bg-sky-500/10 text-sky-400',
   };
 
   return (
