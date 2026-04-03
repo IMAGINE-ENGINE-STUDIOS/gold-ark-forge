@@ -498,7 +498,7 @@ const Marketplace = () => {
       }));
   }, []);
 
-  const buildCatBoard = (catKey: FeedCategory) => useMemo<BoardItem[]>(() => {
+  const buildSyntheticBoard = (catKey: FeedCategory): BoardItem[] => {
     return ALL_SYMBOLS
       .filter(s => s.cat === catKey && SYNTHETIC_PRICES[s.key])
       .map(s => ({
@@ -507,12 +507,12 @@ const Marketplace = () => {
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
         accentColor: CATEGORY_COLORS[catKey] ?? CATEGORY_COLORS.stocks, subCategory: s.sub ?? 'all',
       }));
-  }, []);
+  };
 
-  const agricultureBoard = buildCatBoard('agriculture');
-  const mineralsBoard = buildCatBoard('minerals');
-  const reitsBoard = buildCatBoard('reits');
-  const etfsBoard = buildCatBoard('etfs');
+  const agricultureBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('agriculture'), []);
+  const mineralsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('minerals'), []);
+  const reitsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('reits'), []);
+  const etfsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('etfs'), []);
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({
