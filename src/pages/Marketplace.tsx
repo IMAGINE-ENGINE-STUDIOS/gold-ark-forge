@@ -27,7 +27,7 @@ import {
 import goldArrowLogo from '@/assets/gold-arrow-logo.png';
 
 /* ─── Types ─── */
-type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
+type FeedCategory = 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds' | 'agriculture' | 'minerals' | 'reits' | 'etfs';
 
 interface BoardItem {
   id: string;
