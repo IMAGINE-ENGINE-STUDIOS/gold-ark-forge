@@ -78,7 +78,7 @@ const METAL_META = {
 } as const;
 
 /* ─── Category definitions ─── */
-type MarketCategoryKey = 'overview' | 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds';
+type MarketCategoryKey = 'overview' | 'metals' | 'crypto' | 'energy' | 'stocks' | 'forex' | 'bonds' | 'agriculture' | 'minerals' | 'reits' | 'etfs';
 
 const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof Activity }[] = [
   { key: 'metals', label: 'Precious Metals', icon: Gem },
@@ -87,6 +87,10 @@ const MARKET_CATEGORIES: { key: MarketCategoryKey; label: string; icon: typeof A
   { key: 'stocks', label: 'Equities', icon: BarChart3 },
   { key: 'forex', label: 'Forex', icon: DollarSign },
   { key: 'bonds', label: 'Bonds', icon: Landmark },
+  { key: 'agriculture', label: 'Agriculture', icon: Wheat },
+  { key: 'minerals', label: 'Rare Earth', icon: Mountain },
+  { key: 'reits', label: 'REITs', icon: Building2 },
+  { key: 'etfs', label: 'ETFs', icon: TrendingUp },
 ];
 
 /* Sub-categories per main category */
@@ -95,12 +99,14 @@ const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]
   metals: [
     { key: 'all', label: 'ALL METALS' },
     { key: 'spot', label: 'SPOT PRICES' },
+    { key: 'industrial', label: 'INDUSTRIAL' },
     { key: 'vault', label: 'VAULT & RESERVES' },
   ],
   crypto: [
     { key: 'all', label: 'ALL CRYPTO' },
     { key: 'major', label: 'MAJOR' },
     { key: 'alt', label: 'ALTCOINS' },
+    { key: 'stable', label: 'STABLECOINS' },
   ],
   energy: [
     { key: 'all', label: 'ALL ENERGY' },
@@ -109,15 +115,57 @@ const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]
   ],
   stocks: [
     { key: 'all', label: 'ALL EQUITIES' },
-    { key: 'indices', label: 'INDICES & MEGA CAP' },
+    { key: 'indices', label: 'US INDICES' },
+    { key: 'mega', label: 'MEGA CAP' },
     { key: 'tech', label: 'TECH & GROWTH' },
-    { key: 'financial', label: 'FINANCIALS & MINING' },
+    { key: 'financial', label: 'FINANCIALS' },
+    { key: 'mining', label: 'MINING' },
+    { key: 'healthcare', label: 'HEALTHCARE' },
+    { key: 'consumer', label: 'CONSUMER' },
+    { key: 'industrial', label: 'INDUSTRIALS' },
+    { key: 'global_idx', label: 'GLOBAL INDICES' },
+    { key: 'semis', label: 'SEMICONDUCTORS' },
+    { key: 'oil_gas', label: 'OIL & GAS' },
   ],
   forex: [
     { key: 'all', label: 'ALL FOREX' },
+    { key: 'major', label: 'MAJOR' },
+    { key: 'cross', label: 'CROSS' },
+    { key: 'em', label: 'EMERGING' },
   ],
   bonds: [
     { key: 'all', label: 'ALL BONDS' },
+    { key: 'us_treasury', label: 'US TREASURY' },
+    { key: 'corporate', label: 'CORPORATE' },
+    { key: 'aggregate', label: 'AGGREGATE' },
+    { key: 'intl', label: 'INTERNATIONAL' },
+  ],
+  agriculture: [
+    { key: 'all', label: 'ALL AGRICULTURE' },
+    { key: 'grains', label: 'GRAINS' },
+    { key: 'softs', label: 'SOFTS' },
+    { key: 'livestock', label: 'LIVESTOCK' },
+  ],
+  minerals: [
+    { key: 'all', label: 'ALL MINERALS' },
+    { key: 'battery', label: 'BATTERY' },
+    { key: 'rare_earth', label: 'RARE EARTH' },
+    { key: 'semiconductor', label: 'SEMICONDUCTOR' },
+    { key: 'industrial_min', label: 'INDUSTRIAL' },
+  ],
+  reits: [
+    { key: 'all', label: 'ALL REITS' },
+    { key: 'tower', label: 'TOWER' },
+    { key: 'data_center', label: 'DATA CENTER' },
+    { key: 'residential', label: 'RESIDENTIAL' },
+    { key: 'retail', label: 'RETAIL' },
+    { key: 'office', label: 'OFFICE' },
+  ],
+  etfs: [
+    { key: 'all', label: 'ALL ETFS' },
+    { key: 'equity_etf', label: 'EQUITY' },
+    { key: 'commodity_etf', label: 'COMMODITY' },
+    { key: 'thematic', label: 'THEMATIC' },
   ],
 };
 
