@@ -494,9 +494,25 @@ const Marketplace = () => {
         id: s.key, name: s.label, ticker: s.ticker,
         category: 'bonds' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
         source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
-        accentColor: CATEGORY_COLORS.bonds, subCategory: 'all',
+        accentColor: CATEGORY_COLORS.bonds, subCategory: s.sub ?? 'all',
       }));
   }, []);
+
+  const buildCatBoard = (catKey: FeedCategory) => useMemo<BoardItem[]>(() => {
+    return ALL_SYMBOLS
+      .filter(s => s.cat === catKey && SYNTHETIC_PRICES[s.key])
+      .map(s => ({
+        id: s.key, name: s.label, ticker: s.ticker,
+        category: catKey, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
+        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        accentColor: CATEGORY_COLORS[catKey] ?? CATEGORY_COLORS.stocks, subCategory: s.sub ?? 'all',
+      }));
+  }, []);
+
+  const agricultureBoard = buildCatBoard('agriculture');
+  const mineralsBoard = buildCatBoard('minerals');
+  const reitsBoard = buildCatBoard('reits');
+  const etfsBoard = buildCatBoard('etfs');
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({
@@ -507,9 +523,17 @@ const Marketplace = () => {
     stocks: stocksBoard,
     forex: forexBoard,
     bonds: bondsBoard,
-  }), [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard]);
+    agriculture: agricultureBoard,
+    minerals: mineralsBoard,
+    reits: reitsBoard,
+    etfs: etfsBoard,
+  }), [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard, agricultureBoard, mineralsBoard, reitsBoard, etfsBoard]);
 
-  const allItems = useMemo(() => [...metalsBoard, ...cryptoBoard, ...energyBoard, ...stocksBoard, ...forexBoard, ...bondsBoard], [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard]);
+  const allItems = useMemo(() => [
+    ...metalsBoard, ...cryptoBoard, ...energyBoard, ...stocksBoard,
+    ...forexBoard, ...bondsBoard, ...agricultureBoard, ...mineralsBoard,
+    ...reitsBoard, ...etfsBoard,
+  ], [metalsBoard, cryptoBoard, energyBoard, stocksBoard, forexBoard, bondsBoard, agricultureBoard, mineralsBoard, reitsBoard, etfsBoard]);
   const topMovers = useMemo(() => allItems.filter(i => i.price > 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 4), [allItems]);
 
   const activeCategoryItems = useMemo(() => {
