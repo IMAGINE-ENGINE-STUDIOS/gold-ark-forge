@@ -171,22 +171,7 @@ const SUB_CATEGORIES: Record<MarketCategoryKey, { key: string; label: string }[]
 
 /* ─── Crypto sub-cat assignment ─── */
 const CRYPTO_MAJOR_KEYS = new Set(['bitcoin', 'ethereum', 'solana', 'xrp', 'bnb', 'cardano', 'avalanche', 'polkadot', 'chainlink', 'dogecoin']);
-const OG_COMPANY_KEYS = new Set(['xom', 'cvx', 'cop', 'eog', 'slb', 'hal', 'bp', 'shel', 'tte', 'oxy', 'psx', 'mpc', 'vlo', 'dvn', 'fang']);
-const INDICES_MEGA_KEYS = new Set(['sp500', 'nasdaq', 'dow', 'russell', 'aapl', 'msft', 'nvda', 'googl', 'amzn', 'meta', 'tsla', 'brk', 'jpm', 'v', 'unh']);
-const TECH_KEYS = new Set(['crm', 'adbe', 'nflx', 'amd', 'intc', 'avgo', 'csco', 'orcl', 'snow', 'pltr', 'coin', 'sq', 'shop', 'uber', 'abnb']);
-const FINANCIAL_KEYS = new Set(['gs', 'ms', 'bac', 'c', 'wfc', 'nem', 'gold_stock', 'fmg', 'rio', 'bhp', 'vale']);
-
-/* ─── Helpers ─── */
-const catToFeedCategory = (cat: string): FeedCategory => {
-  if (cat === 'metals') return 'metals';
-  if (cat === 'crypto') return 'crypto';
-  if (cat === 'energy') return 'energy';
-  if (cat === 'forex') return 'forex';
-  if (cat === 'bonds') return 'bonds';
-  return 'stocks';
-};
-
-const fallbackCryptoName = (label: string) => label.replace('/USD', '').replace('/', ' ');
+const OG_COMPANY_KEYS = new Set(['xom', 'cvx', 'cop', 'eog', 'slb', 'hal', 'bp', 'shel', 'tte', 'oxy', 'psx', 'mpc', 'vlo', 'dvn', 'fang', 'eni', 'eqnr', 'cnq', 'su', 'pba', 'wds', 'ptr', 'snp', 'pBr', 'ec']);
 
 const formatCompact = (value: number) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
