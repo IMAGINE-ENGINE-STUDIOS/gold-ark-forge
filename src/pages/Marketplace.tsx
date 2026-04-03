@@ -614,7 +614,7 @@ const Marketplace = () => {
             </h1>
 
             <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-marble/60">
-              {totalAssets}+ instruments across 6 asset classes. Tap any asset to trade instantly.
+              {totalAssets} instruments across 10 asset classes. Tap any asset to trade instantly.
             </p>
           </div>
 
