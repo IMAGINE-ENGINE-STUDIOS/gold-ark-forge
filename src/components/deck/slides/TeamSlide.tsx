@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import SlideLayout from '../SlideLayout';
+import hunterRogers from '@/assets/hunter-rogers.jpg';
 import jamesStuber from '@/assets/james-stuber.jpg';
 import ricardoFont from '@/assets/ricardo-font.png';
 import khaliaPadilla from '@/assets/khalia-padilla.png';
 import macdonnellUlsch from '@/assets/macdonnell-ulsch.jpg';
 
 const team = [
+  { name: 'Hunter Rogers', role: 'CEO', bg: 'Executive leadership, strategy & corporate vision', photo: hunterRogers },
   { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development', photo: khaliaPadilla },
   { name: 'Ricardo Font', role: 'Co-Founder', bg: 'Technology vision & platform architecture', photo: ricardoFont },
   { name: 'James Stuber', role: 'Legal Counsel', bg: 'Securities law, regulatory compliance & international trade', photo: jamesStuber },
