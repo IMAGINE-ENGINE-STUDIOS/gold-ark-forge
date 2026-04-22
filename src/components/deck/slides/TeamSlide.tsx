@@ -5,9 +5,13 @@ import jamesStuber from '@/assets/james-stuber.jpg';
 import ricardoFont from '@/assets/ricardo-font.png';
 import khaliaPadilla from '@/assets/khalia-padilla.png';
 import macdonnellUlsch from '@/assets/macdonnell-ulsch.jpg';
+import alexandraWallace from '@/assets/alexandra-wallace.jpg';
+import kineoWallace from '@/assets/kineo-wallace.jpg';
 
 const team = [
   { name: 'Hunter Rogers', role: 'CEO', bg: 'Executive leadership, strategy & corporate vision', photo: hunterRogers },
+  { name: 'Alexandra Wallace', role: 'COO & Co-Founder', bg: 'Operations leadership & organizational strategy', photo: alexandraWallace },
+  { name: 'Kineo Wallace', role: 'CTO', bg: 'Technology leadership & engineering excellence', photo: kineoWallace },
   { name: 'Khalia Padilla', role: 'Co-Founder', bg: 'Strategic leadership & global business development', photo: khaliaPadilla },
   { name: 'Ricardo Font', role: 'Co-Founder', bg: 'Technology vision & platform architecture', photo: ricardoFont },
   { name: 'James Stuber', role: 'Legal Counsel', bg: 'Securities law, regulatory compliance & international trade', photo: jamesStuber },
