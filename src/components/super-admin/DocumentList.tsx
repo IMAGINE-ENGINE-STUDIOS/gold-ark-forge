@@ -1,9 +1,11 @@
-import { useDocuments, useDeleteDocument, getDocumentUrl, DocumentRow } from '@/hooks/useDocuments';
+import { useState } from 'react';
+import { useDocuments, useDeleteDocument, useRenameDocument, getDocumentUrl, DocumentRow } from '@/hooks/useDocuments';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Download, Trash2, Globe, Lock, Loader2 } from 'lucide-react';
+import { FileText, Download, Trash2, Globe, Lock, Loader2, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSuperAdminRole } from '@/hooks/useAdminRole';
+import { useSuperAdminRole, useAdminRole } from '@/hooks/useAdminRole';
 
 const formatBytes = (bytes: number | null) => {
   if (!bytes) return '—';
@@ -16,7 +18,12 @@ const formatBytes = (bytes: number | null) => {
 const DocumentList = () => {
   const { data: docs, isLoading } = useDocuments();
   const del = useDeleteDocument();
+  const rename = useRenameDocument();
   const { data: isSuperAdmin } = useSuperAdminRole();
+  const { data: isAdmin } = useAdminRole();
+  const canRename = isAdmin || isSuperAdmin;
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   const handleDownload = async (doc: DocumentRow) => {
     const url = await getDocumentUrl(doc);
@@ -31,6 +38,30 @@ const DocumentList = () => {
       toast.success('Document deleted');
     } catch (err: any) {
       toast.error(err.message || 'Delete failed');
+    }
+  };
+
+  const startEdit = (doc: DocumentRow) => {
+    setEditingId(doc.id);
+    setEditValue(doc.title);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditValue('');
+  };
+
+  const saveEdit = async (doc: DocumentRow) => {
+    if (!editValue.trim() || editValue.trim() === doc.title) {
+      cancelEdit();
+      return;
+    }
+    try {
+      await rename.mutateAsync({ id: doc.id, title: editValue });
+      toast.success('Document renamed');
+      cancelEdit();
+    } catch (err: any) {
+      toast.error(err.message || 'Rename failed');
     }
   };
 
