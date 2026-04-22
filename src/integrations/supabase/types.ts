@@ -856,7 +856,7 @@ export type Database = {
         | "confirmed"
         | "reorged"
         | "abandoned"
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "super_admin"
       cert_status: "active" | "frozen" | "revoked" | "redeemed"
       custody_status: "free" | "pledged" | "redeemed"
       holding_status: "active" | "pending_redemption" | "redeemed"
@@ -1006,7 +1006,7 @@ export const Constants = {
         "reorged",
         "abandoned",
       ],
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "super_admin"],
       cert_status: ["active", "frozen", "revoked", "redeemed"],
       custody_status: ["free", "pledged", "redeemed"],
       holding_status: ["active", "pending_redemption", "redeemed"],
