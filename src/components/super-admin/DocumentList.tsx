@@ -77,7 +77,29 @@ const DocumentList = () => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-display text-foreground truncate">{doc.title}</h3>
+              {editingId === doc.id ? (
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <Input
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    maxLength={200}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveEdit(doc);
+                      if (e.key === 'Escape') cancelEdit();
+                    }}
+                    className="h-7 text-sm font-display"
+                  />
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary" onClick={() => saveEdit(doc)} disabled={rename.isPending}>
+                    {rename.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={cancelEdit}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <h3 className="font-display text-foreground truncate">{doc.title}</h3>
+              )}
               <Badge variant="outline" className="capitalize text-xs border-primary/30 text-primary/80">{doc.category}</Badge>
               <Badge variant={doc.visibility === 'public' ? 'default' : 'secondary'} className="text-xs">
                 {doc.visibility === 'public' ? <><Globe className="w-3 h-3 mr-1" />Public</> : <><Lock className="w-3 h-3 mr-1" />Admin</>}
@@ -87,6 +109,11 @@ const DocumentList = () => {
             <p className="text-xs text-muted-foreground/70 mt-1">{formatBytes(doc.file_size)} • {new Date(doc.created_at).toLocaleString()}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {canRename && editingId !== doc.id && (
+              <Button size="sm" variant="outline" onClick={() => startEdit(doc)} title="Rename">
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => handleDownload(doc)}>
               <Download className="w-4 h-4" />
             </Button>
