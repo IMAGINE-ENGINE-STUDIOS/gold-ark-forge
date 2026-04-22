@@ -83,6 +83,22 @@ export const useDeleteDocument = () => {
   });
 };
 
+export const useRenameDocument = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const trimmed = title.trim();
+      if (!trimmed) throw new Error('Title cannot be empty');
+      const { error } = await supabase
+        .from('documents')
+        .update({ title: trimmed })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
+  });
+};
+
 export const getDocumentUrl = async (doc: DocumentRow): Promise<string | null> => {
   if (doc.visibility === 'public') {
     const { data } = supabase.storage.from('documents').getPublicUrl(doc.file_path);
