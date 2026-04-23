@@ -6,10 +6,11 @@ import { useSuperAdminRole } from '@/hooks/useAdminRole';
 import { useAuth } from '@/hooks/useAuth';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShieldCheck, Lock, FileText, Users } from 'lucide-react';
+import { ShieldCheck, Lock, FileText, Users, Map } from 'lucide-react';
 import DocumentUploader from '@/components/super-admin/DocumentUploader';
 import DocumentList from '@/components/super-admin/DocumentList';
 import RoleManager from '@/components/super-admin/RoleManager';
+import RoadmapBoard from '@/components/super-admin/roadmap/RoadmapBoard';
 
 const SuperAdmin = () => {
   const { user, loading: authLoading } = useAuth();
@@ -76,6 +77,9 @@ const SuperAdmin = () => {
               <TabsTrigger value="roles" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
                 <Users size={16} className="mr-2" />Roles & Users
               </TabsTrigger>
+              <TabsTrigger value="roadmap" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+                <Map size={16} className="mr-2" />Roadmap
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="documents" className="space-y-6">
@@ -90,6 +94,10 @@ const SuperAdmin = () => {
               <div className="p-6 border border-primary/20 bg-card/40 rounded-lg">
                 <RoleManager />
               </div>
+            </TabsContent>
+
+            <TabsContent value="roadmap">
+              <RoadmapBoard />
             </TabsContent>
           </Tabs>
         </div>
