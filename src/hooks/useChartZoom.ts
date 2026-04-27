@@ -15,6 +15,8 @@ interface UseChartZoomOptions {
   totalPoints: number;
   minVisible?: number;
   maxVisible?: number;
+  /** Initial / default visible window. Defaults to totalPoints. */
+  initialVisible?: number;
 }
 
 interface UseChartZoomReturn {
@@ -45,25 +47,32 @@ interface UseChartZoomReturn {
   isPanned: boolean;
 }
 
-export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseChartZoomOptions): UseChartZoomReturn => {
+export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible, initialVisible }: UseChartZoomOptions): UseChartZoomReturn => {
   const effectiveMax = maxVisible ?? Math.max(totalPoints, minVisible);
-  const [visibleCount, setVisibleCount] = useState(totalPoints);
+  const defaultVisible = initialVisible ?? totalPoints;
+  const [visibleCount, setVisibleCount] = useState(defaultVisible);
   const [endOffset, setEndOffset] = useState(0);
   const touchStartDistRef = useRef<number | null>(null);
-  const touchStartVisibleRef = useRef<number>(totalPoints);
+  const touchStartVisibleRef = useRef<number>(defaultVisible);
   // Single-finger swipe pan tracking
   const touchStartXRef = useRef<number | null>(null);
   const touchStartOffsetRef = useRef<number>(0);
   // Mouse-drag pan tracking
   const mouseDownXRef = useRef<number | null>(null);
   const mouseDownOffsetRef = useRef<number>(0);
+  // Track whether the user has manually adjusted zoom; if so, don't reset
+  // visibleCount when totalPoints grows (e.g. new live candles streaming in).
+  const userAdjustedRef = useRef(false);
 
-  // Reset visible when total changes significantly (symbol/tf switch).
-  // We keep endOffset only if it still resolves to existing data.
+  // When the underlying buffer length changes:
+  //  • If the user hasn't touched zoom, snap to the (new) defaultVisible.
+  //  • If they have, keep their visibleCount but re-clamp endOffset.
   useEffect(() => {
-    setVisibleCount(totalPoints);
+    if (!userAdjustedRef.current) {
+      setVisibleCount(defaultVisible);
+    }
     setEndOffset((prev) => Math.max(0, Math.min(prev, Math.max(0, totalPoints - minVisible))));
-  }, [totalPoints, minVisible]);
+  }, [totalPoints, minVisible, defaultVisible]);
 
   const clamp = useCallback((val: number) => {
     return Math.max(minVisible, Math.min(effectiveMax, Math.round(val)));
@@ -82,6 +91,7 @@ export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseCh
     // Shift + wheel = horizontal pan; otherwise zoom
     if (e.shiftKey) {
       // Wheel down → pan right (toward now), wheel up → pan left (history)
+      userAdjustedRef.current = true;
       setEndOffset(prev => clampOffset(prev + (delta > 0 ? -10 : 10), visibleCount));
       return;
     }
@@ -89,6 +99,7 @@ export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseCh
     // the current view: we keep endOffset constant so the visible window
     // grows/shrinks toward the LEFT, leaving the user where they were.
     const zoomFactor = 0.1;
+    userAdjustedRef.current = true;
     setVisibleCount(prev => {
       const change = Math.ceil(prev * zoomFactor);
       const next = delta > 0 ? clamp(prev + change) : clamp(prev - change);
@@ -127,6 +138,7 @@ export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseCh
       const ratio = startDist / currentDist;
       const newVisible = Math.round(touchStartVisibleRef.current * ratio);
       const next = clamp(newVisible);
+      userAdjustedRef.current = true;
       setVisibleCount(next);
       setEndOffset(o => clampOffset(o, next));
       return;
@@ -139,6 +151,7 @@ export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseCh
       const candlesPerPx = visibleCount / Math.max(1, containerW);
       // Drag right (positive dx) → reveal older candles (increase offset)
       const candleDelta = dx * candlesPerPx;
+      userAdjustedRef.current = true;
       setEndOffset(clampOffset(touchStartOffsetRef.current + candleDelta, visibleCount));
     }
   }, [clamp, clampOffset, visibleCount]);
@@ -163,6 +176,7 @@ export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseCh
     const containerW = (e.currentTarget as HTMLElement)?.clientWidth || window.innerWidth;
     const candlesPerPx = visibleCount / Math.max(1, containerW);
     const candleDelta = dx * candlesPerPx;
+    userAdjustedRef.current = true;
     setEndOffset(clampOffset(mouseDownOffsetRef.current + candleDelta, visibleCount));
   }, [clampOffset, visibleCount]);
 
@@ -191,9 +205,10 @@ export const useChartZoom = ({ totalPoints, minVisible = 10, maxVisible }: UseCh
       : `${visibleCount} bars`;
 
   const resetZoom = useCallback(() => {
-    setVisibleCount(totalPoints);
+    userAdjustedRef.current = false;
+    setVisibleCount(defaultVisible);
     setEndOffset(0);
-  }, [totalPoints]);
+  }, [defaultVisible]);
 
   return {
     visibleCount,
