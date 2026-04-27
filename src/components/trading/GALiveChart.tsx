@@ -4,6 +4,7 @@
  * for symbol sync with the Swap terminal panel.
  */
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
@@ -582,18 +583,36 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
 const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const isLongActive = (longTimeframes as readonly string[]).includes(tf);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const reflow = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 4, left: r.right - 90 });
+    };
+    reflow();
+    window.addEventListener('resize', reflow);
+    window.addEventListener('scroll', reflow, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('resize', reflow);
+      window.removeEventListener('scroll', reflow, true);
+    };
   }, [open]);
 
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 border ${
           isLongActive ? 'bg-gold/15 text-gold border-gold/30' : 'text-marble/30 hover:text-marble/60 border-transparent'
@@ -602,8 +621,12 @@ const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefr
         {isLongActive ? tf : 'MORE'}
         <MoreHorizontal className="w-3 h-3" />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+      {open && pos && createPortal(
+        <div
+          ref={ref}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]"
+        >
           {longTimeframes.map((t) => (
             <button
               key={t}
@@ -615,7 +638,8 @@ const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefr
               {t === 'ALL' ? 'ALL (Lifetime)' : t}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -625,17 +649,44 @@ const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefr
 const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const reflow = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      // Open upward (menu above the button), aligned to the right edge
+      const menuW = 90;
+      // Approx height; refined after first paint
+      const menuH = menuRef.current?.offsetHeight ?? 260;
+      setPos({ top: r.top - menuH - 4, left: r.right - menuW });
+    };
+    reflow();
+    // Re-measure after the menu paints (so menuH is real)
+    const raf = requestAnimationFrame(reflow);
+    window.addEventListener('resize', reflow);
+    window.addEventListener('scroll', reflow, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('resize', reflow);
+      window.removeEventListener('scroll', reflow, true);
+    };
   }, [open]);
 
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
           tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
@@ -644,8 +695,12 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
         {tf}
         <MoreHorizontal className="w-3 h-3" />
       </button>
-      {open && (
-        <div className="absolute right-0 bottom-full mb-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]"
+        >
           <div className="px-3 py-1 text-[8px] font-display tracking-wider text-marble/30 bg-navy-dark/80 border-b border-gold/10">SHORT</div>
           {shortTimeframes.map((t) => (
             <button
@@ -672,7 +727,8 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
               {t === 'ALL' ? 'ALL (Lifetime)' : t}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
