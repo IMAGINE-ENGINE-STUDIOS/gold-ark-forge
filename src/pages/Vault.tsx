@@ -252,6 +252,11 @@ const Vault = () => {
 
         {/* ── Category Content ── */}
         <div className="container mx-auto px-4 py-12">
+          {/* ── Ethereum Network Panel — visible across ALL asset classes ── */}
+          <div className="mb-8">
+            <EthereumNetworkPanel address={effectiveAddress} mode="full" />
+          </div>
+
           {activeCategory === 'metals' ? (
             <>
               {/* ── Summary Cards ── */}
@@ -487,12 +492,11 @@ const Vault = () => {
             </>
           ) : (
             activeCategory === 'ethereum' ? (
-              <EthereumNetworkPanel address={effectiveAddress} mode="full" />
-            ) : activeCategory === 'crypto' ? (
-              <div className="space-y-6">
-                <EthereumNetworkPanel address={effectiveAddress} mode="full" />
-                <EmptyInventory label="Other Crypto" />
+              <div className="text-center py-12 text-marble/40 text-sm font-display tracking-wider">
+                Live Ethereum holdings shown above. Visit Marketplace to acquire tokenized assets.
               </div>
+            ) : activeCategory === 'crypto' ? (
+              <EmptyInventory label="Other Crypto" />
             ) : (
               <EmptyInventory label={VAULT_CATEGORIES.find(c => c.key === activeCategory)?.label ?? activeCategory} />
             )
