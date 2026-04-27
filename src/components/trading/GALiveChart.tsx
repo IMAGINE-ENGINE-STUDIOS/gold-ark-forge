@@ -471,8 +471,11 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
   const data: ChartDataPoint[] = [];
   const now = Date.now();
   let walkPrice = price / (1 + change / 100);
-  const drift = (price - walkPrice) / cfg.points;
-  for (let i = 0; i < cfg.points; i++) {
+  // Generate ~6× the visible window so users can slide left into deep history.
+  // Capped so memory stays reasonable on long timeframes.
+  const totalPoints = Math.min(cfg.points * 6, 3000);
+  const drift = (price - walkPrice) / totalPoints;
+  for (let i = 0; i < totalPoints; i++) {
     const r1 = rand() - 0.5;
     const r2 = rand() - 0.5;
     const r3 = rand();
@@ -486,7 +489,7 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
     const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
     const high = Math.max(open, close) + wickUp;
     const low = Math.min(open, close) - wickDown;
-    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+    const time = new Date(now - (totalPoints - i) * cfg.intervalMs);
     data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(price < 10 ? 4 : 2)), open: parseFloat(open.toFixed(price < 10 ? 4 : 2)), close: parseFloat(close.toFixed(price < 10 ? 4 : 2)), high: parseFloat(high.toFixed(price < 10 ? 4 : 2)), low: parseFloat(low.toFixed(price < 10 ? 4 : 2)) });
   }
   return data;
@@ -553,7 +556,9 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     if (elapsed >= cfg.candleMs) {
       const newCandle: ChartDataPoint = { time: cfg.labelFn(new Date()), value: price, open: price, close: price, high: price, low: price };
       arr.push(newCandle);
-      const maxPoints = tf === 'RT' ? 120 : cfg.points + 30;
+      // Retain a generous history buffer so users can slide left through
+      // deep history without losing the past as new candles roll in.
+      const maxPoints = tf === 'RT' ? 600 : Math.max(cfg.points * 6, 1500);
       if (arr.length > maxPoints) arr.splice(0, arr.length - maxPoints);
       currentCandleStartRef.current = now;
     } else {
@@ -738,7 +743,16 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
   // ═══ ZOOM THROUGH TIME ═══
-  const zoom = useChartZoom({ totalPoints: liveCandles.length, minVisible: 10, maxVisible: liveCandles.length * 3 });
+  // Default visible window = the timeframe's natural candle count so the
+  // chart looks the same as before. The full liveCandles buffer (much larger)
+  // becomes available as the user slides left into history.
+  const defaultVisible = Math.min(tfConfigs[tf].points, liveCandles.length || 1);
+  const zoom = useChartZoom({
+    totalPoints: liveCandles.length,
+    initialVisible: defaultVisible,
+    minVisible: 10,
+    maxVisible: Math.max(liveCandles.length, defaultVisible),
+  });
   const visibleCandles = useMemo(() => zoom.sliceData(liveCandles), [zoom.sliceData, liveCandles]);
   const enrichedData = useMemo(() => enrichChartData(visibleCandles, activeIndicators), [visibleCandles, activeIndicators]);
 
@@ -1094,7 +1108,17 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       </div>
 
       {/* Chart Area */}
-      <div {...zoom.containerProps} className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0, touchAction: 'pan-x' }}>
+      <div
+        {...zoom.containerProps}
+        className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`}
+        style={{
+          cursor: activeTool ? 'crosshair' : zoom.isPanned ? 'grabbing' : 'grab',
+          flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined,
+          minHeight: 0,
+          touchAction: 'pan-y',
+          userSelect: 'none',
+        }}
+      >
         {price === 0 || liveCandles.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
             <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
@@ -1202,7 +1226,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             </span>
           )}
            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
-            {zoom.zoomLabel !== 'FIT' && (
+            {(zoom.zoomLabel !== 'FIT' || zoom.isPanned) && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
                 🔍 {zoom.zoomLabel} · RESET
               </button>
