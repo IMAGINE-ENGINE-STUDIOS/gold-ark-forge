@@ -492,12 +492,11 @@ const Vault = () => {
             </>
           ) : (
             activeCategory === 'ethereum' ? (
-              <EthereumNetworkPanel address={effectiveAddress} mode="full" />
-            ) : activeCategory === 'crypto' ? (
-              <div className="space-y-6">
-                <EthereumNetworkPanel address={effectiveAddress} mode="full" />
-                <EmptyInventory label="Other Crypto" />
+              <div className="text-center py-12 text-marble/40 text-sm font-display tracking-wider">
+                Live Ethereum holdings shown above. Visit Marketplace to acquire tokenized assets.
               </div>
+            ) : activeCategory === 'crypto' ? (
+              <EmptyInventory label="Other Crypto" />
             ) : (
               <EmptyInventory label={VAULT_CATEGORIES.find(c => c.key === activeCategory)?.label ?? activeCategory} />
             )
