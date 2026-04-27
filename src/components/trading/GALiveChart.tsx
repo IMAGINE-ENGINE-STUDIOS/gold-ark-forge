@@ -743,7 +743,16 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
   // ═══ ZOOM THROUGH TIME ═══
-  const zoom = useChartZoom({ totalPoints: liveCandles.length, minVisible: 10, maxVisible: liveCandles.length * 3 });
+  // Default visible window = the timeframe's natural candle count so the
+  // chart looks the same as before. The full liveCandles buffer (much larger)
+  // becomes available as the user slides left into history.
+  const defaultVisible = Math.min(tfConfigs[tf].points, liveCandles.length || 1);
+  const zoom = useChartZoom({
+    totalPoints: liveCandles.length,
+    initialVisible: defaultVisible,
+    minVisible: 10,
+    maxVisible: Math.max(liveCandles.length, defaultVisible),
+  });
   const visibleCandles = useMemo(() => zoom.sliceData(liveCandles), [zoom.sliceData, liveCandles]);
   const enrichedData = useMemo(() => enrichChartData(visibleCandles, activeIndicators), [visibleCandles, activeIndicators]);
 
