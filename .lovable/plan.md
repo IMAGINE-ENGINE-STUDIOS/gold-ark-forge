@@ -1,100 +1,71 @@
+## Add Ethereum Network to Wallet & Vault
 
+Bring live Ethereum data (balance, tokens, network telemetry) into both the wallet dropdown and the Vault page. All data pulled from free public RPCs and CoinGecko — no API keys, no synthetic data.
 
-## Interactive Roadmap Tool for Super Admin
+### 1. Shared hook — `src/hooks/useEthereumWallet.ts`
 
-Add a new **Roadmap** tab in `/super-admin` with a dynamic, expandable goal-tracking system. Super Admins and Admins can create phases (e.g. "Q3 2026"), add goals under each phase, set target dates, track progress, and reorder/expand items inline.
+A single React Query hook that, given an EVM address, returns:
 
-### Features
+- **ETH balance** via `eth_getBalance` (multi-RPC fallback: llamarpc, ankr, publicnode, 1rpc, cloudflare)
+- **ERC-20 token balances** via `eth_call` (`balanceOf`) for a curated list:
+  - USDC, USDT, DAI, WETH, WBTC, LINK, UNI (mainnet contract addresses hardcoded)
+- **USD valuation** via CoinGecko `/simple/price` (free, no key)
+- **Network status** (block number, gas price, base fee) — reuse the same RPC helper from `GAEthereumNetwork.tsx`
 
-- **Phases** (top-level groupings like "Q2 2026", "Launch Phase")
-  - Title, start date, end date, color accent
-  - Collapsible/expandable cards
-  - Add/edit/delete inline
-- **Goals** (nested under phases)
-  - Title, description, target date, status (planned / in-progress / done / blocked), priority
-  - Progress slider (0–100%)
-  - Sub-goals (one level of nesting) — expand to add child items
-  - Drag-free reordering via up/down arrows
-- **Visual timeline strip** at top showing all phases as a horizontal bar with progress fill
-- **Dynamic editing**: every field is click-to-edit inline (title, dates, status). Auto-save with `useAutoSave` after 1.5s of inactivity
-- **Filters**: status filter chips, "show only my goals" toggle
-- **Permissions**: Admins + Super Admins can edit; Super Admins only can delete phases
+Refresh: 15s interval, react-query cache. On full RPC failure: return empty + show inline warning (zero-fake-data mandate).
 
-### Technical Plan
+### 2. Reusable panel — `src/components/wallet/EthereumNetworkPanel.tsx`
 
-**1. Database (migration)**
-
-```sql
-CREATE TABLE public.roadmap_phases (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  description TEXT,
-  start_date DATE,
-  end_date DATE,
-  color TEXT DEFAULT 'gold',
-  sort_order INT NOT NULL DEFAULT 0,
-  created_by UUID,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE public.roadmap_goals (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phase_id UUID NOT NULL REFERENCES public.roadmap_phases(id) ON DELETE CASCADE,
-  parent_goal_id UUID REFERENCES public.roadmap_goals(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  target_date DATE,
-  status TEXT NOT NULL DEFAULT 'planned',  -- planned | in_progress | done | blocked
-  priority TEXT NOT NULL DEFAULT 'medium', -- low | medium | high | critical
-  progress INT NOT NULL DEFAULT 0,         -- 0..100
-  sort_order INT NOT NULL DEFAULT 0,
-  created_by UUID,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-**RLS**:
-- SELECT: any authenticated admin OR super_admin
-- INSERT/UPDATE: admin OR super_admin
-- DELETE: super_admin only (on phases); admin OR super_admin (on goals)
-
-**2. Hook** — `src/hooks/useRoadmap.ts`
-- `useRoadmapPhases()` — fetch phases + nested goals
-- `useUpsertPhase()`, `useDeletePhase()`, `useReorderPhase()`
-- `useUpsertGoal()`, `useDeleteGoal()`, `useReorderGoal()`
-- React Query invalidation on every mutation
-
-**3. Components** (under `src/components/super-admin/roadmap/`)
-- `RoadmapBoard.tsx` — main container, timeline strip + phase list + "Add Phase" button
-- `PhaseCard.tsx` — collapsible phase with header (inline-editable title/dates), goals list, "Add Goal"
-- `GoalRow.tsx` — inline-editable row: title, status badge, priority dot, progress slider, target date popover (using shadcn Calendar with `pointer-events-auto`), expand chevron for sub-goals
-- `RoadmapTimelineStrip.tsx` — horizontal bar showing each phase proportionally with progress fill
-- `RoadmapFilters.tsx` — status + priority filter chips
-
-**4. Wire into `SuperAdmin.tsx`**
-- Add `<TabsTrigger value="roadmap">` with `Map` icon from lucide-react
-- Add `<TabsContent value="roadmap"><RoadmapBoard /></TabsContent>`
-
-### Layout
+A compact "Roman PAX" panel rendering:
 
 ```text
-┌─ Roadmap Board ────────────────────────────────────────┐
-│ [Timeline strip: ▓▓░░ ▓▓▓░ ▓▓▓▓ ░░░░ ]                │
-│ [Filters: All | Planned | In Progress | Done | Blocked]│
-│                                                        │
-│ ▼ Q2 2026  [Apr 1 → Jun 30]              [+ Goal] [⋮] │
-│   ▸ ● Public launch        ━━━━━━━━░░ 80%  [Jun 15]   │
-│   ▸ ◐ Vault partners       ━━━━░░░░░░ 40%  [May 30]   │
-│      └─ ○ Sub: legal review                           │
-│   ▸ ○ BTC anchoring v1     ░░░░░░░░░░  0%  [Jun 30]   │
-│                                                        │
-│ ▶ Q3 2026  [Jul 1 → Sep 30]              [+ Goal] [⋮] │
-│                                                        │
-│ [+ Add Phase]                                          │
-└────────────────────────────────────────────────────────┘
+┌─ ETHEREUM · MAINNET ──────────────── LIVE ●─┐
+│ Balance         1.2453 ETH    $4,210.55     │
+│ ─────────────────────────────────────────── │
+│ TOKENS                                       │
+│  ◉ USDC   1,250.00      $1,250.00           │
+│  ◉ USDT     430.20        $430.18           │
+│  ◉ WBTC     0.0150      $1,580.00           │
+│ ─────────────────────────────────────────── │
+│ NETWORK   Block 24,458,855  Gas 12 Gwei     │
+│ [View on Etherscan ↗]                        │
+└──────────────────────────────────────────────┘
 ```
 
-Aesthetic follows existing Super Admin tab: gold accents, `bg-card/40`, `font-display` headings, primary/20 borders.
+- Two density modes via prop: `compact` (dropdown) and `full` (vault tab)
+- Hides zero-balance tokens by default; toggle to show all
+- Gold accents, `bg-card/40`, `text-[10px]–text-xs`, ornate corners on full mode
 
+### 3. Wallet dropdown integration — `src/components/wallet/ConnectWalletButton.tsx`
+
+Add a new collapsible section after the wallet info, before BTC:
+
+```text
+ETHEREUM NETWORK
+  Balance: 1.2453 ETH · $4,210
+  Tokens: 3 active                    [Show ▾]
+```
+
+When expanded, render `<EthereumNetworkPanel mode="compact" address={evmAddress} />` inline in the dropdown.
+
+### 4. Vault page integration — `src/pages/Vault.tsx`
+
+Two placements:
+
+- **New top-level category**: add `{ key: 'ethereum', label: 'Ethereum', icon: <Ξ glyph> }` to `VAULT_CATEGORIES`
+- **Nested in Crypto tab**: when `activeCategory === 'crypto'`, render the same `<EthereumNetworkPanel mode="full" />` at the top of the crypto section, above existing crypto holdings
+
+Both surfaces use the shared component so they stay consistent.
+
+### Technical Notes
+
+- **No backend changes**: pure client-side using public RPCs + CoinGecko. No new tables, no edge functions, no secrets.
+- **Address source**: `useWallet().evmAddress`. If null, panel renders an empty "Connect to view" state.
+- **ERC-20 calls**: batch via `Promise.all` of `eth_call` with encoded `balanceOf(address)` selector `0x70a08231`.
+- **Resilience**: reuse the `rpcCall` multi-fallback pattern already proven in `GAEthereumNetwork.tsx`. On total failure, show "RPC unavailable — retrying" banner; never inject fake numbers (zero-fake-data rule).
+- **Etherscan link**: deep-link to `https://etherscan.io/address/{evmAddress}` for full holdings exploration.
+
+### Files
+
+- Created: `src/hooks/useEthereumWallet.ts`, `src/components/wallet/EthereumNetworkPanel.tsx`
+- Edited: `src/components/wallet/ConnectWalletButton.tsx`, `src/pages/Vault.tsx`
