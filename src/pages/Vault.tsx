@@ -252,6 +252,11 @@ const Vault = () => {
 
         {/* ── Category Content ── */}
         <div className="container mx-auto px-4 py-12">
+          {/* ── Ethereum Network Panel — visible across ALL asset classes ── */}
+          <div className="mb-8">
+            <EthereumNetworkPanel address={effectiveAddress} mode="full" />
+          </div>
+
           {activeCategory === 'metals' ? (
             <>
               {/* ── Summary Cards ── */}
