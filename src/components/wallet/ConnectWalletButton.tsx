@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useWallet } from '@/contexts/WalletContext';
-import { Wallet, ChevronDown, LogOut, ExternalLink, Bitcoin, KeyRound, Link2Off, Loader2 } from 'lucide-react';
+import { Wallet, ChevronDown, LogOut, ExternalLink, Bitcoin, KeyRound, Link2Off, Loader2, ChevronRight } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useBrokerConnections, useDeleteBrokerConnection, BROKER_META, BrokerType } from '@/hooks/useBrokerTrading';
 import BrokerConnectDialog from '@/components/trading/BrokerConnectDialog';
+import EthereumNetworkPanel from '@/components/wallet/EthereumNetworkPanel';
 
 const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -31,6 +32,7 @@ const ConnectWalletButton = () => {
   const { data: brokerConnections } = useBrokerConnections();
   const deleteBroker = useDeleteBrokerConnection();
   const [brokerDialogOpen, setBrokerDialogOpen] = useState(false);
+  const [ethExpanded, setEthExpanded] = useState(false);
 
   const handleDisconnectBroker = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -78,6 +80,21 @@ const ConnectWalletButton = () => {
                 View on Etherscan
               </a>
             </DropdownMenuItem>
+
+            {/* Ethereum Network Panel */}
+            <DropdownMenuSeparator className="bg-gold/20" />
+            <DropdownMenuItem
+              onSelect={(e) => { e.preventDefault(); setEthExpanded(v => !v); }}
+              className="flex items-center justify-between text-gold/70 hover:text-gold cursor-pointer"
+            >
+              <span className="text-[10px] font-display tracking-wider">ETHEREUM NETWORK</span>
+              {ethExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </DropdownMenuItem>
+            {ethExpanded && (
+              <div className="px-2 pb-2" onClick={(e) => e.stopPropagation()}>
+                <EthereumNetworkPanel address={evmAddress} mode="compact" />
+              </div>
+            )}
 
             {/* BTC Address */}
             {btcAddress ? (
