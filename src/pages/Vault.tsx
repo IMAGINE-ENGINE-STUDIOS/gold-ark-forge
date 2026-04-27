@@ -486,7 +486,16 @@ const Vault = () => {
               </div>
             </>
           ) : (
-            <EmptyInventory label={VAULT_CATEGORIES.find(c => c.key === activeCategory)?.label ?? activeCategory} />
+            activeCategory === 'ethereum' ? (
+              <EthereumNetworkPanel address={effectiveAddress} mode="full" />
+            ) : activeCategory === 'crypto' ? (
+              <div className="space-y-6">
+                <EthereumNetworkPanel address={effectiveAddress} mode="full" />
+                <EmptyInventory label="Other Crypto" />
+              </div>
+            ) : (
+              <EmptyInventory label={VAULT_CATEGORIES.find(c => c.key === activeCategory)?.label ?? activeCategory} />
+            )
           )}
         </div>
 
