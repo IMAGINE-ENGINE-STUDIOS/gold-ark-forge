@@ -471,8 +471,11 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
   const data: ChartDataPoint[] = [];
   const now = Date.now();
   let walkPrice = price / (1 + change / 100);
-  const drift = (price - walkPrice) / cfg.points;
-  for (let i = 0; i < cfg.points; i++) {
+  // Generate ~6× the visible window so users can slide left into deep history.
+  // Capped so memory stays reasonable on long timeframes.
+  const totalPoints = Math.min(cfg.points * 6, 3000);
+  const drift = (price - walkPrice) / totalPoints;
+  for (let i = 0; i < totalPoints; i++) {
     const r1 = rand() - 0.5;
     const r2 = rand() - 0.5;
     const r3 = rand();
@@ -486,7 +489,7 @@ const generateChartData = (price: number, change: number, tf: Timeframe, symbolK
     const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
     const high = Math.max(open, close) + wickUp;
     const low = Math.min(open, close) - wickDown;
-    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+    const time = new Date(now - (totalPoints - i) * cfg.intervalMs);
     data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(price < 10 ? 4 : 2)), open: parseFloat(open.toFixed(price < 10 ? 4 : 2)), close: parseFloat(close.toFixed(price < 10 ? 4 : 2)), high: parseFloat(high.toFixed(price < 10 ? 4 : 2)), low: parseFloat(low.toFixed(price < 10 ? 4 : 2)) });
   }
   return data;
