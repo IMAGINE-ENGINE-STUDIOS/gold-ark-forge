@@ -556,7 +556,9 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     if (elapsed >= cfg.candleMs) {
       const newCandle: ChartDataPoint = { time: cfg.labelFn(new Date()), value: price, open: price, close: price, high: price, low: price };
       arr.push(newCandle);
-      const maxPoints = tf === 'RT' ? 120 : cfg.points + 30;
+      // Retain a generous history buffer so users can slide left through
+      // deep history without losing the past as new candles roll in.
+      const maxPoints = tf === 'RT' ? 600 : Math.max(cfg.points * 6, 1500);
       if (arr.length > maxPoints) arr.splice(0, arr.length - maxPoints);
       currentCandleStartRef.current = now;
     } else {
