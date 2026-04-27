@@ -32,16 +32,18 @@ import {
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import TransferInitiateDialog from '@/components/vault/TransferInitiateDialog';
 import TransferCard from '@/components/vault/TransferCard';
+import EthereumNetworkPanel from '@/components/wallet/EthereumNetworkPanel';
 import { Link } from 'react-router-dom';
 import vaultDoor from '@/assets/vault-door-rich.jpg';
 import type { CertificateMetadata } from '@/hooks/useCertificates';
 
 /* ─── Asset Category Types ─── */
 
-type VaultCategory = 'metals' | 'crypto' | 'energy' | 'rare-earth' | 'agriculture' | 'livestock' | 'equities' | 'forex' | 'bonds' | 'reits' | 'art' | 'gov-surplus';
+type VaultCategory = 'metals' | 'ethereum' | 'crypto' | 'energy' | 'rare-earth' | 'agriculture' | 'livestock' | 'equities' | 'forex' | 'bonds' | 'reits' | 'art' | 'gov-surplus';
 
 const VAULT_CATEGORIES: { key: VaultCategory; label: string; icon: any }[] = [
   { key: 'metals', label: 'Precious Metals', icon: Gem },
+  { key: 'ethereum', label: 'Ethereum', icon: Coins },
   { key: 'crypto', label: 'Crypto', icon: Coins },
   { key: 'energy', label: 'Energy', icon: Fuel },
   { key: 'rare-earth', label: 'Rare Earth', icon: Atom },
