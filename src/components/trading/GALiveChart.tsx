@@ -1108,7 +1108,17 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       </div>
 
       {/* Chart Area */}
-      <div {...zoom.containerProps} className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0, touchAction: 'pan-x' }}>
+      <div
+        {...zoom.containerProps}
+        className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`}
+        style={{
+          cursor: activeTool ? 'crosshair' : zoom.isPanned ? 'grabbing' : 'grab',
+          flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined,
+          minHeight: 0,
+          touchAction: 'pan-y',
+          userSelect: 'none',
+        }}
+      >
         {price === 0 || liveCandles.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
             <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
