@@ -1226,7 +1226,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
             </span>
           )}
            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
-            {zoom.zoomLabel !== 'FIT' && (
+            {(zoom.zoomLabel !== 'FIT' || zoom.isPanned) && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
                 🔍 {zoom.zoomLabel} · RESET
               </button>
