@@ -4,6 +4,7 @@
  * for symbol sync with the Swap terminal panel.
  */
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
