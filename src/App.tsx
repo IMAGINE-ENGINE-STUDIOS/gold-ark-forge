@@ -25,6 +25,7 @@ import Login from "./pages/Login";
 import Deck from "./pages/Deck";
 import Globe from "./pages/Globe";
 import SuperAdmin from "./pages/SuperAdmin";
+import SwapAssetAdmin from "./pages/SwapAssetAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/super-admin" element={<SuperAdmin />} />
+            <Route path="/swap-asset-admin" element={<SwapAssetAdmin />} />
             <Route path="/deck" element={<Deck />} />
             <Route path="/globe" element={<Globe />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

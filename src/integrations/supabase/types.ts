@@ -812,6 +812,132 @@ export type Database = {
         }
         Relationships: []
       }
+      swap_custom_assets: {
+        Row: {
+          asset_type: string
+          base_currency: string
+          blockchain: string | null
+          category: string
+          circulating_supply: number | null
+          company_ceo: string | null
+          company_country: string | null
+          company_description: string | null
+          company_email: string | null
+          company_employees: number | null
+          company_founded_year: number | null
+          company_headquarters: string | null
+          company_industry: string | null
+          company_legal_name: string | null
+          company_logo_url: string | null
+          company_name: string
+          company_phone: string | null
+          company_website: string | null
+          contract_address: string | null
+          created_at: string
+          created_by: string | null
+          cusip: string | null
+          custom_metadata: Json
+          id: string
+          initial_price: number
+          is_listed: boolean
+          isin: string | null
+          jurisdiction: string | null
+          label: string
+          market_cap: number | null
+          prospectus_url: string | null
+          regulatory_status: string | null
+          status: string
+          sub_category: string | null
+          symbol_key: string
+          ticker: string
+          total_supply: number | null
+          updated_at: string
+          whitepaper_url: string | null
+        }
+        Insert: {
+          asset_type?: string
+          base_currency?: string
+          blockchain?: string | null
+          category: string
+          circulating_supply?: number | null
+          company_ceo?: string | null
+          company_country?: string | null
+          company_description?: string | null
+          company_email?: string | null
+          company_employees?: number | null
+          company_founded_year?: number | null
+          company_headquarters?: string | null
+          company_industry?: string | null
+          company_legal_name?: string | null
+          company_logo_url?: string | null
+          company_name: string
+          company_phone?: string | null
+          company_website?: string | null
+          contract_address?: string | null
+          created_at?: string
+          created_by?: string | null
+          cusip?: string | null
+          custom_metadata?: Json
+          id?: string
+          initial_price?: number
+          is_listed?: boolean
+          isin?: string | null
+          jurisdiction?: string | null
+          label: string
+          market_cap?: number | null
+          prospectus_url?: string | null
+          regulatory_status?: string | null
+          status?: string
+          sub_category?: string | null
+          symbol_key: string
+          ticker: string
+          total_supply?: number | null
+          updated_at?: string
+          whitepaper_url?: string | null
+        }
+        Update: {
+          asset_type?: string
+          base_currency?: string
+          blockchain?: string | null
+          category?: string
+          circulating_supply?: number | null
+          company_ceo?: string | null
+          company_country?: string | null
+          company_description?: string | null
+          company_email?: string | null
+          company_employees?: number | null
+          company_founded_year?: number | null
+          company_headquarters?: string | null
+          company_industry?: string | null
+          company_legal_name?: string | null
+          company_logo_url?: string | null
+          company_name?: string
+          company_phone?: string | null
+          company_website?: string | null
+          contract_address?: string | null
+          created_at?: string
+          created_by?: string | null
+          cusip?: string | null
+          custom_metadata?: Json
+          id?: string
+          initial_price?: number
+          is_listed?: boolean
+          isin?: string | null
+          jurisdiction?: string | null
+          label?: string
+          market_cap?: number | null
+          prospectus_url?: string | null
+          regulatory_status?: string | null
+          status?: string
+          sub_category?: string | null
+          symbol_key?: string
+          ticker?: string
+          total_supply?: number | null
+          updated_at?: string
+          whitepaper_url?: string | null
+        }
+        Relationships: []
+      }
       transfers: {
         Row: {
           btc_txid: string | null
