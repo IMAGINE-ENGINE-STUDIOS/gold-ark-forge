@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useAdminRole } from '@/hooks/useAdminRole';
-import { useWallet } from '@/contexts/WalletContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Lock, Shield, Plus, Trash2, Save, Coins, Building2, FileText, Hash } from 'lucide-react';
+import { Plus, Trash2, Save, Coins, Building2, FileText, Hash } from 'lucide-react';
 
 interface SwapAsset {
   id: string;
@@ -95,19 +92,11 @@ const CATEGORIES = ['metals', 'crypto', 'equity', 'energy', 'forex', 'bonds', 'c
 const ASSET_TYPES = ['equity', 'token', 'commodity', 'fund', 'note', 'derivative', 'other'];
 
 const SwapAssetAdmin = () => {
-  const { isConnected } = useWallet();
-  const { data: isAdmin, isLoading: roleLoading } = useAdminRole();
-  const navigate = useNavigate();
-
   const [assets, setAssets] = useState<SwapAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
-
-  useEffect(() => {
-    if (!roleLoading && !isAdmin && isConnected) navigate('/vault');
-  }, [roleLoading, isAdmin, isConnected, navigate]);
 
   const loadAssets = async () => {
     setLoading(true);
@@ -121,8 +110,8 @@ const SwapAssetAdmin = () => {
   };
 
   useEffect(() => {
-    if (isAdmin) loadAssets();
-  }, [isAdmin]);
+    loadAssets();
+  }, []);
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -242,47 +231,6 @@ const SwapAssetAdmin = () => {
     toast.success('Asset deleted');
     loadAssets();
   };
-
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-navy">
-        <Header />
-        <main className="container mx-auto px-4 py-24 text-center">
-          <div className="w-24 h-24 mx-auto mb-8 rounded-full bg-gold/10 flex items-center justify-center">
-            <Lock className="text-gold w-12 h-12" />
-          </div>
-          <h1 className="font-display text-3xl text-gold mb-4">Admin Access Required</h1>
-          <p className="text-marble/60">Connect your wallet to manage SWAP assets.</p>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (roleLoading) {
-    return (
-      <div className="min-h-screen bg-navy">
-        <Header />
-        <main className="container mx-auto px-4 py-24">
-          <Skeleton className="h-64 w-full bg-gold/10" />
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-navy">
-        <Header />
-        <main className="container mx-auto px-4 py-24 text-center">
-          <Shield className="text-red-400 w-12 h-12 mx-auto mb-4" />
-          <h1 className="font-display text-3xl text-red-400">Access Denied</h1>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
 
   const Section = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
     <div className="border border-gold/20 bg-navy-light/30 p-5 mb-4">
