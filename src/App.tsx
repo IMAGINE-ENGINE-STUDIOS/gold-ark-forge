@@ -27,6 +27,7 @@ import Globe from "./pages/Globe";
 import SuperAdmin from "./pages/SuperAdmin";
 import SwapAssetAdmin from "./pages/SwapAssetAdmin";
 import TradeSimulation from "./pages/TradeSimulation";
+import PersonaPage from "./pages/PersonaPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,9 +62,9 @@ const App = () => (
             <Route path="/super-admin" element={<SuperAdmin />} />
             <Route path="/swap-asset-admin" element={<SwapAssetAdmin />} />
             <Route path="/trade-simulation" element={<TradeSimulation />} />
-            <Route path="/for-sovereigns" element={<TradeSimulation />} />
-            <Route path="/for-institutions" element={<TradeSimulation />} />
-            <Route path="/for-exporters" element={<TradeSimulation />} />
+            <Route path="/for-sovereigns" element={<PersonaPage />} />
+            <Route path="/for-institutions" element={<PersonaPage />} />
+            <Route path="/for-exporters" element={<PersonaPage />} />
             <Route path="/deck" element={<Deck />} />
             <Route path="/globe" element={<Globe />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
