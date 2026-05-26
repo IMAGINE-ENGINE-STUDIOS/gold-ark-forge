@@ -28,6 +28,7 @@ import SuperAdmin from "./pages/SuperAdmin";
 import SwapAssetAdmin from "./pages/SwapAssetAdmin";
 import TradeSimulation from "./pages/TradeSimulation";
 import PersonaPage from "./pages/PersonaPage";
+import DeckEditor from "./pages/DeckEditor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/for-institutions" element={<PersonaPage />} />
             <Route path="/for-exporters" element={<PersonaPage />} />
             <Route path="/deck" element={<Deck />} />
+            <Route path="/deck-editor" element={<DeckEditor />} />
             <Route path="/globe" element={<Globe />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
