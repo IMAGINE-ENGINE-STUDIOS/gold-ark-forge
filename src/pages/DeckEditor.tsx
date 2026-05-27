@@ -532,4 +532,94 @@ const NumField = ({ label, value, onChange }: { label: string; value: number; on
   </label>
 );
 
+/**
+ * BaseLayer renders the existing pitch-deck React component AND lets the editor
+ * mutate its inline content directly.
+ *
+ * - If slide.html is set, it is the source of truth (rendered via dangerouslySetInnerHTML).
+ *   When editable, the layer is contentEditable and changes are persisted on blur/input.
+ *   Clicking any <img> inside prompts for a new URL.
+ * - If slide.html is NOT set, we render the original React component, then snapshot its
+ *   rendered DOM into slide.html on next frame so subsequent loads are editable.
+ */
+const BaseLayer = ({
+  slide,
+  editable,
+  onSnapshot,
+  onHtmlChange,
+}: {
+  slide: DeckSlide;
+  editable: boolean;
+  onSnapshot?: (html: string) => void;
+  onHtmlChange?: (html: string) => void;
+}) => {
+  const liveRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<HTMLDivElement>(null);
+
+  // Snapshot rendered React component → HTML so it becomes editable next render
+  useEffect(() => {
+    if (slide.baseSlide == null) return;
+    if (slide.html) return;
+    if (!liveRef.current) return;
+    const id = requestAnimationFrame(() => {
+      const html = liveRef.current?.innerHTML;
+      if (html && onSnapshot) onSnapshot(html);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [slide.baseSlide, slide.html, onSnapshot]);
+
+  // Image click → replace URL prompt (only when editable)
+  useEffect(() => {
+    if (!editable || !slide.html || !editRef.current) return;
+    const root = editRef.current;
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && t.tagName === 'IMG') {
+        e.preventDefault();
+        e.stopPropagation();
+        const cur = (t as HTMLImageElement).src;
+        const next = prompt('Image URL (leave blank to keep):', cur);
+        if (next && next !== cur) {
+          (t as HTMLImageElement).src = next;
+          onHtmlChange?.(root.innerHTML);
+        }
+      }
+    };
+    root.addEventListener('click', handler);
+    return () => root.removeEventListener('click', handler);
+  }, [editable, slide.html, onHtmlChange]);
+
+  if (slide.baseSlide == null || !BASE_SLIDES[slide.baseSlide]) return null;
+
+  // Editable snapshot mode
+  if (slide.html) {
+    return (
+      <div
+        ref={editRef}
+        contentEditable={editable}
+        suppressContentEditableWarning
+        spellCheck={false}
+        onBlur={(e) => editable && onHtmlChange?.((e.currentTarget as HTMLDivElement).innerHTML)}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: editable ? 'auto' : 'none',
+          outline: 'none',
+        }}
+        dangerouslySetInnerHTML={{ __html: slide.html }}
+      />
+    );
+  }
+
+  // First render: mount React component so we can snapshot it
+  return (
+    <div
+      ref={liveRef}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      {BASE_SLIDES[slide.baseSlide].node}
+    </div>
+  );
+};
+
 export default DeckEditor;
