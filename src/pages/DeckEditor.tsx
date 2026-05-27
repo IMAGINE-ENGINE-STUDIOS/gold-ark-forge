@@ -111,6 +111,13 @@ const DeckEditor = () => {
       const overrides: Record<number, string> = {};
       slides.forEach(s => { if (s.baseSlide != null && s.html) overrides[s.baseSlide] = s.html; });
       localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+      // realtime broadcast to /deck viewers in same browser (storage event only fires cross-tab)
+      try {
+        const bc = new BroadcastChannel('ga_deck_sync');
+        bc.postMessage({ type: 'overrides', overrides });
+        bc.close();
+      } catch {}
+      window.dispatchEvent(new CustomEvent('ga_deck_overrides_changed', { detail: overrides }));
     } catch (e: any) {
       toast.error('Storage full — try smaller images or fewer base64 uploads');
     }

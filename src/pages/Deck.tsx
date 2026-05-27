@@ -52,8 +52,25 @@ const Deck = () => {
   const [overrides, setOverrides] = useState<Record<number, string>>(() => loadOverrides());
   useEffect(() => {
     const onStorage = (e: StorageEvent) => { if (e.key === OVERRIDES_KEY) setOverrides(loadOverrides()); };
+    const onCustom = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && typeof detail === 'object') setOverrides(detail as Record<number, string>);
+      else setOverrides(loadOverrides());
+    };
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('ga_deck_sync');
+      bc.onmessage = (ev) => {
+        if (ev.data?.type === 'overrides') setOverrides(ev.data.overrides || {});
+      };
+    } catch {}
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('ga_deck_overrides_changed', onCustom as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('ga_deck_overrides_changed', onCustom as EventListener);
+      bc?.close();
+    };
   }, []);
 
   const prev = useCallback(() => setCurrent(c => Math.max(0, c - 1)), []);
