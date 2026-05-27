@@ -571,9 +571,29 @@ const BaseLayer = ({
   // Manual snapshot — only when the user clicks "Edit content".
   // Auto-snapshotting was breaking slides with animations / charts / dynamic React state
   // because the frozen innerHTML replaced the live component on /deck.
+  const [preparing, setPreparing] = useState(false);
   const takeSnapshot = () => {
-    const html = liveRef.current?.innerHTML;
-    if (html && onSnapshot) onSnapshot(html);
+    if (!liveRef.current) return;
+    // Many slides have intro animations (counters, fades, phase loops) lasting ~2s.
+    // Wait for them to settle, freeze them, then capture the final stable HTML.
+    setPreparing(true);
+    toast.info('Preparing slide for editing — waiting for animations to settle…');
+    window.setTimeout(() => {
+      if (!liveRef.current) { setPreparing(false); return; }
+      // Freeze CSS animations/transitions in place
+      const root = liveRef.current;
+      root.querySelectorAll<HTMLElement>('*').forEach(el => {
+        el.style.animationPlayState = 'paused';
+        el.style.transition = 'none';
+      });
+      // Inline computed styles so the snapshot is layout-stable when reinjected
+      const html = root.innerHTML;
+      setPreparing(false);
+      if (html && onSnapshot) {
+        onSnapshot(html);
+        toast.success('Slide ready — click any text to edit.');
+      }
+    }, 2800);
   };
 
   // Image click → replace URL prompt (only when editable)
@@ -630,16 +650,17 @@ const BaseLayer = ({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); takeSnapshot(); }}
+          disabled={preparing}
           style={{
             position: 'absolute', top: 12, right: 12, zIndex: 50,
             pointerEvents: 'auto',
             padding: '6px 12px', borderRadius: 6,
-            background: 'hsla(43,72%,50%,0.95)', color: '#000',
+            background: preparing ? 'hsla(43,72%,50%,0.4)' : 'hsla(43,72%,50%,0.95)', color: '#000',
             fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
           }}
         >
-          Edit content
+          {preparing ? 'Preparing…' : 'Edit content'}
         </button>
       )}
     </div>
