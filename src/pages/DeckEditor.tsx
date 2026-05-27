@@ -348,8 +348,8 @@ const DeckEditor = () => {
 
   if (isPresenting) {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
-        <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background }}>
+      <div className="fixed inset-0 bg-black overflow-hidden" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: 1920, height: 1080, marginLeft: -960, marginTop: -540, transform: `scale(${scale})`, transformOrigin: 'center center', background: slide.background }}>
           <BaseLayer slide={slide} editable={false} />
           {slide.elements.map(el => renderElement(el, false))}
         </div>
@@ -412,9 +412,9 @@ const DeckEditor = () => {
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-secondary/20" ref={canvasWrapRef} onClick={() => setSelectedId(null)}>
+        <div className="flex-1 relative overflow-hidden bg-secondary/20" ref={canvasWrapRef} onClick={() => setSelectedId(null)}>
           <div
-            style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
+            style={{ position: 'absolute', left: '50%', top: '50%', width: 1920, height: 1080, marginLeft: -960, marginTop: -540, transform: `scale(${scale})`, transformOrigin: 'center center', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <BaseLayer
