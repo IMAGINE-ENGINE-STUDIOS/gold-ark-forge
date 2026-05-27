@@ -107,6 +107,10 @@ const DeckEditor = () => {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(slides));
+      // also expose per-base-slide HTML overrides for the public /deck viewer
+      const overrides: Record<number, string> = {};
+      slides.forEach(s => { if (s.baseSlide != null && s.html) overrides[s.baseSlide] = s.html; });
+      localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
     } catch (e: any) {
       toast.error('Storage full — try smaller images or fewer base64 uploads');
     }
