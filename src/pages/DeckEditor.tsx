@@ -59,6 +59,7 @@ interface DeckSlide {
   background: string;
   elements: DeckEl[];
   baseSlide?: number; // index into BASE_SLIDES; if set, renders the existing pitch deck slide as background
+  html?: string;      // editable HTML snapshot of the base slide (text/img inline edits)
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
