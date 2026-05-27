@@ -30,6 +30,18 @@ const slideComponents = [
   <ThankYouSlide />,             // 12 — Thank You
 ];
 
+const OVERRIDES_KEY = 'ga_deck_overrides_v1';
+const loadOverrides = (): Record<number, string> => {
+  try { return JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}') || {}; } catch { return {}; }
+};
+const SlideRender = ({ index, overrides }: { index: number; overrides: Record<number, string> }) => {
+  const html = overrides[index];
+  if (html) {
+    return <div style={{ width: 1920, height: 1080, position: 'relative' }} dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return slideComponents[index];
+};
+
 const Deck = () => {
   const [current, setCurrent] = useState(0);
   const [showGrid, setShowGrid] = useState(false);
@@ -37,6 +49,12 @@ const Deck = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [overrides, setOverrides] = useState<Record<number, string>>(() => loadOverrides());
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === OVERRIDES_KEY) setOverrides(loadOverrides()); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const prev = useCallback(() => setCurrent(c => Math.max(0, c - 1)), []);
   const next = useCallback(() => setCurrent(c => Math.min(slideComponents.length - 1, c + 1)), []);
