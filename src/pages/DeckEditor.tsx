@@ -118,14 +118,19 @@ const DeckEditor = () => {
 
   // scale
   useEffect(() => {
+    if (!canvasWrapRef.current) return;
+    const el = canvasWrapRef.current;
     const calc = () => {
-      if (!canvasWrapRef.current) return;
-      const { clientWidth: w, clientHeight: h } = canvasWrapRef.current;
-      setScale(Math.min((w - 40) / 1920, (h - 40) / 1080));
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w === 0 || h === 0) return;
+      const pad = isPresenting ? 0 : 40;
+      setScale(Math.min((w - pad) / 1920, (h - pad) / 1080));
     };
     calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
     window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
+    return () => { ro.disconnect(); window.removeEventListener('resize', calc); };
   }, [isPresenting, unlocked]);
 
   // key handlers
@@ -343,8 +348,8 @@ const DeckEditor = () => {
 
   if (isPresenting) {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
-        <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background }}>
+      <div className="fixed inset-0 bg-black overflow-hidden" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: 1920, height: 1080, marginLeft: -960, marginTop: -540, transform: `scale(${scale})`, transformOrigin: 'center center', background: slide.background }}>
           <BaseLayer slide={slide} editable={false} />
           {slide.elements.map(el => renderElement(el, false))}
         </div>
@@ -407,9 +412,9 @@ const DeckEditor = () => {
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-secondary/20" ref={canvasWrapRef} onClick={() => setSelectedId(null)}>
+        <div className="flex-1 relative overflow-hidden bg-secondary/20" ref={canvasWrapRef} onClick={() => setSelectedId(null)}>
           <div
-            style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
+            style={{ position: 'absolute', left: '50%', top: '50%', width: 1920, height: 1080, marginLeft: -960, marginTop: -540, transform: `scale(${scale})`, transformOrigin: 'center center', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <BaseLayer
