@@ -646,14 +646,4 @@ const BaseLayer = ({
   );
 };
 
-// removed legacy wrapper
-const _Unused = () => (
-    <div
-      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-    >
-      {BASE_SLIDES[slide.baseSlide].node}
-    </div>
-  );
-};
-
 export default DeckEditor;
