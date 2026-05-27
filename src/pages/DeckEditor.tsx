@@ -345,9 +345,7 @@ const DeckEditor = () => {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background }}>
-          {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
-          )}
+          <BaseLayer slide={slide} editable={false} />
           {slide.elements.map(el => renderElement(el, false))}
         </div>
       </div>
@@ -399,9 +397,7 @@ const DeckEditor = () => {
                 style={{ background: s.background }}
               >
                 <div style={{ transform: 'scale(0.08)', transformOrigin: 'top left', width: 1920, height: 1080, position: 'absolute' }}>
-                  {s.baseSlide != null && BASE_SLIDES[s.baseSlide] && (
-                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[s.baseSlide].node}</div>
-                  )}
+                  <BaseLayer slide={s} editable={false} />
                   {s.elements.map(el => renderElement(el, false))}
                 </div>
                 <span className="absolute bottom-0.5 right-1 text-[9px] text-white/70 font-mono">{i + 1}</span>
@@ -416,9 +412,12 @@ const DeckEditor = () => {
             style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
-              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
-            )}
+            <BaseLayer
+              slide={slide}
+              editable
+              onSnapshot={(html) => updateSlide({ html })}
+              onHtmlChange={(html) => updateSlide({ html })}
+            />
             {slide.elements.map(el => renderElement(el, true))}
           </div>
         </div>
