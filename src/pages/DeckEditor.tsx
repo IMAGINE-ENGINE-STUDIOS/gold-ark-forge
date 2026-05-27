@@ -568,17 +568,13 @@ const BaseLayer = ({
   const liveRef = useRef<HTMLDivElement>(null);
   const editRef = useRef<HTMLDivElement>(null);
 
-  // Snapshot rendered React component → HTML so it becomes editable next render
-  useEffect(() => {
-    if (slide.baseSlide == null) return;
-    if (slide.html) return;
-    if (!liveRef.current) return;
-    const id = requestAnimationFrame(() => {
-      const html = liveRef.current?.innerHTML;
-      if (html && onSnapshot) onSnapshot(html);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [slide.baseSlide, slide.html, onSnapshot]);
+  // Manual snapshot — only when the user clicks "Edit content".
+  // Auto-snapshotting was breaking slides with animations / charts / dynamic React state
+  // because the frozen innerHTML replaced the live component on /deck.
+  const takeSnapshot = () => {
+    const html = liveRef.current?.innerHTML;
+    if (html && onSnapshot) onSnapshot(html);
+  };
 
   // Image click → replace URL prompt (only when editable)
   useEffect(() => {
@@ -623,10 +619,36 @@ const BaseLayer = ({
     );
   }
 
-  // First render: mount React component so we can snapshot it
+  // Live React render (default). Shows a small "Edit content" pill in editor mode.
   return (
     <div
       ref={liveRef}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      {BASE_SLIDES[slide.baseSlide].node}
+      {editable && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); takeSnapshot(); }}
+          style={{
+            position: 'absolute', top: 12, right: 12, zIndex: 50,
+            pointerEvents: 'auto',
+            padding: '6px 12px', borderRadius: 6,
+            background: 'hsla(43,72%,50%,0.95)', color: '#000',
+            fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          }}
+        >
+          Edit content
+        </button>
+      )}
+    </div>
+  );
+};
+
+// removed legacy wrapper
+const _Unused = () => (
+    <div
       style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
     >
       {BASE_SLIDES[slide.baseSlide].node}
