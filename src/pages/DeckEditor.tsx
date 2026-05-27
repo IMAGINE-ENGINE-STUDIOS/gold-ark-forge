@@ -3,7 +3,6 @@ import { Plus, Trash2, Copy, Type, Image as ImageIcon, Square, Maximize, Lock, S
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { renderToStaticMarkup } from 'react-dom/server';
 
 import TitleSlide from '@/components/deck/slides/TitleSlide';
 import AboutSlide from '@/components/deck/slides/AboutSlide';
