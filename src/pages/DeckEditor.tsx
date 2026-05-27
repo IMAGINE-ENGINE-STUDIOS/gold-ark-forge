@@ -4,8 +4,36 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
+import TitleSlide from '@/components/deck/slides/TitleSlide';
+import AboutSlide from '@/components/deck/slides/AboutSlide';
+import ProblemSlide from '@/components/deck/slides/ProblemSlide';
+import SolutionSlide from '@/components/deck/slides/SolutionSlide';
+import AssetClassesSlide from '@/components/deck/slides/AssetClassesSlide';
+import PlatformSlide from '@/components/deck/slides/PlatformSlide';
+import BusinessModelSlide from '@/components/deck/slides/BusinessModelSlide';
+import MarketSlide from '@/components/deck/slides/MarketSlide';
+import AskSlide from '@/components/deck/slides/AskSlide';
+import TeamSlide from '@/components/deck/slides/TeamSlide';
+import PartnersAndTractionSlide from '@/components/deck/slides/PartnersAndTractionSlide';
+import ThankYouSlide from '@/components/deck/slides/ThankYouSlide';
+
+const BASE_SLIDES: { name: string; node: JSX.Element }[] = [
+  { name: '1 · Cover',              node: <TitleSlide /> },
+  { name: '2 · About',              node: <AboutSlide /> },
+  { name: '3 · Problem',            node: <ProblemSlide /> },
+  { name: '4 · Solution',           node: <SolutionSlide /> },
+  { name: '5 · Asset Classes',      node: <AssetClassesSlide /> },
+  { name: '6 · Platform',           node: <PlatformSlide /> },
+  { name: '7 · Business Model',     node: <BusinessModelSlide /> },
+  { name: '8 · Market',             node: <MarketSlide /> },
+  { name: '9 · Ask',                node: <AskSlide /> },
+  { name: '10 · Team',              node: <TeamSlide /> },
+  { name: '11 · Partners',          node: <PartnersAndTractionSlide /> },
+  { name: '12 · Thank You',         node: <ThankYouSlide /> },
+];
+
 const PASSWORD = 'HitTheTarget';
-const STORAGE_KEY = 'ga_deck_editor_v1';
+const STORAGE_KEY = 'ga_deck_editor_v2';
 const SESSION_KEY = 'ga_deck_editor_unlocked';
 const MAX_SLIDES = 1000;
 
@@ -30,6 +58,7 @@ interface DeckSlide {
   id: string;
   background: string;
   elements: DeckEl[];
+  baseSlide?: number; // index into BASE_SLIDES; if set, renders the existing pitch deck slide as background
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -42,6 +71,14 @@ const blankSlide = (): DeckSlide => ({
   ],
 });
 
+const seededFromDeck = (): DeckSlide[] =>
+  BASE_SLIDES.map((_, i) => ({
+    id: uid(),
+    background: '#000',
+    elements: [],
+    baseSlide: i,
+  }));
+
 const loadSlides = (): DeckSlide[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -50,7 +87,7 @@ const loadSlides = (): DeckSlide[] => {
       if (Array.isArray(parsed) && parsed.length) return parsed;
     }
   } catch {}
-  return [blankSlide()];
+  return seededFromDeck();
 };
 
 const DeckEditor = () => {
