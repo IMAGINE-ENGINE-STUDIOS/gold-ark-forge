@@ -3,6 +3,7 @@ import { Plus, Trash2, Copy, Type, Image as ImageIcon, Square, Maximize, Lock, S
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 import TitleSlide from '@/components/deck/slides/TitleSlide';
 import AboutSlide from '@/components/deck/slides/AboutSlide';
@@ -34,6 +35,7 @@ const BASE_SLIDES: { name: string; node: JSX.Element }[] = [
 
 const PASSWORD = 'HitTheTarget';
 const STORAGE_KEY = 'ga_deck_editor_v2';
+const OVERRIDES_KEY = 'ga_deck_overrides_v1'; // shared with public /deck view
 const SESSION_KEY = 'ga_deck_editor_unlocked';
 const MAX_SLIDES = 1000;
 
