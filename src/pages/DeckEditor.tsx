@@ -207,6 +207,14 @@ const DeckEditor = () => {
     setCurrent(c => c + 1);
     setSelectedId(null);
   };
+
+  const resetToDeck = () => {
+    if (!confirm('Reset editor to the original pitch deck? Your overlay edits will be lost.')) return;
+    setSlides(seededFromDeck());
+    setCurrent(0);
+    setSelectedId(null);
+    toast.success('Reset to original deck');
+  };
   const duplicateSlide = () => {
     if (slides.length >= MAX_SLIDES) { toast.error(`Max ${MAX_SLIDES} slides`); return; }
     const copy: DeckSlide = { ...slide, id: uid(), elements: slide.elements.map(el => ({ ...el, id: uid() })) };
