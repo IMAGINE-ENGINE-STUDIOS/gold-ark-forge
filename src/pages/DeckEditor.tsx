@@ -118,14 +118,19 @@ const DeckEditor = () => {
 
   // scale
   useEffect(() => {
+    if (!canvasWrapRef.current) return;
+    const el = canvasWrapRef.current;
     const calc = () => {
-      if (!canvasWrapRef.current) return;
-      const { clientWidth: w, clientHeight: h } = canvasWrapRef.current;
-      setScale(Math.min((w - 40) / 1920, (h - 40) / 1080));
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w === 0 || h === 0) return;
+      const pad = isPresenting ? 0 : 40;
+      setScale(Math.min((w - pad) / 1920, (h - pad) / 1080));
     };
     calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
     window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
+    return () => { ro.disconnect(); window.removeEventListener('resize', calc); };
   }, [isPresenting, unlocked]);
 
   // key handlers
