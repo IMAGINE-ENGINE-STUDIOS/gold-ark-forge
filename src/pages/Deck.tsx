@@ -30,6 +30,18 @@ const slideComponents = [
   <ThankYouSlide />,             // 12 — Thank You
 ];
 
+const OVERRIDES_KEY = 'ga_deck_overrides_v1';
+const loadOverrides = (): Record<number, string> => {
+  try { return JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}') || {}; } catch { return {}; }
+};
+const SlideRender = ({ index, overrides }: { index: number; overrides: Record<number, string> }) => {
+  const html = overrides[index];
+  if (html) {
+    return <div style={{ width: 1920, height: 1080, position: 'relative' }} dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return slideComponents[index];
+};
+
 const Deck = () => {
   const [current, setCurrent] = useState(0);
   const [showGrid, setShowGrid] = useState(false);
@@ -37,6 +49,12 @@ const Deck = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [overrides, setOverrides] = useState<Record<number, string>>(() => loadOverrides());
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === OVERRIDES_KEY) setOverrides(loadOverrides()); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const prev = useCallback(() => setCurrent(c => Math.max(0, c - 1)), []);
   const next = useCallback(() => setCurrent(c => Math.min(slideComponents.length - 1, c + 1)), []);
@@ -78,7 +96,9 @@ const Deck = () => {
           {slideComponents.map((slide, i) => (
             <button key={i} onClick={() => { setCurrent(i); setShowGrid(false); }} className={`rounded-lg overflow-hidden border-2 transition-all ${i === current ? 'border-primary shadow-[0_0_16px_hsl(43,72%,50%,0.3)]' : 'border-border/30 hover:border-primary/40'}`}>
               <div className="aspect-video overflow-hidden pointer-events-none">
-                <div style={{ transform: 'scale(0.2)', transformOrigin: 'top left', width: 1920, height: 1080 }}>{slide}</div>
+                <div style={{ transform: 'scale(0.2)', transformOrigin: 'top left', width: 1920, height: 1080 }}>
+                  <SlideRender index={i} overrides={overrides} />
+                </div>
               </div>
               <div className="py-1.5 text-center text-xs text-muted-foreground">{i + 1}</div>
             </button>
@@ -92,7 +112,7 @@ const Deck = () => {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasRef}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080 }}>
-          {slideComponents[current]}
+          <SlideRender index={current} overrides={overrides} />
         </div>
       </div>
     );
@@ -107,7 +127,7 @@ const Deck = () => {
         )}
         <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-secondary/20" ref={canvasRef}>
           <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080 }}>
-            {slideComponents[current]}
+            <SlideRender index={current} overrides={overrides} />
           </div>
         </div>
       </div>

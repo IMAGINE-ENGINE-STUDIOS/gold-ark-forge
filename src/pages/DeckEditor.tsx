@@ -34,6 +34,7 @@ const BASE_SLIDES: { name: string; node: JSX.Element }[] = [
 
 const PASSWORD = 'HitTheTarget';
 const STORAGE_KEY = 'ga_deck_editor_v2';
+const OVERRIDES_KEY = 'ga_deck_overrides_v1'; // shared with public /deck view
 const SESSION_KEY = 'ga_deck_editor_unlocked';
 const MAX_SLIDES = 1000;
 
@@ -59,6 +60,7 @@ interface DeckSlide {
   background: string;
   elements: DeckEl[];
   baseSlide?: number; // index into BASE_SLIDES; if set, renders the existing pitch deck slide as background
+  html?: string;      // editable HTML snapshot of the base slide (text/img inline edits)
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -105,6 +107,10 @@ const DeckEditor = () => {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(slides));
+      // also expose per-base-slide HTML overrides for the public /deck viewer
+      const overrides: Record<number, string> = {};
+      slides.forEach(s => { if (s.baseSlide != null && s.html) overrides[s.baseSlide] = s.html; });
+      localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
     } catch (e: any) {
       toast.error('Storage full — try smaller images or fewer base64 uploads');
     }
@@ -339,9 +345,7 @@ const DeckEditor = () => {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background }}>
-          {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
-          )}
+          <BaseLayer slide={slide} editable={false} />
           {slide.elements.map(el => renderElement(el, false))}
         </div>
       </div>
@@ -393,9 +397,7 @@ const DeckEditor = () => {
                 style={{ background: s.background }}
               >
                 <div style={{ transform: 'scale(0.08)', transformOrigin: 'top left', width: 1920, height: 1080, position: 'absolute' }}>
-                  {s.baseSlide != null && BASE_SLIDES[s.baseSlide] && (
-                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[s.baseSlide].node}</div>
-                  )}
+                  <BaseLayer slide={s} editable={false} />
                   {s.elements.map(el => renderElement(el, false))}
                 </div>
                 <span className="absolute bottom-0.5 right-1 text-[9px] text-white/70 font-mono">{i + 1}</span>
@@ -410,9 +412,12 @@ const DeckEditor = () => {
             style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
-              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
-            )}
+            <BaseLayer
+              slide={slide}
+              editable
+              onSnapshot={(html) => updateSlide({ html })}
+              onHtmlChange={(html) => updateSlide({ html })}
+            />
             {slide.elements.map(el => renderElement(el, true))}
           </div>
         </div>
@@ -526,5 +531,95 @@ const NumField = ({ label, value, onChange }: { label: string; value: number; on
     <Input type="number" className="h-7 text-xs" value={value} onChange={e => onChange(Number(e.target.value) || 0)} />
   </label>
 );
+
+/**
+ * BaseLayer renders the existing pitch-deck React component AND lets the editor
+ * mutate its inline content directly.
+ *
+ * - If slide.html is set, it is the source of truth (rendered via dangerouslySetInnerHTML).
+ *   When editable, the layer is contentEditable and changes are persisted on blur/input.
+ *   Clicking any <img> inside prompts for a new URL.
+ * - If slide.html is NOT set, we render the original React component, then snapshot its
+ *   rendered DOM into slide.html on next frame so subsequent loads are editable.
+ */
+const BaseLayer = ({
+  slide,
+  editable,
+  onSnapshot,
+  onHtmlChange,
+}: {
+  slide: DeckSlide;
+  editable: boolean;
+  onSnapshot?: (html: string) => void;
+  onHtmlChange?: (html: string) => void;
+}) => {
+  const liveRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<HTMLDivElement>(null);
+
+  // Snapshot rendered React component → HTML so it becomes editable next render
+  useEffect(() => {
+    if (slide.baseSlide == null) return;
+    if (slide.html) return;
+    if (!liveRef.current) return;
+    const id = requestAnimationFrame(() => {
+      const html = liveRef.current?.innerHTML;
+      if (html && onSnapshot) onSnapshot(html);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [slide.baseSlide, slide.html, onSnapshot]);
+
+  // Image click → replace URL prompt (only when editable)
+  useEffect(() => {
+    if (!editable || !slide.html || !editRef.current) return;
+    const root = editRef.current;
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && t.tagName === 'IMG') {
+        e.preventDefault();
+        e.stopPropagation();
+        const cur = (t as HTMLImageElement).src;
+        const next = prompt('Image URL (leave blank to keep):', cur);
+        if (next && next !== cur) {
+          (t as HTMLImageElement).src = next;
+          onHtmlChange?.(root.innerHTML);
+        }
+      }
+    };
+    root.addEventListener('click', handler);
+    return () => root.removeEventListener('click', handler);
+  }, [editable, slide.html, onHtmlChange]);
+
+  if (slide.baseSlide == null || !BASE_SLIDES[slide.baseSlide]) return null;
+
+  // Editable snapshot mode
+  if (slide.html) {
+    return (
+      <div
+        ref={editRef}
+        contentEditable={editable}
+        suppressContentEditableWarning
+        spellCheck={false}
+        onBlur={(e) => editable && onHtmlChange?.((e.currentTarget as HTMLDivElement).innerHTML)}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: editable ? 'auto' : 'none',
+          outline: 'none',
+        }}
+        dangerouslySetInnerHTML={{ __html: slide.html }}
+      />
+    );
+  }
+
+  // First render: mount React component so we can snapshot it
+  return (
+    <div
+      ref={liveRef}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      {BASE_SLIDES[slide.baseSlide].node}
+    </div>
+  );
+};
 
 export default DeckEditor;
