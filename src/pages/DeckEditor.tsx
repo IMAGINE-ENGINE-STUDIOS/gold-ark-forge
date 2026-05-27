@@ -4,8 +4,36 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
+import TitleSlide from '@/components/deck/slides/TitleSlide';
+import AboutSlide from '@/components/deck/slides/AboutSlide';
+import ProblemSlide from '@/components/deck/slides/ProblemSlide';
+import SolutionSlide from '@/components/deck/slides/SolutionSlide';
+import AssetClassesSlide from '@/components/deck/slides/AssetClassesSlide';
+import PlatformSlide from '@/components/deck/slides/PlatformSlide';
+import BusinessModelSlide from '@/components/deck/slides/BusinessModelSlide';
+import MarketSlide from '@/components/deck/slides/MarketSlide';
+import AskSlide from '@/components/deck/slides/AskSlide';
+import TeamSlide from '@/components/deck/slides/TeamSlide';
+import PartnersAndTractionSlide from '@/components/deck/slides/PartnersAndTractionSlide';
+import ThankYouSlide from '@/components/deck/slides/ThankYouSlide';
+
+const BASE_SLIDES: { name: string; node: JSX.Element }[] = [
+  { name: '1 · Cover',              node: <TitleSlide /> },
+  { name: '2 · About',              node: <AboutSlide /> },
+  { name: '3 · Problem',            node: <ProblemSlide /> },
+  { name: '4 · Solution',           node: <SolutionSlide /> },
+  { name: '5 · Asset Classes',      node: <AssetClassesSlide /> },
+  { name: '6 · Platform',           node: <PlatformSlide /> },
+  { name: '7 · Business Model',     node: <BusinessModelSlide /> },
+  { name: '8 · Market',             node: <MarketSlide /> },
+  { name: '9 · Ask',                node: <AskSlide /> },
+  { name: '10 · Team',              node: <TeamSlide /> },
+  { name: '11 · Partners',          node: <PartnersAndTractionSlide /> },
+  { name: '12 · Thank You',         node: <ThankYouSlide /> },
+];
+
 const PASSWORD = 'HitTheTarget';
-const STORAGE_KEY = 'ga_deck_editor_v1';
+const STORAGE_KEY = 'ga_deck_editor_v2';
 const SESSION_KEY = 'ga_deck_editor_unlocked';
 const MAX_SLIDES = 1000;
 
@@ -30,6 +58,7 @@ interface DeckSlide {
   id: string;
   background: string;
   elements: DeckEl[];
+  baseSlide?: number; // index into BASE_SLIDES; if set, renders the existing pitch deck slide as background
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -42,6 +71,14 @@ const blankSlide = (): DeckSlide => ({
   ],
 });
 
+const seededFromDeck = (): DeckSlide[] =>
+  BASE_SLIDES.map((_, i) => ({
+    id: uid(),
+    background: '#000',
+    elements: [],
+    baseSlide: i,
+  }));
+
 const loadSlides = (): DeckSlide[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -50,7 +87,7 @@ const loadSlides = (): DeckSlide[] => {
       if (Array.isArray(parsed) && parsed.length) return parsed;
     }
   } catch {}
-  return [blankSlide()];
+  return seededFromDeck();
 };
 
 const DeckEditor = () => {
@@ -169,6 +206,14 @@ const DeckEditor = () => {
     setSlides(s => [...s.slice(0, current + 1), ns, ...s.slice(current + 1)]);
     setCurrent(c => c + 1);
     setSelectedId(null);
+  };
+
+  const resetToDeck = () => {
+    if (!confirm('Reset editor to the original pitch deck? Your overlay edits will be lost.')) return;
+    setSlides(seededFromDeck());
+    setCurrent(0);
+    setSelectedId(null);
+    toast.success('Reset to original deck');
   };
   const duplicateSlide = () => {
     if (slides.length >= MAX_SLIDES) { toast.error(`Max ${MAX_SLIDES} slides`); return; }
@@ -294,6 +339,9 @@ const DeckEditor = () => {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background }}>
+          {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
+          )}
           {slide.elements.map(el => renderElement(el, false))}
         </div>
       </div>
@@ -325,6 +373,7 @@ const DeckEditor = () => {
             <Button size="sm" variant="ghost" asChild><span className="cursor-pointer"><Upload className="w-3.5 h-3.5 mr-1" />Import</span></Button>
             <input type="file" accept="application/json" className="hidden" onChange={e => e.target.files?.[0] && importJson(e.target.files[0])} />
           </label>
+          <Button size="sm" variant="ghost" className="text-amber-400" onClick={resetToDeck} title="Reload original pitch deck">Reset to Deck</Button>
           <Button size="sm" variant="ghost" className="text-primary" onClick={enterFullscreen}><Maximize className="w-3.5 h-3.5 mr-1" />Present</Button>
         </div>
       </div>
@@ -344,6 +393,9 @@ const DeckEditor = () => {
                 style={{ background: s.background }}
               >
                 <div style={{ transform: 'scale(0.08)', transformOrigin: 'top left', width: 1920, height: 1080, position: 'absolute' }}>
+                  {s.baseSlide != null && BASE_SLIDES[s.baseSlide] && (
+                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[s.baseSlide].node}</div>
+                  )}
                   {s.elements.map(el => renderElement(el, false))}
                 </div>
                 <span className="absolute bottom-0.5 right-1 text-[9px] text-white/70 font-mono">{i + 1}</span>
@@ -358,6 +410,9 @@ const DeckEditor = () => {
             style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
+            {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
+            )}
             {slide.elements.map(el => renderElement(el, true))}
           </div>
         </div>
@@ -365,6 +420,20 @@ const DeckEditor = () => {
         {/* Properties */}
         <div className="w-64 border-l border-border/30 bg-secondary/40 p-3 overflow-auto space-y-3 text-xs">
           <div className="font-semibold text-primary tracking-wide text-[10px] uppercase">Slide</div>
+          <label className="block space-y-1">
+            <span className="text-muted-foreground">Pitch deck base</span>
+            <select
+              className="w-full h-8 bg-background border border-border/40 rounded px-2 text-xs"
+              value={slide.baseSlide ?? ''}
+              onChange={e => updateSlide({ baseSlide: e.target.value === '' ? undefined : Number(e.target.value) })}
+            >
+              <option value="">— None (blank) —</option>
+              {BASE_SLIDES.map((b, i) => (
+                <option key={i} value={i}>{b.name}</option>
+              ))}
+            </select>
+            <span className="text-[10px] text-muted-foreground italic">Renders the real pitch slide as the background. Add text/images/shapes on top to edit.</span>
+          </label>
           <label className="block space-y-1">
             <span className="text-muted-foreground">Background (CSS)</span>
             <Input value={slide.background} onChange={e => updateSlide({ background: e.target.value })} className="text-xs h-8" />
