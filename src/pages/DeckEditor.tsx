@@ -339,6 +339,9 @@ const DeckEditor = () => {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center" ref={canvasWrapRef} onClick={() => setCurrent(c => Math.min(slides.length - 1, c + 1))}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background }}>
+          {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
+          )}
           {slide.elements.map(el => renderElement(el, false))}
         </div>
       </div>
@@ -370,6 +373,7 @@ const DeckEditor = () => {
             <Button size="sm" variant="ghost" asChild><span className="cursor-pointer"><Upload className="w-3.5 h-3.5 mr-1" />Import</span></Button>
             <input type="file" accept="application/json" className="hidden" onChange={e => e.target.files?.[0] && importJson(e.target.files[0])} />
           </label>
+          <Button size="sm" variant="ghost" className="text-amber-400" onClick={resetToDeck} title="Reload original pitch deck">Reset to Deck</Button>
           <Button size="sm" variant="ghost" className="text-primary" onClick={enterFullscreen}><Maximize className="w-3.5 h-3.5 mr-1" />Present</Button>
         </div>
       </div>
@@ -389,6 +393,9 @@ const DeckEditor = () => {
                 style={{ background: s.background }}
               >
                 <div style={{ transform: 'scale(0.08)', transformOrigin: 'top left', width: 1920, height: 1080, position: 'absolute' }}>
+                  {s.baseSlide != null && BASE_SLIDES[s.baseSlide] && (
+                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[s.baseSlide].node}</div>
+                  )}
                   {s.elements.map(el => renderElement(el, false))}
                 </div>
                 <span className="absolute bottom-0.5 right-1 text-[9px] text-white/70 font-mono">{i + 1}</span>
@@ -403,6 +410,9 @@ const DeckEditor = () => {
             style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: 1920, height: 1080, position: 'relative', background: slide.background, boxShadow: '0 0 60px rgba(0,0,0,0.4)' }}
             onClick={(e) => e.stopPropagation()}
           >
+            {slide.baseSlide != null && BASE_SLIDES[slide.baseSlide] && (
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>{BASE_SLIDES[slide.baseSlide].node}</div>
+            )}
             {slide.elements.map(el => renderElement(el, true))}
           </div>
         </div>
@@ -410,6 +420,20 @@ const DeckEditor = () => {
         {/* Properties */}
         <div className="w-64 border-l border-border/30 bg-secondary/40 p-3 overflow-auto space-y-3 text-xs">
           <div className="font-semibold text-primary tracking-wide text-[10px] uppercase">Slide</div>
+          <label className="block space-y-1">
+            <span className="text-muted-foreground">Pitch deck base</span>
+            <select
+              className="w-full h-8 bg-background border border-border/40 rounded px-2 text-xs"
+              value={slide.baseSlide ?? ''}
+              onChange={e => updateSlide({ baseSlide: e.target.value === '' ? undefined : Number(e.target.value) })}
+            >
+              <option value="">— None (blank) —</option>
+              {BASE_SLIDES.map((b, i) => (
+                <option key={i} value={i}>{b.name}</option>
+              ))}
+            </select>
+            <span className="text-[10px] text-muted-foreground italic">Renders the real pitch slide as the background. Add text/images/shapes on top to edit.</span>
+          </label>
           <label className="block space-y-1">
             <span className="text-muted-foreground">Background (CSS)</span>
             <Input value={slide.background} onChange={e => updateSlide({ background: e.target.value })} className="text-xs h-8" />
