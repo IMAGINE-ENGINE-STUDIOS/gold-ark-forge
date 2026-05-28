@@ -41,6 +41,8 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const spinRef = useRef<number | null>(null);
   const markerMapRef = useRef<Map<string, GlobeMarker>>(new Map());
+  const pulseRef = useRef<number | null>(null);
+  const idleTimerRef = useRef<number | null>(null);
 
   const addMarkers = useCallback((viewer: Cesium.Viewer) => {
     ALL_MARKERS.forEach((m) => {
@@ -85,6 +87,34 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
         show: visibleCategories.has(m.category),
       });
 
+      // Glowing pulse ring for high-risk chokepoints
+      if (m.category === 'chokepoint' && (m.riskLevel === 'critical' || m.riskLevel === 'high')) {
+        const baseRadius = m.riskLevel === 'critical' ? 180000 : 140000;
+        viewer.entities.add({
+          id: `pulse-${m.id}`,
+          position: Cesium.Cartesian3.fromDegrees(m.lng, m.lat),
+          ellipse: {
+            semiMajorAxis: new Cesium.CallbackProperty(() => {
+              const t = (Date.now() % 2400) / 2400;
+              return baseRadius * (1 + t * 1.4);
+            }, false) as any,
+            semiMinorAxis: new Cesium.CallbackProperty(() => {
+              const t = (Date.now() % 2400) / 2400;
+              return baseRadius * (1 + t * 1.4);
+            }, false) as any,
+            material: new Cesium.ColorMaterialProperty(
+              new Cesium.CallbackProperty(() => {
+                const t = (Date.now() % 2400) / 2400;
+                return pointColor.withAlpha(0.45 * (1 - t));
+              }, false) as any
+            ),
+            height: 0,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
+          show: visibleCategories.has(m.category),
+        });
+      }
+
       // Economic heatmap circle
       if (m.economicData?.gdp) {
         const radius = Math.sqrt(m.economicData.gdp) * 8000;
@@ -112,11 +142,16 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
       const id = typeof e.id === 'string' ? e.id : '';
       if (id.startsWith('heatmap-')) {
         e.show = showHeatmap;
+      } else if (id.startsWith('pulse-')) {
+        const realId = id.replace('pulse-', '');
+        const marker = markerMapRef.current.get(realId);
+        if (marker) e.show = visibleCategories.has(marker.category);
       } else {
         const marker = markerMapRef.current.get(id);
         if (marker) e.show = visibleCategories.has(marker.category);
       }
     });
+    viewer.scene.requestRender();
   }, [visibleCategories, showHeatmap]);
 
   // Init viewer
@@ -137,14 +172,26 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
       fullscreenButton: false,
       infoBox: false,
       selectionIndicator: false,
+      shadows: false,
+      shouldAnimate: true,
+      msaaSamples: 4,
+      contextOptions: { webgl: { alpha: true, antialias: true, powerPreference: 'high-performance' } } as any,
       creditContainer: document.createElement('div'),
     });
 
-    // Load 3D buildings — Google Photorealistic first, OSM Buildings fallback
+    // Load Google Photorealistic 3D Tiles (Atlas-style world), OSM Buildings fallback
     (async () => {
       try {
-        const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207);
+        const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207, {
+          maximumScreenSpaceError: 8,
+          preloadWhenHidden: true,
+        });
+        // Subtle golden tint for brand cohesion
+        tileset.style = new Cesium.Cesium3DTileStyle({
+          color: "color('#fff7e6', 1.0)",
+        });
         viewer.scene.primitives.add(tileset);
+        viewer.scene.requestRender();
       } catch {
         try {
           const osm = await Cesium.Cesium3DTileset.fromIonAssetId(96188);
@@ -155,39 +202,71 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
       }
     })();
 
-    // Dark atmosphere
-    viewer.scene.skyAtmosphere.hueShift = -0.05;
-    viewer.scene.skyAtmosphere.saturationShift = -0.2;
-    viewer.scene.skyAtmosphere.brightnessShift = -0.3;
-    viewer.scene.fog.enabled = true;
-    viewer.scene.globe.enableLighting = true;
+    // Cinematic atmosphere — warm golden cast, deep navy sky
+    const scene = viewer.scene;
+    scene.skyAtmosphere.hueShift = -0.02;
+    scene.skyAtmosphere.saturationShift = -0.1;
+    scene.skyAtmosphere.brightnessShift = -0.15;
+    scene.skyAtmosphere.atmosphereLightIntensity = 12;
+    scene.fog.enabled = true;
+    scene.fog.density = 0.0001;
+    scene.globe.enableLighting = true;
+    scene.globe.dynamicAtmosphereLighting = true;
+    scene.globe.atmosphereBrightnessShift = -0.05;
+    scene.globe.showGroundAtmosphere = true;
+    scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e1a');
+    scene.backgroundColor = Cesium.Color.fromCssColorString('#000000');
+
+    // High-DPI rendering for crisp imagery
+    viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
+    scene.postProcessStages.fxaa.enabled = true;
 
     // Slow spin
     const startSpin = () => {
+      if (spinRef.current) return;
       spinRef.current = window.setInterval(() => {
-        viewer.scene.camera.rotateRight(0.002);
+        viewer.scene.camera.rotateRight(0.0008);
+        viewer.scene.requestRender();
       }, 50);
     };
+    const stopSpin = () => {
+      if (spinRef.current) { clearInterval(spinRef.current); spinRef.current = null; }
+    };
+    const scheduleResumeSpin = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = window.setTimeout(() => startSpin(), 8000);
+    };
     startSpin();
+
+    // Pulse re-render loop (CallbackProperty needs continuous rendering)
+    pulseRef.current = window.setInterval(() => viewer.scene.requestRender(), 80);
 
     // Stop spin on interaction
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction(() => {
-      if (spinRef.current) { clearInterval(spinRef.current); spinRef.current = null; }
+      stopSpin();
+      scheduleResumeSpin();
     }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+    handler.setInputAction(() => { stopSpin(); scheduleResumeSpin(); }, Cesium.ScreenSpaceEventType.WHEEL);
+    handler.setInputAction(() => { stopSpin(); scheduleResumeSpin(); }, Cesium.ScreenSpaceEventType.MIDDLE_DOWN);
 
     // Click handler — uses markerMap for reliable lookup
     handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
       const picked = viewer.scene.pick(click.position);
       if (Cesium.defined(picked) && picked.id) {
         const entity = picked.id as Cesium.Entity;
-        const entityId = typeof entity.id === 'string' ? entity.id : '';
+        let entityId = typeof entity.id === 'string' ? entity.id : '';
+        if (entityId.startsWith('pulse-')) entityId = entityId.replace('pulse-', '');
+        if (entityId.startsWith('heatmap-')) entityId = entityId.replace('heatmap-', '');
         const marker = markerMapRef.current.get(entityId);
         if (marker) {
           onMarkerClick(marker);
+          stopSpin();
+          scheduleResumeSpin();
           viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(marker.lng, marker.lat, 2_500_000),
-            duration: 1.5,
+            destination: Cesium.Cartesian3.fromDegrees(marker.lng, marker.lat, 1_200_000),
+            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+            duration: 1.8,
           });
         }
       }
@@ -197,19 +276,30 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
     viewerRef.current = viewer;
 
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(40, 25, 20_000_000),
+      destination: Cesium.Cartesian3.fromDegrees(20, 20, 22_000_000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
       duration: 0,
     });
 
     return () => {
-      if (spinRef.current) clearInterval(spinRef.current);
+      stopSpin();
+      if (pulseRef.current) clearInterval(pulseRef.current);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       handler.destroy();
       viewer.destroy();
       viewerRef.current = null;
     };
   }, [addMarkers, onMarkerClick]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0" />
+      {/* Vignette overlay for cinematic depth */}
+      <div className="pointer-events-none absolute inset-0 z-10" style={{
+        background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)',
+      }} />
+    </>
+  );
 };
 
 export default GlobeViewer;
