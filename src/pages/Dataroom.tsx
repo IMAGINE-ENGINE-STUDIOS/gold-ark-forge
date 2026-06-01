@@ -24,6 +24,8 @@ interface DataroomDoc {
 
 const BUCKET = 'documents';
 const CATEGORY = 'dataroom';
+const GATE_PASSWORD = 'HitTheTarget';
+const GATE_KEY = 'dataroom-gate-ok';
 
 const formatBytes = (b: number | null) => {
   if (!b) return '—';
@@ -45,6 +47,23 @@ const Dataroom = () => {
   const [newFileName, setNewFileName] = useState('');
   const [newFileContent, setNewFileContent] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const [gateOk, setGateOk] = useState(() =>
+    typeof window !== 'undefined' && sessionStorage.getItem(GATE_KEY) === '1',
+  );
+  const [gateInput, setGateInput] = useState('');
+  const [gateError, setGateError] = useState(false);
+
+  const submitGate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (gateInput === GATE_PASSWORD) {
+      sessionStorage.setItem(GATE_KEY, '1');
+      setGateOk(true);
+      setGateError(false);
+    } else {
+      setGateError(true);
+    }
+  };
 
   const allowed = useMemo(
     () => !!user?.email && user.email.toLowerCase().endsWith('@goldarrow.io'),
@@ -190,6 +209,36 @@ const Dataroom = () => {
           <h1 className="font-display text-3xl text-destructive mb-4">Dataroom Restricted</h1>
           <p className="text-muted-foreground">Access is limited to <span className="text-primary font-mono">@goldarrow.io</span> accounts.</p>
           <p className="text-xs text-muted-foreground/60 mt-2">Signed in as {user.email}</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!gateOk) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-24 flex items-center justify-center">
+          <form onSubmit={submitGate} className="w-full max-w-sm p-8 border border-primary/30 bg-card/40 rounded-lg space-y-5">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Lock className="text-primary w-7 h-7" />
+              </div>
+              <h1 className="font-display text-xl text-primary tracking-wide">DATAROOM ACCESS</h1>
+              <p className="text-xs text-muted-foreground text-center">Enter the shared access password to continue.</p>
+            </div>
+            <Input
+              type="password"
+              autoFocus
+              value={gateInput}
+              onChange={(e) => { setGateInput(e.target.value); setGateError(false); }}
+              placeholder="Password"
+              className="bg-background/50"
+            />
+            {gateError && <p className="text-xs text-destructive">Incorrect password.</p>}
+            <Button type="submit" className="w-full">Unlock</Button>
+          </form>
         </main>
         <Footer />
       </div>
