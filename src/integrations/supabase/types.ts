@@ -1118,6 +1118,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_goldarrow_user: { Args: never; Returns: boolean }
     }
     Enums: {
       anchor_status:
