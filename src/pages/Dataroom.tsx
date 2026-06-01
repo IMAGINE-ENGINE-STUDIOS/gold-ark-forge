@@ -24,6 +24,8 @@ interface DataroomDoc {
 
 const BUCKET = 'documents';
 const CATEGORY = 'dataroom';
+const GATE_PASSWORD = 'HitTheTarget';
+const GATE_KEY = 'dataroom-gate-ok';
 
 const formatBytes = (b: number | null) => {
   if (!b) return '—';
@@ -45,6 +47,23 @@ const Dataroom = () => {
   const [newFileName, setNewFileName] = useState('');
   const [newFileContent, setNewFileContent] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const [gateOk, setGateOk] = useState(() =>
+    typeof window !== 'undefined' && sessionStorage.getItem(GATE_KEY) === '1',
+  );
+  const [gateInput, setGateInput] = useState('');
+  const [gateError, setGateError] = useState(false);
+
+  const submitGate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (gateInput === GATE_PASSWORD) {
+      sessionStorage.setItem(GATE_KEY, '1');
+      setGateOk(true);
+      setGateError(false);
+    } else {
+      setGateError(true);
+    }
+  };
 
   const allowed = useMemo(
     () => !!user?.email && user.email.toLowerCase().endsWith('@goldarrow.io'),
