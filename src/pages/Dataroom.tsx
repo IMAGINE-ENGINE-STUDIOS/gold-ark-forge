@@ -215,6 +215,36 @@ const Dataroom = () => {
     );
   }
 
+  if (!gateOk) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-24 flex items-center justify-center">
+          <form onSubmit={submitGate} className="w-full max-w-sm p-8 border border-primary/30 bg-card/40 rounded-lg space-y-5">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Lock className="text-primary w-7 h-7" />
+              </div>
+              <h1 className="font-display text-xl text-primary tracking-wide">DATAROOM ACCESS</h1>
+              <p className="text-xs text-muted-foreground text-center">Enter the shared access password to continue.</p>
+            </div>
+            <Input
+              type="password"
+              autoFocus
+              value={gateInput}
+              onChange={(e) => { setGateInput(e.target.value); setGateError(false); }}
+              placeholder="Password"
+              className="bg-background/50"
+            />
+            {gateError && <p className="text-xs text-destructive">Incorrect password.</p>}
+            <Button type="submit" className="w-full">Unlock</Button>
+          </form>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
