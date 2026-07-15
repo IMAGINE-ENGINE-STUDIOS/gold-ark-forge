@@ -1,100 +1,77 @@
 
-# Precision Indicator Rank — AI-Augmented Goal Seeker
+## Goal
 
-Turn the current single-timeframe technical ranker into a rigorous, multi-signal engine whose top candidates are re-scored by Lovable AI, with the results persisted and streamed live.
+The current score sometimes reads as broken because:
+1. `P(Goal)` collapses to 0 or ~1 whenever drift/vol are extreme, flattening every downstream multiplier.
+2. Composite is a product chain of small factors, so one weak input zeroes the whole score.
+3. There is no separation between **directional edge**, **execution quality**, **risk-adjusted expectancy**, and **liquidity** — everything is squeezed into one number.
+4. Risk label uses ATR + drawdown only — ignores realized vol, MTF disagreement, regime, and tail (p10) losses.
+5. No cross-symbol normalization, so BTC (low ATR%) and a shitcoin (high ATR%) never compete fairly.
 
-## What changes for the user
+## New Scoring Engine (`src/lib/precision/scoring.ts`)
 
-- Same ANALYTICS card, but each row now shows: **AI Score**, **Confidence Band**, **Expected Return**, **Max Drawdown Risk**, **Suggested Entry / SL / TP**, and an **AI Rationale** popover.
-- New controls: **Confidence Level** (P50/P70/P90), **Capital at Risk**, and **Time-in-Force** (intraday / swing / position).
-- Ranking mode toggle: **Statistical** (fast, deterministic, no credits) vs **AI-Enhanced** (top-N re-ranked by Lovable AI).
-
-## Architecture
+Introduce a **6-pillar Gold Arrow Decision Score (GADS)** — each pillar is a 0–100 sub-score, then blended with tunable weights. Every pillar is exposed in the breakdown UI.
 
 ```text
-ALL_SYMBOLS ──► Statistical Layer (client)          ──► Top-N shortlist ──► AI Layer (edge fn)
-                 ├─ Multi-TF snapshot (1h/4h/1d)          (e.g. top 12)      ├─ Lovable AI Gateway
-                 ├─ ATR / realized vol / drawdown                            ├─ Structured Output (Zod)
-                 ├─ Momentum + trend regime (ADX)                            └─ Rationale + adj. score
-                 ├─ Monte-Carlo P(goal) via GBM
-                 └─ Composite deterministic score
-                                                    ◄── merged & sorted ◄── persisted to Cloud
+GADS = w1·Edge + w2·Probability + w3·Expectancy + w4·RiskQuality + w5·Confluence + w6·Liquidity
+       (default weights: 0.22, 0.20, 0.20, 0.18, 0.12, 0.08)
 ```
 
-## Statistical layer (client, deterministic)
+| Pillar | Inputs | Formula (all mapped 0–100) |
+|---|---|---|
+| **Edge** | MTF alignment (1h/4h/1d weighted), directional bias vs. trade side, regime fit | `50 + 50·tanh(2·alignedBias)` gated by regime-fit multiplier |
+| **Probability** | Monte-Carlo P(Goal) + Bayesian shrink toward base rate (0.5) using path count | `100 · (α·pGoal + (1-α)·0.5)` with α = paths/(paths+50) |
+| **Expectancy** | E[Ret], p10, p90, goal% vs. horizon | Sharpe-like: `50 + 25·(eRet / max(sigma·√H, ε))` clamped |
+| **RiskQuality** | ATR%, realized vol, hist DD, p10 tail, MTF disagreement | Inverse composite: `100·exp(−k·riskComposite)` |
+| **Confluence** | Setup strength, oscillator agreement count, ADX, BB-width regime match | Weighted count of confirming signals ÷ max |
+| **Liquidity** | Category prior (majors > mid > exotic) + price stability (bar-to-bar gap variance) | Static category floor + variance penalty |
 
-Extend `src/lib/technicalSignals.ts` with a `buildPrecisionSnapshot()` that returns, per symbol:
+**Cross-symbol z-score pass**: after all rows scored, apply within-category z-normalization to Edge, Probability, Expectancy so a BTC 62 and a gold 62 mean comparable relative opportunity. Store both `rawScore` and `relativeScore`.
 
-1. **Multi-timeframe alignment** — build 1h / 4h / 1d candles by resampling the existing tick history; require agreement across ≥2 TFs for high-confidence signals.
-2. **Regime detection** — ADX + Bollinger width classify each TF as `trend | range | squeeze`; different scoring weights per regime.
-3. **Realized volatility & tail risk** — 20-period stdev of log returns + max historical drawdown → risk floor.
-4. **Monte-Carlo goal probability** — 1,000-path GBM using drift = EMA slope, sigma = realized vol; returns `P(hit goal before horizon)` and `E[max drawdown]`. Replaces the current single-shot normal CDF (which ignores path-dependence).
-5. **Setup detection** — Donchian breakout, mean-reversion at Bollinger band, MACD cross with volume confirmation.
-6. **Composite score** = `w1·P(goal) + w2·trend_alignment + w3·setup_strength − w4·tail_risk − w5·regime_mismatch`.
+## New Risk Model
 
-All pure functions in `src/lib/precision/` (indicators.ts, montecarlo.ts, regime.ts, score.ts) with unit-testable signatures.
+`RiskLabel` becomes a 5-tier scale (`LOW / MODERATE / ELEVATED / HIGH / EXTREME`) driven by a weighted risk composite:
 
-## AI layer (edge function, on-demand)
-
-New edge function `supabase/functions/rank-symbols-ai/index.ts`:
-
-- Input: `{ goalPct, horizonH, direction, capitalUsd, confidence, candidates: PrecisionRow[] }` (top 8–15 only, to keep tokens & latency bounded).
-- Model: `google/gemini-3.5-flash` via Lovable AI Gateway (fast + cheap for structured re-ranking); the AI Gateway helper from the existing `automation-agent` function is reused.
-- Structured output via AI SDK `Output.object` with a flat, constraint-free Zod schema:
-  ```
-  { rankings: [{ ticker, adjustedScore, expectedReturnPct, maxDrawdownPct,
-                 entry, stopLoss, takeProfit, riskLabel, rationale }] }
-  ```
-- System prompt gives the model the goal, horizon, capital, and the per-symbol stat pack (bias, ATR%, MC probability, regime, setup, MTF alignment) and asks it to (a) verify statistical consistency, (b) penalize crowded/late setups, (c) size entry/SL/TP against ATR, (d) explain in ≤2 sentences.
-- Rate-limit: server-side 6-req/min per user; client debounces at 20s. Handles 429 / 402 with UI toasts per gateway guidelines.
-
-## Persistence (Lovable Cloud)
-
-New table `rank_snapshots` (RLS scoped to `auth.uid()`):
-
-```
-id uuid pk, user_id uuid, created_at timestamptz,
-goal_pct numeric, horizon_h int, direction text, scope text,
-mode text ('stat'|'ai'), payload jsonb  -- full ranked rows
+```text
+riskComposite = 0.40·ATR% + 0.25·realizedVol + 0.15·|p10Return|/goal + 0.10·histMaxDD + 0.10·(1 − |mtfAlignment|)
 ```
 
-Purpose: history view ("what were the top ranks 2h ago?"), backtestable, and cheap re-open without re-scanning. GRANTs for `authenticated` + `service_role`.
+Thresholds calibrated so the distribution across the 60-symbol universe is roughly 15/30/30/20/5%.
 
-## UI changes (`src/components/trading/SymbolRanker.tsx`)
+## New Verdict Engine
 
-- Add mode toggle **STAT / AI-ENHANCED**; capital + confidence inputs.
-- Two-stage scan: statistical pass fills table immediately; if AI mode is on and user clicks **REFINE WITH AI**, top-N is sent to the edge function and the table updates in place with AI fields.
-- New columns: `E[Ret%]`, `E[MaxDD%]`, `Entry/SL/TP`, `AI` (rationale popover with `react-markdown`).
-- Row expand shows: MTF alignment heat-strip (1h/4h/1d), setup label, MC distribution sparkline, and AI rationale.
-- History drawer lists previous `rank_snapshots` for the current user.
+`verdictFor()` upgraded to a 5-state ladder: `STRONG BUY / BUY / WATCH / HOLD / AVOID`, driven by GADS + RiskQuality with hard gates:
 
-## Precision & safety guardrails
+- `STRONG BUY`: GADS ≥ 78 AND Probability ≥ 60 AND Risk ≤ ELEVATED AND Edge aligned
+- `BUY`: GADS ≥ 62 AND Probability ≥ 52
+- `WATCH`: GADS 48–62, waiting for confluence
+- `HOLD`: GADS 35–48
+- `AVOID`: GADS < 35 OR Risk = EXTREME OR Edge against direction
 
-- **Zero fake data**: if a symbol has <60 candles across the target TF, it's excluded from AI submission (not fabricated).
-- **Deterministic first**: AI never overrides risk band by more than one level; if it disagrees strongly it must justify in `rationale` (validated server-side).
-- **Bounded cost**: AI runs only on the top 12 candidates, ≤ once per 20s, ≤ 6 calls/min/user.
-- **No advice framing**: rationales are labeled "Analytical view — not investment advice."
+Conviction (0–100) = `0.6·GADS + 0.4·Probability` gated by risk penalty.
 
-## Files to add / change
+## UI Changes (`SymbolRanker.tsx`, `EagleView.tsx`)
 
-- add `src/lib/precision/indicators.ts` (MTF resample, extended indicators)
-- add `src/lib/precision/montecarlo.ts` (GBM path sim, P(goal), E[maxDD])
-- add `src/lib/precision/regime.ts`, `score.ts`, `types.ts`
-- add `supabase/functions/rank-symbols-ai/index.ts` (+ config entry)
-- add migration `rank_snapshots` table + RLS + GRANTs
-- add `src/hooks/useSymbolRanker.ts` (orchestrates stat pass, AI call, persistence, subscription)
-- edit `src/components/trading/SymbolRanker.tsx` (new columns, mode toggle, rationale popover, history drawer)
-- optional: expose ranker output to Automation → Bots as a "Top Rank" symbol source
+- Replace the single **Score** column with **GADS** (relative) and keep raw score inside the expanded breakdown.
+- Expanded row now renders a **6-bar pillar chart** (Edge / Probability / Expectancy / RiskQuality / Confluence / Liquidity) with the exact numeric contribution to the final score.
+- Tooltip on every pillar shows the formula, the raw inputs used, and where the value sits in the current universe (percentile).
+- Verdict pill in hero + row updated to the 5-state ladder with matching gold-arrow color tokens.
+- Add a small **"Score Health"** indicator (green dot / amber / red) showing whether inputs were sufficient (≥60 bars, live price, MTF resolved) — makes it obvious when a symbol has degraded scoring.
 
-## Verification
+## Files to touch
 
-- Typecheck.
-- Playwright: open `/trading-bridge`, RESEARCH → ANALYTICS, run STAT scan (rows appear), toggle AI-ENHANCED, click REFINE, assert new columns populate and rationale opens.
-- Edge fn smoke test with a fixed candidate set → asserts schema.
-- Check that a row's suggested SL is always further from price than 0.5·ATR and TP ≥ goal.
+- **New**: `src/lib/precision/scoring.ts` — pillar computation, normalization, GADS blend.
+- **Edit**: `src/lib/precision/index.ts` — call new scoring, extend `PrecisionRow` with `gads`, `pillars`, `relativeScore`, `scoreHealth`, expand `RiskLabel` and `Verdict` types, upgrade `verdictFor`.
+- **Edit**: `src/components/trading/SymbolRanker.tsx` — swap Score column to GADS, add pillar breakdown panel + tooltips + Score Health dot, update verdict ladder colors.
+- **Edit**: `src/pages/EagleView.tsx` — hero card + Conviction Board consume new 5-state verdict and GADS.
 
-## Out of scope (deliberate)
+## Out of scope
 
-- No live order routing from this card (kept read-only; execution stays in EXECUTE tab).
-- No new AI model selector UI — model is fixed to `google/gemini-3.5-flash`; can be revisited later.
-- No backtest engine rewrite — this ranker feeds the existing BACKTEST tab as a follow-up.
+- Backend/edge-function changes (AI overlay keeps working; it just adjusts GADS instead of compositeScore).
+- Live-feed plumbing (untouched — the "score not working" issue is math, not data).
+- Visual redesign beyond the pillar chart + verdict ladder.
+
+## Validation
+
+- Manual: rescan universe, confirm scores span 15–90 (not clumped at 0 or 100), verdict distribution is not 100% AVOID, expanded row shows six pillar bars summing to GADS.
+- Guard: every numeric passes through the existing `finiteNumber` helpers so degraded feeds render "—" instead of NaN.
