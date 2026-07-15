@@ -1315,23 +1315,43 @@ const TradingBridge = () => {
                 <div className="w-10 h-1 rounded-full bg-marble/20" />
               </button>
 
-              {/* Tab bar inside drawer */}
-              <div className="flex overflow-x-auto scrollbar-hide px-2 pb-2 gap-1 flex-shrink-0">
-                {BOTTOM_TABS.map((tab) => (
+              {/* Two-level tab nav inside drawer */}
+              <div className="flex overflow-x-auto scrollbar-hide px-2 pt-1 pb-1 gap-1 flex-shrink-0 border-b border-gold/10">
+                {BOTTOM_CATEGORIES.map((cat) => (
                   <button
-                    key={tab.key}
-                    onClick={() => setBottomTab(tab.key)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
-                      bottomTab === tab.key
+                    key={cat.key}
+                    onClick={() => selectCategory(cat.key)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-[0.14em] whitespace-nowrap transition-all flex-shrink-0 ${
+                      bottomCategory === cat.key
                         ? 'bg-gold/15 text-gold border border-gold/30'
                         : 'text-marble/35 border border-gold/5'
                     }`}
                   >
-                    <tab.icon className="w-3 h-3" />
-                    {tab.label}
+                    <cat.icon className="w-3 h-3" />
+                    {cat.label}
                   </button>
                 ))}
               </div>
+              {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.length > 1 && (
+                <div className="flex overflow-x-auto scrollbar-hide px-3 py-1.5 gap-3 flex-shrink-0">
+                  {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.map((t) => {
+                    const meta = TAB_META[t];
+                    const active = bottomTab === t;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => selectSubTab(t)}
+                        className={`flex items-center gap-1 pb-1 text-[9px] font-display tracking-wider whitespace-nowrap transition-colors border-b-2 ${
+                          active ? 'text-gold border-gold' : 'text-marble/40 border-transparent hover:text-marble/70'
+                        }`}
+                      >
+                        <meta.icon className="w-3 h-3" />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Drawer content — scrollable */}
               <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-3">
