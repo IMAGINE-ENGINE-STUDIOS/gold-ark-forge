@@ -1273,16 +1273,16 @@ const TradingBridge = () => {
             <div className="w-10 h-1 rounded-full bg-marble/15" />
           </button>
           <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)] px-1">
-            {BOTTOM_TABS.map((tab) => (
+            {BOTTOM_CATEGORIES.map((cat) => (
               <button
-                key={tab.key}
-                onClick={() => handleTabClick(tab.key)}
-                className={`flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[48px] transition-colors flex-shrink-0 ${
-                  drawerOpen && bottomTab === tab.key ? 'text-gold' : 'text-marble/30'
+                key={cat.key}
+                onClick={() => { selectCategory(cat.key); if (!drawerOpen) { setDrawerOpen(true); setDrawerSnap(0.5); } }}
+                className={`flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[56px] transition-colors flex-shrink-0 ${
+                  drawerOpen && bottomCategory === cat.key ? 'text-gold' : 'text-marble/30'
                 }`}
               >
-                <tab.icon className="w-3.5 h-3.5" />
-                <span className="text-[6px] font-display tracking-wider whitespace-nowrap">{tab.label}</span>
+                <cat.icon className="w-4 h-4" />
+                <span className="text-[7px] font-display tracking-wider whitespace-nowrap">{cat.label}</span>
               </button>
             ))}
           </div>
