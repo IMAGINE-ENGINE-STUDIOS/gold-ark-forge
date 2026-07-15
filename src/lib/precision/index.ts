@@ -5,6 +5,7 @@
 // when there is insufficient history.
 // ─────────────────────────────────────────────────────────────
 import { buildTechnicalSnapshot, type TechnicalSnapshot } from '@/lib/technicalSignals';
+import { computeGads, computeRiskTier, type GadsResult, type Pillar, type RiskTier5 } from './scoring';
 
 export type Direction = 'long' | 'short';
 export type Timeframe = '1h' | '4h' | '1d';
@@ -56,6 +57,20 @@ export interface PrecisionRow {
   compositeScore: number;       // 0..100 deterministic
   riskLabel: RiskLabel;
   /**
+   * NEW — 6-pillar Gold Arrow Decision Score. `gads` is the raw
+   * absolute score; `relativeScore` is a within-category z-normalized
+   * version so different asset classes can be compared apples-to-apples.
+   * `pillars` is the transparent per-pillar breakdown.
+   */
+  gads: number;
+  relativeScore: number;
+  pillars: Pillar[];
+  scoreHealth: 'green' | 'amber' | 'red';
+  scoreHealthReason: string;
+  /** 5-tier extended risk (LOW/MODERATE/ELEVATED/HIGH/EXTREME) */
+  riskTier: RiskTier5;
+  riskComposite: number;
+  /**
    * Deterministic breakdown of every ingredient that produced the composite
    * score and the risk label. Exposed so the UI can show the user exactly
    * why a symbol ranks where it does — no hidden black-box magic.
@@ -95,6 +110,10 @@ export interface ScoreBreakdown {
   wantDirection: 'bullish' | 'bearish';
   primaryDirection: 'bullish' | 'bearish' | 'neutral';
 }
+
+// Re-export scoring types so consumers only import from '@/lib/precision'.
+export type { Pillar, PillarKey, GadsResult, RiskTier5 } from './scoring';
+export { computeGads, computeRiskTier, finalizeRelativeScores, GADS_WEIGHTS } from './scoring';
 
 // ───── Utility ─────
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -386,7 +405,7 @@ export function buildPrecisionRow(input: {
     primaryDirection: s1h.direction,
   };
 
-  return {
+  const partial: PrecisionRow = {
     key: input.key,
     ticker: input.ticker,
     label: input.label,
@@ -403,8 +422,32 @@ export function buildPrecisionRow(input: {
     monteCarlo: mc,
     compositeScore: composite,
     riskLabel,
+    // Placeholders — computed immediately below now that we have every input.
+    gads: 0, relativeScore: 0, pillars: [],
+    scoreHealth: 'green', scoreHealthReason: '',
+    riskTier: 'MODERATE', riskComposite: 0,
     breakdown,
   };
+
+  const gads = computeGads(partial, {
+    direction: input.direction,
+    horizonH: input.horizonH,
+    candles: candles1h,
+  });
+  const tier = computeRiskTier(partial, input.goalPct / 100);
+  partial.gads = gads.raw;
+  partial.relativeScore = gads.raw; // relative filled by finalizeRelativeScores() at scan level
+  partial.pillars = gads.pillars;
+  partial.scoreHealth = gads.scoreHealth;
+  partial.scoreHealthReason = gads.scoreHealthReason;
+  partial.riskTier = tier.tier;
+  partial.riskComposite = tier.composite;
+  // Keep legacy compositeScore in sync with GADS raw so any old consumer
+  // still shows a sensible value.
+  partial.compositeScore = gads.raw;
+  partial.breakdown.compositeScore = gads.raw;
+
+  return partial;
 }
 
 function hashSeed(s: string): number {
@@ -461,42 +504,56 @@ export function toAICandidate(r: PrecisionRow) {
 // score, MTF alignment) into ONE decisive action call the user
 // (or a bot) can read at a glance. Deterministic. No randomness.
 // ─────────────────────────────────────────────────────────────
-export type Verdict = 'STRONG BUY' | 'BUY' | 'HOLD' | 'AVOID';
+export type Verdict = 'STRONG BUY' | 'BUY' | 'WATCH' | 'HOLD' | 'AVOID';
+export type VerdictColor = 'emerald' | 'gold' | 'sky' | 'orange' | 'red';
 
 export function verdictFor(r: PrecisionRow, direction: Direction = 'long'): {
   verdict: Verdict;
   conviction: number;         // 0..100 unified confidence
-  color: 'emerald' | 'gold' | 'orange' | 'red';
+  color: VerdictColor;
   reasons: string[];          // short bullets for tooltip / breakdown
 } {
-  const risk = r.ai?.riskLabel ?? r.riskLabel;
-  const score = r.ai?.adjustedScore ?? r.compositeScore;
+  const legacyRisk = r.ai?.riskLabel ?? r.riskLabel;
+  const tier: RiskTier5 = r.ai
+    ? (r.ai.riskLabel === 'MEDIUM' ? 'MODERATE'
+        : r.ai.riskLabel === 'HIGH' ? 'HIGH'
+        : r.ai.riskLabel === 'LOW' ? 'LOW' : 'EXTREME')
+    : r.riskTier;
+  const score = r.ai?.adjustedScore ?? r.relativeScore ?? r.gads ?? r.compositeScore;
   const pGoal = r.monteCarlo.pGoal;
   const aligned = direction === 'long' ? r.mtfAlignment : -r.mtfAlignment;
 
-  // Conviction fuses P(Goal), score, alignment and risk penalty into 0..100.
-  const riskPenalty = risk === 'LOW' ? 1 : risk === 'MEDIUM' ? 0.9 : risk === 'HIGH' ? 0.7 : 0.45;
-  const alignBoost = Math.max(0.6, Math.min(1.15, 0.85 + aligned * 0.4));
+  // Conviction = 0.6·GADS + 0.4·Probability, gated by risk penalty.
+  const riskPenalty =
+    tier === 'LOW' ? 1
+    : tier === 'MODERATE' ? 0.95
+    : tier === 'ELEVATED' ? 0.85
+    : tier === 'HIGH' ? 0.7
+    : 0.45;
+  const alignBoost = Math.max(0.7, Math.min(1.12, 0.88 + aligned * 0.3));
   const conviction = Math.max(0, Math.min(100,
-    (0.55 * (pGoal * 100) + 0.45 * score) * riskPenalty * alignBoost,
+    (0.6 * score + 0.4 * pGoal * 100) * riskPenalty * alignBoost,
   ));
 
   const reasons: string[] = [];
+  reasons.push(`GADS ${score.toFixed(1)}/100`);
   reasons.push(`P(Goal) ${(pGoal * 100).toFixed(1)}%`);
-  reasons.push(`Score ${score.toFixed(1)}/100`);
-  reasons.push(`Risk ${risk}`);
+  reasons.push(`Risk ${tier}`);
   reasons.push(`MTF align ${(aligned * 100).toFixed(0)}${aligned >= 0 ? ' (with)' : ' (against)'}`);
+  void legacyRisk;
 
+  // 5-state ladder with hard gates
   let verdict: Verdict;
-  let color: 'emerald' | 'gold' | 'orange' | 'red';
-  if (risk === 'EXTREME' || conviction < 25 || (aligned < -0.2 && pGoal < 0.5)) {
+  let color: VerdictColor;
+  const edgeAgainst = aligned < -0.15;
+  if (tier === 'EXTREME' || edgeAgainst || score < 35) {
     verdict = 'AVOID'; color = 'red';
-  } else if (conviction >= 70 && pGoal >= 0.7 && (risk === 'LOW' || risk === 'MEDIUM')) {
+  } else if (score >= 78 && pGoal >= 0.60 && (tier === 'LOW' || tier === 'MODERATE' || tier === 'ELEVATED')) {
     verdict = 'STRONG BUY'; color = 'emerald';
-  } else if (conviction >= 50 && pGoal >= 0.55 && risk !== 'HIGH') {
+  } else if (score >= 62 && pGoal >= 0.52 && tier !== 'HIGH') {
     verdict = 'BUY'; color = 'gold';
-  } else if (conviction >= 50 && pGoal >= 0.55) {
-    verdict = 'BUY'; color = 'gold';
+  } else if (score >= 48) {
+    verdict = 'WATCH'; color = 'sky';
   } else {
     verdict = 'HOLD'; color = 'orange';
   }
