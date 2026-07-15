@@ -1773,29 +1773,6 @@ const TradingBridge = () => {
                       </CollapsibleSection>
                     </div>
                   )}
-                  {bottomTab === 'bot' && (
-                    <WaveBotPanel
-                      config={waveBot.config}
-                      updateConfig={waveBot.updateConfig}
-                      trades={waveBot.trades}
-                      stats={waveBot.stats}
-                      killAll={waveBot.killAll}
-                      clearHistory={waveBot.clearHistory}
-                      botPositions={waveBot.botPositions}
-                      resolvePrice={resolvePriceForTicker}
-                      onClosePosition={(id, price) => handleClosePosition(id, price)}
-                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                      equity={paper.account.equity}
-                    />
-                  )}
-                  {bottomTab === 'automate' && (
-                    <div className="space-y-4">
-                      <SchedulePanel />
-                      <div className="border-t border-gold/10 pt-4">
-                        <PriceAlerts alertsHook={priceAlertsHook} />
-                      </div>
-                    </div>
-                  )}
                   {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
