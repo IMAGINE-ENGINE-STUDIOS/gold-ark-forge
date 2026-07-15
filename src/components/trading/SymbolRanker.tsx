@@ -476,6 +476,7 @@ export default SymbolRanker;
 // ─────────────────────────────────────────────────────────────
 function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number }) {
   const b = r.breakdown;
+  const gadsShown = r.ai?.adjustedScore ?? r.relativeScore ?? r.gads;
   const parts = [
     { label: '100', value: 100, sub: 'Base' },
     { label: 'P(Goal)', value: b.pGoal, sub: `${b.horizonSteps}h MC`, fmt: (v: number) => pct(v) },
@@ -497,10 +498,54 @@ function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number
           Score &amp; Risk Breakdown · {r.ticker}
         </span>
         <span className="text-[8px] text-marble/40 font-mono ml-auto">
-          {b.formula}
+          GADS = Σ wᵢ·pillarᵢ · legacy: {b.formula}
         </span>
       </div>
 
+      {/* ── GADS pillar chart — the primary score model ─────────── */}
+      <div className="mb-3 rounded-lg border border-gold/25 bg-gold/[0.03] p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[9px] uppercase tracking-[0.2em] text-gold-light font-display">
+            Gold Arrow Decision Score
+          </div>
+          <div className="flex items-baseline gap-2 font-mono">
+            <span className="text-gold text-lg tabular-nums">{fixed(gadsShown, 1)}</span>
+            <span className="text-[8px] text-marble/40">/ 100 (rel · raw {fixed(r.gads, 1)})</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+          {r.pillars.map(p => {
+            const color =
+              p.key === 'edge' ? 'bg-gold'
+              : p.key === 'probability' ? 'bg-emerald-400'
+              : p.key === 'expectancy' ? 'bg-sky-400'
+              : p.key === 'riskQuality' ? 'bg-orange-400'
+              : p.key === 'confluence' ? 'bg-fuchsia-400'
+              : 'bg-marble/60';
+            return (
+              <div key={p.key} title={p.rationale} className="rounded border border-gold/10 bg-navy/40 p-1.5">
+                <div className="flex items-center justify-between text-[8px] font-mono">
+                  <span className="text-marble/60 uppercase tracking-wider">{p.label}</span>
+                  <span className="text-gold-light tabular-nums">{fixed(p.value, 0)}</span>
+                </div>
+                <div className="relative h-1.5 mt-1 bg-navy-dark rounded-full overflow-hidden">
+                  <div className={`h-full ${color}`} style={{ width: `${Math.max(2, p.value)}%` }} />
+                </div>
+                <div className="text-[7px] text-marble/40 mt-1 truncate">
+                  w {(p.weight * 100).toFixed(0)}% → +{fixed(p.contribution, 1)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-[8px] font-mono text-marble/50">
+          <span className={`w-1.5 h-1.5 rounded-full ${r.scoreHealth === 'green' ? 'bg-emerald-400' : r.scoreHealth === 'amber' ? 'bg-gold-light' : 'bg-red-500'}`} />
+          Score health: <span className="text-marble/80">{r.scoreHealth.toUpperCase()}</span>
+          <span className="text-marble/40">· {r.scoreHealthReason}</span>
+        </div>
+      </div>
+
+      {/* ── Legacy multiplicative chain — kept for transparency ── */}
       {/* Multiplicative score chain */}
       <div className="grid grid-cols-2 md:grid-cols-7 gap-1.5 text-[9px] font-mono">
         {parts.map((p, i) => (
