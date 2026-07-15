@@ -1155,7 +1155,7 @@ const TradingBridge = () => {
   // ─── MOBILE LAYOUT ──────────────────────────────────
 
   const handleTabClick = (tabKey: BottomTab) => {
-    setBottomTab(tabKey);
+    selectSubTab(tabKey);
     if (!drawerOpen) {
       setDrawerOpen(true);
       setDrawerSnap(0.5);
@@ -1507,7 +1507,7 @@ const TradingBridge = () => {
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => setBottomTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
+            <button onClick={() => selectSubTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
               <Bell className="w-3.5 h-3.5" />
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
