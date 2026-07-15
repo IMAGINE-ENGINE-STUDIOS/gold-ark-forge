@@ -91,8 +91,14 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
         },
       });
       if (error) throw error;
-      const rankings = (data?.rankings ?? []) as PrecisionRow['ai'][] & Array<{ ticker: string } & NonNullable<PrecisionRow['ai']>>;
-      const byTicker = new Map(rankings.map(r => [r.ticker, r]));
+      type AIRanking = { ticker: string } & NonNullable<PrecisionRow['ai']>;
+      const rankings = (data?.rankings ?? []) as AIRanking[];
+      const byTicker = new Map<string, NonNullable<PrecisionRow['ai']>>(
+        rankings.map(r => {
+          const { ticker: _t, ...rest } = r;
+          return [r.ticker, rest];
+        }),
+      );
       setRows(prev => rankRows(prev.map(r => {
         const ai = byTicker.get(r.ticker);
         return ai ? { ...r, ai } : r;
@@ -100,19 +106,20 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
       // Persist snapshot (best-effort)
       const { data: userRes } = await supabase.auth.getUser();
       if (userRes.user) {
-        await supabase.from('rank_snapshots').insert({
+        const insertRow = {
           user_id: userRes.user.id,
           goal_pct: goalPct,
           horizon_h: horizonH,
           direction,
           scope: category,
-          mode: 'ai',
+          mode: 'ai' as const,
           payload: rows.map(r => ({
             ticker: r.ticker, label: r.label, price: r.price,
             score: r.compositeScore, risk: r.riskLabel,
             ai: byTicker.get(r.ticker) ?? null,
-          })) as unknown as Record<string, unknown>[],
-        });
+          })),
+        };
+        await supabase.from('rank_snapshots').insert(insertRow as never);
       }
       toast.success(`AI re-ranked ${rankings.length} candidates`);
     } catch (e: unknown) {
