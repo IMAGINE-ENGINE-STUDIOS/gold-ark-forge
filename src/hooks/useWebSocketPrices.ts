@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 export interface WebSocketPrice {
   symbol: string;
@@ -11,9 +11,10 @@ export interface WebSocketPrice {
 type PriceMap = Record<string, WebSocketPrice>;
 
 const BINANCE_WS = 'wss://stream.binance.com:9443/ws';
+const BINANCE_REST = 'https://api.binance.com/api/v3/ticker/24hr';
 
 // Map our symbol keys to Binance stream names
-const BINANCE_STREAMS: Record<string, string> = {
+export const BINANCE_STREAMS: Record<string, string> = {
   bitcoin: 'btcusdt', ethereum: 'ethusdt', solana: 'solusdt',
   xrp: 'xrpusdt', cardano: 'adausdt', dogecoin: 'dogeusdt',
   polkadot: 'dotusdt', chainlink: 'linkusdt', avalanche: 'avaxusdt',
@@ -26,19 +27,62 @@ const BINANCE_STREAMS: Record<string, string> = {
   bnb: 'bnbusdt', shiba: 'shibusdt', pepe: 'pepeusdt',
 };
 
+const keyForStream = (stream: string) =>
+  Object.entries(BINANCE_STREAMS).find(([, v]) => v === stream)?.[0];
+
 export const useWebSocketPrices = (symbolKeys: string[]) => {
   const [prices, setPrices] = useState<PriceMap>({});
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const restPollTimer = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 10;
 
+  const streamKeys = useMemo(
+    () => Array.from(new Set(symbolKeys.filter(k => BINANCE_STREAMS[k]))).sort(),
+    [symbolKeys.join('|')],
+  );
+
+  const streamKeyToken = streamKeys.join('|');
+
+  const pollRest = useCallback(async () => {
+    if (streamKeys.length === 0) return;
+    const symbols = streamKeys.map(k => `${BINANCE_STREAMS[k].toUpperCase()}`);
+    try {
+      const url = symbols.length === 1
+        ? `${BINANCE_REST}?symbol=${symbols[0]}`
+        : `${BINANCE_REST}?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Binance REST ${resp.status}`);
+      const json = await resp.json();
+      const rows = Array.isArray(json) ? json : [json];
+      const next: PriceMap = {};
+      for (const row of rows) {
+        const stream = String(row.symbol ?? '').toLowerCase();
+        const key = keyForStream(stream);
+        if (!key) continue;
+        const price = Number(row.lastPrice);
+        if (!Number.isFinite(price) || price <= 0) continue;
+        next[key] = {
+          symbol: key,
+          price,
+          change24h: Number(row.priceChangePercent) || 0,
+          volume: Number(row.quoteVolume) || 0,
+          timestamp: Date.now(),
+        };
+      }
+      if (mountedRef.current && Object.keys(next).length > 0) {
+        setPrices(prev => ({ ...prev, ...next }));
+      }
+    } catch (e) {
+      console.warn('[REST] Binance ticker poll failed:', e);
+    }
+  }, [streamKeyToken]);
+
   const connect = useCallback(() => {
     // Only connect for crypto symbols that have Binance streams
-    const streams = symbolKeys
-      .filter(k => BINANCE_STREAMS[k])
-      .map(k => `${BINANCE_STREAMS[k]}@miniTicker`);
+    const streams = streamKeys.map(k => `${BINANCE_STREAMS[k]}@miniTicker`);
 
     if (streams.length === 0) return;
 
@@ -70,7 +114,7 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
 
           if (data.e === '24hrMiniTicker') {
             const symbol = data.s?.toLowerCase().replace('usdt', '');
-            const key = Object.entries(BINANCE_STREAMS).find(([_, v]) => v === `${symbol}usdt`)?.[0];
+            const key = keyForStream(`${symbol}usdt`);
             if (key) {
               const price = parseFloat(data.c);
               const open = parseFloat(data.o);
@@ -114,19 +158,22 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
       const delay = Math.min(5000 * Math.pow(2, retryCountRef.current - 1), 30000);
       reconnectTimer.current = setTimeout(connect, delay);
     }
-  }, [symbolKeys]);
+  }, [streamKeyToken]);
 
   useEffect(() => {
     mountedRef.current = true;
     retryCountRef.current = 0;
+    pollRest();
+    restPollTimer.current = setInterval(pollRest, 3000);
     connect();
 
     return () => {
       mountedRef.current = false;
       wsRef.current?.close();
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (restPollTimer.current) clearInterval(restPollTimer.current);
     };
-  }, [connect]);
+  }, [connect, pollRest]);
 
   return prices;
 };
