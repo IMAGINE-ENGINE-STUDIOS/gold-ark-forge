@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
-import { buildPrecisionRow, rankRows, toAICandidate, verdictFor, type Direction, type PrecisionRow, type RiskLabel } from '@/lib/precision';
+import { buildPrecisionRow, finalizeRelativeScores, rankRows, toAICandidate, verdictFor, type Direction, type PrecisionRow, type RiskLabel, type RiskTier5 } from '@/lib/precision';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -12,8 +12,8 @@ import { toast } from 'sonner';
  */
 const COLS: { key: string; label: string; help: string; align?: 'left' | 'right' }[] = [
   { key: '#', label: '#', help: 'Row rank after sorting by risk (lowest first) then score (highest first).', align: 'left' },
-  { key: 'symbol', label: 'Symbol', help: 'Ticker and display name. Click a row to open the full breakdown.', align: 'left' },
-  { key: 'verdict', label: 'Verdict', help: 'One-glance action call synthesized from P(Goal), risk, score and MTF alignment. STRONG BUY / BUY / HOLD / AVOID. Bots and users act on this.', align: 'left' },
+  { key: 'symbol', label: 'Symbol', help: 'Ticker and display name. Green/amber/red dot = score health (data sufficiency). Click a row to open the full breakdown.', align: 'left' },
+  { key: 'verdict', label: 'Verdict', help: 'One-glance action call synthesized from GADS, P(Goal), risk tier and MTF alignment. STRONG BUY / BUY / WATCH / HOLD / AVOID. Bots and users act on this.', align: 'left' },
   { key: 'price', label: 'Price', help: 'Live spot price resolved from the same real-time feed used by Showroom, Intelligence and Oil & Gas widgets.' },
   { key: 'atr', label: 'ATR%', help: 'Average True Range as % of price on the 1h series (period 14). Higher = wider candles = more volatile.' },
   { key: 'mtf', label: 'MTF', help: 'Multi-timeframe alignment × 100. Weighted mean of directional bias across 1h (25%), 4h (35%) and 1d (40%). Positive = bullish agreement, negative = bearish.' },
@@ -22,8 +22,8 @@ const COLS: { key: string; label: string; help: string; align?: 'left' | 'right'
   { key: 'pgoal', label: 'P(Goal)', help: 'Probability of hitting the goal % before the horizon expires. Computed by an 800-path Monte-Carlo GBM using drift = MTF·ATR·0.5 and sigma = max(realized vol, ATR·0.7).' },
   { key: 'eret', label: 'E[Ret%]', help: 'Expected terminal return over the horizon across 800 Monte-Carlo paths (mean of final returns).' },
   { key: 'edd', label: 'E[DD%]', help: 'Expected worst-case drawdown along a path (mean across 800 sims). Tail risk indicator — bigger absolute value = more painful path.' },
-  { key: 'risk', label: 'Risk', help: 'Deterministic risk label from (ATR + 0.15·MaxDrawdown). LOW < 0.008, MEDIUM < 0.02, HIGH < 0.045, else EXTREME. AI mode may override by one step.' },
-  { key: 'score', label: 'Score', help: 'Composite 0–100 score:  100 · P(Goal) · SetupFactor · AlignBonus · TrendBonus · TailPenalty. Higher = better risk-adjusted expected outcome.' },
+  { key: 'risk', label: 'Risk', help: '5-tier risk (LOW/MODERATE/ELEVATED/HIGH/EXTREME) derived from ATR·RV·tail p10·drawdown·MTF disagreement. AI mode may override by one step.' },
+  { key: 'gads', label: 'GADS', help: 'Gold Arrow Decision Score (0–100). Six pillars — Edge · Probability · Expectancy · RiskQuality · Confluence · Liquidity — blended with fixed weights and cross-normalized within category. Expand a row for the exact per-pillar contribution.' },
   { key: 'ai', label: 'AI', help: 'Marker shown when Gemini-3.5 has produced a rationale, entry / SL / TP and an adjusted risk label for this candidate.' },
 ];
 
@@ -40,10 +40,13 @@ interface Props {
 
 const CATS = ['all', 'metals', 'crypto', 'forex', 'energy', 'stocks', 'indices'] as const;
 
-const riskColor = (r: RiskLabel) =>
+const riskColor = (r: RiskLabel | RiskTier5) =>
   r === 'LOW' ? 'text-emerald-400'
+  : r === 'MODERATE' ? 'text-emerald-300'
   : r === 'MEDIUM' ? 'text-gold-light'
-  : r === 'HIGH' ? 'text-orange-400' : 'text-red-500';
+  : r === 'ELEVATED' ? 'text-gold-light'
+  : r === 'HIGH' ? 'text-orange-400'
+  : 'text-red-500';
 
 const finiteNum = (value: unknown, fallback = 0) => {
   if (value === null || value === undefined || value === '') return fallback;
@@ -116,6 +119,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
       if (out.length % 6 === 0) await new Promise(r => setTimeout(r, 0));
       if (scanTokenRef.current !== token) return; // superseded
     }
+    finalizeRelativeScores(out);
     setRows(rankRows(out));
     setScanning(false);
   }, [scope, getCandleData, resolvePrice, goalPct, horizonH, direction]);
@@ -337,20 +341,23 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
               </td></tr>
             )}
             {rows.map((r, i) => {
-              const risk = r.ai?.riskLabel ?? r.riskLabel;
-              const score = r.ai?.adjustedScore ?? r.compositeScore;
+              const risk: RiskLabel | RiskTier5 = r.ai?.riskLabel ?? r.riskTier;
+              const gadsShown = r.ai?.adjustedScore ?? r.relativeScore ?? r.gads;
               const mtfCol = r.mtfAlignment > 0.1 ? 'text-emerald-400' : r.mtfAlignment < -0.1 ? 'text-red-400' : 'text-marble/50';
               const isOpen = expanded === r.ticker;
               // Read the LIVE price on every render tick (1s cadence via setLiveTick)
               // so the Price column reflects the same feed as Showroom / Intelligence.
               const livePrice = finiteNum(resolvePrice(r.ticker), 0) || finiteNum(r.price, 0);
               const v = verdictFor(r, direction);
-              const safeScore = finiteNum(score, 0);
+              const safeScore = finiteNum(gadsShown, 0);
               const verdictClasses =
                 v.color === 'emerald' ? 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10'
                 : v.color === 'gold' ? 'text-gold border-gold/50 bg-gold/10'
+                : v.color === 'sky' ? 'text-sky-300 border-sky-400/40 bg-sky-500/10'
                 : v.color === 'orange' ? 'text-orange-400 border-orange-400/40 bg-orange-500/10'
                 : 'text-red-400 border-red-500/40 bg-red-500/10';
+              const healthDot = r.scoreHealth === 'green' ? 'bg-emerald-400'
+                : r.scoreHealth === 'amber' ? 'bg-gold-light' : 'bg-red-500';
               return (
                 <Fragment key={r.ticker}>
                   <tr
@@ -359,6 +366,10 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                     <td className="py-1 px-1 text-marble/40">{i + 1}</td>
                     <td className="py-1 px-1">
                       <div className="text-gold-light flex items-center gap-1">
+                        <span
+                          title={`Score health: ${r.scoreHealth.toUpperCase()} · ${r.scoreHealthReason}`}
+                          className={`w-1.5 h-1.5 rounded-full ${healthDot}`}
+                        />
                         {r.ticker}
                         {r.ai && <Sparkles className="w-2.5 h-2.5 text-gold" />}
                       </div>
@@ -389,7 +400,10 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                     <td className="py-1 px-1 text-right text-emerald-400/80">{fixed(r.ai?.expectedReturnPct ?? r.monteCarlo.eReturnPct)}</td>
                     <td className="py-1 px-1 text-right text-red-400/80">{fixed(r.ai?.maxDrawdownPct ?? r.monteCarlo.eMaxDDPct)}</td>
                     <td className={`py-1 px-1 text-right font-semibold ${riskColor(risk)}`}>{risk}</td>
-                    <td className="py-1 px-1 text-right text-gold">{fixed(safeScore, 1)}</td>
+                    <td className="py-1 px-1 text-right text-gold">
+                      {fixed(safeScore, 1)}
+                      <div className="text-[7px] text-marble/40">raw {fixed(r.gads, 0)}</div>
+                    </td>
                     <td className="py-1 px-1 text-right">
                       {r.ai
                         ? <Info className="w-3 h-3 inline text-gold-light" />
