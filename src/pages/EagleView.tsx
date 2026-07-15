@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Feather, Activity, Radio, ExternalLink, Layers, Store, Brain, Fuel, Gauge, Newspaper, CalendarDays, Flame } from 'lucide-react';
+import { Feather, Activity, Radio, ExternalLink, Layers, Store, Brain, Fuel, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import Header from '@/components/Header';
 import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import { useLiveMarketData } from '@/hooks/useLiveMarketData';
 import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { verdictFor, type PrecisionRow, type Direction } from '@/lib/precision';
 import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
@@ -26,6 +27,8 @@ export default function EagleView() {
   const [tick, setTick] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [intelTab, setIntelTab] = useState<'gauge' | 'context' | 'macro' | 'cross'>('gauge');
+  const [rankedRows, setRankedRows] = useState<PrecisionRow[]>([]);
+  const [rankDirection, setRankDirection] = useState<Direction>('long');
 
   // Force re-render every second so the live rail reflects new ticks
   useEffect(() => {
@@ -63,6 +66,23 @@ export default function EagleView() {
     () => (selected ? live.getCandleData(selected) : null),
     [selected, live, tick], // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  // Top directive derived from the ranker — one clear action call.
+  const directive = useMemo(() => {
+    if (!rankedRows.length) return null;
+    const scored = rankedRows.map(r => ({ r, v: verdictFor(r, rankDirection) }));
+    // Prefer highest conviction; tie-break by score.
+    scored.sort((a, b) => b.v.conviction - a.v.conviction ||
+      (b.r.ai?.adjustedScore ?? b.r.compositeScore) - (a.r.ai?.adjustedScore ?? a.r.compositeScore));
+    return scored[0];
+  }, [rankedRows, rankDirection]);
+
+  const topFive = useMemo(() => {
+    return rankedRows
+      .map(r => ({ r, v: verdictFor(r, rankDirection) }))
+      .sort((a, b) => b.v.conviction - a.v.conviction)
+      .slice(0, 5);
+  }, [rankedRows, rankDirection]);
 
   return (
     <div className="min-h-screen bg-navy-dark text-marble">
@@ -124,6 +144,9 @@ export default function EagleView() {
         </div>
       </div>
 
+      {/* ─── Directive Hero — Apple-clean, Gold Arrow palette ──── */}
+      <DirectiveHero directive={directive} live={live} tick={tick} />
+
       {/* ─── Pulse strip ─────────────────────────────────────────── */}
       <div className="border-b border-gold/10 bg-navy/40">
         <div className="container mx-auto px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -144,6 +167,39 @@ export default function EagleView() {
         </div>
       </div>
 
+      {/* ─── Top-5 Conviction Board — clear next-action per asset ── */}
+      {topFive.length > 0 && (
+        <div className="border-b border-gold/10 bg-navy-dark/70">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-gold-light" />
+                <span className="font-display text-[11px] tracking-[0.2em] text-gold-light uppercase">
+                  Conviction Board · Top 5
+                </span>
+                <span className="text-[9px] font-mono text-marble/40">
+                  fused P(Goal) · Score · Risk · MTF align · {rankDirection.toUpperCase()}
+                </span>
+              </div>
+              <span className="text-[9px] font-mono text-marble/40">click any card to drill</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              {topFive.map(({ r, v }) => (
+                <ConvictionCard
+                  key={r.ticker}
+                  row={r}
+                  verdict={v}
+                  live={live.resolvePriceByTicker(r.ticker) || r.price}
+                  change={live.resolveChangeByTicker(r.ticker)}
+                  active={selected === r.ticker}
+                  onClick={() => setSelected(r.ticker)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── Main grid ───────────────────────────────────────────── */}
       <div className="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
         {/* LEFT — Ranker */}
@@ -152,6 +208,7 @@ export default function EagleView() {
             getCandleData={live.getCandleData}
             resolvePrice={live.resolvePriceByTicker}
             onSelectSymbol={setSelected}
+            onRowsChange={(rows, dir) => { setRankedRows(rows); setRankDirection(dir); }}
           />
 
           {/* ── Decision Intelligence — GA widget deck for the selected symbol ── */}
@@ -317,6 +374,231 @@ function PulseCard({ label, value, sub, tone }: { label: string; value: string; 
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Directive Hero — the single most important read on the page.
+// Big verdict, giant conviction ring, orbital decision metrics.
+// ─────────────────────────────────────────────────────────────
+function DirectiveHero({
+  directive,
+  live,
+  tick,
+}: {
+  directive: { r: PrecisionRow; v: ReturnType<typeof verdictFor> } | null;
+  live: ReturnType<typeof useLiveMarketData>;
+  tick: number;
+}) {
+  if (!directive) {
+    return (
+      <div className="border-b border-gold/10 bg-gradient-to-b from-navy-dark to-navy/60">
+        <div className="container mx-auto px-4 py-10 text-center">
+          <div className="text-[10px] tracking-[0.3em] font-mono text-gold-light uppercase">Building Directive</div>
+          <div className="text-marble/40 text-xs mt-2">Warming up multi-timeframe scan & Monte-Carlo…</div>
+        </div>
+      </div>
+    );
+  }
+  const { r, v } = directive;
+  const livePrice = live.resolvePriceByTicker(r.ticker) || r.price;
+  const change = live.resolveChangeByTicker(r.ticker);
+  void tick; // livePrice/change recomputed via parent tick prop
+
+  const verdictWord =
+    v.color === 'emerald' ? { headline: v.verdict, sub: 'Enter with confidence · low friction path' }
+    : v.color === 'gold' ? { headline: v.verdict, sub: 'Actionable long — position within risk limits' }
+    : v.color === 'orange' ? { headline: 'HOLD', sub: 'Wait for stronger alignment before acting' }
+    : { headline: 'STAND ASIDE', sub: 'Risk too high — protect capital, do not open' };
+
+  const verdictColor =
+    v.color === 'emerald' ? 'text-emerald-400'
+    : v.color === 'gold' ? 'text-gold'
+    : v.color === 'orange' ? 'text-orange-400'
+    : 'text-red-400';
+
+  const ringColor =
+    v.color === 'emerald' ? '#34d399'
+    : v.color === 'gold' ? '#d4af37'
+    : v.color === 'orange' ? '#fb923c'
+    : '#f87171';
+
+  const R = 74;
+  const C = 2 * Math.PI * R;
+  const dash = C * (v.conviction / 100);
+
+  const pGoal = r.monteCarlo.pGoal;
+  const eRet = r.ai?.expectedReturnPct ?? r.monteCarlo.eReturnPct;
+  const eDD = r.ai?.maxDrawdownPct ?? r.monteCarlo.eMaxDDPct;
+  const risk = r.ai?.riskLabel ?? r.riskLabel;
+  const score = r.ai?.adjustedScore ?? r.compositeScore;
+
+  return (
+    <div className="border-b border-gold/10 bg-gradient-to-b from-navy-dark via-navy/40 to-navy-dark relative overflow-hidden">
+      {/* ambient glow */}
+      <div className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full bg-gold/[0.06] blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-gold/[0.04] blur-3xl" />
+
+      <div className="container mx-auto px-4 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-6 items-stretch relative">
+        {/* LEFT — headline */}
+        <div className="flex flex-col justify-between gap-5">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold/10 border border-gold/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+              <span className="text-[9px] font-display tracking-[0.35em] text-gold uppercase">
+                Eagle View Directive · Live
+              </span>
+            </div>
+            <div className="flex items-end gap-3 flex-wrap">
+              <h2 className="font-display text-4xl md:text-5xl tracking-tight text-marble">
+                {r.ticker}
+                <span className="text-marble/30 font-light"> · </span>
+                <span className="text-marble/60 text-2xl md:text-3xl">{r.label}</span>
+              </h2>
+            </div>
+            <div className="flex items-baseline gap-4 font-mono">
+              <span className="text-2xl md:text-3xl text-marble tabular-nums">${fmtPrice(livePrice)}</span>
+              <span className={change >= 0 ? 'text-emerald-400 text-sm' : 'text-red-400 text-sm'}>
+                {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-marble/40 uppercase tracking-widest">24h · live tick</span>
+            </div>
+            <p className={`text-lg md:text-xl leading-snug font-display tracking-tight ${verdictColor}`}>
+              {verdictWord.headline}
+              <span className="block text-marble/50 text-xs md:text-sm font-sans font-normal mt-1">
+                {verdictWord.sub}
+              </span>
+            </p>
+          </div>
+
+          {/* Actionable rail */}
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Link
+              to={`/trading-bridge?symbol=${encodeURIComponent(r.ticker)}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-gold text-navy-dark text-[10px] font-display tracking-[0.2em] uppercase hover:bg-gold-light transition-colors"
+            >
+              Execute in Swap Terminal <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              to={`/intelligence?symbol=${encodeURIComponent(r.ticker)}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gold/30 text-gold/90 text-[10px] font-display tracking-[0.2em] uppercase hover:border-gold/60"
+            >
+              Full Intelligence <Brain className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {/* Reason chips — expose EVERY data point that produced the verdict */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[9px] font-mono">
+            <MiniStat label="P(Goal)" value={`${(pGoal * 100).toFixed(1)}%`} tone="gold" />
+            <MiniStat label="Score" value={`${score.toFixed(1)}/100`} tone="gold" />
+            <MiniStat label="Risk" value={risk} tone={risk === 'LOW' ? 'up' : risk === 'EXTREME' ? 'down' : 'gold'} />
+            <MiniStat label="MTF Align" value={`${(r.mtfAlignment * 100).toFixed(0)}`} tone={r.mtfAlignment >= 0 ? 'up' : 'down'} />
+            <MiniStat label="E[Ret %]" value={eRet.toFixed(2)} tone="up" />
+            <MiniStat label="E[DD %]" value={eDD.toFixed(2)} tone="down" />
+            <MiniStat label="Regime" value={r.regime.toUpperCase()} tone="gold" />
+            <MiniStat label="Setup" value={r.setup} tone="gold" />
+          </div>
+        </div>
+
+        {/* RIGHT — conviction ring */}
+        <div className="flex items-center justify-center">
+          <div className="relative w-[240px] h-[240px] md:w-[280px] md:h-[280px]">
+            <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+              <circle cx="100" cy="100" r={R} fill="none" stroke="rgba(212,175,55,0.12)" strokeWidth="8" />
+              <circle
+                cx="100" cy="100" r={R} fill="none"
+                stroke={ringColor} strokeWidth="8" strokeLinecap="round"
+                strokeDasharray={`${dash} ${C}`}
+                style={{ filter: `drop-shadow(0 0 8px ${ringColor}66)` }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-[9px] font-display tracking-[0.35em] text-gold-light uppercase">Conviction</span>
+              <span className="text-5xl md:text-6xl font-mono text-marble tabular-nums leading-none mt-1">
+                {v.conviction.toFixed(0)}
+                <span className="text-marble/40 text-2xl">%</span>
+              </span>
+              <span className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-display tracking-[0.25em] uppercase
+                ${v.color === 'emerald' ? 'border-emerald-400/50 text-emerald-400 bg-emerald-500/10'
+                 : v.color === 'gold' ? 'border-gold/60 text-gold bg-gold/10'
+                 : v.color === 'orange' ? 'border-orange-400/50 text-orange-400 bg-orange-500/10'
+                 : 'border-red-500/50 text-red-400 bg-red-500/10'}`}>
+                {v.verdict}
+              </span>
+              <div className="mt-2 text-[8px] font-mono text-marble/40 text-center max-w-[180px] leading-relaxed">
+                {v.reasons.join(' · ')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, tone }: { label: string; value: string; tone: 'up' | 'down' | 'gold' }) {
+  const col = tone === 'up' ? 'text-emerald-400' : tone === 'down' ? 'text-red-400' : 'text-gold-light';
+  return (
+    <div className="rounded-md border border-gold/15 bg-navy-dark/70 px-2.5 py-1.5">
+      <div className="text-[7px] uppercase tracking-[0.2em] text-marble/40">{label}</div>
+      <div className={`${col} text-xs mt-0.5 truncate`}>{value}</div>
+    </div>
+  );
+}
+
+function ConvictionCard({
+  row, verdict, live, change, active, onClick,
+}: {
+  row: PrecisionRow;
+  verdict: ReturnType<typeof verdictFor>;
+  live: number;
+  change: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const pillCls =
+    verdict.color === 'emerald' ? 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10'
+    : verdict.color === 'gold' ? 'text-gold border-gold/50 bg-gold/10'
+    : verdict.color === 'orange' ? 'text-orange-400 border-orange-400/40 bg-orange-500/10'
+    : 'text-red-400 border-red-500/40 bg-red-500/10';
+  const bar =
+    verdict.color === 'emerald' ? 'bg-emerald-400'
+    : verdict.color === 'gold' ? 'bg-gold'
+    : verdict.color === 'orange' ? 'bg-orange-400'
+    : 'bg-red-500';
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left rounded-lg border p-3 bg-navy-dark/70 transition-colors ${active ? 'border-gold/60 bg-gold/[0.06]' : 'border-gold/15 hover:border-gold/40'}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-gold-light font-mono text-[11px]">{row.ticker}</div>
+          <div className="text-[8px] font-mono text-marble/40 truncate max-w-[110px]">{row.label}</div>
+        </div>
+        <span className={`px-1.5 py-[1px] rounded-full border text-[8px] tracking-widest font-semibold ${pillCls}`}>
+          {verdict.verdict}
+        </span>
+      </div>
+      <div className="mt-2 flex items-baseline gap-2 font-mono">
+        <span className="text-sm text-marble tabular-nums">${fmtPrice(live)}</span>
+        <span className={`text-[9px] ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+        </span>
+      </div>
+      <div className="mt-2">
+        <div className="flex items-center justify-between text-[8px] font-mono text-marble/50 mb-0.5">
+          <span>CONVICTION</span><span>{verdict.conviction.toFixed(0)}%</span>
+        </div>
+        <div className="h-1 w-full bg-navy rounded-full overflow-hidden">
+          <div className={`h-full ${bar}`} style={{ width: `${Math.max(3, verdict.conviction)}%` }} />
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1 text-[8px] font-mono text-marble/60">
+        <div><span className="text-marble/35">P</span> {(row.monteCarlo.pGoal * 100).toFixed(0)}%</div>
+        <div><span className="text-marble/35">R</span> {(row.ai?.riskLabel ?? row.riskLabel).slice(0,3)}</div>
+        <div><span className="text-marble/35">S</span> {(row.ai?.adjustedScore ?? row.compositeScore).toFixed(0)}</div>
+      </div>
+    </button>
+  );
+}
 function fmtPrice(p: number) {
   if (p <= 0) return '—';
   if (p < 1) return p.toFixed(4);
