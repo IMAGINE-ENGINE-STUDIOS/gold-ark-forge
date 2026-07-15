@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain, Tag } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain, Tag, Workflow } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
@@ -41,6 +41,7 @@ import WaveBotPanel from '@/components/trading/WaveBotPanel';
 import GeniusPanel from '@/components/trading/GeniusPanel';
 import { useWaveBot } from '@/hooks/useWaveBot';
 import { useGeniusTrader } from '@/hooks/useGeniusTrader';
+import AutomationEngine from '@/components/trading/automation/AutomationEngine';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
@@ -141,6 +142,10 @@ const BOTTOM_TABS = [
   { key: 'risk', label: 'RISK', icon: Shield },
   { key: 'strategies', label: 'STRATEGIES', icon: Bot },
   { key: 'social', label: 'SOCIAL', icon: Users },
+  // ─── Automation Engine sub-tabs (three-pillar rebuild) ───
+  { key: 'bots',      label: 'BOTS',      icon: Bot },
+  { key: 'agents',    label: 'AGENTS',    icon: Brain },
+  { key: 'pipelines', label: 'PIPELINES', icon: Workflow },
 ] as const;
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
@@ -148,7 +153,7 @@ type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 // ─── Bottom Tab Categories (workflow grouping) ───────────
 const BOTTOM_CATEGORIES = [
   { key: 'execute',    label: 'EXECUTE',    icon: ArrowUpDown, tabs: ['trade', 'book'] as BottomTab[] },
-  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['genius', 'bot', 'automate', 'strategies'] as BottomTab[] },
+  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['bots', 'agents', 'pipelines'] as BottomTab[] },
   { key: 'research',   label: 'RESEARCH',   icon: Layers,      tabs: ['market', 'analytics', 'backtest'] as BottomTab[] },
   { key: 'risk',       label: 'RISK',       icon: Shield,      tabs: ['risk'] as BottomTab[] },
   { key: 'community',  label: 'COMMUNITY',  icon: Users,       tabs: ['social'] as BottomTab[] },
@@ -672,7 +677,7 @@ const TradingBridge = () => {
   const [bottomCategory, setBottomCategory] = useState<BottomCategory>('execute');
   const [lastTabByCat, setLastTabByCat] = useState<Record<BottomCategory, BottomTab>>({
     execute: 'trade',
-    automation: 'genius',
+    automation: 'bots',
     research: 'market',
     risk: 'risk',
     community: 'social',
@@ -1365,8 +1370,17 @@ const TradingBridge = () => {
                     activeCandles={getCandleData(activeSymbol.ticker)}
                   />
                 )}
-                {bottomTab === 'genius' && (
-                  <GeniusPanel {...genius} />
+                {(bottomTab === 'bots' || bottomTab === 'agents' || bottomTab === 'pipelines') && (
+                  <AutomationEngine
+                    sub={bottomTab as 'bots' | 'agents' | 'pipelines'}
+                    waveBot={waveBot}
+                    genius={genius}
+                    alertsHook={priceAlertsHook}
+                    resolvePrice={resolvePriceForTicker}
+                    onClosePosition={(id, price) => handleClosePosition(id, price)}
+                    onNavigate={(sym) => { setActiveSymbol(sym); setDrawerOpen(false); }}
+                    equity={paper.account.equity}
+                  />
                 )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
                   <div className="space-y-4">
@@ -1428,29 +1442,6 @@ const TradingBridge = () => {
                   </div>
                 )}
                 {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
-                {bottomTab === 'bot' && (
-                  <WaveBotPanel
-                    config={waveBot.config}
-                    updateConfig={waveBot.updateConfig}
-                    trades={waveBot.trades}
-                    stats={waveBot.stats}
-                    killAll={waveBot.killAll}
-                    clearHistory={waveBot.clearHistory}
-                    botPositions={waveBot.botPositions}
-                    resolvePrice={resolvePriceForTicker}
-                    onClosePosition={(id, price) => handleClosePosition(id, price)}
-                    onNavigate={(sym) => setActiveSymbol(sym)}
-                    equity={paper.account.equity}
-                  />
-                )}
-                {bottomTab === 'automate' && (
-                  <div className="space-y-4">
-                    <SchedulePanel />
-                    <div className="border-t border-gold/10 pt-4">
-                      <PriceAlerts alertsHook={priceAlertsHook} />
-                    </div>
-                  </div>
-                )}
                 {bottomTab === 'backtest' && <BacktestPanel />}
                 {bottomTab === 'analytics' && (
                   <div className="space-y-4">
@@ -1491,14 +1482,6 @@ const TradingBridge = () => {
                     <GANewsFeed />
                   </div>
                 )}
-                {bottomTab === 'strategies' && (
-                  <div className="space-y-4">
-                    <StrategiesPanel />
-                    <div className="border-t border-gold/10 pt-4">
-                      <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
-                    </div>
-                  </div>
-                )}
                 {bottomTab === 'social' && <SocialPanel />}
               </div>
             </div>
@@ -1527,7 +1510,7 @@ const TradingBridge = () => {
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => selectSubTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
+            <button onClick={() => selectSubTab('pipelines')} className="relative p-1 text-gold/60 hover:text-gold">
               <Bell className="w-3.5 h-3.5" />
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
@@ -1704,8 +1687,17 @@ const TradingBridge = () => {
                       activeCandles={getCandleData(activeSymbol.ticker)}
                     />
                   )}
-                  {bottomTab === 'genius' && (
-                    <GeniusPanel {...genius} />
+                  {(bottomTab === 'bots' || bottomTab === 'agents' || bottomTab === 'pipelines') && (
+                    <AutomationEngine
+                      sub={bottomTab as 'bots' | 'agents' | 'pipelines'}
+                      waveBot={waveBot}
+                      genius={genius}
+                      alertsHook={priceAlertsHook}
+                      resolvePrice={resolvePriceForTicker}
+                      onClosePosition={(id, price) => handleClosePosition(id, price)}
+                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                      equity={paper.account.equity}
+                    />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
@@ -1781,29 +1773,6 @@ const TradingBridge = () => {
                       </CollapsibleSection>
                     </div>
                   )}
-                  {bottomTab === 'bot' && (
-                    <WaveBotPanel
-                      config={waveBot.config}
-                      updateConfig={waveBot.updateConfig}
-                      trades={waveBot.trades}
-                      stats={waveBot.stats}
-                      killAll={waveBot.killAll}
-                      clearHistory={waveBot.clearHistory}
-                      botPositions={waveBot.botPositions}
-                      resolvePrice={resolvePriceForTicker}
-                      onClosePosition={(id, price) => handleClosePosition(id, price)}
-                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                      equity={paper.account.equity}
-                    />
-                  )}
-                  {bottomTab === 'automate' && (
-                    <div className="space-y-4">
-                      <SchedulePanel />
-                      <div className="border-t border-gold/10 pt-4">
-                        <PriceAlerts alertsHook={priceAlertsHook} />
-                      </div>
-                    </div>
-                  )}
                   {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
@@ -1846,14 +1815,6 @@ const TradingBridge = () => {
                       <GACryptoPriceCards />
                       <GATopMovers />
                       <div className="lg:col-span-2"><GANewsFeed /></div>
-                    </div>
-                  )}
-                  {bottomTab === 'strategies' && (
-                    <div className="space-y-4">
-                      <StrategiesPanel />
-                      <div className="border-t border-gold/10 pt-4">
-                        <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
-                      </div>
                     </div>
                   )}
                   {bottomTab === 'social' && <SocialPanel />}
