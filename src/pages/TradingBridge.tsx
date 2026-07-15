@@ -677,7 +677,7 @@ const TradingBridge = () => {
   const [bottomCategory, setBottomCategory] = useState<BottomCategory>('execute');
   const [lastTabByCat, setLastTabByCat] = useState<Record<BottomCategory, BottomTab>>({
     execute: 'trade',
-    automation: 'genius',
+    automation: 'bots',
     research: 'market',
     risk: 'risk',
     community: 'social',
