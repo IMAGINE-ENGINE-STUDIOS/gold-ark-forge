@@ -455,3 +455,50 @@ export function toAICandidate(r: PrecisionRow) {
     ),
   };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Verdict — collapses every deterministic signal (P(Goal), risk,
+// score, MTF alignment) into ONE decisive action call the user
+// (or a bot) can read at a glance. Deterministic. No randomness.
+// ─────────────────────────────────────────────────────────────
+export type Verdict = 'STRONG BUY' | 'BUY' | 'HOLD' | 'AVOID';
+
+export function verdictFor(r: PrecisionRow, direction: Direction = 'long'): {
+  verdict: Verdict;
+  conviction: number;         // 0..100 unified confidence
+  color: 'emerald' | 'gold' | 'orange' | 'red';
+  reasons: string[];          // short bullets for tooltip / breakdown
+} {
+  const risk = r.ai?.riskLabel ?? r.riskLabel;
+  const score = r.ai?.adjustedScore ?? r.compositeScore;
+  const pGoal = r.monteCarlo.pGoal;
+  const aligned = direction === 'long' ? r.mtfAlignment : -r.mtfAlignment;
+
+  // Conviction fuses P(Goal), score, alignment and risk penalty into 0..100.
+  const riskPenalty = risk === 'LOW' ? 1 : risk === 'MEDIUM' ? 0.9 : risk === 'HIGH' ? 0.7 : 0.45;
+  const alignBoost = Math.max(0.6, Math.min(1.15, 0.85 + aligned * 0.4));
+  const conviction = Math.max(0, Math.min(100,
+    (0.55 * (pGoal * 100) + 0.45 * score) * riskPenalty * alignBoost,
+  ));
+
+  const reasons: string[] = [];
+  reasons.push(`P(Goal) ${(pGoal * 100).toFixed(1)}%`);
+  reasons.push(`Score ${score.toFixed(1)}/100`);
+  reasons.push(`Risk ${risk}`);
+  reasons.push(`MTF align ${(aligned * 100).toFixed(0)}${aligned >= 0 ? ' (with)' : ' (against)'}`);
+
+  let verdict: Verdict;
+  let color: 'emerald' | 'gold' | 'orange' | 'red';
+  if (risk === 'EXTREME' || conviction < 25 || (aligned < -0.2 && pGoal < 0.5)) {
+    verdict = 'AVOID'; color = 'red';
+  } else if (conviction >= 70 && pGoal >= 0.7 && (risk === 'LOW' || risk === 'MEDIUM')) {
+    verdict = 'STRONG BUY'; color = 'emerald';
+  } else if (conviction >= 50 && pGoal >= 0.55 && risk !== 'HIGH') {
+    verdict = 'BUY'; color = 'gold';
+  } else if (conviction >= 50 && pGoal >= 0.55) {
+    verdict = 'BUY'; color = 'gold';
+  } else {
+    verdict = 'HOLD'; color = 'orange';
+  }
+  return { verdict, conviction, color, reasons };
+}
