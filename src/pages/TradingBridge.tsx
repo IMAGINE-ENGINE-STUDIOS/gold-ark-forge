@@ -377,9 +377,12 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         <div className="space-y-1">
           <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
           {paper.positions.map(pos => {
-            const livePrice = (pos.symbol === activeSymbol.ticker && activePrice > 0
+            const rawLive = (pos.symbol === activeSymbol.ticker && activePrice > 0
               ? activePrice
-              : pos.currentPrice) ?? pos.entryPrice ?? 0;
+              : pos.currentPrice);
+            const livePrice = Number.isFinite(rawLive as number) && (rawLive as number) > 0
+              ? (rawLive as number)
+              : (Number.isFinite(pos.entryPrice) ? pos.entryPrice : 0);
             const livePnl = pos.side === 'buy'
               ? (livePrice - pos.entryPrice) * pos.qty
               : (pos.entryPrice - livePrice) * pos.qty;
