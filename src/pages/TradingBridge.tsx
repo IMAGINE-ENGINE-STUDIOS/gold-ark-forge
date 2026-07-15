@@ -1646,21 +1646,48 @@ const TradingBridge = () => {
             <ResizablePanel defaultSize={35} minSize={15}>
               <div className="h-full flex flex-col">
                 <div className="relative flex-shrink-0">
-                  <div className="flex items-center gap-1 px-2 py-1 bg-navy-dark/80 border-b border-gold/10 overflow-x-auto scrollbar-hide">
-                    {BOTTOM_TABS.map((tab) => (
-                      <button
-                        key={tab.key}
-                        onClick={() => setBottomTab(tab.key)}
-                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-display tracking-wider transition-all whitespace-nowrap flex-shrink-0 ${
-                          bottomTab === tab.key
-                            ? 'bg-gold/15 text-gold border border-gold/30'
-                            : 'text-marble/35 hover:text-marble/60 border border-transparent'
-                        }`}
-                      >
-                        <tab.icon className="w-3 h-3" />
-                        {tab.label}
-                      </button>
-                    ))}
+                  <div className="bg-navy-dark/80 border-b border-gold/10">
+                    {/* Primary: workflow categories */}
+                    <div className="flex items-center gap-1 px-2 pt-1 overflow-x-auto scrollbar-hide">
+                      {BOTTOM_CATEGORIES.map((cat) => {
+                        const active = bottomCategory === cat.key;
+                        return (
+                          <button
+                            key={cat.key}
+                            onClick={() => selectCategory(cat.key)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t text-[10px] font-display tracking-[0.16em] transition-all whitespace-nowrap flex-shrink-0 border-b-2 ${
+                              active
+                                ? 'text-gold border-gold bg-gold/10'
+                                : 'text-marble/40 hover:text-marble/70 border-transparent'
+                            }`}
+                          >
+                            <cat.icon className="w-3.5 h-3.5" />
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Secondary: sub-tabs of active category (hidden when only one) */}
+                    {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.length > 1 && (
+                      <div className="flex items-center gap-3 px-4 py-1 bg-navy-dark/50 border-t border-gold/5 overflow-x-auto scrollbar-hide">
+                        {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.map((t) => {
+                          const meta = TAB_META[t];
+                          const active = bottomTab === t;
+                          return (
+                            <button
+                              key={t}
+                              onClick={() => selectSubTab(t)}
+                              className={`flex items-center gap-1 py-0.5 text-[9px] font-display tracking-wider transition-colors whitespace-nowrap flex-shrink-0 ${
+                                active ? 'text-gold' : 'text-marble/35 hover:text-marble/60'
+                              }`}
+                            >
+                              <meta.icon className="w-3 h-3" />
+                              {meta.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-navy-dark/80 to-transparent" />
                   <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-navy-dark/80 to-transparent" />
