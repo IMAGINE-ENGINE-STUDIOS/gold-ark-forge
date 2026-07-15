@@ -145,6 +145,26 @@ const BOTTOM_TABS = [
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 
+// ─── Bottom Tab Categories (workflow grouping) ───────────
+const BOTTOM_CATEGORIES = [
+  { key: 'execute',    label: 'EXECUTE',    icon: ArrowUpDown, tabs: ['trade', 'book'] as BottomTab[] },
+  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['genius', 'bot', 'automate', 'strategies'] as BottomTab[] },
+  { key: 'research',   label: 'RESEARCH',   icon: Layers,      tabs: ['market', 'analytics', 'backtest'] as BottomTab[] },
+  { key: 'risk',       label: 'RISK',       icon: Shield,      tabs: ['risk'] as BottomTab[] },
+  { key: 'community',  label: 'COMMUNITY',  icon: Users,       tabs: ['social'] as BottomTab[] },
+] as const;
+
+type BottomCategory = (typeof BOTTOM_CATEGORIES)[number]['key'];
+
+const TAB_META: Record<BottomTab, { label: string; icon: React.ElementType }> =
+  BOTTOM_TABS.reduce((acc, t) => { acc[t.key] = { label: t.label, icon: t.icon }; return acc; }, {} as any);
+
+const TAB_TO_CATEGORY: Record<BottomTab, BottomCategory> =
+  BOTTOM_CATEGORIES.reduce((acc, cat) => {
+    cat.tabs.forEach(t => { acc[t] = cat.key; });
+    return acc;
+  }, {} as Record<BottomTab, BottomCategory>);
+
 // ─── Paper Trading Panel ─────────────────────────────────
 function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   activeSymbol: { key: string; label: string; ticker: string; cat: string };
@@ -649,6 +669,24 @@ const TradingBridge = () => {
     updatePrefs({ last_symbol_key: activeSymbol.key });
   }, [activeSymbol.key]);
   const [bottomTab, setBottomTab] = useState<BottomTab>('trade');
+  const [bottomCategory, setBottomCategory] = useState<BottomCategory>('execute');
+  const [lastTabByCat, setLastTabByCat] = useState<Record<BottomCategory, BottomTab>>({
+    execute: 'trade',
+    automation: 'genius',
+    research: 'market',
+    risk: 'risk',
+    community: 'social',
+  });
+  const selectCategory = (cat: BottomCategory) => {
+    setBottomCategory(cat);
+    setBottomTab(lastTabByCat[cat]);
+  };
+  const selectSubTab = (tab: BottomTab) => {
+    setBottomTab(tab);
+    const cat = TAB_TO_CATEGORY[tab];
+    setBottomCategory(cat);
+    setLastTabByCat(prev => ({ ...prev, [cat]: tab }));
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
@@ -1117,7 +1155,7 @@ const TradingBridge = () => {
   // ─── MOBILE LAYOUT ──────────────────────────────────
 
   const handleTabClick = (tabKey: BottomTab) => {
-    setBottomTab(tabKey);
+    selectSubTab(tabKey);
     if (!drawerOpen) {
       setDrawerOpen(true);
       setDrawerSnap(0.5);
@@ -1235,16 +1273,16 @@ const TradingBridge = () => {
             <div className="w-10 h-1 rounded-full bg-marble/15" />
           </button>
           <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)] px-1">
-            {BOTTOM_TABS.map((tab) => (
+            {BOTTOM_CATEGORIES.map((cat) => (
               <button
-                key={tab.key}
-                onClick={() => handleTabClick(tab.key)}
-                className={`flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[48px] transition-colors flex-shrink-0 ${
-                  drawerOpen && bottomTab === tab.key ? 'text-gold' : 'text-marble/30'
+                key={cat.key}
+                onClick={() => { selectCategory(cat.key); if (!drawerOpen) { setDrawerOpen(true); setDrawerSnap(0.5); } }}
+                className={`flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[56px] transition-colors flex-shrink-0 ${
+                  drawerOpen && bottomCategory === cat.key ? 'text-gold' : 'text-marble/30'
                 }`}
               >
-                <tab.icon className="w-3.5 h-3.5" />
-                <span className="text-[6px] font-display tracking-wider whitespace-nowrap">{tab.label}</span>
+                <cat.icon className="w-4 h-4" />
+                <span className="text-[7px] font-display tracking-wider whitespace-nowrap">{cat.label}</span>
               </button>
             ))}
           </div>
@@ -1277,23 +1315,43 @@ const TradingBridge = () => {
                 <div className="w-10 h-1 rounded-full bg-marble/20" />
               </button>
 
-              {/* Tab bar inside drawer */}
-              <div className="flex overflow-x-auto scrollbar-hide px-2 pb-2 gap-1 flex-shrink-0">
-                {BOTTOM_TABS.map((tab) => (
+              {/* Two-level tab nav inside drawer */}
+              <div className="flex overflow-x-auto scrollbar-hide px-2 pt-1 pb-1 gap-1 flex-shrink-0 border-b border-gold/10">
+                {BOTTOM_CATEGORIES.map((cat) => (
                   <button
-                    key={tab.key}
-                    onClick={() => setBottomTab(tab.key)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
-                      bottomTab === tab.key
+                    key={cat.key}
+                    onClick={() => selectCategory(cat.key)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-[0.14em] whitespace-nowrap transition-all flex-shrink-0 ${
+                      bottomCategory === cat.key
                         ? 'bg-gold/15 text-gold border border-gold/30'
                         : 'text-marble/35 border border-gold/5'
                     }`}
                   >
-                    <tab.icon className="w-3 h-3" />
-                    {tab.label}
+                    <cat.icon className="w-3 h-3" />
+                    {cat.label}
                   </button>
                 ))}
               </div>
+              {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.length > 1 && (
+                <div className="flex overflow-x-auto scrollbar-hide px-3 py-1.5 gap-3 flex-shrink-0">
+                  {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.map((t) => {
+                    const meta = TAB_META[t];
+                    const active = bottomTab === t;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => selectSubTab(t)}
+                        className={`flex items-center gap-1 pb-1 text-[9px] font-display tracking-wider whitespace-nowrap transition-colors border-b-2 ${
+                          active ? 'text-gold border-gold' : 'text-marble/40 border-transparent hover:text-marble/70'
+                        }`}
+                      >
+                        <meta.icon className="w-3 h-3" />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Drawer content — scrollable */}
               <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-3">
@@ -1469,7 +1527,7 @@ const TradingBridge = () => {
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => setBottomTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
+            <button onClick={() => selectSubTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
               <Bell className="w-3.5 h-3.5" />
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
@@ -1588,21 +1646,48 @@ const TradingBridge = () => {
             <ResizablePanel defaultSize={35} minSize={15}>
               <div className="h-full flex flex-col">
                 <div className="relative flex-shrink-0">
-                  <div className="flex items-center gap-1 px-2 py-1 bg-navy-dark/80 border-b border-gold/10 overflow-x-auto scrollbar-hide">
-                    {BOTTOM_TABS.map((tab) => (
-                      <button
-                        key={tab.key}
-                        onClick={() => setBottomTab(tab.key)}
-                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-display tracking-wider transition-all whitespace-nowrap flex-shrink-0 ${
-                          bottomTab === tab.key
-                            ? 'bg-gold/15 text-gold border border-gold/30'
-                            : 'text-marble/35 hover:text-marble/60 border border-transparent'
-                        }`}
-                      >
-                        <tab.icon className="w-3 h-3" />
-                        {tab.label}
-                      </button>
-                    ))}
+                  <div className="bg-navy-dark/80 border-b border-gold/10">
+                    {/* Primary: workflow categories */}
+                    <div className="flex items-center gap-1 px-2 pt-1 overflow-x-auto scrollbar-hide">
+                      {BOTTOM_CATEGORIES.map((cat) => {
+                        const active = bottomCategory === cat.key;
+                        return (
+                          <button
+                            key={cat.key}
+                            onClick={() => selectCategory(cat.key)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t text-[10px] font-display tracking-[0.16em] transition-all whitespace-nowrap flex-shrink-0 border-b-2 ${
+                              active
+                                ? 'text-gold border-gold bg-gold/10'
+                                : 'text-marble/40 hover:text-marble/70 border-transparent'
+                            }`}
+                          >
+                            <cat.icon className="w-3.5 h-3.5" />
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Secondary: sub-tabs of active category (hidden when only one) */}
+                    {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.length > 1 && (
+                      <div className="flex items-center gap-3 px-4 py-1 bg-navy-dark/50 border-t border-gold/5 overflow-x-auto scrollbar-hide">
+                        {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.map((t) => {
+                          const meta = TAB_META[t];
+                          const active = bottomTab === t;
+                          return (
+                            <button
+                              key={t}
+                              onClick={() => selectSubTab(t)}
+                              className={`flex items-center gap-1 py-0.5 text-[9px] font-display tracking-wider transition-colors whitespace-nowrap flex-shrink-0 ${
+                                active ? 'text-gold' : 'text-marble/35 hover:text-marble/60'
+                              }`}
+                            >
+                              <meta.icon className="w-3 h-3" />
+                              {meta.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-navy-dark/80 to-transparent" />
                   <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-navy-dark/80 to-transparent" />
