@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Target, TrendingUp, Shield, Activity, RefreshCw } from 'lucide-react';
-import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
+import { buildPrecisionRow, rankRows, toAICandidate, type Direction, type PrecisionRow, type RiskLabel } from '@/lib/precision';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 type CandleFn = (ticker: string) => { closes: number[]; highs: number[]; lows: number[] } | null;
 type PriceFn = (ticker: string) => number;
@@ -13,185 +16,193 @@ interface Props {
   onSelectSymbol?: (ticker: string) => void;
 }
 
-interface Row {
-  key: string;
-  ticker: string;
-  label: string;
-  cat: string;
-  price: number;
-  direction: 'bullish' | 'bearish' | 'neutral';
-  confidence: number;   // 0..1 technical confidence
-  bias: number;         // -1..1
-  atrPct: number;       // per-period volatility
-  successProb: number;  // 0..1 probability of hitting goal
-  score: number;        // composite ranking score
-  riskLabel: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
-  regime: 'trend' | 'range' | 'mixed';
-}
-
-// Abramowitz & Stegun approximation for standard normal CDF
-function normalCdf(x: number): number {
-  const b1 = 0.319381530, b2 = -0.356563782, b3 = 1.781477937;
-  const b4 = -1.821255978, b5 = 1.330274429, p = 0.2316419;
-  const sign = x < 0 ? -1 : 1;
-  const ax = Math.abs(x);
-  const t = 1 / (1 + p * ax);
-  const pdf = Math.exp(-0.5 * ax * ax) / Math.sqrt(2 * Math.PI);
-  const cdf = 1 - pdf * (b1 * t + b2 * t ** 2 + b3 * t ** 3 + b4 * t ** 4 + b5 * t ** 5);
-  return 0.5 * (1 + sign * (2 * cdf - 1));
-}
-
-function riskFromAtr(atrPct: number): Row['riskLabel'] {
-  if (atrPct < 0.006) return 'LOW';
-  if (atrPct < 0.015) return 'MEDIUM';
-  if (atrPct < 0.035) return 'HIGH';
-  return 'EXTREME';
-}
-
 const CATS = ['all', 'metals', 'crypto', 'forex', 'energy', 'stocks', 'indices'] as const;
 
+const riskColor = (r: RiskLabel) =>
+  r === 'LOW' ? 'text-emerald-400'
+  : r === 'MEDIUM' ? 'text-gold-light'
+  : r === 'HIGH' ? 'text-orange-400' : 'text-red-500';
+
 export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSelectSymbol }: Props) {
-  const [goalPct, setGoalPct] = useState<number>(2);
-  const [horizonH, setHorizonH] = useState<number>(24);
-  const [direction, setDirection] = useState<'long' | 'short'>('long');
-  const [category, setCategory] = useState<string>(activeCategory && CATS.includes(activeCategory as never) ? activeCategory : 'all');
-  const [rows, setRows] = useState<Row[]>([]);
+  const [goalPct, setGoalPct] = useState(2);
+  const [horizonH, setHorizonH] = useState(24);
+  const [direction, setDirection] = useState<Direction>('long');
+  const [capitalUsd, setCapitalUsd] = useState(10000);
+  const [category, setCategory] = useState<string>(
+    activeCategory && (CATS as readonly string[]).includes(activeCategory) ? activeCategory : 'all',
+  );
+  const [mode, setMode] = useState<'stat' | 'ai'>('stat');
+  const [rows, setRows] = useState<PrecisionRow[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [lastScanAt, setLastScanAt] = useState<number>(0);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [lastAiAt, setLastAiAt] = useState(0);
+  const scanTokenRef = useRef(0);
 
   const scope = useMemo(() => {
     const list = category === 'all' ? ALL_SYMBOLS : ALL_SYMBOLS.filter(s => s.cat === category);
-    return list.slice(0, 80); // safety cap
+    return list.slice(0, 60);
   }, [category]);
 
-  const scan = useMemo(() => async () => {
+  const runStatScan = useCallback(async () => {
+    const token = ++scanTokenRef.current;
     setScanning(true);
-    const out: Row[] = [];
+    const out: PrecisionRow[] = [];
     for (const s of scope) {
       const candles = getCandleData(s.ticker);
-      if (!candles || candles.closes.length < 30) continue;
-      const snap = buildTechnicalSnapshot(candles);
-      if (!snap) continue;
-
-      // Per-period ATR% from last ~14 closes
-      const closes = candles.closes;
-      const n = Math.min(14, closes.length - 1);
-      let trSum = 0;
-      for (let i = closes.length - n; i < closes.length; i++) {
-        trSum += Math.abs(closes[i] - closes[i - 1]) / Math.max(closes[i - 1], 1e-9);
-      }
-      const atrPct = trSum / n;
-
-      // Expected drift proxy (per period) from overall bias × ATR%
-      const drift = snap.overallBias * atrPct * 0.6;
-      const stdev = atrPct * Math.sqrt(Math.max(1, horizonH));
-      const mean = drift * Math.max(1, horizonH);
-      const goal = (direction === 'long' ? goalPct : -goalPct) / 100;
-
-      // Prob of terminal return >= goal (long) or <= goal (short)
-      const z = stdev > 0 ? (goal - mean) / stdev : 0;
-      let prob = direction === 'long' ? 1 - normalCdf(z) : normalCdf(z);
-
-      // Direction alignment penalty when technicals disagree
-      const wants = direction === 'long' ? 'bullish' : 'bearish';
-      const aligned = snap.decision.direction === wants;
-      const misaligned = (direction === 'long' && snap.decision.direction === 'bearish') ||
-                          (direction === 'short' && snap.decision.direction === 'bullish');
-      if (misaligned) prob *= 0.55;
-      else if (aligned) prob = Math.min(0.98, prob * 1.08);
-
-      const riskLabel = riskFromAtr(atrPct);
-      // Composite: reward probability, penalize risk
-      const riskFactor = 1 / (1 + atrPct * 30);
-      const score = prob * (0.55 + 0.45 * snap.decision.confidence) * riskFactor;
-
-      out.push({
-        key: s.key,
-        ticker: s.ticker,
-        label: s.label,
-        cat: s.cat,
+      if (!candles) continue;
+      const row = buildPrecisionRow({
+        key: s.key, ticker: s.ticker, label: s.label, cat: s.cat,
         price: resolvePrice(s.ticker),
-        direction: snap.decision.direction,
-        confidence: snap.decision.confidence,
-        bias: snap.overallBias,
-        atrPct,
-        successProb: Math.max(0, Math.min(1, prob)),
-        score,
-        riskLabel,
-        regime: snap.decision.regime,
+        candles1h: candles,
+        goalPct, horizonH, direction,
       });
-      // Yield to UI between symbols
+      if (row) out.push(row);
       if (out.length % 6 === 0) await new Promise(r => setTimeout(r, 0));
+      if (scanTokenRef.current !== token) return; // superseded
     }
-
-    // Sort: lowest risk first, then highest success prob
-    const riskOrder: Record<Row['riskLabel'], number> = { LOW: 0, MEDIUM: 1, HIGH: 2, EXTREME: 3 };
-    out.sort((a, b) => {
-      const r = riskOrder[a.riskLabel] - riskOrder[b.riskLabel];
-      if (r !== 0) return r;
-      return b.successProb - a.successProb;
-    });
-    setRows(out);
-    setLastScanAt(Date.now());
+    setRows(rankRows(out));
     setScanning(false);
   }, [scope, getCandleData, resolvePrice, goalPct, horizonH, direction]);
 
   useEffect(() => {
-    scan();
-    const id = window.setInterval(scan, 20000);
+    runStatScan();
+    const id = window.setInterval(runStatScan, 25000);
     return () => window.clearInterval(id);
-  }, [scan]);
+  }, [runStatScan]);
+
+  const refineWithAI = useCallback(async () => {
+    if (Date.now() - lastAiAt < 10_000) {
+      toast.info('AI refine is throttled — try again in a moment.');
+      return;
+    }
+    const top = rows.slice(0, 12);
+    if (top.length === 0) {
+      toast.error('Run a stat scan first.');
+      return;
+    }
+    setAiLoading(true);
+    setLastAiAt(Date.now());
+    try {
+      const { data, error } = await supabase.functions.invoke('rank-symbols-ai', {
+        body: {
+          goalPct, horizonH, direction, capitalUsd,
+          candidates: top.map(toAICandidate),
+        },
+      });
+      if (error) throw error;
+      type AIRanking = { ticker: string } & NonNullable<PrecisionRow['ai']>;
+      const rankings = (data?.rankings ?? []) as AIRanking[];
+      const byTicker = new Map<string, NonNullable<PrecisionRow['ai']>>(
+        rankings.map(r => {
+          const { ticker: _t, ...rest } = r;
+          return [r.ticker, rest];
+        }),
+      );
+      setRows(prev => rankRows(prev.map(r => {
+        const ai = byTicker.get(r.ticker);
+        return ai ? { ...r, ai } : r;
+      })));
+      // Persist snapshot (best-effort)
+      const { data: userRes } = await supabase.auth.getUser();
+      if (userRes.user) {
+        const insertRow = {
+          user_id: userRes.user.id,
+          goal_pct: goalPct,
+          horizon_h: horizonH,
+          direction,
+          scope: category,
+          mode: 'ai' as const,
+          payload: rows.map(r => ({
+            ticker: r.ticker, label: r.label, price: r.price,
+            score: r.compositeScore, risk: r.riskLabel,
+            ai: byTicker.get(r.ticker) ?? null,
+          })),
+        };
+        await supabase.from('rank_snapshots').insert(insertRow as never);
+      }
+      toast.success(`AI re-ranked ${rankings.length} candidates`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'AI refine failed';
+      toast.error(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [rows, goalPct, horizonH, direction, capitalUsd, category, lastAiAt]);
 
   const summary = useMemo(() => {
     if (!rows.length) return null;
     const top = rows[0];
-    const avgProb = rows.reduce((a, r) => a + r.successProb, 0) / rows.length;
-    const tradable = rows.filter(r => r.successProb >= 0.55 && (r.riskLabel === 'LOW' || r.riskLabel === 'MEDIUM')).length;
-    return { top, avgProb, tradable };
+    const avgP = rows.reduce((a, r) => a + r.monteCarlo.pGoal, 0) / rows.length;
+    const tradable = rows.filter(r =>
+      r.monteCarlo.pGoal >= 0.55 && (r.riskLabel === 'LOW' || r.riskLabel === 'MEDIUM'),
+    ).length;
+    return { top, avgP, tradable };
   }, [rows]);
 
   return (
     <div className="border border-gold/20 rounded-lg bg-navy-dark/60 p-3 space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-gold-light" />
-          <span className="font-display text-sm tracking-wider text-gold-light">INDICATOR RANK · GOAL SEEKER</span>
+          <span className="font-display text-sm tracking-wider text-gold-light">
+            PRECISION RANK · GOAL SEEKER
+          </span>
+          <span className="text-[8px] text-marble/40 font-mono">v2 · MTF + Monte-Carlo + AI</span>
         </div>
-        <button
-          onClick={() => scan()}
-          disabled={scanning}
-          className="flex items-center gap-1 text-[9px] font-mono px-2 py-1 border border-gold/30 hover:border-gold/60 text-gold/80 rounded disabled:opacity-40"
-        >
-          <RefreshCw className={`w-3 h-3 ${scanning ? 'animate-spin' : ''}`} />
-          {scanning ? 'SCANNING' : 'RESCAN'}
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex border border-gold/20 rounded overflow-hidden">
+            <button onClick={() => setMode('stat')}
+              className={`text-[9px] font-mono px-2 py-1 ${mode === 'stat' ? 'bg-gold/20 text-gold-light' : 'text-marble/50'}`}>
+              STAT
+            </button>
+            <button onClick={() => setMode('ai')}
+              className={`text-[9px] font-mono px-2 py-1 flex items-center gap-1 ${mode === 'ai' ? 'bg-gold/20 text-gold-light' : 'text-marble/50'}`}>
+              <Sparkles className="w-3 h-3" /> AI
+            </button>
+          </div>
+          <button onClick={runStatScan} disabled={scanning}
+            className="flex items-center gap-1 text-[9px] font-mono px-2 py-1 border border-gold/30 hover:border-gold/60 text-gold/80 rounded disabled:opacity-40">
+            <RefreshCw className={`w-3 h-3 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? 'SCANNING' : 'RESCAN'}
+          </button>
+          {mode === 'ai' && (
+            <button onClick={refineWithAI} disabled={aiLoading || rows.length === 0}
+              className="flex items-center gap-1 text-[9px] font-mono px-2 py-1 rounded bg-gold text-navy-dark hover:bg-gold-light disabled:opacity-40">
+              <Sparkles className={`w-3 h-3 ${aiLoading ? 'animate-pulse' : ''}`} />
+              {aiLoading ? 'REFINING…' : 'REFINE WITH AI'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Controls */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[10px] font-mono">
         <label className="flex flex-col gap-1">
           <span className="text-marble/50 text-[8px] uppercase tracking-wider">Goal %</span>
-          <input
-            type="number" step="0.1" value={goalPct}
+          <input type="number" step="0.1" value={goalPct}
             onChange={e => setGoalPct(Math.max(0.1, parseFloat(e.target.value) || 0))}
-            className="bg-navy border border-gold/20 rounded px-2 py-1 text-gold-light"
-          />
+            className="bg-navy border border-gold/20 rounded px-2 py-1 text-gold-light" />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-marble/50 text-[8px] uppercase tracking-wider">Horizon (h)</span>
-          <input
-            type="number" step="1" min={1} value={horizonH}
+          <input type="number" step="1" min={1} value={horizonH}
             onChange={e => setHorizonH(Math.max(1, parseFloat(e.target.value) || 1))}
-            className="bg-navy border border-gold/20 rounded px-2 py-1 text-gold-light"
-          />
+            className="bg-navy border border-gold/20 rounded px-2 py-1 text-gold-light" />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-marble/50 text-[8px] uppercase tracking-wider">Direction</span>
-          <select value={direction} onChange={e => setDirection(e.target.value as 'long' | 'short')}
+          <select value={direction} onChange={e => setDirection(e.target.value as Direction)}
             className="bg-navy border border-gold/20 rounded px-2 py-1 text-gold-light">
             <option value="long">LONG</option>
             <option value="short">SHORT</option>
           </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-marble/50 text-[8px] uppercase tracking-wider">Capital $</span>
+          <input type="number" step="100" min={100} value={capitalUsd}
+            onChange={e => setCapitalUsd(Math.max(100, parseFloat(e.target.value) || 0))}
+            className="bg-navy border border-gold/20 rounded px-2 py-1 text-gold-light" />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-marble/50 text-[8px] uppercase tracking-wider">Scope</span>
@@ -208,11 +219,13 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
           <div className="rounded border border-gold/15 p-2">
             <div className="text-[8px] text-marble/50 uppercase tracking-wider flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Top Pick</div>
             <div className="text-[11px] font-mono text-gold-light truncate">{summary.top.ticker}</div>
-            <div className="text-[9px] text-marble/60">{(summary.top.successProb * 100).toFixed(1)}% · {summary.top.riskLabel}</div>
+            <div className="text-[9px] text-marble/60">
+              {(summary.top.monteCarlo.pGoal * 100).toFixed(1)}% · {summary.top.ai?.riskLabel ?? summary.top.riskLabel}
+            </div>
           </div>
           <div className="rounded border border-gold/15 p-2">
-            <div className="text-[8px] text-marble/50 uppercase tracking-wider flex items-center gap-1"><Activity className="w-3 h-3" /> Avg Prob</div>
-            <div className="text-[11px] font-mono text-gold-light">{(summary.avgProb * 100).toFixed(1)}%</div>
+            <div className="text-[8px] text-marble/50 uppercase tracking-wider flex items-center gap-1"><Activity className="w-3 h-3" /> Avg P(Goal)</div>
+            <div className="text-[11px] font-mono text-gold-light">{(summary.avgP * 100).toFixed(1)}%</div>
             <div className="text-[9px] text-marble/60">across {rows.length}</div>
           </div>
           <div className="rounded border border-gold/15 p-2">
@@ -224,7 +237,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
       )}
 
       {/* Table */}
-      <div className="max-h-[380px] overflow-y-auto watchlist-scroll">
+      <div className="max-h-[460px] overflow-y-auto watchlist-scroll">
         <table className="w-full text-[10px] font-mono">
           <thead className="sticky top-0 bg-navy-dark/95 text-marble/40 text-[8px] uppercase tracking-wider">
             <tr>
@@ -232,43 +245,98 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
               <th className="text-left py-1 px-1">Symbol</th>
               <th className="text-right py-1 px-1">Price</th>
               <th className="text-right py-1 px-1">ATR%</th>
-              <th className="text-right py-1 px-1">Bias</th>
-              <th className="text-right py-1 px-1">Conf</th>
+              <th className="text-right py-1 px-1">MTF</th>
+              <th className="text-right py-1 px-1">Regime</th>
+              <th className="text-right py-1 px-1">Setup</th>
               <th className="text-right py-1 px-1">P(Goal)</th>
+              <th className="text-right py-1 px-1">E[Ret%]</th>
+              <th className="text-right py-1 px-1">E[DD%]</th>
               <th className="text-right py-1 px-1">Risk</th>
               <th className="text-right py-1 px-1">Score</th>
+              <th className="text-right py-1 px-1">AI</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="text-center text-marble/40 py-6 text-[10px]">
-                {scanning ? 'Analyzing candles across the market…' : 'No candle data ready — try RESCAN in a few seconds.'}
+              <tr><td colSpan={13} className="text-center text-marble/40 py-6 text-[10px]">
+                {scanning ? 'Building multi-timeframe snapshot…' : 'No candle data ready — try RESCAN.'}
               </td></tr>
             )}
             {rows.map((r, i) => {
-              const riskColor = r.riskLabel === 'LOW' ? 'text-emerald-400'
-                : r.riskLabel === 'MEDIUM' ? 'text-gold-light'
-                : r.riskLabel === 'HIGH' ? 'text-orange-400' : 'text-red-500';
-              const biasColor = r.bias > 0.05 ? 'text-emerald-400' : r.bias < -0.05 ? 'text-red-400' : 'text-marble/50';
+              const risk = r.ai?.riskLabel ?? r.riskLabel;
+              const score = r.ai?.adjustedScore ?? r.compositeScore;
+              const mtfCol = r.mtfAlignment > 0.1 ? 'text-emerald-400' : r.mtfAlignment < -0.1 ? 'text-red-400' : 'text-marble/50';
+              const isOpen = expanded === r.ticker;
               return (
-                <tr
-                  key={r.ticker}
-                  onClick={() => onSelectSymbol?.(r.ticker)}
-                  className="border-t border-gold/5 hover:bg-gold/5 cursor-pointer"
-                >
-                  <td className="py-1 px-1 text-marble/40">{i + 1}</td>
-                  <td className="py-1 px-1">
-                    <div className="text-gold-light">{r.ticker}</div>
-                    <div className="text-[8px] text-marble/40 truncate max-w-[120px]">{r.label}</div>
-                  </td>
-                  <td className="py-1 px-1 text-right text-marble/80">{r.price > 0 ? r.price.toFixed(r.price < 10 ? 4 : 2) : '—'}</td>
-                  <td className="py-1 px-1 text-right text-marble/70">{(r.atrPct * 100).toFixed(2)}%</td>
-                  <td className={`py-1 px-1 text-right ${biasColor}`}>{(r.bias * 100).toFixed(0)}</td>
-                  <td className="py-1 px-1 text-right text-marble/70">{(r.confidence * 100).toFixed(0)}%</td>
-                  <td className="py-1 px-1 text-right text-gold-light">{(r.successProb * 100).toFixed(1)}%</td>
-                  <td className={`py-1 px-1 text-right font-semibold ${riskColor}`}>{r.riskLabel}</td>
-                  <td className="py-1 px-1 text-right text-gold">{(r.score * 100).toFixed(1)}</td>
-                </tr>
+                <>
+                  <tr key={r.ticker}
+                    onClick={() => { onSelectSymbol?.(r.ticker); setExpanded(isOpen ? null : r.ticker); }}
+                    className={`border-t border-gold/5 hover:bg-gold/5 cursor-pointer ${r.ai ? 'bg-gold/[0.03]' : ''}`}>
+                    <td className="py-1 px-1 text-marble/40">{i + 1}</td>
+                    <td className="py-1 px-1">
+                      <div className="text-gold-light flex items-center gap-1">
+                        {r.ticker}
+                        {r.ai && <Sparkles className="w-2.5 h-2.5 text-gold" />}
+                      </div>
+                      <div className="text-[8px] text-marble/40 truncate max-w-[120px]">{r.label}</div>
+                    </td>
+                    <td className="py-1 px-1 text-right text-marble/80">{r.price > 0 ? r.price.toFixed(r.price < 10 ? 4 : 2) : '—'}</td>
+                    <td className="py-1 px-1 text-right text-marble/70">{(r.atrPct * 100).toFixed(2)}%</td>
+                    <td className={`py-1 px-1 text-right ${mtfCol}`}>{(r.mtfAlignment * 100).toFixed(0)}</td>
+                    <td className="py-1 px-1 text-right text-marble/60 uppercase text-[8px]">{r.regime}</td>
+                    <td className="py-1 px-1 text-right text-marble/60 text-[8px] truncate max-w-[100px]">{r.setup}</td>
+                    <td className="py-1 px-1 text-right text-gold-light">{(r.monteCarlo.pGoal * 100).toFixed(1)}%</td>
+                    <td className="py-1 px-1 text-right text-emerald-400/80">{(r.ai?.expectedReturnPct ?? r.monteCarlo.eReturnPct).toFixed(2)}</td>
+                    <td className="py-1 px-1 text-right text-red-400/80">{(r.ai?.maxDrawdownPct ?? r.monteCarlo.eMaxDDPct).toFixed(2)}</td>
+                    <td className={`py-1 px-1 text-right font-semibold ${riskColor(risk)}`}>{risk}</td>
+                    <td className="py-1 px-1 text-right text-gold">{score.toFixed(1)}</td>
+                    <td className="py-1 px-1 text-right">
+                      {r.ai
+                        ? <Info className="w-3 h-3 inline text-gold-light" />
+                        : <span className="text-marble/25">—</span>}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-navy/60">
+                      <td colSpan={13} className="px-3 py-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[9px] font-mono">
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wider text-marble/40 mb-1">MTF Alignment</div>
+                            {(['1h','4h','1d'] as const).map(tf => {
+                              const s = r.mtf[tf];
+                              if (!s) return <div key={tf} className="text-marble/30">{tf}: —</div>;
+                              const c = s.bias > 0.1 ? 'text-emerald-400' : s.bias < -0.1 ? 'text-red-400' : 'text-marble/60';
+                              return <div key={tf} className={c}>{tf}: {s.direction.toUpperCase()} · ADX {s.adx.toFixed(0)} · bias {(s.bias * 100).toFixed(0)}</div>;
+                            })}
+                          </div>
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wider text-marble/40 mb-1">Monte Carlo · {horizonH}h</div>
+                            <div>P(goal): <span className="text-gold-light">{(r.monteCarlo.pGoal * 100).toFixed(1)}%</span></div>
+                            <div>P10 / P90: <span className="text-marble/70">{r.monteCarlo.p10ReturnPct.toFixed(2)}% / {r.monteCarlo.p90ReturnPct.toFixed(2)}%</span></div>
+                            <div>Realized vol: {(r.realizedVolPct * 100).toFixed(2)}%</div>
+                            <div>Hist max DD: {(r.histMaxDDPct * 100).toFixed(2)}%</div>
+                          </div>
+                          <div>
+                            {r.ai ? (
+                              <>
+                                <div className="text-[8px] uppercase tracking-wider text-marble/40 mb-1 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3" /> AI Levels & Rationale
+                                </div>
+                                <div>Entry / SL / TP: <span className="text-gold-light">{r.ai.entry.toFixed(2)} / {r.ai.stopLoss.toFixed(2)} / {r.ai.takeProfit.toFixed(2)}</span></div>
+                                <div className="mt-1 text-marble/80 prose prose-invert prose-xs max-w-none">
+                                  <ReactMarkdown>{r.ai.rationale}</ReactMarkdown>
+                                </div>
+                                <div className="mt-1 text-[7px] text-marble/30">Analytical view — not investment advice.</div>
+                              </>
+                            ) : (
+                              <div className="text-marble/40">Toggle AI mode and click REFINE WITH AI for reasoning + entry/SL/TP.</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               );
             })}
           </tbody>
@@ -276,8 +344,8 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
       </div>
 
       <div className="text-[8px] text-marble/30 flex justify-between">
-        <span>Sorted: lowest risk → highest goal probability</span>
-        <span>{lastScanAt ? `Updated ${new Date(lastScanAt).toLocaleTimeString()}` : ''}</span>
+        <span>Sorted: lowest risk → highest score. Click a row to expand.</span>
+        <span>{lastAiAt ? `AI refined ${new Date(lastAiAt).toLocaleTimeString()}` : ''}</span>
       </div>
     </div>
   );

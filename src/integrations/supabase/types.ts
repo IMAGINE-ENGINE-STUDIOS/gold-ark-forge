@@ -827,6 +827,42 @@ export type Database = {
         }
         Relationships: []
       }
+      rank_snapshots: {
+        Row: {
+          created_at: string
+          direction: string
+          goal_pct: number
+          horizon_h: number
+          id: string
+          mode: string
+          payload: Json
+          scope: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          goal_pct: number
+          horizon_h: number
+          id?: string
+          mode: string
+          payload?: Json
+          scope: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          goal_pct?: number
+          horizon_h?: number
+          id?: string
+          mode?: string
+          payload?: Json
+          scope?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       reserve_snapshots: {
         Row: {
           bar_count: number
