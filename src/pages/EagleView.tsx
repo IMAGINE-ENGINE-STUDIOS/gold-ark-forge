@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Feather, Activity, Radio, ExternalLink, Layers, Store, Brain, Fuel } from 'lucide-react';
+import { Feather, Activity, Radio, ExternalLink, Layers, Store, Brain, Fuel, Gauge, Newspaper, CalendarDays, Flame } from 'lucide-react';
 import Header from '@/components/Header';
 import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import { useLiveMarketData } from '@/hooks/useLiveMarketData';
 import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
+import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
+import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
+import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
+import GATopMovers from '@/components/ga-widgets/GATopMovers';
+import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
+import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 
 /**
  * EAGLE VIEW · Precision Rank v2
@@ -18,6 +25,7 @@ export default function EagleView() {
   const live = useLiveMarketData();
   const [tick, setTick] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
+  const [intelTab, setIntelTab] = useState<'gauge' | 'context' | 'macro' | 'cross'>('gauge');
 
   // Force re-render every second so the live rail reflects new ticks
   useEffect(() => {
@@ -45,6 +53,16 @@ export default function EagleView() {
     const desc = 'Eagle View — AI-augmented multi-timeframe symbol ranking, Monte-Carlo goal probability and live cross-market pricing synced with Gold Arrow intelligence surfaces.';
     if (meta) meta.setAttribute('content', desc);
   }, []);
+
+  // Candle data for the selected symbol drives the drill-down widgets.
+  const selectedSym = useMemo(
+    () => (selected ? ALL_SYMBOLS.find(s => s.ticker === selected) : undefined),
+    [selected],
+  );
+  const selectedCandles = useMemo(
+    () => (selected ? live.getCandleData(selected) : null),
+    [selected, live, tick], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   return (
     <div className="min-h-screen bg-navy-dark text-marble">
@@ -127,7 +145,7 @@ export default function EagleView() {
       </div>
 
       {/* ─── Main grid ───────────────────────────────────────────── */}
-      <div className="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+      <div className="container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
         {/* LEFT — Ranker */}
         <section>
           <SymbolRanker
@@ -135,6 +153,71 @@ export default function EagleView() {
             resolvePrice={live.resolvePriceByTicker}
             onSelectSymbol={setSelected}
           />
+
+          {/* ── Decision Intelligence — GA widget deck for the selected symbol ── */}
+          <div className="mt-4 border border-gold/20 rounded-lg bg-navy-dark/70 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gold/10 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-3.5 h-3.5 text-gold-light" />
+                <span className="font-display text-[11px] tracking-[0.15em] text-gold-light uppercase">
+                  Decision Intelligence
+                </span>
+                {selected ? (
+                  <span className="text-[9px] text-marble/50 font-mono">
+                    · {selected} <span className="text-marble/30">({selectedSym?.label})</span>
+                  </span>
+                ) : (
+                  <span className="text-[9px] text-marble/40 font-mono">· pick a symbol above</span>
+                )}
+              </div>
+              <div className="flex border border-gold/20 rounded overflow-hidden text-[9px] font-mono">
+                {([
+                  { k: 'gauge',   label: 'GAUGE',   icon: Gauge },
+                  { k: 'context', label: 'CONTEXT', icon: Newspaper },
+                  { k: 'macro',   label: 'MACRO',   icon: CalendarDays },
+                  { k: 'cross',   label: 'CROSS',   icon: Flame },
+                ] as const).map(t => {
+                  const Icon = t.icon;
+                  const active = intelTab === t.k;
+                  return (
+                    <button key={t.k} onClick={() => setIntelTab(t.k)}
+                      className={`flex items-center gap-1 px-2 py-1 ${active ? 'bg-gold/20 text-gold-light' : 'text-marble/50 hover:text-marble/80'}`}>
+                      <Icon className="w-2.5 h-2.5" /> {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-3">
+              {intelTab === 'gauge' && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                  <GATechnicalGauge
+                    assetLabel={selected ?? undefined}
+                    candles={selectedCandles ?? undefined}
+                  />
+                  <GAVolatilityMatrix />
+                </div>
+              )}
+              {intelTab === 'context' && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                  <GANewsFeed />
+                  <GATopMovers />
+                </div>
+              )}
+              {intelTab === 'macro' && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                  <GAEconomicCalendar />
+                  <GAMarketPulse />
+                </div>
+              )}
+              {intelTab === 'cross' && (
+                <div className="grid grid-cols-1 gap-3">
+                  <GACrossAssetDashboard />
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="mt-4 border border-gold/15 rounded-lg p-3 bg-navy-dark/60">
             <div className="flex items-center gap-2 mb-2">
@@ -148,6 +231,7 @@ export default function EagleView() {
               <li>• 800-path Monte-Carlo goal probability with expected return &amp; tail drawdown.</li>
               <li>• Regime detection (trend · squeeze · range) with setup-aware scoring.</li>
               <li>• Optional Gemini-3.5 refinement layer for entry / SL / TP and risk override.</li>
+              <li>• Every column has a hover tooltip; expand any row for the full deterministic breakdown.</li>
               <li>• Zero synthetic prices — feeds identical to Showroom · Intelligence · Oil &amp; Gas.</li>
             </ul>
           </div>

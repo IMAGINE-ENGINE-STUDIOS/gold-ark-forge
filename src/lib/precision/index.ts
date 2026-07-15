@@ -55,6 +55,12 @@ export interface PrecisionRow {
   monteCarlo: MonteCarloResult;
   compositeScore: number;       // 0..100 deterministic
   riskLabel: RiskLabel;
+  /**
+   * Deterministic breakdown of every ingredient that produced the composite
+   * score and the risk label. Exposed so the UI can show the user exactly
+   * why a symbol ranks where it does — no hidden black-box magic.
+   */
+  breakdown: ScoreBreakdown;
   // Optional AI overlay (populated by edge function)
   ai?: {
     adjustedScore: number;      // 0..100
@@ -66,6 +72,28 @@ export interface PrecisionRow {
     riskLabel: RiskLabel;
     rationale: string;
   };
+}
+
+export interface ScoreBreakdown {
+  // Score = 100 · pGoal · setupFactor · alignedBonus · trendBonus · tailPenalty
+  pGoal: number;                // 0..1  — Monte-Carlo probability of hitting goal
+  setupFactor: number;          // 0.55..1.0  (= 0.55 + 0.45·setupStrength)
+  alignedBonus: number;         // 0.45 / 0.7 / 1.0
+  trendBonus: number;           // 0.85 / 1.0 / 1.1
+  tailPenalty: number;          // 0..1  (shrinks with vol + drawdown)
+  compositeScore: number;       // final 0..100
+  formula: string;              // human-readable formula rendered
+  // Monte Carlo inputs
+  driftPerStep: number;
+  sigmaPerStep: number;
+  horizonSteps: number;
+  // Risk inputs
+  riskComposite: number;        // atr + 0.15·dd
+  riskThresholds: { LOW: number; MEDIUM: number; HIGH: number };
+  riskLabel: RiskLabel;
+  // Directional agreement
+  wantDirection: 'bullish' | 'bearish';
+  primaryDirection: 'bullish' | 'bearish' | 'neutral';
 }
 
 // ───── Utility ─────
@@ -339,6 +367,24 @@ export function buildPrecisionRow(input: {
   );
 
   const riskLabel = riskFromVol(atr, dd);
+  const setupFactor = 0.55 + 0.45 * strength;
+  const breakdown: ScoreBreakdown = {
+    pGoal: mc.pGoal,
+    setupFactor,
+    alignedBonus,
+    trendBonus,
+    tailPenalty,
+    compositeScore: composite,
+    formula: 'Score = 100 · P(Goal) · SetupFactor · AlignBonus · TrendBonus · TailPenalty',
+    driftPerStep: drift,
+    sigmaPerStep: sigma,
+    horizonSteps: Math.max(1, Math.round(input.horizonH)),
+    riskComposite: atr + dd * 0.15,
+    riskThresholds: { LOW: 0.008, MEDIUM: 0.02, HIGH: 0.045 },
+    riskLabel,
+    wantDirection: wantDir as 'bullish' | 'bearish',
+    primaryDirection: s1h.direction,
+  };
 
   return {
     key: input.key,
@@ -357,6 +403,7 @@ export function buildPrecisionRow(input: {
     monteCarlo: mc,
     compositeScore: composite,
     riskLabel,
+    breakdown,
   };
 }
 
