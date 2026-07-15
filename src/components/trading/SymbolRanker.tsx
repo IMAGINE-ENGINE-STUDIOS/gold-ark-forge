@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
-import { buildPrecisionRow, rankRows, toAICandidate, type Direction, type PrecisionRow, type RiskLabel } from '@/lib/precision';
+import { buildPrecisionRow, rankRows, toAICandidate, verdictFor, type Direction, type PrecisionRow, type RiskLabel } from '@/lib/precision';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 const COLS: { key: string; label: string; help: string; align?: 'left' | 'right' }[] = [
   { key: '#', label: '#', help: 'Row rank after sorting by risk (lowest first) then score (highest first).', align: 'left' },
   { key: 'symbol', label: 'Symbol', help: 'Ticker and display name. Click a row to open the full breakdown.', align: 'left' },
+  { key: 'verdict', label: 'Verdict', help: 'One-glance action call synthesized from P(Goal), risk, score and MTF alignment. STRONG BUY / BUY / HOLD / AVOID. Bots and users act on this.', align: 'left' },
   { key: 'price', label: 'Price', help: 'Live spot price resolved from the same real-time feed used by Showroom, Intelligence and Oil & Gas widgets.' },
   { key: 'atr', label: 'ATR%', help: 'Average True Range as % of price on the 1h series (period 14). Higher = wider candles = more volatile.' },
   { key: 'mtf', label: 'MTF', help: 'Multi-timeframe alignment × 100. Weighted mean of directional bias across 1h (25%), 4h (35%) and 1d (40%). Positive = bullish agreement, negative = bearish.' },
@@ -34,6 +35,7 @@ interface Props {
   resolvePrice: PriceFn;
   activeCategory?: string;
   onSelectSymbol?: (ticker: string) => void;
+  onRowsChange?: (rows: PrecisionRow[], direction: Direction) => void;
 }
 
 const CATS = ['all', 'metals', 'crypto', 'forex', 'energy', 'stocks', 'indices'] as const;
@@ -43,7 +45,7 @@ const riskColor = (r: RiskLabel) =>
   : r === 'MEDIUM' ? 'text-gold-light'
   : r === 'HIGH' ? 'text-orange-400' : 'text-red-500';
 
-export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSelectSymbol }: Props) {
+export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSelectSymbol, onRowsChange }: Props) {
   const [goalPct, setGoalPct] = useState(2);
   const [horizonH, setHorizonH] = useState(24);
   const [direction, setDirection] = useState<Direction>('long');
@@ -167,6 +169,12 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
     ).length;
     return { top, avgP, tradable };
   }, [rows]);
+
+  // Bubble the latest ranked set up so the parent page can render the
+  // hero Directive card and Top-5 Conviction board without re-scanning.
+  useEffect(() => {
+    if (onRowsChange) onRowsChange(rows, direction);
+  }, [rows, direction, onRowsChange]);
 
   return (
     <div className="border border-gold/20 rounded-lg bg-navy-dark/60 p-3 space-y-3">
@@ -299,7 +307,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={13} className="text-center text-marble/40 py-6 text-[10px]">
+              <tr><td colSpan={14} className="text-center text-marble/40 py-6 text-[10px]">
                 {scanning ? 'Building multi-timeframe snapshot…' : 'No candle data ready — try RESCAN.'}
               </td></tr>
             )}
@@ -311,6 +319,12 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
               // Read the LIVE price on every render tick (1s cadence via setLiveTick)
               // so the Price column reflects the same feed as Showroom / Intelligence.
               const livePrice = resolvePrice(r.ticker) || r.price;
+              const v = verdictFor(r, direction);
+              const verdictClasses =
+                v.color === 'emerald' ? 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10'
+                : v.color === 'gold' ? 'text-gold border-gold/50 bg-gold/10'
+                : v.color === 'orange' ? 'text-orange-400 border-orange-400/40 bg-orange-500/10'
+                : 'text-red-400 border-red-500/40 bg-red-500/10';
               return (
                 <Fragment key={r.ticker}>
                   <tr
@@ -323,6 +337,17 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                         {r.ai && <Sparkles className="w-2.5 h-2.5 text-gold" />}
                       </div>
                       <div className="text-[8px] text-marble/40 truncate max-w-[120px]">{r.label}</div>
+                    </td>
+                    <td className="py-1 px-1">
+                      <div
+                        title={v.reasons.join('  ·  ') + `  ·  Conviction ${v.conviction.toFixed(0)}%`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full border text-[8px] tracking-widest font-semibold ${verdictClasses}`}
+                      >
+                        {v.verdict}
+                      </div>
+                      <div className="text-[7px] font-mono text-marble/40 mt-0.5">
+                        conv {v.conviction.toFixed(0)}%
+                      </div>
                     </td>
                     <td
                       className="py-1 px-1 text-right text-marble/80 tabular-nums"
@@ -352,7 +377,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                   </tr>
                   {isOpen && (
                     <tr className="bg-navy/60">
-                      <td colSpan={13} className="px-3 py-2">
+                      <td colSpan={14} className="px-3 py-2">
                         {/* ── Score & Risk breakdown — exact math per symbol ── */}
                         <ScoreBreakdownCard r={r} horizonH={horizonH} />
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[9px] font-mono">
