@@ -392,7 +392,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
