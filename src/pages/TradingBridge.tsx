@@ -142,6 +142,10 @@ const BOTTOM_TABS = [
   { key: 'risk', label: 'RISK', icon: Shield },
   { key: 'strategies', label: 'STRATEGIES', icon: Bot },
   { key: 'social', label: 'SOCIAL', icon: Users },
+  // ─── Automation Engine sub-tabs (three-pillar rebuild) ───
+  { key: 'bots',      label: 'BOTS',      icon: Bot },
+  { key: 'agents',    label: 'AGENTS',    icon: Brain },
+  { key: 'pipelines', label: 'PIPELINES', icon: Workflow },
 ] as const;
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
@@ -149,7 +153,7 @@ type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 // ─── Bottom Tab Categories (workflow grouping) ───────────
 const BOTTOM_CATEGORIES = [
   { key: 'execute',    label: 'EXECUTE',    icon: ArrowUpDown, tabs: ['trade', 'book'] as BottomTab[] },
-  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['genius', 'bot', 'automate', 'strategies'] as BottomTab[] },
+  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['bots', 'agents', 'pipelines'] as BottomTab[] },
   { key: 'research',   label: 'RESEARCH',   icon: Layers,      tabs: ['market', 'analytics', 'backtest'] as BottomTab[] },
   { key: 'risk',       label: 'RISK',       icon: Shield,      tabs: ['risk'] as BottomTab[] },
   { key: 'community',  label: 'COMMUNITY',  icon: Users,       tabs: ['social'] as BottomTab[] },
