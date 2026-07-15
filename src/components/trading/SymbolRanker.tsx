@@ -1,10 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info } from 'lucide-react';
+import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { buildPrecisionRow, rankRows, toAICandidate, type Direction, type PrecisionRow, type RiskLabel } from '@/lib/precision';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+/**
+ * Column definitions — one place that holds the label + the exact tooltip
+ * explaining what the metric measures and how it is computed.
+ */
+const COLS: { key: string; label: string; help: string; align?: 'left' | 'right' }[] = [
+  { key: '#', label: '#', help: 'Row rank after sorting by risk (lowest first) then score (highest first).', align: 'left' },
+  { key: 'symbol', label: 'Symbol', help: 'Ticker and display name. Click a row to open the full breakdown.', align: 'left' },
+  { key: 'price', label: 'Price', help: 'Live spot price resolved from the same real-time feed used by Showroom, Intelligence and Oil & Gas widgets.' },
+  { key: 'atr', label: 'ATR%', help: 'Average True Range as % of price on the 1h series (period 14). Higher = wider candles = more volatile.' },
+  { key: 'mtf', label: 'MTF', help: 'Multi-timeframe alignment × 100. Weighted mean of directional bias across 1h (25%), 4h (35%) and 1d (40%). Positive = bullish agreement, negative = bearish.' },
+  { key: 'regime', label: 'Regime', help: 'Majority regime across timeframes. TREND = ADX > 20 with directional structure. SQUEEZE = Bollinger width compressed. RANGE = oscillating. MIXED = no clear consensus.' },
+  { key: 'setup', label: 'Setup', help: 'Detected setup on the 1h series: DONCHIAN BREAKOUT · MEAN REVERSION · MACD CROSS · TREND CONTINUATION · NO CLEAN SETUP. Drives the SetupFactor multiplier.' },
+  { key: 'pgoal', label: 'P(Goal)', help: 'Probability of hitting the goal % before the horizon expires. Computed by an 800-path Monte-Carlo GBM using drift = MTF·ATR·0.5 and sigma = max(realized vol, ATR·0.7).' },
+  { key: 'eret', label: 'E[Ret%]', help: 'Expected terminal return over the horizon across 800 Monte-Carlo paths (mean of final returns).' },
+  { key: 'edd', label: 'E[DD%]', help: 'Expected worst-case drawdown along a path (mean across 800 sims). Tail risk indicator — bigger absolute value = more painful path.' },
+  { key: 'risk', label: 'Risk', help: 'Deterministic risk label from (ATR + 0.15·MaxDrawdown). LOW < 0.008, MEDIUM < 0.02, HIGH < 0.045, else EXTREME. AI mode may override by one step.' },
+  { key: 'score', label: 'Score', help: 'Composite 0–100 score:  100 · P(Goal) · SetupFactor · AlignBonus · TrendBonus · TailPenalty. Higher = better risk-adjusted expected outcome.' },
+  { key: 'ai', label: 'AI', help: 'Marker shown when Gemini-3.5 has produced a rationale, entry / SL / TP and an adjusted risk label for this candidate.' },
+];
 
 type CandleFn = (ticker: string) => { closes: number[]; highs: number[]; lows: number[] } | null;
 type PriceFn = (ticker: string) => number;
@@ -149,6 +169,22 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
             PRECISION RANK · GOAL SEEKER
           </span>
           <span className="text-[8px] text-marble/40 font-mono">v2 · MTF + Monte-Carlo + AI</span>
+          <button
+            type="button"
+            title={
+              'HOW SCORES ARE BUILT\n' +
+              '• P(Goal): probability of reaching the goal before the horizon, from 800 Monte-Carlo GBM paths using drift = MTF·ATR·0.5 and sigma = max(realized vol, ATR·0.7).\n' +
+              '• SetupFactor = 0.55 + 0.45·setupStrength (0..1 from Donchian / MACD / MR detector).\n' +
+              '• AlignBonus: 1.0 if 1h direction matches trade direction, 0.7 if neutral, 0.45 if opposite.\n' +
+              '• TrendBonus: 1.1 in trend+continuation or range+mean-reversion, 0.85 in squeeze, else 1.0.\n' +
+              '• TailPenalty = 1 / (1 + 15·ATR + 0.6·MaxDrawdown).\n' +
+              '• Risk = LOW/MED/HIGH/EXTREME from (ATR + 0.15·MaxDrawdown) with thresholds 0.008 / 0.02 / 0.045.\n' +
+              '• Final: Score = clamp(100 · P(Goal) · SetupFactor · AlignBonus · TrendBonus · TailPenalty, 0, 100).'
+            }
+            className="text-marble/40 hover:text-gold-light"
+          >
+            <HelpCircle className="w-3 h-3" />
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex border border-gold/20 rounded overflow-hidden">
@@ -241,19 +277,16 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
         <table className="w-full text-[10px] font-mono">
           <thead className="sticky top-0 bg-navy-dark/95 text-marble/40 text-[8px] uppercase tracking-wider">
             <tr>
-              <th className="text-left py-1 px-1">#</th>
-              <th className="text-left py-1 px-1">Symbol</th>
-              <th className="text-right py-1 px-1">Price</th>
-              <th className="text-right py-1 px-1">ATR%</th>
-              <th className="text-right py-1 px-1">MTF</th>
-              <th className="text-right py-1 px-1">Regime</th>
-              <th className="text-right py-1 px-1">Setup</th>
-              <th className="text-right py-1 px-1">P(Goal)</th>
-              <th className="text-right py-1 px-1">E[Ret%]</th>
-              <th className="text-right py-1 px-1">E[DD%]</th>
-              <th className="text-right py-1 px-1">Risk</th>
-              <th className="text-right py-1 px-1">Score</th>
-              <th className="text-right py-1 px-1">AI</th>
+              {COLS.map(c => (
+                <th key={c.key}
+                  title={c.help}
+                  className={`py-1 px-1 cursor-help ${c.align === 'left' ? 'text-left' : 'text-right'}`}>
+                  <span className="inline-flex items-center gap-0.5">
+                    {c.label}
+                    <HelpCircle className="w-2.5 h-2.5 opacity-40" />
+                  </span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
