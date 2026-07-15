@@ -21,20 +21,24 @@ interface Props {
   genius: ReturnType<typeof useGeniusTrader>;
   alertsHook: ReturnType<typeof usePriceAlerts>;
   resolvePrice: (t: string) => number;
+  getCandleHistory: (t: string) => number[] | null;
   onClosePosition: (posId: string, price: number) => void;
   onNavigate: (sym: WatchlistSymbol) => void;
   equity: number;
+  paper: { submitOrder: (p: any) => any; positions: any[] };
 }
 
-export default function AutomationEngine({ sub, waveBot, genius, alertsHook, resolvePrice, onClosePosition, onNavigate, equity }: Props) {
+export default function AutomationEngine({ sub, waveBot, genius, alertsHook, resolvePrice, getCandleHistory, onClosePosition, onNavigate, equity, paper }: Props) {
   if (sub === 'bots') {
     return (
       <AutomationBots
         waveBot={waveBot}
         resolvePrice={resolvePrice}
+        getCandleHistory={getCandleHistory}
         onClosePosition={onClosePosition}
         onNavigate={onNavigate}
         equity={equity}
+        paper={paper}
       />
     );
   }

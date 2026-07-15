@@ -1377,9 +1377,11 @@ const TradingBridge = () => {
                     genius={genius}
                     alertsHook={priceAlertsHook}
                     resolvePrice={resolvePriceForTicker}
+                    getCandleHistory={getCandleHistory}
                     onClosePosition={(id, price) => handleClosePosition(id, price)}
                     onNavigate={(sym) => { setActiveSymbol(sym); setDrawerOpen(false); }}
                     equity={paper.account.equity}
+                    paper={{ submitOrder: paper.submitOrder, positions: paper.positions }}
                   />
                 )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
@@ -1694,9 +1696,11 @@ const TradingBridge = () => {
                       genius={genius}
                       alertsHook={priceAlertsHook}
                       resolvePrice={resolvePriceForTicker}
+                      getCandleHistory={getCandleHistory}
                       onClosePosition={(id, price) => handleClosePosition(id, price)}
                       onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
                       equity={paper.account.equity}
+                      paper={{ submitOrder: paper.submitOrder, positions: paper.positions }}
                     />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
