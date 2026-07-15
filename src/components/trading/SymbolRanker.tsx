@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
@@ -58,6 +58,14 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
   const [expanded, setExpanded] = useState<string | null>(null);
   const [lastAiAt, setLastAiAt] = useState(0);
   const scanTokenRef = useRef(0);
+  // Live tick — forces the table cells (price + P&L math) to re-read
+  // resolvePrice() every second so the Price column is truly live,
+  // independent of the 25s stat rescan cadence.
+  const [, setLiveTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setLiveTick(t => (t + 1) % 1_000_000), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const scope = useMemo(() => {
     const list = category === 'all' ? ALL_SYMBOLS : ALL_SYMBOLS.filter(s => s.cat === category);
