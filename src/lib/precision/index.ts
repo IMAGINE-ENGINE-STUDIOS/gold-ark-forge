@@ -367,6 +367,24 @@ export function buildPrecisionRow(input: {
   );
 
   const riskLabel = riskFromVol(atr, dd);
+  const setupFactor = 0.55 + 0.45 * strength;
+  const breakdown: ScoreBreakdown = {
+    pGoal: mc.pGoal,
+    setupFactor,
+    alignedBonus,
+    trendBonus,
+    tailPenalty,
+    compositeScore: composite,
+    formula: 'Score = 100 · P(Goal) · SetupFactor · AlignBonus · TrendBonus · TailPenalty',
+    driftPerStep: drift,
+    sigmaPerStep: sigma,
+    horizonSteps: Math.max(1, Math.round(input.horizonH)),
+    riskComposite: atr + dd * 0.15,
+    riskThresholds: { LOW: 0.008, MEDIUM: 0.02, HIGH: 0.045 },
+    riskLabel,
+    wantDirection: wantDir as 'bullish' | 'bearish',
+    primaryDirection: s1h.direction,
+  };
 
   return {
     key: input.key,
@@ -385,6 +403,7 @@ export function buildPrecisionRow(input: {
     monteCarlo: mc,
     compositeScore: composite,
     riskLabel,
+    breakdown,
   };
 }
 
