@@ -32,8 +32,22 @@ export function useLiveMarketData() {
     [],
   );
   const cryptoTickPrices = useWebSocketPrices(cryptoStreamKeys);
-  const { data: backendCryptoData } = useQuery({
-    queryKey: ['eagle-binance-market', cryptoStreamKeys.join('|')],
+  const { data: backendCryptoQuotes } = useQuery({
+    queryKey: ['eagle-binance-quotes', cryptoStreamKeys.join('|')],
+    queryFn: async (): Promise<BackendMarketData> => {
+      const { data, error } = await supabase.functions.invoke('fetch-binance-market', {
+        body: { keys: cryptoStreamKeys, includeKlines: false },
+      });
+      if (error) throw error;
+      return (data ?? {}) as BackendMarketData;
+    },
+    refetchInterval: 3000,
+    staleTime: 1500,
+    retry: 1,
+  });
+
+  const { data: backendCryptoCandles } = useQuery({
+    queryKey: ['eagle-binance-candles', cryptoStreamKeys.join('|')],
     queryFn: async (): Promise<BackendMarketData> => {
       const { data, error } = await supabase.functions.invoke('fetch-binance-market', {
         body: { keys: cryptoStreamKeys, includeKlines: true },
@@ -41,8 +55,8 @@ export function useLiveMarketData() {
       if (error) throw error;
       return (data ?? {}) as BackendMarketData;
     },
-    refetchInterval: 5000,
-    staleTime: 2500,
+    refetchInterval: 300000,
+    staleTime: 120000,
     retry: 1,
   });
 
@@ -59,7 +73,7 @@ export function useLiveMarketData() {
     if (sym.cat === 'crypto') {
       const tick = cryptoTickPrices[sym.key];
       if (tick?.price) return tick.price;
-      const backend = backendCryptoData?.quotes?.[sym.key];
+      const backend = backendCryptoQuotes?.quotes?.[sym.key];
       if (backend?.price) return backend.price;
       const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
       if (coin?.current_price) return coin.current_price;
@@ -69,7 +83,7 @@ export function useLiveMarketData() {
       if (feed?.price) return feed.price;
     }
     return 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoData]);
+  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
 
   const resolveChange = useCallback((sym: SymbolLite): number => {
     if (sym.cat === 'metals') {
@@ -83,7 +97,7 @@ export function useLiveMarketData() {
     if (sym.cat === 'crypto') {
       const tick = cryptoTickPrices[sym.key];
       if (tick) return tick.change24h;
-      const backend = backendCryptoData?.quotes?.[sym.key];
+      const backend = backendCryptoQuotes?.quotes?.[sym.key];
       if (backend) return backend.change24h;
       const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
       return coin?.price_change_percentage_24h ?? 0;
@@ -93,7 +107,7 @@ export function useLiveMarketData() {
       if (feed) return feed.change ?? 0;
     }
     return 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoData]);
+  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
 
   const resolvePriceByTicker = useCallback((ticker: string): number => {
     const s = ALL_SYMBOLS.find(x => x.ticker === ticker);
@@ -118,7 +132,7 @@ export function useLiveMarketData() {
       return;
     }
     if (sym.cat === 'crypto') {
-      const k = backendCryptoData?.candles?.[sym.key];
+      const k = backendCryptoCandles?.candles?.[sym.key];
       if (k?.closes?.length && k.closes.length >= 60) {
         const now = Date.now();
         const hourMs = 3600_000;
@@ -146,7 +160,7 @@ export function useLiveMarketData() {
         return;
       }
     }
-  }, [cryptoDataAll, backendCryptoData]);
+  }, [cryptoDataAll, backendCryptoCandles]);
 
   useEffect(() => {
     const appendLiveTicks = () => {
