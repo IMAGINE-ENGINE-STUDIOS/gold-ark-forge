@@ -59,7 +59,7 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       { key: 'notionalUsd',label: 'Total notional', type: 'number', default: 2500, min: 100, max: 100000, step: 100, unit: 'USD' },
     ],
     pitfalls: ['Trending markets blow through the range', 'Fee drag at tight spacing', 'Inventory imbalance on one side'],
-    ready: false,
+    ready: true,
   },
   {
     kind: 'dca',
@@ -76,7 +76,7 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       { key: 'orderCapMult', label: 'Order cap',        type: 'number', default: 3,   min: 1, max: 10, step: 0.5, unit: '× base' },
     ],
     pitfalls: ['VA can demand large buys after crashes (cap it)', 'Underperforms lump-sum in expectation', 'Tax drag from forced sells in rallies'],
-    ready: false,
+    ready: true,
   },
   {
     kind: 'momentum',
@@ -110,7 +110,7 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       { key: 'stopZ',    label: 'Stop |z|',   type: 'number', default: 3.5,min: 2, max: 6,   step: 0.1 },
     ],
     pitfalls: ['Fails badly in trending regimes (band walk)', 'Needs ADX / regime filter'],
-    ready: false,
+    ready: true,
   },
   {
     kind: 'trendFollowing',
@@ -127,7 +127,7 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       { key: 'stopATRMult', label: 'Stop',          type: 'number', default: 2,  min: 1, max: 5,   step: 0.5, unit: '× ATR' },
     ],
     pitfalls: ['~35–40% win rate — relies on fat tails', 'Long whipsaw periods', 'Correlated across trend systems in crashes'],
-    ready: false,
+    ready: true,
   },
   {
     kind: 'pairs',
