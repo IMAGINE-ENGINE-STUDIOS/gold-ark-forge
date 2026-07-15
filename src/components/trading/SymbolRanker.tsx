@@ -387,3 +387,116 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
 }
 
 export default SymbolRanker;
+
+// ─────────────────────────────────────────────────────────────
+// Deterministic score & risk breakdown for a single row.
+// Shows the exact multiplicative chain that produced the score
+// so the user can audit any ranking. Zero magic.
+// ─────────────────────────────────────────────────────────────
+function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number }) {
+  const b = r.breakdown;
+  const parts = [
+    { label: '100', value: 100, sub: 'Base' },
+    { label: 'P(Goal)', value: b.pGoal, sub: `${b.horizonSteps}h MC`, fmt: (v: number) => (v * 100).toFixed(1) + '%' },
+    { label: 'Setup', value: b.setupFactor, sub: `${r.setup}`, fmt: (v: number) => v.toFixed(2) + '×' },
+    { label: 'Align', value: b.alignedBonus, sub: `${b.primaryDirection} vs ${b.wantDirection}`, fmt: (v: number) => v.toFixed(2) + '×' },
+    { label: 'Trend', value: b.trendBonus, sub: r.regime.toUpperCase(), fmt: (v: number) => v.toFixed(2) + '×' },
+    { label: 'TailPen', value: b.tailPenalty, sub: `ATR ${(r.atrPct * 100).toFixed(2)}% · DD ${(r.histMaxDDPct * 100).toFixed(1)}%`, fmt: (v: number) => v.toFixed(2) + '×' },
+  ];
+
+  const riskT = b.riskThresholds;
+  const rc = b.riskComposite;
+  const barPct = Math.min(100, (rc / (riskT.HIGH * 1.4)) * 100);
+
+  return (
+    <div className="mb-3 border border-gold/15 rounded-lg bg-navy-dark/70 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Info className="w-3.5 h-3.5 text-gold-light" />
+        <span className="font-display text-[10px] tracking-[0.15em] text-gold-light uppercase">
+          Score &amp; Risk Breakdown · {r.ticker}
+        </span>
+        <span className="text-[8px] text-marble/40 font-mono ml-auto">
+          {b.formula}
+        </span>
+      </div>
+
+      {/* Multiplicative score chain */}
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-1.5 text-[9px] font-mono">
+        {parts.map((p, i) => (
+          <div key={p.label} className="rounded border border-gold/10 bg-navy/40 px-2 py-1.5 relative">
+            <div className="text-[7px] uppercase tracking-wider text-marble/40">{p.label}</div>
+            <div className="text-gold-light">{p.fmt ? p.fmt(p.value) : p.value}</div>
+            <div className="text-[7px] text-marble/40 truncate">{p.sub}</div>
+            {i < parts.length - 1 && (
+              <span className="hidden md:inline absolute -right-2 top-1/2 -translate-y-1/2 text-gold/40">×</span>
+            )}
+          </div>
+        ))}
+        <div className="rounded border border-gold/40 bg-gold/5 px-2 py-1.5">
+          <div className="text-[7px] uppercase tracking-wider text-gold/70">= Score</div>
+          <div className="text-gold font-semibold">{b.compositeScore.toFixed(1)}</div>
+          <div className="text-[7px] text-marble/40">out of 100</div>
+        </div>
+      </div>
+
+      {/* Risk classification bar */}
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-[9px] font-mono">
+        <div>
+          <div className="text-[7px] uppercase tracking-wider text-marble/40 mb-1">
+            Risk composite (ATR + 0.15·MaxDD) = {(rc * 100).toFixed(2)}%
+          </div>
+          <div className="relative h-2 rounded-full bg-navy overflow-hidden border border-gold/10">
+            {/* threshold zones */}
+            <div className="absolute inset-y-0 left-0 bg-emerald-500/20" style={{ width: `${(riskT.LOW / (riskT.HIGH * 1.4)) * 100}%` }} />
+            <div className="absolute inset-y-0 bg-gold/20" style={{ left: `${(riskT.LOW / (riskT.HIGH * 1.4)) * 100}%`, width: `${((riskT.MEDIUM - riskT.LOW) / (riskT.HIGH * 1.4)) * 100}%` }} />
+            <div className="absolute inset-y-0 bg-orange-500/20" style={{ left: `${(riskT.MEDIUM / (riskT.HIGH * 1.4)) * 100}%`, width: `${((riskT.HIGH - riskT.MEDIUM) / (riskT.HIGH * 1.4)) * 100}%` }} />
+            <div className="absolute inset-y-0 bg-red-500/20" style={{ left: `${(riskT.HIGH / (riskT.HIGH * 1.4)) * 100}%`, right: 0 }} />
+            {/* current marker */}
+            <div className="absolute top-0 h-full w-0.5 bg-gold" style={{ left: `${barPct}%` }} />
+          </div>
+          <div className="flex justify-between text-[7px] text-marble/40 mt-0.5">
+            <span className="text-emerald-400">LOW ≤{(riskT.LOW * 100).toFixed(1)}%</span>
+            <span className="text-gold-light">MED ≤{(riskT.MEDIUM * 100).toFixed(1)}%</span>
+            <span className="text-orange-400">HIGH ≤{(riskT.HIGH * 100).toFixed(1)}%</span>
+            <span className="text-red-500">EXTREME</span>
+          </div>
+          <div className="text-[8px] text-marble/60 mt-1">
+            Classified as <span className={
+              b.riskLabel === 'LOW' ? 'text-emerald-400' :
+              b.riskLabel === 'MEDIUM' ? 'text-gold-light' :
+              b.riskLabel === 'HIGH' ? 'text-orange-400' : 'text-red-500'
+            }>{b.riskLabel}</span>
+            {r.ai && r.ai.riskLabel !== b.riskLabel && (
+              <span className="text-marble/50"> · AI adjusted → <span className="text-gold">{r.ai.riskLabel}</span></span>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[7px] uppercase tracking-wider text-marble/40 mb-1">
+            Monte-Carlo engine · {b.horizonSteps}h · 800 paths
+          </div>
+          <div className="text-marble/70">
+            drift/h: <span className="text-gold-light">{(b.driftPerStep * 100).toFixed(3)}%</span>
+            {' · '}
+            σ/h: <span className="text-gold-light">{(b.sigmaPerStep * 100).toFixed(3)}%</span>
+          </div>
+          <div className="text-marble/70">
+            E[Ret]: <span className="text-emerald-400">{r.monteCarlo.eReturnPct.toFixed(2)}%</span>
+            {' · '}
+            E[DD]: <span className="text-red-400">{r.monteCarlo.eMaxDDPct.toFixed(2)}%</span>
+          </div>
+          <div className="text-marble/70">
+            P10 / P90: <span className="text-marble">{r.monteCarlo.p10ReturnPct.toFixed(2)}% / {r.monteCarlo.p90ReturnPct.toFixed(2)}%</span>
+          </div>
+          <div className="text-[7px] text-marble/40 mt-0.5">
+            drift = MTF({(r.mtfAlignment).toFixed(2)}) · ATR({(r.atrPct * 100).toFixed(2)}%) · 0.5 &nbsp;·&nbsp; σ = max(RV, ATR·0.7)
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 text-[7px] text-marble/30">
+        Analytical decision support. Deterministic formulas above; AI may adjust risk by at most one level.
+      </div>
+    </div>
+  );
+}
