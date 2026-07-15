@@ -52,6 +52,7 @@ import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
 import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import SymbolLogo from '@/components/trading/SymbolLogo';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
@@ -1448,6 +1449,15 @@ const TradingBridge = () => {
                 {bottomTab === 'analytics' && (
                   <div className="space-y-4">
                     <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
+                    <SymbolRanker
+                      getCandleData={getCandleData}
+                      resolvePrice={resolvePriceForTicker}
+                      activeCategory={activeSymbol.cat}
+                      onSelectSymbol={(t) => {
+                        const s = ALL_SYMBOLS.find(x => x.ticker === t);
+                        if (s) setActiveSymbol(s);
+                      }}
+                    />
                     <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
                       <GAMarketPulse />
                       <GACrossAssetDashboard />
@@ -1781,6 +1791,15 @@ const TradingBridge = () => {
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
                       <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
+                      <SymbolRanker
+                        getCandleData={getCandleData}
+                        resolvePrice={resolvePriceForTicker}
+                        activeCategory={activeSymbol.cat}
+                        onSelectSymbol={(t) => {
+                          const s = ALL_SYMBOLS.find(x => x.ticker === t);
+                          if (s) setActiveSymbol(s);
+                        }}
+                      />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
                         <GAMarketPulse />
                         <GACrossAssetDashboard />
