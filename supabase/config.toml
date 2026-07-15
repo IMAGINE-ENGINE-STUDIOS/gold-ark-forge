@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.fetch-commodity-prices]
 verify_jwt = false
+
+[functions.fetch-binance-market]
+verify_jwt = false
