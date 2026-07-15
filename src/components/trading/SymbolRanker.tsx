@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Target, TrendingUp, Shield, Activity, RefreshCw, Sparkles, Info, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
@@ -58,6 +58,14 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
   const [expanded, setExpanded] = useState<string | null>(null);
   const [lastAiAt, setLastAiAt] = useState(0);
   const scanTokenRef = useRef(0);
+  // Live tick — forces the table cells (price + P&L math) to re-read
+  // resolvePrice() every second so the Price column is truly live,
+  // independent of the 25s stat rescan cadence.
+  const [, setLiveTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setLiveTick(t => (t + 1) % 1_000_000), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const scope = useMemo(() => {
     const list = category === 'all' ? ALL_SYMBOLS : ALL_SYMBOLS.filter(s => s.cat === category);
@@ -300,9 +308,12 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
               const score = r.ai?.adjustedScore ?? r.compositeScore;
               const mtfCol = r.mtfAlignment > 0.1 ? 'text-emerald-400' : r.mtfAlignment < -0.1 ? 'text-red-400' : 'text-marble/50';
               const isOpen = expanded === r.ticker;
+              // Read the LIVE price on every render tick (1s cadence via setLiveTick)
+              // so the Price column reflects the same feed as Showroom / Intelligence.
+              const livePrice = resolvePrice(r.ticker) || r.price;
               return (
-                <>
-                  <tr key={r.ticker}
+                <Fragment key={r.ticker}>
+                  <tr
                     onClick={() => { onSelectSymbol?.(r.ticker); setExpanded(isOpen ? null : r.ticker); }}
                     className={`border-t border-gold/5 hover:bg-gold/5 cursor-pointer ${r.ai ? 'bg-gold/[0.03]' : ''}`}>
                     <td className="py-1 px-1 text-marble/40">{i + 1}</td>
@@ -313,7 +324,17 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                       </div>
                       <div className="text-[8px] text-marble/40 truncate max-w-[120px]">{r.label}</div>
                     </td>
-                    <td className="py-1 px-1 text-right text-marble/80">{r.price > 0 ? r.price.toFixed(r.price < 10 ? 4 : 2) : '—'}</td>
+                    <td
+                      className="py-1 px-1 text-right text-marble/80 tabular-nums"
+                      title={`Live price · resolved from ${r.cat} feed · updates every 1s`}
+                    >
+                      {livePrice > 0
+                        ? livePrice.toLocaleString(undefined, {
+                            minimumFractionDigits: livePrice < 10 ? 4 : 2,
+                            maximumFractionDigits: livePrice < 10 ? 4 : 2,
+                          })
+                        : '—'}
+                    </td>
                     <td className="py-1 px-1 text-right text-marble/70">{(r.atrPct * 100).toFixed(2)}%</td>
                     <td className={`py-1 px-1 text-right ${mtfCol}`}>{(r.mtfAlignment * 100).toFixed(0)}</td>
                     <td className="py-1 px-1 text-right text-marble/60 uppercase text-[8px]">{r.regime}</td>
@@ -371,7 +392,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>
