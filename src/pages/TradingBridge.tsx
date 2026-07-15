@@ -1482,14 +1482,6 @@ const TradingBridge = () => {
                     <GANewsFeed />
                   </div>
                 )}
-                {bottomTab === 'strategies' && (
-                  <div className="space-y-4">
-                    <StrategiesPanel />
-                    <div className="border-t border-gold/10 pt-4">
-                      <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
-                    </div>
-                  </div>
-                )}
                 {bottomTab === 'social' && <SocialPanel />}
               </div>
             </div>
