@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, LogIn, LogOut, Store, BarChart3, ArrowLeftRight, Brain, Vault, ShieldCheck, Info, Fuel, Lightbulb, Settings, Globe } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, Store, BarChart3, ArrowLeftRight, Brain, Vault, ShieldCheck, Info, Fuel, Lightbulb, Settings, Globe, Feather } from 'lucide-react';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import { useAuth } from '@/hooks/useAuth';
 import goldArrowLogo from '@/assets/gold-arrow-logo.png';
@@ -13,6 +13,7 @@ const Header = () => {
     { label: 'Markets', href: '/marketplace', icon: BarChart3 },
     { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
     { label: 'Intelligence', href: '/intelligence', icon: Brain },
+    { label: 'Eagle View', href: '/eagle-view', icon: Feather },
     { label: 'The Vault', href: '/vault', icon: Vault },
     { label: 'Verify', href: '/verify', icon: ShieldCheck },
     { label: 'About Us', href: '/about', icon: Info },
