@@ -669,6 +669,24 @@ const TradingBridge = () => {
     updatePrefs({ last_symbol_key: activeSymbol.key });
   }, [activeSymbol.key]);
   const [bottomTab, setBottomTab] = useState<BottomTab>('trade');
+  const [bottomCategory, setBottomCategory] = useState<BottomCategory>('execute');
+  const [lastTabByCat, setLastTabByCat] = useState<Record<BottomCategory, BottomTab>>({
+    execute: 'trade',
+    automation: 'genius',
+    research: 'market',
+    risk: 'risk',
+    community: 'social',
+  });
+  const selectCategory = (cat: BottomCategory) => {
+    setBottomCategory(cat);
+    setBottomTab(lastTabByCat[cat]);
+  };
+  const selectSubTab = (tab: BottomTab) => {
+    setBottomTab(tab);
+    const cat = TAB_TO_CATEGORY[tab];
+    setBottomCategory(cat);
+    setLastTabByCat(prev => ({ ...prev, [cat]: tab }));
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
