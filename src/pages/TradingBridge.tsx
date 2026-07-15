@@ -1455,7 +1455,7 @@ const TradingBridge = () => {
                       activeCategory={activeSymbol.cat}
                       onSelectSymbol={(t) => {
                         const s = ALL_SYMBOLS.find(x => x.ticker === t);
-                        if (s) setActiveSymbolKey(s.key);
+                        if (s) setActiveSymbol(s);
                       }}
                     />
                     <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
@@ -1797,7 +1797,7 @@ const TradingBridge = () => {
                         activeCategory={activeSymbol.cat}
                         onSelectSymbol={(t) => {
                           const s = ALL_SYMBOLS.find(x => x.ticker === t);
-                          if (s) setActiveSymbolKey(s.key);
+                          if (s) setActiveSymbol(s);
                         }}
                       />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
