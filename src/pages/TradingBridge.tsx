@@ -145,6 +145,26 @@ const BOTTOM_TABS = [
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 
+// ─── Bottom Tab Categories (workflow grouping) ───────────
+const BOTTOM_CATEGORIES = [
+  { key: 'execute',    label: 'EXECUTE',    icon: ArrowUpDown, tabs: ['trade', 'book'] as BottomTab[] },
+  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['genius', 'bot', 'automate', 'strategies'] as BottomTab[] },
+  { key: 'research',   label: 'RESEARCH',   icon: Layers,      tabs: ['market', 'analytics', 'backtest'] as BottomTab[] },
+  { key: 'risk',       label: 'RISK',       icon: Shield,      tabs: ['risk'] as BottomTab[] },
+  { key: 'community',  label: 'COMMUNITY',  icon: Users,       tabs: ['social'] as BottomTab[] },
+] as const;
+
+type BottomCategory = (typeof BOTTOM_CATEGORIES)[number]['key'];
+
+const TAB_META: Record<BottomTab, { label: string; icon: React.ElementType }> =
+  BOTTOM_TABS.reduce((acc, t) => { acc[t.key] = { label: t.label, icon: t.icon }; return acc; }, {} as any);
+
+const TAB_TO_CATEGORY: Record<BottomTab, BottomCategory> =
+  BOTTOM_CATEGORIES.reduce((acc, cat) => {
+    cat.tabs.forEach(t => { acc[t] = cat.key; });
+    return acc;
+  }, {} as Record<BottomTab, BottomCategory>);
+
 // ─── Paper Trading Panel ─────────────────────────────────
 function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   activeSymbol: { key: string; label: string; ticker: string; cat: string };
