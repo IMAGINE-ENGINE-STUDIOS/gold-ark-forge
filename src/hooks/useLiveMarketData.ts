@@ -2,7 +2,8 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { ALL_SYMBOLS, SYNTHETIC_PRICES } from '@/data/tradingSymbols';
+import { BINANCE_STREAMS, useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 
 type SymbolLite = { key: string; cat: string; ticker: string };
 
@@ -17,6 +18,14 @@ export function useLiveMarketData() {
   const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
 
+  const cryptoStreamKeys = useMemo(
+    () => ALL_SYMBOLS
+      .filter(s => s.cat === 'crypto' && BINANCE_STREAMS[s.key])
+      .map(s => s.key),
+    [],
+  );
+  const cryptoTickPrices = useWebSocketPrices(cryptoStreamKeys);
+
   const resolvePrice = useCallback((sym: SymbolLite): number => {
     if (sym.cat === 'metals') {
       const map: Record<string, string> = {
@@ -28,6 +37,8 @@ export function useLiveMarketData() {
       if (p > 0) return p;
     }
     if (sym.cat === 'crypto') {
+      const tick = cryptoTickPrices[sym.key];
+      if (tick?.price) return tick.price;
       const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
       if (coin?.current_price) return coin.current_price;
     }
@@ -35,8 +46,8 @@ export function useLiveMarketData() {
       const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
       if (feed?.price) return feed.price;
     }
-    return SYNTHETIC_PRICES[sym.key]?.p ?? 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData]);
+    return 0;
+  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices]);
 
   const resolveChange = useCallback((sym: SymbolLite): number => {
     if (sym.cat === 'metals') {
@@ -48,6 +59,8 @@ export function useLiveMarketData() {
       return key ? (metalPricesData?.[key]?.change_24h ?? 0) : 0;
     }
     if (sym.cat === 'crypto') {
+      const tick = cryptoTickPrices[sym.key];
+      if (tick) return tick.change24h;
       const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
       return coin?.price_change_percentage_24h ?? 0;
     }
@@ -55,8 +68,8 @@ export function useLiveMarketData() {
       const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
       if (feed) return feed.change ?? 0;
     }
-    return SYNTHETIC_PRICES[sym.key]?.c ?? 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData]);
+    return 0;
+  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices]);
 
   const resolvePriceByTicker = useCallback((ticker: string): number => {
     const s = ALL_SYMBOLS.find(x => x.ticker === ticker);
