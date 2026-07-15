@@ -15,6 +15,7 @@ import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 
 const safeNumber = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
 };
