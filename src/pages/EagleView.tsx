@@ -421,18 +421,21 @@ function DirectiveHero({
   const verdictWord =
     v.color === 'emerald' ? { headline: v.verdict, sub: 'Enter with confidence · low friction path' }
     : v.color === 'gold' ? { headline: v.verdict, sub: 'Actionable long — position within risk limits' }
+    : v.color === 'sky' ? { headline: 'WATCH', sub: 'Setup building — wait for one more confirmation' }
     : v.color === 'orange' ? { headline: 'HOLD', sub: 'Wait for stronger alignment before acting' }
     : { headline: 'STAND ASIDE', sub: 'Risk too high — protect capital, do not open' };
 
   const verdictColor =
     v.color === 'emerald' ? 'text-emerald-400'
     : v.color === 'gold' ? 'text-gold'
+    : v.color === 'sky' ? 'text-sky-300'
     : v.color === 'orange' ? 'text-orange-400'
     : 'text-red-400';
 
   const ringColor =
     v.color === 'emerald' ? '#34d399'
     : v.color === 'gold' ? '#d4af37'
+    : v.color === 'sky' ? '#38bdf8'
     : v.color === 'orange' ? '#fb923c'
     : '#f87171';
 
@@ -534,6 +537,7 @@ function DirectiveHero({
               <span className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-display tracking-[0.25em] uppercase
                 ${v.color === 'emerald' ? 'border-emerald-400/50 text-emerald-400 bg-emerald-500/10'
                  : v.color === 'gold' ? 'border-gold/60 text-gold bg-gold/10'
+                 : v.color === 'sky' ? 'border-sky-400/50 text-sky-300 bg-sky-500/10'
                  : v.color === 'orange' ? 'border-orange-400/50 text-orange-400 bg-orange-500/10'
                  : 'border-red-500/50 text-red-400 bg-red-500/10'}`}>
                 {v.verdict}
@@ -574,11 +578,13 @@ function ConvictionCard({
   const pillCls =
     verdict.color === 'emerald' ? 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10'
     : verdict.color === 'gold' ? 'text-gold border-gold/50 bg-gold/10'
+    : verdict.color === 'sky' ? 'text-sky-300 border-sky-400/40 bg-sky-500/10'
     : verdict.color === 'orange' ? 'text-orange-400 border-orange-400/40 bg-orange-500/10'
     : 'text-red-400 border-red-500/40 bg-red-500/10';
   const bar =
     verdict.color === 'emerald' ? 'bg-emerald-400'
     : verdict.color === 'gold' ? 'bg-gold'
+    : verdict.color === 'sky' ? 'bg-sky-400'
     : verdict.color === 'orange' ? 'bg-orange-400'
     : 'bg-red-500';
   return (
