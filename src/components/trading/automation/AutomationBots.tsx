@@ -35,8 +35,6 @@ interface Props {
   };
 }
 
-const ALL_SYMBOLS: WatchlistSymbol[] = WATCHLIST_CATEGORIES.flatMap(c => c.items);
-
 export default function AutomationBots({ waveBot, resolvePrice, getCandleHistory, onClosePosition, onNavigate, equity, paper }: Props) {
   const engine = useStrategyEngine({
     resolvePrice, getCandleHistory,
