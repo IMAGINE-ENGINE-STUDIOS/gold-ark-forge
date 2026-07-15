@@ -46,6 +46,7 @@ const riskColor = (r: RiskLabel) =>
   : r === 'HIGH' ? 'text-orange-400' : 'text-red-500';
 
 const finiteNum = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
 };
