@@ -1687,8 +1687,17 @@ const TradingBridge = () => {
                       activeCandles={getCandleData(activeSymbol.ticker)}
                     />
                   )}
-                  {bottomTab === 'genius' && (
-                    <GeniusPanel {...genius} />
+                  {(bottomTab === 'bots' || bottomTab === 'agents' || bottomTab === 'pipelines') && (
+                    <AutomationEngine
+                      sub={bottomTab as 'bots' | 'agents' | 'pipelines'}
+                      waveBot={waveBot}
+                      genius={genius}
+                      alertsHook={priceAlertsHook}
+                      resolvePrice={resolvePriceForTicker}
+                      onClosePosition={(id, price) => handleClosePosition(id, price)}
+                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                      equity={paper.account.equity}
+                    />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
