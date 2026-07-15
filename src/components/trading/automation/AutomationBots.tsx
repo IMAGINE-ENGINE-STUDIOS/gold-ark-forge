@@ -5,6 +5,7 @@ import { STRATEGY_TEMPLATES, type StrategyTemplate, type StrategyKind } from './
 import { useStrategyEngine } from '@/hooks/useStrategyEngine';
 import type { RunnableKind } from '@/lib/strategies/runners';
 import { WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
+import SymbolPicker from '@/components/shared/SymbolPicker';
 import type { useWaveBot } from '@/hooks/useWaveBot';
 
 const KIND_ICON: Record<StrategyKind, React.ElementType> = {
@@ -227,15 +228,13 @@ export default function AutomationBots({ waveBot, resolvePrice, getCandleHistory
           <div className="rounded-lg bg-navy-dark/60 border border-gold/10 p-3 space-y-2">
             <div className="text-[8px] font-display tracking-wider text-marble/40">DEPLOY (PAPER)</div>
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[9px] font-mono text-marble/50 col-span-2">
-                Symbol
-                <select value={deploySymbol} onChange={e => setDeploySymbol(e.target.value)}
-                  className="mt-1 w-full bg-navy-dark border border-gold/15 rounded px-2 py-1 text-[10px] font-mono text-gold">
-                  {ALL_SYMBOLS.slice(0, 120).map(s => (
-                    <option key={s.ticker} value={s.ticker}>{s.label} · {s.ticker}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="col-span-2">
+                <SymbolPicker
+                  label="SYMBOL"
+                  value={deploySymbol}
+                  onChange={(t) => setDeploySymbol(t)}
+                />
+              </div>
               {active.params.map(sp => (
                 <label key={sp.key} className="text-[9px] font-mono text-marble/50">
                   {sp.label}{sp.unit ? ` (${sp.unit})` : ''}
