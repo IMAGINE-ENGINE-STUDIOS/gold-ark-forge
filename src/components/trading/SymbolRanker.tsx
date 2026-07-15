@@ -45,6 +45,31 @@ const riskColor = (r: RiskLabel) =>
   : r === 'MEDIUM' ? 'text-gold-light'
   : r === 'HIGH' ? 'text-orange-400' : 'text-red-500';
 
+const finiteNum = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const fixed = (value: unknown, digits = 2, fallback = '—') => {
+  const n = finiteNum(value, NaN);
+  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
+};
+
+const pct = (value: unknown, digits = 1, fallback = '—') => {
+  const n = finiteNum(value, NaN);
+  return Number.isFinite(n) ? `${(n * 100).toFixed(digits)}%` : fallback;
+};
+
+const priceText = (value: unknown, fallback = '—') => {
+  const n = finiteNum(value, NaN);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: n < 10 ? 4 : 2,
+    maximumFractionDigits: n < 10 ? 4 : 2,
+  });
+};
+
 export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSelectSymbol, onRowsChange }: Props) {
   const [goalPct, setGoalPct] = useState(2);
   const [horizonH, setHorizonH] = useState(24);
@@ -272,12 +297,12 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
             <div className="text-[8px] text-marble/50 uppercase tracking-wider flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Top Pick</div>
             <div className="text-[11px] font-mono text-gold-light truncate">{summary.top.ticker}</div>
             <div className="text-[9px] text-marble/60">
-              {(summary.top.monteCarlo.pGoal * 100).toFixed(1)}% · {summary.top.ai?.riskLabel ?? summary.top.riskLabel}
+              {pct(summary.top.monteCarlo.pGoal)} · {summary.top.ai?.riskLabel ?? summary.top.riskLabel}
             </div>
           </div>
           <div className="rounded border border-gold/15 p-2">
             <div className="text-[8px] text-marble/50 uppercase tracking-wider flex items-center gap-1"><Activity className="w-3 h-3" /> Avg P(Goal)</div>
-            <div className="text-[11px] font-mono text-gold-light">{(summary.avgP * 100).toFixed(1)}%</div>
+            <div className="text-[11px] font-mono text-gold-light">{pct(summary.avgP)}</div>
             <div className="text-[9px] text-marble/60">across {rows.length}</div>
           </div>
           <div className="rounded border border-gold/15 p-2">
@@ -318,8 +343,9 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
               const isOpen = expanded === r.ticker;
               // Read the LIVE price on every render tick (1s cadence via setLiveTick)
               // so the Price column reflects the same feed as Showroom / Intelligence.
-              const livePrice = resolvePrice(r.ticker) || r.price;
+              const livePrice = finiteNum(resolvePrice(r.ticker), 0) || finiteNum(r.price, 0);
               const v = verdictFor(r, direction);
+              const safeScore = finiteNum(score, 0);
               const verdictClasses =
                 v.color === 'emerald' ? 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10'
                 : v.color === 'gold' ? 'text-gold border-gold/50 bg-gold/10'
@@ -340,35 +366,30 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                     </td>
                     <td className="py-1 px-1">
                       <div
-                        title={v.reasons.join('  ·  ') + `  ·  Conviction ${v.conviction.toFixed(0)}%`}
+                        title={v.reasons.join('  ·  ') + `  ·  Conviction ${fixed(v.conviction, 0)}%`}
                         className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full border text-[8px] tracking-widest font-semibold ${verdictClasses}`}
                       >
                         {v.verdict}
                       </div>
                       <div className="text-[7px] font-mono text-marble/40 mt-0.5">
-                        conv {v.conviction.toFixed(0)}%
+                        conv {fixed(v.conviction, 0)}%
                       </div>
                     </td>
                     <td
                       className="py-1 px-1 text-right text-marble/80 tabular-nums"
                       title={`Live price · resolved from ${r.cat} feed · updates every 1s`}
                     >
-                      {livePrice > 0
-                        ? livePrice.toLocaleString(undefined, {
-                            minimumFractionDigits: livePrice < 10 ? 4 : 2,
-                            maximumFractionDigits: livePrice < 10 ? 4 : 2,
-                          })
-                        : '—'}
+                      {priceText(livePrice)}
                     </td>
-                    <td className="py-1 px-1 text-right text-marble/70">{(r.atrPct * 100).toFixed(2)}%</td>
-                    <td className={`py-1 px-1 text-right ${mtfCol}`}>{(r.mtfAlignment * 100).toFixed(0)}</td>
+                    <td className="py-1 px-1 text-right text-marble/70">{pct(r.atrPct, 2)}</td>
+                    <td className={`py-1 px-1 text-right ${mtfCol}`}>{fixed(finiteNum(r.mtfAlignment) * 100, 0)}</td>
                     <td className="py-1 px-1 text-right text-marble/60 uppercase text-[8px]">{r.regime}</td>
                     <td className="py-1 px-1 text-right text-marble/60 text-[8px] truncate max-w-[100px]">{r.setup}</td>
-                    <td className="py-1 px-1 text-right text-gold-light">{(r.monteCarlo.pGoal * 100).toFixed(1)}%</td>
-                    <td className="py-1 px-1 text-right text-emerald-400/80">{(r.ai?.expectedReturnPct ?? r.monteCarlo.eReturnPct).toFixed(2)}</td>
-                    <td className="py-1 px-1 text-right text-red-400/80">{(r.ai?.maxDrawdownPct ?? r.monteCarlo.eMaxDDPct).toFixed(2)}</td>
+                    <td className="py-1 px-1 text-right text-gold-light">{pct(r.monteCarlo.pGoal)}</td>
+                    <td className="py-1 px-1 text-right text-emerald-400/80">{fixed(r.ai?.expectedReturnPct ?? r.monteCarlo.eReturnPct)}</td>
+                    <td className="py-1 px-1 text-right text-red-400/80">{fixed(r.ai?.maxDrawdownPct ?? r.monteCarlo.eMaxDDPct)}</td>
                     <td className={`py-1 px-1 text-right font-semibold ${riskColor(risk)}`}>{risk}</td>
-                    <td className="py-1 px-1 text-right text-gold">{score.toFixed(1)}</td>
+                    <td className="py-1 px-1 text-right text-gold">{fixed(safeScore, 1)}</td>
                     <td className="py-1 px-1 text-right">
                       {r.ai
                         ? <Info className="w-3 h-3 inline text-gold-light" />
@@ -387,15 +408,15 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                               const s = r.mtf[tf];
                               if (!s) return <div key={tf} className="text-marble/30">{tf}: —</div>;
                               const c = s.bias > 0.1 ? 'text-emerald-400' : s.bias < -0.1 ? 'text-red-400' : 'text-marble/60';
-                              return <div key={tf} className={c}>{tf}: {s.direction.toUpperCase()} · ADX {s.adx.toFixed(0)} · bias {(s.bias * 100).toFixed(0)}</div>;
+                              return <div key={tf} className={c}>{tf}: {s.direction.toUpperCase()} · ADX {fixed(s.adx, 0)} · bias {fixed(finiteNum(s.bias) * 100, 0)}</div>;
                             })}
                           </div>
                           <div>
                             <div className="text-[8px] uppercase tracking-wider text-marble/40 mb-1">Monte Carlo · {horizonH}h</div>
-                            <div>P(goal): <span className="text-gold-light">{(r.monteCarlo.pGoal * 100).toFixed(1)}%</span></div>
-                            <div>P10 / P90: <span className="text-marble/70">{r.monteCarlo.p10ReturnPct.toFixed(2)}% / {r.monteCarlo.p90ReturnPct.toFixed(2)}%</span></div>
-                            <div>Realized vol: {(r.realizedVolPct * 100).toFixed(2)}%</div>
-                            <div>Hist max DD: {(r.histMaxDDPct * 100).toFixed(2)}%</div>
+                            <div>P(goal): <span className="text-gold-light">{pct(r.monteCarlo.pGoal)}</span></div>
+                            <div>P10 / P90: <span className="text-marble/70">{fixed(r.monteCarlo.p10ReturnPct)}% / {fixed(r.monteCarlo.p90ReturnPct)}%</span></div>
+                            <div>Realized vol: {pct(r.realizedVolPct, 2)}</div>
+                            <div>Hist max DD: {pct(r.histMaxDDPct, 2)}</div>
                           </div>
                           <div>
                             {r.ai ? (
@@ -403,7 +424,7 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                                 <div className="text-[8px] uppercase tracking-wider text-marble/40 mb-1 flex items-center gap-1">
                                   <Sparkles className="w-3 h-3" /> AI Levels & Rationale
                                 </div>
-                                <div>Entry / SL / TP: <span className="text-gold-light">{r.ai.entry.toFixed(2)} / {r.ai.stopLoss.toFixed(2)} / {r.ai.takeProfit.toFixed(2)}</span></div>
+                                <div>Entry / SL / TP: <span className="text-gold-light">{priceText(r.ai.entry)} / {priceText(r.ai.stopLoss)} / {priceText(r.ai.takeProfit)}</span></div>
                                 <div className="mt-1 text-marble/80 prose prose-invert prose-xs max-w-none">
                                   <ReactMarkdown>{r.ai.rationale}</ReactMarkdown>
                                 </div>
@@ -443,11 +464,11 @@ function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number
   const b = r.breakdown;
   const parts = [
     { label: '100', value: 100, sub: 'Base' },
-    { label: 'P(Goal)', value: b.pGoal, sub: `${b.horizonSteps}h MC`, fmt: (v: number) => (v * 100).toFixed(1) + '%' },
-    { label: 'Setup', value: b.setupFactor, sub: `${r.setup}`, fmt: (v: number) => v.toFixed(2) + '×' },
-    { label: 'Align', value: b.alignedBonus, sub: `${b.primaryDirection} vs ${b.wantDirection}`, fmt: (v: number) => v.toFixed(2) + '×' },
-    { label: 'Trend', value: b.trendBonus, sub: r.regime.toUpperCase(), fmt: (v: number) => v.toFixed(2) + '×' },
-    { label: 'TailPen', value: b.tailPenalty, sub: `ATR ${(r.atrPct * 100).toFixed(2)}% · DD ${(r.histMaxDDPct * 100).toFixed(1)}%`, fmt: (v: number) => v.toFixed(2) + '×' },
+    { label: 'P(Goal)', value: b.pGoal, sub: `${b.horizonSteps}h MC`, fmt: (v: number) => pct(v) },
+    { label: 'Setup', value: b.setupFactor, sub: `${r.setup}`, fmt: (v: number) => fixed(v) + '×' },
+    { label: 'Align', value: b.alignedBonus, sub: `${b.primaryDirection} vs ${b.wantDirection}`, fmt: (v: number) => fixed(v) + '×' },
+    { label: 'Trend', value: b.trendBonus, sub: r.regime.toUpperCase(), fmt: (v: number) => fixed(v) + '×' },
+    { label: 'TailPen', value: b.tailPenalty, sub: `ATR ${pct(r.atrPct, 2)} · DD ${pct(r.histMaxDDPct, 1)}`, fmt: (v: number) => fixed(v) + '×' },
   ];
 
   const riskT = b.riskThresholds;
@@ -480,7 +501,7 @@ function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number
         ))}
         <div className="rounded border border-gold/40 bg-gold/5 px-2 py-1.5">
           <div className="text-[7px] uppercase tracking-wider text-gold/70">= Score</div>
-          <div className="text-gold font-semibold">{b.compositeScore.toFixed(1)}</div>
+          <div className="text-gold font-semibold">{fixed(b.compositeScore, 1)}</div>
           <div className="text-[7px] text-marble/40">out of 100</div>
         </div>
       </div>
@@ -489,7 +510,7 @@ function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number
       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-[9px] font-mono">
         <div>
           <div className="text-[7px] uppercase tracking-wider text-marble/40 mb-1">
-            Risk composite (ATR + 0.15·MaxDD) = {(rc * 100).toFixed(2)}%
+            Risk composite (ATR + 0.15·MaxDD) = {fixed(rc * 100, 2)}%
           </div>
           <div className="relative h-2 rounded-full bg-navy overflow-hidden border border-gold/10">
             {/* threshold zones */}
@@ -501,9 +522,9 @@ function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number
             <div className="absolute top-0 h-full w-0.5 bg-gold" style={{ left: `${barPct}%` }} />
           </div>
           <div className="flex justify-between text-[7px] text-marble/40 mt-0.5">
-            <span className="text-emerald-400">LOW ≤{(riskT.LOW * 100).toFixed(1)}%</span>
-            <span className="text-gold-light">MED ≤{(riskT.MEDIUM * 100).toFixed(1)}%</span>
-            <span className="text-orange-400">HIGH ≤{(riskT.HIGH * 100).toFixed(1)}%</span>
+            <span className="text-emerald-400">LOW ≤{fixed(riskT.LOW * 100, 1)}%</span>
+            <span className="text-gold-light">MED ≤{fixed(riskT.MEDIUM * 100, 1)}%</span>
+            <span className="text-orange-400">HIGH ≤{fixed(riskT.HIGH * 100, 1)}%</span>
             <span className="text-red-500">EXTREME</span>
           </div>
           <div className="text-[8px] text-marble/60 mt-1">
@@ -523,20 +544,20 @@ function ScoreBreakdownCard({ r, horizonH }: { r: PrecisionRow; horizonH: number
             Monte-Carlo engine · {b.horizonSteps}h · 800 paths
           </div>
           <div className="text-marble/70">
-            drift/h: <span className="text-gold-light">{(b.driftPerStep * 100).toFixed(3)}%</span>
+            drift/h: <span className="text-gold-light">{fixed(b.driftPerStep * 100, 3)}%</span>
             {' · '}
-            σ/h: <span className="text-gold-light">{(b.sigmaPerStep * 100).toFixed(3)}%</span>
+            σ/h: <span className="text-gold-light">{fixed(b.sigmaPerStep * 100, 3)}%</span>
           </div>
           <div className="text-marble/70">
-            E[Ret]: <span className="text-emerald-400">{r.monteCarlo.eReturnPct.toFixed(2)}%</span>
+            E[Ret]: <span className="text-emerald-400">{fixed(r.monteCarlo.eReturnPct)}%</span>
             {' · '}
-            E[DD]: <span className="text-red-400">{r.monteCarlo.eMaxDDPct.toFixed(2)}%</span>
+            E[DD]: <span className="text-red-400">{fixed(r.monteCarlo.eMaxDDPct)}%</span>
           </div>
           <div className="text-marble/70">
-            P10 / P90: <span className="text-marble">{r.monteCarlo.p10ReturnPct.toFixed(2)}% / {r.monteCarlo.p90ReturnPct.toFixed(2)}%</span>
+            P10 / P90: <span className="text-marble">{fixed(r.monteCarlo.p10ReturnPct)}% / {fixed(r.monteCarlo.p90ReturnPct)}%</span>
           </div>
           <div className="text-[7px] text-marble/40 mt-0.5">
-            drift = MTF({(r.mtfAlignment).toFixed(2)}) · ATR({(r.atrPct * 100).toFixed(2)}%) · 0.5 &nbsp;·&nbsp; σ = max(RV, ATR·0.7)
+            drift = MTF({fixed(r.mtfAlignment)}) · ATR({pct(r.atrPct, 2)}) · 0.5 &nbsp;·&nbsp; σ = max(RV, ATR·0.7)
           </div>
         </div>
       </div>

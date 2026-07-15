@@ -14,6 +14,22 @@ import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 
+const safeNumber = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const safeFixed = (value: unknown, digits = 2, fallback = '—') => {
+  const n = safeNumber(value, NaN);
+  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
+};
+
+const safePct = (value: unknown, digits = 1, fallback = '—') => {
+  const n = safeNumber(value, NaN);
+  return Number.isFinite(n) ? `${(n * 100).toFixed(digits)}%` : fallback;
+};
+
 /**
  * EAGLE VIEW · Precision Rank v2
  * ------------------------------------------------------------------
@@ -154,13 +170,13 @@ export default function EagleView() {
           <PulseCard label="Advancers" value={String(pulse.winners)} sub={`${pulse.losers} decliners`} tone="up" />
           <PulseCard
             label="Strongest 24h"
-            value={pulse.strongest ? `${pulse.strongest.s.ticker} +${pulse.strongest.ch.toFixed(2)}%` : '—'}
+            value={pulse.strongest ? `${pulse.strongest.s.ticker} +${safeFixed(pulse.strongest.ch)}%` : '—'}
             sub={pulse.strongest ? fmtPrice(pulse.strongest.p) : ''}
             tone="up"
           />
           <PulseCard
             label="Weakest 24h"
-            value={pulse.weakest ? `${pulse.weakest.s.ticker} ${pulse.weakest.ch.toFixed(2)}%` : '—'}
+            value={pulse.weakest ? `${pulse.weakest.s.ticker} ${safeFixed(pulse.weakest.ch)}%` : '—'}
             sub={pulse.weakest ? fmtPrice(pulse.weakest.p) : ''}
             tone="down"
           />
@@ -320,7 +336,7 @@ export default function EagleView() {
                     </div>
                     <div className="text-marble/80">{fmtPrice(p)}</div>
                     <div className={`w-14 text-right ${ch > 0 ? 'text-emerald-400' : ch < 0 ? 'text-red-400' : 'text-marble/40'}`}>
-                      {ch > 0 ? '+' : ''}{ch.toFixed(2)}%
+                      {ch > 0 ? '+' : ''}{safeFixed(ch)}%
                     </div>
                   </button>
                 );
@@ -340,7 +356,7 @@ export default function EagleView() {
                 <div className="text-gold text-sm">{selected}</div>
                 <div>Price: <span className="text-marble">{fmtPrice(live.resolvePriceByTicker(selected))}</span></div>
                 <div>24h: <span className={live.resolveChangeByTicker(selected) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {live.resolveChangeByTicker(selected).toFixed(2)}%
+                  {safeFixed(live.resolveChangeByTicker(selected))}%
                 </span></div>
                 <Link
                   to={`/trading-bridge?symbol=${encodeURIComponent(selected)}`}
@@ -398,8 +414,8 @@ function DirectiveHero({
     );
   }
   const { r, v } = directive;
-  const livePrice = live.resolvePriceByTicker(r.ticker) || r.price;
-  const change = live.resolveChangeByTicker(r.ticker);
+  const livePrice = safeNumber(live.resolvePriceByTicker(r.ticker), 0) || safeNumber(r.price, 0);
+  const change = safeNumber(live.resolveChangeByTicker(r.ticker), 0);
   void tick; // livePrice/change recomputed via parent tick prop
 
   const verdictWord =
@@ -456,7 +472,7 @@ function DirectiveHero({
             <div className="flex items-baseline gap-4 font-mono">
               <span className="text-2xl md:text-3xl text-marble tabular-nums">${fmtPrice(livePrice)}</span>
               <span className={change >= 0 ? 'text-emerald-400 text-sm' : 'text-red-400 text-sm'}>
-                {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+                {change >= 0 ? '+' : ''}{safeFixed(change)}%
               </span>
               <span className="text-[10px] text-marble/40 uppercase tracking-widest">24h · live tick</span>
             </div>
@@ -486,12 +502,12 @@ function DirectiveHero({
 
           {/* Reason chips — expose EVERY data point that produced the verdict */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[9px] font-mono">
-            <MiniStat label="P(Goal)" value={`${(pGoal * 100).toFixed(1)}%`} tone="gold" />
-            <MiniStat label="Score" value={`${score.toFixed(1)}/100`} tone="gold" />
+            <MiniStat label="P(Goal)" value={safePct(pGoal)} tone="gold" />
+            <MiniStat label="Score" value={`${safeFixed(score, 1)}/100`} tone="gold" />
             <MiniStat label="Risk" value={risk} tone={risk === 'LOW' ? 'up' : risk === 'EXTREME' ? 'down' : 'gold'} />
-            <MiniStat label="MTF Align" value={`${(r.mtfAlignment * 100).toFixed(0)}`} tone={r.mtfAlignment >= 0 ? 'up' : 'down'} />
-            <MiniStat label="E[Ret %]" value={eRet.toFixed(2)} tone="up" />
-            <MiniStat label="E[DD %]" value={eDD.toFixed(2)} tone="down" />
+            <MiniStat label="MTF Align" value={`${safeFixed(safeNumber(r.mtfAlignment) * 100, 0)}`} tone={safeNumber(r.mtfAlignment) >= 0 ? 'up' : 'down'} />
+            <MiniStat label="E[Ret %]" value={safeFixed(eRet)} tone="up" />
+            <MiniStat label="E[DD %]" value={safeFixed(eDD)} tone="down" />
             <MiniStat label="Regime" value={r.regime.toUpperCase()} tone="gold" />
             <MiniStat label="Setup" value={r.setup} tone="gold" />
           </div>
@@ -512,7 +528,7 @@ function DirectiveHero({
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-[9px] font-display tracking-[0.35em] text-gold-light uppercase">Conviction</span>
               <span className="text-5xl md:text-6xl font-mono text-marble tabular-nums leading-none mt-1">
-                {v.conviction.toFixed(0)}
+                {safeFixed(v.conviction, 0)}
                 <span className="text-marble/40 text-2xl">%</span>
               </span>
               <span className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-display tracking-[0.25em] uppercase
@@ -553,6 +569,8 @@ function ConvictionCard({
   active: boolean;
   onClick: () => void;
 }) {
+  const safeLive = safeNumber(live, 0);
+  const safeChange = safeNumber(change, 0);
   const pillCls =
     verdict.color === 'emerald' ? 'text-emerald-400 border-emerald-400/40 bg-emerald-500/10'
     : verdict.color === 'gold' ? 'text-gold border-gold/50 bg-gold/10'
@@ -578,29 +596,29 @@ function ConvictionCard({
         </span>
       </div>
       <div className="mt-2 flex items-baseline gap-2 font-mono">
-        <span className="text-sm text-marble tabular-nums">${fmtPrice(live)}</span>
-        <span className={`text-[9px] ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+        <span className="text-sm text-marble tabular-nums">${fmtPrice(safeLive)}</span>
+        <span className={`text-[9px] ${safeChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          {safeChange >= 0 ? '+' : ''}{safeFixed(safeChange)}%
         </span>
       </div>
       <div className="mt-2">
         <div className="flex items-center justify-between text-[8px] font-mono text-marble/50 mb-0.5">
-          <span>CONVICTION</span><span>{verdict.conviction.toFixed(0)}%</span>
+          <span>CONVICTION</span><span>{safeFixed(verdict.conviction, 0)}%</span>
         </div>
         <div className="h-1 w-full bg-navy rounded-full overflow-hidden">
           <div className={`h-full ${bar}`} style={{ width: `${Math.max(3, verdict.conviction)}%` }} />
         </div>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-1 text-[8px] font-mono text-marble/60">
-        <div><span className="text-marble/35">P</span> {(row.monteCarlo.pGoal * 100).toFixed(0)}%</div>
+        <div><span className="text-marble/35">P</span> {safePct(row.monteCarlo.pGoal, 0)}</div>
         <div><span className="text-marble/35">R</span> {(row.ai?.riskLabel ?? row.riskLabel).slice(0,3)}</div>
-        <div><span className="text-marble/35">S</span> {(row.ai?.adjustedScore ?? row.compositeScore).toFixed(0)}</div>
+        <div><span className="text-marble/35">S</span> {safeFixed(row.ai?.adjustedScore ?? row.compositeScore, 0)}</div>
       </div>
     </button>
   );
 }
 function fmtPrice(p: number) {
-  if (p <= 0) return '—';
+  if (!Number.isFinite(p) || p <= 0) return '—';
   if (p < 1) return p.toFixed(4);
   if (p < 100) return p.toFixed(3);
   return p.toLocaleString(undefined, { maximumFractionDigits: 2 });

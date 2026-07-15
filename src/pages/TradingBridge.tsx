@@ -172,6 +172,17 @@ const TAB_TO_CATEGORY: Record<BottomTab, BottomCategory> =
   }, {} as Record<BottomTab, BottomCategory>);
 
 // ─── Paper Trading Panel ─────────────────────────────────
+const finiteMarketNumber = (value: unknown, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const fixedMarketNumber = (value: unknown, digits = 2, fallback = '—') => {
+  const n = finiteMarketNumber(value, NaN);
+  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
+};
+
 function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   activeSymbol: { key: string; label: string; ticker: string; cat: string };
   activePrice: number;
@@ -187,11 +198,12 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   const { toast } = useToast();
 
   const parsedQty = parseFloat(qty) || 0;
-  const fillPrice = orderType === 'market' ? activePrice : (parseFloat(limitPrice) || activePrice);
+  const safeActivePrice = finiteMarketNumber(activePrice, 0);
+  const fillPrice = orderType === 'market' ? safeActivePrice : (parseFloat(limitPrice) || safeActivePrice);
   const totalCost = parsedQty * fillPrice;
   const portfolioPct = paper.account.equity > 0 ? (totalCost / paper.account.equity) * 100 : 0;
   const remainingCash = side === 'buy' ? paper.account.cash - totalCost : paper.account.cash + totalCost;
-  const spread = activePrice * 0.0002;
+  const spread = safeActivePrice * 0.0002;
 
   // Find owned position for the active symbol
   const ownedPosition = paper.positions.find(
@@ -200,7 +212,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   const ownedQty = ownedPosition?.qty ?? 0;
 
   const setQtyPercent = (pct: number) => {
-    if (activePrice <= 0) return;
+    if (safeActivePrice <= 0) return;
     if (side === 'sell') {
       // For sells, percentage of owned position qty
       if (ownedQty <= 0) return;
@@ -208,7 +220,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
       setQty(sellQty < 1 ? sellQty.toFixed(4) : Math.floor(sellQty).toString());
     } else {
       // For buys, percentage of available cash
-      const maxQty = (paper.account.cash * pct) / activePrice;
+      const maxQty = (paper.account.cash * pct) / safeActivePrice;
       setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
     }
   };
@@ -220,10 +232,10 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         side,
         qty: parseFloat(qty),
         type: orderType === 'stop_limit' ? 'limit' : (orderType === 'stop' ? 'stop' : orderType),
-        price: activePrice,
+        price: safeActivePrice,
         limitPrice: orderType === 'limit' || orderType === 'stop_limit' ? parseFloat(limitPrice) : undefined,
       });
-      showTradeRecap({ side, qty: parseFloat(qty), symbol: activeSymbol.ticker, price: activePrice });
+      showTradeRecap({ side, qty: parseFloat(qty), symbol: activeSymbol.ticker, price: safeActivePrice });
       setQty('');
     } catch (err) {
       toast({ title: 'Order Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
@@ -232,7 +244,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!qty || !activePrice) return;
+    if (!qty || !safeActivePrice) return;
     setConfirmData({
       symbol: activeSymbol.ticker,
       symbolKey: activeSymbol.key,
@@ -275,11 +287,11 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
       </div>
 
       {/* Bid/Ask Spread Indicator */}
-      {activePrice > 0 && (
+      {safeActivePrice > 0 && (
         <div className="flex items-center justify-between bg-navy-light/20 rounded px-2 py-1 border border-gold/5">
-          <span className="text-[8px] font-mono text-emerald-400/70">BID: ${(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
-          <span className="text-[7px] font-mono text-marble/20">SPREAD: ${spread.toFixed(activePrice < 10 ? 4 : 2)}</span>
-          <span className="text-[8px] font-mono text-red-400/70">ASK: ${(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[8px] font-mono text-emerald-400/70">BID: ${fixedMarketNumber(safeActivePrice - spread / 2, safeActivePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[7px] font-mono text-marble/20">SPREAD: ${fixedMarketNumber(spread, safeActivePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[8px] font-mono text-red-400/70">ASK: ${fixedMarketNumber(safeActivePrice + spread / 2, safeActivePrice < 10 ? 4 : 2)}</span>
         </div>
       )}
 
@@ -332,9 +344,9 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
             <Input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="Limit Price" step="0.01"
               className="bg-navy-light border-gold/20 text-marble font-mono text-sm pr-14" required />
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
-              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) - (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
+              <button type="button" onClick={() => setLimitPrice(p => fixedMarketNumber((parseFloat(p || String(safeActivePrice)) - (safeActivePrice < 10 ? 0.01 : 1)), safeActivePrice < 10 ? 4 : 2, '0'))}
                 className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">−</button>
-              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) + (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
+              <button type="button" onClick={() => setLimitPrice(p => fixedMarketNumber((parseFloat(p || String(safeActivePrice)) + (safeActivePrice < 10 ? 0.01 : 1)), safeActivePrice < 10 ? 4 : 2, '0'))}
                 className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">+</button>
             </div>
           </div>
@@ -345,10 +357,10 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         )}
 
         {/* Order Cost Breakdown */}
-        {parsedQty > 0 && activePrice > 0 && (
+        {parsedQty > 0 && safeActivePrice > 0 && (
           <div className="bg-navy-dark/50 rounded-lg p-2 space-y-1 border border-gold/5">
             <div className="flex justify-between text-[9px] font-mono">
-              <span className="text-marble/40">{parsedQty} × ${fillPrice < 10 ? fillPrice.toFixed(4) : fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="text-marble/40">{parsedQty} × ${fillPrice < 10 ? fixedMarketNumber(fillPrice, 4) : fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               <span className="text-marble font-semibold">${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between text-[8px] font-mono">
@@ -378,29 +390,31 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
           <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
           {paper.positions.map(pos => {
             const rawLive = (pos.symbol === activeSymbol.ticker && activePrice > 0
-              ? activePrice
+              ? safeActivePrice
               : pos.currentPrice);
             const livePrice = Number.isFinite(rawLive as number) && (rawLive as number) > 0
               ? (rawLive as number)
-              : (Number.isFinite(pos.entryPrice) ? pos.entryPrice : 0);
+              : finiteMarketNumber(pos.entryPrice, 0);
+            const entryPrice = finiteMarketNumber(pos.entryPrice, 0);
+            const qtyValue = finiteMarketNumber(pos.qty, 0);
             const livePnl = pos.side === 'buy'
-              ? (livePrice - pos.entryPrice) * pos.qty
-              : (pos.entryPrice - livePrice) * pos.qty;
-            const livePnlPct = pos.entryPrice > 0 ? (livePnl / (pos.entryPrice * pos.qty)) * 100 : 0;
+              ? (livePrice - entryPrice) * qtyValue
+              : (entryPrice - livePrice) * qtyValue;
+            const livePnlPct = entryPrice > 0 && qtyValue > 0 ? (livePnl / (entryPrice * qtyValue)) * 100 : 0;
             const isProfit = livePnl >= 0;
             return (
               <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
                 <div>
                   <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
-                  <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</div>
+                  <div className="text-[8px] text-marble/25">{qtyValue} @ ${fixedMarketNumber(entryPrice, 2)}</div>
                 </div>
                 <div className="text-right flex items-center gap-2">
                   <div>
                     <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                      ${livePrice < 10 ? livePrice.toFixed(4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${livePrice < 10 ? fixedMarketNumber(livePrice, 4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div className={`text-[9px] font-mono ${livePnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)} ({livePnlPct.toFixed(1)}%)
+                      {livePnl >= 0 ? '+' : ''}${fixedMarketNumber(livePnl, 2)} ({fixedMarketNumber(livePnlPct, 1)}%)
                     </div>
                   </div>
                   <button onClick={() => paper.closePosition(pos.id, livePrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
@@ -419,7 +433,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
             <div key={o.id} className="flex items-center justify-between px-2 py-1 text-[9px] font-mono text-marble/30 border-b border-gold/5">
               <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
               <span>{o.qty} {o.symbol}</span>
-              <span>${o.price.toFixed(2)}</span>
+              <span>${fixedMarketNumber(o.price, 2)}</span>
             </div>
           ))}
         </div>
