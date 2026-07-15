@@ -332,6 +332,8 @@ export function SymbolRanker({ getCandleData, resolvePrice, activeCategory, onSe
                   {isOpen && (
                     <tr className="bg-navy/60">
                       <td colSpan={13} className="px-3 py-2">
+                        {/* ── Score & Risk breakdown — exact math per symbol ── */}
+                        <ScoreBreakdownCard r={r} horizonH={horizonH} />
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[9px] font-mono">
                           <div>
                             <div className="text-[8px] uppercase tracking-wider text-marble/40 mb-1">MTF Alignment</div>
