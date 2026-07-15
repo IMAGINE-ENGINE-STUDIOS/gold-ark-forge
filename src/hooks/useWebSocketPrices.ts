@@ -11,7 +11,6 @@ export interface WebSocketPrice {
 type PriceMap = Record<string, WebSocketPrice>;
 
 const BINANCE_WS = 'wss://stream.binance.com:9443/ws';
-const BINANCE_REST = 'https://api.binance.com/api/v3/ticker/24hr';
 
 // Map our symbol keys to Binance stream names
 export const BINANCE_STREAMS: Record<string, string> = {
@@ -34,7 +33,6 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   const [prices, setPrices] = useState<PriceMap>({});
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
-  const restPollTimer = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 10;
@@ -45,40 +43,6 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   );
 
   const streamKeyToken = streamKeys.join('|');
-
-  const pollRest = useCallback(async () => {
-    if (streamKeys.length === 0) return;
-    const symbols = streamKeys.map(k => `${BINANCE_STREAMS[k].toUpperCase()}`);
-    try {
-      const url = symbols.length === 1
-        ? `${BINANCE_REST}?symbol=${symbols[0]}`
-        : `${BINANCE_REST}?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`Binance REST ${resp.status}`);
-      const json = await resp.json();
-      const rows = Array.isArray(json) ? json : [json];
-      const next: PriceMap = {};
-      for (const row of rows) {
-        const stream = String(row.symbol ?? '').toLowerCase();
-        const key = keyForStream(stream);
-        if (!key) continue;
-        const price = Number(row.lastPrice);
-        if (!Number.isFinite(price) || price <= 0) continue;
-        next[key] = {
-          symbol: key,
-          price,
-          change24h: Number(row.priceChangePercent) || 0,
-          volume: Number(row.quoteVolume) || 0,
-          timestamp: Date.now(),
-        };
-      }
-      if (mountedRef.current && Object.keys(next).length > 0) {
-        setPrices(prev => ({ ...prev, ...next }));
-      }
-    } catch (e) {
-      console.warn('[REST] Binance ticker poll failed:', e);
-    }
-  }, [streamKeyToken]);
 
   const connect = useCallback(() => {
     // Only connect for crypto symbols that have Binance streams
@@ -163,17 +127,14 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   useEffect(() => {
     mountedRef.current = true;
     retryCountRef.current = 0;
-    pollRest();
-    restPollTimer.current = setInterval(pollRest, 3000);
     connect();
 
     return () => {
       mountedRef.current = false;
       wsRef.current?.close();
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (restPollTimer.current) clearInterval(restPollTimer.current);
     };
-  }, [connect, pollRest]);
+  }, [connect]);
 
   return prices;
 };
