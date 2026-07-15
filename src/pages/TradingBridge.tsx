@@ -52,6 +52,7 @@ import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
 import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import SymbolLogo from '@/components/trading/SymbolLogo';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
