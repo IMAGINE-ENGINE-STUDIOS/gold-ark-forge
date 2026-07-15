@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_approvals: {
+        Row: {
+          agent: string
+          created_at: string
+          decided_at: string | null
+          expires_at: string
+          id: string
+          proposal: Json
+          reasoning: string | null
+          run_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          agent: string
+          created_at?: string
+          decided_at?: string | null
+          expires_at?: string
+          id?: string
+          proposal: Json
+          reasoning?: string | null
+          run_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          agent?: string
+          created_at?: string
+          decided_at?: string | null
+          expires_at?: string
+          id?: string
+          proposal?: Json
+          reasoning?: string | null
+          run_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_approvals_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "automation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anchor_leaves: {
         Row: {
           anchor_id: string
@@ -165,6 +212,136 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      automation_configs: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          spec: Json
+          status: string
+          strategy: string
+          symbol: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          spec?: Json
+          status?: string
+          strategy: string
+          symbol?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          spec?: Json
+          status?: string
+          strategy?: string
+          symbol?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      automation_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          run_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          run_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          run_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "automation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_runs: {
+        Row: {
+          config_id: string | null
+          duration_ms: number | null
+          ended_at: string | null
+          error: string | null
+          id: string
+          kind: string
+          realized_pnl: number
+          started_at: string
+          status: string
+          strategy: string
+          symbol: string | null
+          trades_count: number
+          user_id: string
+        }
+        Insert: {
+          config_id?: string | null
+          duration_ms?: number | null
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          realized_pnl?: number
+          started_at?: string
+          status?: string
+          strategy: string
+          symbol?: string | null
+          trades_count?: number
+          user_id: string
+        }
+        Update: {
+          config_id?: string | null
+          duration_ms?: number | null
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          realized_pnl?: number
+          started_at?: string
+          status?: string
+          strategy?: string
+          symbol?: string | null
+          trades_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "automation_configs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       broker_connections: {
         Row: {

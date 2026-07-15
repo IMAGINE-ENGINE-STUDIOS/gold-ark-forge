@@ -43,7 +43,38 @@ export default function AutomationEngine({ sub, waveBot, genius, alertsHook, res
     );
   }
   if (sub === 'agents') {
-    return <AutomationAgents genius={genius} />;
+    const prices: Record<string, number> = {};
+    for (const p of paper.positions ?? []) {
+      if (p?.symbol) prices[p.symbol] = resolvePrice(p.symbol);
+    }
+    ['GLD','SLV','BTC-USD','ETH-USD','SPY','QQQ'].forEach(t => { prices[t] = resolvePrice(t); });
+    return (
+      <AutomationAgents
+        genius={genius}
+        equity={equity}
+        positions={(paper.positions ?? []).map((p: any) => ({
+          symbol: p.symbol, side: p.side ?? 'long', qty: p.qty ?? p.size ?? 0, entry: p.entry ?? p.entryPrice ?? 0,
+        }))}
+        prices={prices}
+        onApprovedTrade={(prop) => {
+          paper.submitOrder({
+            symbol: prop.symbol,
+            side: prop.side,
+            type: 'market',
+            qty: prop.sizeUsd / Math.max(1e-6, resolvePrice(prop.symbol)),
+            source: 'agent',
+          });
+        }}
+      />
+    );
   }
-  return <AutomationPipelines alertsHook={alertsHook} />;
+  return (
+    <AutomationPipelines
+      alertsHook={alertsHook}
+      resolvePrice={resolvePrice}
+      getCandleHistory={getCandleHistory}
+      equity={equity}
+      submitOrder={paper.submitOrder}
+    />
+  );
 }
