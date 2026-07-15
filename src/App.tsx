@@ -18,6 +18,7 @@ import TradingViewShowroom from "./pages/TradingViewShowroom";
 import Intelligence from "./pages/Intelligence";
 import OilGasIntelligence from "./pages/OilGasIntelligence";
 import TradingBridge from "./pages/TradingBridge";
+import EagleView from "./pages/EagleView";
 import LogRegistry from "./pages/LogRegistry";
 import LogRegistry2 from "./pages/LogRegistry2";
 import OldBots from "./pages/OldBots";
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/intelligence" element={<Intelligence />} />
             <Route path="/oil-gas" element={<OilGasIntelligence />} />
             <Route path="/trading-bridge" element={<TradingBridge />} />
+            <Route path="/eagle-view" element={<EagleView />} />
             <Route path="/log-registry" element={<LogRegistry />} />
             <Route path="/log-registry-2" element={<LogRegistry2 />} />
             <Route path="/old-bots" element={<OldBots />} />
