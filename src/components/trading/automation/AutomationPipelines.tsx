@@ -607,7 +607,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
               {isOpen && (
                 <div className="px-3 pb-3 pt-1 border-t border-gold/10">
                   {k === 'schedule' && <SchedulePanel />}
-                  {k === 'alerts'   && <PriceAlerts alertsHook={alertsHook} />}
+                  {k === 'alerts'   && <PriceAlerts alertsHook={alertsHook} resolvePrice={resolvePrice} defaultSymbol={symbol} />}
                   {k === 'rules'    && <RuleBuilder />}
                 </div>
               )}
