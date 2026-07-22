@@ -126,7 +126,7 @@ interface WorkflowStep {
 function buildPipeline(steps: WorkflowStep[], name = 'Custom Workflow'): Pipeline {
   const nodes: NodeSpec[] = steps.map((s, idx) => {
     let inputs: string[] | undefined;
-    if (s.kind === 'execution.orderIntent') {
+    if (s.kind === 'execution.orderIntent' || s.kind === 'alert.notify') {
       inputs = steps.slice(0, idx).map(x => x.id);
     } else if (s.kind === 'action.buy' || s.kind === 'action.sell') {
       inputs = steps.slice(0, idx).map(x => x.id);
