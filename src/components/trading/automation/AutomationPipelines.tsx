@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap, GripVertical, Plus, Trash2, Wand2, TrendingUp, TrendingDown, Sparkles, Brain, DollarSign } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap, GripVertical, Plus, Trash2, Wand2, TrendingUp, TrendingDown, Sparkles, Brain, DollarSign, Search } from 'lucide-react';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RuleBuilder from '@/components/trading/RuleBuilder';
@@ -31,6 +31,14 @@ interface PaletteGroup {
   items: PaletteItem[];
 }
 const PALETTE: PaletteGroup[] = [
+  {
+    group: 'SYMBOLS', icon: Search,
+    color: 'text-gold border-gold/40 bg-gold/10',
+    chipBg: 'bg-gold/10 hover:bg-gold/20 border-gold/30',
+    items: [
+      { kind: 'context.symbol', label: 'Symbol', desc: 'Reference asset for downstream steps', defaults: { symbol: 'GLD' } },
+    ],
+  },
   {
     group: 'SIGNAL', icon: Activity,
     color: 'text-blue-300 border-blue-500/40 bg-blue-500/10',
@@ -112,6 +120,17 @@ const PALETTE: PaletteGroup[] = [
 const paletteByKind = new Map<NodeKind, { item: PaletteItem; group: PaletteGroup }>();
 PALETTE.forEach(g => g.items.forEach(it => paletteByKind.set(it.kind, { item: it, group: g })));
 
+// Node kinds that operate on a reference symbol — inserting one auto-prepends
+// a context.symbol node if the workflow doesn't already carry one.
+const REQUIRES_SYMBOL = new Set<NodeKind>([
+  'trigger.priceAbove',
+  'trigger.priceBelow',
+  'trigger.crossover',
+  'action.buy',
+  'action.sell',
+  'execution.orderIntent',
+]);
+
 // Workflow node = palette item + generated id + editable params.
 interface WorkflowStep {
   id: string;
@@ -175,6 +194,16 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     const step: WorkflowStep = { id: genStepId(), kind, params: { ...meta.item.defaults } };
     setSteps(prev => {
       const next = [...prev];
+      // Auto-inject a Symbol node at the head if this kind needs one and none exists yet.
+      const needsSymbol = REQUIRES_SYMBOL.has(kind) && kind !== 'context.symbol'
+        && !next.some(s => s.kind === 'context.symbol');
+      if (needsSymbol) {
+        const symMeta = paletteByKind.get('context.symbol');
+        if (symMeta) {
+          next.unshift({ id: genStepId(), kind: 'context.symbol', params: { ...symMeta.item.defaults, symbol } });
+          if (at > 0) at += 1;
+        }
+      }
       const clamped = Math.max(0, Math.min(at, next.length));
       next.splice(clamped, 0, step);
       return next;
@@ -209,6 +238,14 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
       .map(n => ({ id: genStepId(), kind: n.kind, params: { ...n.params } })));
     setWorkflowName(p.name);
   };
+
+  // Deploy symbol is derived from the first context.symbol node in the workflow
+  // (fallback to the local SymbolPicker below the lane).
+  const workflowSymbol = useMemo(() => {
+    const s = steps.find(x => x.kind === 'context.symbol');
+    const t = s ? String(s.params.symbol ?? '') : '';
+    return t || symbol;
+  }, [steps, symbol]);
 
   const currentPipeline = useMemo(
     () => steps.length ? buildPipeline(steps, workflowName) : null,
@@ -266,12 +303,13 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
   const deploy = () => {
     if (!currentPipeline) return;
     const id = `pipe-${Date.now().toString(36)}`;
-    const px = resolvePrice(symbol);
+    const sym = workflowSymbol;
+    const px = resolvePrice(sym);
     setPipes(list => [
       ...list,
-      { id, pipeline: currentPipeline, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0, tickCount: 0 },
+      { id, pipeline: currentPipeline, symbol: sym, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0, tickCount: 0 },
     ]);
-    toast.success(`Pipeline deployed · ${symbol} · ${currentPipeline.nodes.length} nodes`);
+    toast.success(`Pipeline deployed · ${sym} · ${currentPipeline.nodes.length} nodes`);
   };
 
   const toggle = (k: LegacyKey) => setOpenLegacy(prev => {
@@ -499,7 +537,13 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                   </button>
                 </div>
                 <div className="text-[9px] font-mono text-marble/50">{meta.item.desc}</div>
-                {keys.length === 0 ? (
+                {step.kind === 'context.symbol' ? (
+                  <SymbolPicker
+                    label="REFERENCE SYMBOL"
+                    value={String(step.params.symbol ?? 'GLD')}
+                    onChange={(t) => updateParam(step.id, 'symbol', t)}
+                  />
+                ) : keys.length === 0 ? (
                   <div className="text-[9px] font-mono text-marble/40 italic">No parameters — this block runs as-is.</div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -570,7 +614,14 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                 <span className="text-[8px] font-mono text-amber-400">add BUY, SELL, or Order Intent to fire trades</span>
               )}
             </div>
-            <SymbolPicker label="SYMBOL" value={symbol} onChange={setSymbol} />
+            {steps.some(s => s.kind === 'context.symbol') ? (
+              <div className="flex items-center justify-between rounded border border-gold/20 bg-navy-dark/70 px-2.5 py-1.5">
+                <span className="text-[8px] font-display tracking-[0.15em] text-marble/40">SYMBOL (from workflow)</span>
+                <span className="text-[10px] font-mono tracking-wider text-gold-light">{workflowSymbol}</span>
+              </div>
+            ) : (
+              <SymbolPicker label="SYMBOL (fallback — drop a Symbol block to lock)" value={symbol} onChange={setSymbol} />
+            )}
             <button
               onClick={deploy}
               disabled={!currentPipeline}
