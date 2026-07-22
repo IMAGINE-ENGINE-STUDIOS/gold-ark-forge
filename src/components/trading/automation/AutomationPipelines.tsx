@@ -203,26 +203,37 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
         if (p.status !== 'running') return p;
         const price = resolvePrice(p.symbol);
         const candles = getCandleHistory(p.symbol) ?? [];
-        if (!price || candles.length < 20) return { ...p, lastLog: 'waiting for data…' };
-        const res = evaluate(p.pipeline, { symbol: p.symbol, price, candles, equity });
+        const nextTick = p.tickCount + 1;
+        if (!price || candles.length < 20) return { ...p, tickCount: nextTick, lastLog: 'waiting for data…' };
+        const res = evaluate(p.pipeline, {
+          symbol: p.symbol, price, candles, equity,
+          now: Date.now(), tickCount: nextTick,
+        });
         if ('error' in res) return { ...p, lastLog: `error: ${res.error}` };
         let newIntents = p.intents;
         let realized = p.realized;
         let lastLog = res.logs[res.logs.length - 1] ?? 'idle';
+        for (const out of Object.values(res.outputs)) {
+          if ((out as any).type === 'alert') {
+            const msg = (out as any).message as string;
+            toast.warning(`🔔 ${p.pipeline.name} · ${p.symbol}`, { description: msg });
+            lastLog = `alert: ${msg}`;
+          }
+        }
         for (const intent of res.intents) {
           newIntents += 1;
           const qty = Math.max(0, intent.sizeUsd / price);
           if (qty > 0) {
             try {
-              submitOrder({ symbol: p.symbol, side: intent.side, type: 'market', qty, source: 'pipeline' });
-              realized += 0; // realized tracked by paper engine
+              const order = submitOrder({ symbol: p.symbol, side: intent.side, type: 'market', qty, price, botSource: true });
+              if (order?.closedPnl !== undefined) realized += order.closedPnl;
               lastLog = `${intent.side.toUpperCase()} ${qty.toFixed(4)} @ ${price.toFixed(2)} — ${intent.reason.slice(0,60)}`;
             } catch (e) {
               lastLog = `order failed: ${(e as Error).message}`;
             }
           }
         }
-        return { ...p, intents: newIntents, realized, lastLog };
+        return { ...p, tickCount: nextTick, intents: newIntents, realized, lastLog };
       });
       setPipes(updated);
     }, 4000);
@@ -235,8 +246,9 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     const px = resolvePrice(symbol);
     setPipes(list => [
       ...list,
-      { id, pipeline: currentPipeline, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0 },
+      { id, pipeline: currentPipeline, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0, tickCount: 0 },
     ]);
+    toast.success(`Pipeline deployed · ${symbol} · ${currentPipeline.nodes.length} nodes`);
   };
 
   const toggle = (k: LegacyKey) => setOpenLegacy(prev => {
