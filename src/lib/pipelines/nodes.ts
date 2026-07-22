@@ -204,7 +204,9 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     const risk = inputs.find(i => i.type === 'risk' && (i as any).sizeUsd > 0) as any;
     const stop = inputs.find(i => i.type === 'risk' && (i as any).stopPrice != null) as any;
     const gate = inputs.find(i => i.type === 'gate') as any;
+    const sig = inputs.find(i => i.type === 'signal') as any;
     if (gate && !gate.pass) return { type: 'log', message: `BUY blocked: ${gate.reason}` };
+    if (sig && sig.value <= 0) return { type: 'log', message: `BUY idle (${sig.reason})` };
     const sizeUsd = risk?.sizeUsd ?? ctx.equity * 0.02;
     return { type: 'intent', side: 'buy', sizeUsd, stopPrice: stop?.stopPrice, reason: `forced BUY | ${risk?.reason ?? '2% default'}` };
   },
@@ -212,7 +214,9 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     const risk = inputs.find(i => i.type === 'risk' && (i as any).sizeUsd > 0) as any;
     const stop = inputs.find(i => i.type === 'risk' && (i as any).stopPrice != null) as any;
     const gate = inputs.find(i => i.type === 'gate') as any;
+    const sig = inputs.find(i => i.type === 'signal') as any;
     if (gate && !gate.pass) return { type: 'log', message: `SELL blocked: ${gate.reason}` };
+    if (sig && sig.value >= 0) return { type: 'log', message: `SELL idle (${sig.reason})` };
     const sizeUsd = risk?.sizeUsd ?? ctx.equity * 0.02;
     return { type: 'intent', side: 'sell', sizeUsd, stopPrice: stop?.stopPrice, reason: `forced SELL | ${risk?.reason ?? '2% default'}` };
   },
