@@ -46,8 +46,8 @@ const PALETTE: PaletteGroup[] = [
     color: 'text-yellow-300 border-yellow-500/40 bg-yellow-500/10',
     chipBg: 'bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30',
     items: [
-      { kind: 'trigger.priceAbove', label: 'Price Above',  desc: 'Fires when px > threshold', defaults: { threshold: 100 } },
-      { kind: 'trigger.priceBelow', label: 'Price Below',  desc: 'Fires when px < threshold', defaults: { threshold: 50 } },
+      { kind: 'trigger.priceAbove', label: 'Price Above',  desc: 'Fires when symbol rises N% from deploy price', defaults: { offsetPct: 2 } },
+      { kind: 'trigger.priceBelow', label: 'Price Below',  desc: 'Fires when symbol drops N% from deploy price', defaults: { offsetPct: -2 } },
       { kind: 'trigger.crossover',  label: 'MA Crossover', desc: 'Fast/slow MA cross',       defaults: { fastPeriod: 9, slowPeriod: 21 } },
       { kind: 'trigger.schedule',   label: 'Schedule',     desc: 'Fires every N ticks (4s)', defaults: { everyTicks: 15, side: 'buy' } },
     ],
@@ -230,6 +230,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
         const res = evaluate(p.pipeline, {
           symbol: p.symbol, price, candles, equity,
           now: Date.now(), tickCount: nextTick,
+          basePrice: p.bootPrice || price,
         });
         if ('error' in res) return { ...p, lastLog: `error: ${res.error}` };
         let newIntents = p.intents;
@@ -606,7 +607,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
               {isOpen && (
                 <div className="px-3 pb-3 pt-1 border-t border-gold/10">
                   {k === 'schedule' && <SchedulePanel />}
-                  {k === 'alerts'   && <PriceAlerts alertsHook={alertsHook} />}
+                  {k === 'alerts'   && <PriceAlerts alertsHook={alertsHook} resolvePrice={resolvePrice} defaultSymbol={symbol} />}
                   {k === 'rules'    && <RuleBuilder />}
                 </div>
               )}

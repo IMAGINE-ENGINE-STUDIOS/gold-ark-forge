@@ -1,30 +1,63 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bell, BellOff, Plus, Trash2, Volume2, VolumeX, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { requestNotificationPermission } from '@/lib/notificationSound';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
+import SymbolPicker from '@/components/shared/SymbolPicker';
 
 interface PriceAlertsProps {
   alertsHook: ReturnType<typeof usePriceAlerts>;
+  /** Live price resolver — when provided, thresholds anchor to the referenced symbol's current price. */
+  resolvePrice?: (ticker: string) => number;
+  /** Optional default symbol (e.g. the currently-active terminal symbol). */
+  defaultSymbol?: string;
 }
 
-const PriceAlerts = ({ alertsHook }: PriceAlertsProps) => {
+const PriceAlerts = ({ alertsHook, resolvePrice, defaultSymbol }: PriceAlertsProps) => {
   const {
     alerts, history, addAlert, removeAlert, toggleMute, toggleActive,
     soundEnabled, setSoundEnabled, volume, setVolume,
   } = alertsHook;
 
-  const [newSymbol, setNewSymbol] = useState('BTC');
+  const [newSymbol, setNewSymbol] = useState(defaultSymbol || 'BTC');
   const [newCondition, setNewCondition] = useState<'above' | 'below' | 'crosses'>('above');
   const [newThreshold, setNewThreshold] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+
+  // Live reference price for the currently-selected symbol.
+  const refPrice = useMemo(() => {
+    if (!resolvePrice) return 0;
+    const p = resolvePrice(newSymbol);
+    return Number.isFinite(p) && p > 0 ? p : 0;
+  }, [resolvePrice, newSymbol]);
+
+  // Auto-anchor the threshold to the referenced symbol whenever it changes
+  // and the user hasn't typed something custom yet.
+  useEffect(() => {
+    if (refPrice > 0 && !newThreshold) {
+      setNewThreshold(refPrice.toPrecision(6));
+    }
+  }, [refPrice, newThreshold]);
+
+  const applyOffset = (pct: number) => {
+    if (refPrice <= 0) return;
+    const t = refPrice * (1 + pct / 100);
+    setNewThreshold(t.toPrecision(6));
+    setNewCondition(pct >= 0 ? 'above' : 'below');
+  };
+
+  const thresholdNum = parseFloat(newThreshold);
+  const deltaPct = refPrice > 0 && Number.isFinite(thresholdNum)
+    ? ((thresholdNum - refPrice) / refPrice) * 100
+    : null;
 
   const handleAdd = () => {
     const thresh = parseFloat(newThreshold);
     if (!newSymbol.trim() || isNaN(thresh) || thresh <= 0) return;
     addAlert(newSymbol.trim().toUpperCase(), newCondition, thresh);
-    setNewThreshold('');
+    // Re-anchor to the referenced symbol so the next alert defaults to its live price.
+    setNewThreshold(refPrice > 0 ? refPrice.toPrecision(6) : '');
   };
 
   const handleEnableDesktop = async () => {
@@ -61,10 +94,20 @@ const PriceAlerts = ({ alertsHook }: PriceAlertsProps) => {
       )}
 
       {/* Create alert */}
-      <div className="bg-navy-light/30 rounded-lg p-2.5 border border-gold/10">
-        <div className="flex items-center gap-1.5">
-          <Input value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)}
-            className="bg-navy-light border-gold/15 text-marble font-mono text-[10px] h-7 w-20" placeholder="Symbol" />
+      <div className="bg-navy-light/30 rounded-lg p-2.5 border border-gold/10 space-y-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {resolvePrice ? (
+            <div className="w-32">
+              <SymbolPicker
+                value={newSymbol}
+                onChange={(t) => { setNewSymbol(t); setNewThreshold(''); }}
+                size="xs"
+              />
+            </div>
+          ) : (
+            <Input value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)}
+              className="bg-navy-light border-gold/15 text-marble font-mono text-[10px] h-7 w-20" placeholder="Symbol" />
+          )}
           <select value={newCondition} onChange={(e) => setNewCondition(e.target.value as any)}
             className="bg-navy-light border border-gold/10 text-marble text-[10px] rounded px-1.5 py-1 font-mono">
             <option value="above">Above</option>
@@ -72,11 +115,40 @@ const PriceAlerts = ({ alertsHook }: PriceAlertsProps) => {
             <option value="crosses">Crosses</option>
           </select>
           <Input type="number" value={newThreshold} onChange={(e) => setNewThreshold(e.target.value)}
-            className="bg-navy-light border-gold/15 text-marble font-mono text-[10px] h-7 w-24" placeholder="Price" />
+            className="bg-navy-light border-gold/15 text-marble font-mono text-[10px] h-7 w-24"
+            placeholder={refPrice > 0 ? refPrice.toPrecision(6) : 'Price'} />
           <Button onClick={handleAdd} className="bg-gold/20 text-gold border border-gold/30 h-7 px-2">
             <Plus className="w-3 h-3" />
           </Button>
         </div>
+        {resolvePrice && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[8px] font-display tracking-wider text-marble/40">
+              {newSymbol} REF ${refPrice > 0 ? refPrice.toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'}
+            </span>
+            {[-5, -2, -1, +1, +2, +5].map((pct) => (
+              <button
+                key={pct}
+                onClick={() => applyOffset(pct)}
+                disabled={refPrice <= 0}
+                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                  refPrice > 0
+                    ? pct > 0
+                      ? 'border-emerald-500/25 text-emerald-300/80 hover:bg-emerald-500/10'
+                      : 'border-red-500/25 text-red-300/80 hover:bg-red-500/10'
+                    : 'border-white/5 text-marble/20'
+                }`}
+              >
+                {pct > 0 ? '+' : ''}{pct}%
+              </button>
+            ))}
+            {deltaPct !== null && Number.isFinite(deltaPct) && (
+              <span className={`text-[8px] font-mono ml-auto ${deltaPct >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                Δ {deltaPct >= 0 ? '+' : ''}{deltaPct.toFixed(2)}%
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Active alerts */}

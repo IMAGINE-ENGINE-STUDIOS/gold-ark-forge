@@ -113,7 +113,7 @@ export function LegacyAutomationGallery(props: LegacyAutomationGalleryProps) {
                   />
                 )}
                 {key === 'schedule' && <SchedulePanel />}
-                {key === 'alerts'   && <PriceAlerts alertsHook={alertsHook} />}
+                {key === 'alerts'   && <PriceAlerts alertsHook={alertsHook} resolvePrice={resolvePrice} />}
                 {key === 'rules'    && <RuleBuilder />}
               </div>
             )}
