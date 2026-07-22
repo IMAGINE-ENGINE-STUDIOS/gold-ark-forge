@@ -6,6 +6,7 @@ import RuleBuilder from '@/components/trading/RuleBuilder';
 import type { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import SymbolPicker from '@/components/shared/SymbolPicker';
 import { PIPELINE_PRESETS, evaluate, type Pipeline, type NodeKind, type NodeSpec } from '@/lib/pipelines/nodes';
+import { toast } from 'sonner';
 
 interface Props {
   alertsHook: ReturnType<typeof usePriceAlerts>;
