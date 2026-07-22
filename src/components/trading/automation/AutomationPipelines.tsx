@@ -42,6 +42,17 @@ const PALETTE: PaletteGroup[] = [
     ],
   },
   {
+    group: 'TRIGGERS', icon: Bell,
+    color: 'text-yellow-300 border-yellow-500/40 bg-yellow-500/10',
+    chipBg: 'bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30',
+    items: [
+      { kind: 'trigger.priceAbove', label: 'Price Above',  desc: 'Fires when px > threshold', defaults: { threshold: 100 } },
+      { kind: 'trigger.priceBelow', label: 'Price Below',  desc: 'Fires when px < threshold', defaults: { threshold: 50 } },
+      { kind: 'trigger.crossover',  label: 'MA Crossover', desc: 'Fast/slow MA cross',       defaults: { fastPeriod: 9, slowPeriod: 21 } },
+      { kind: 'trigger.schedule',   label: 'Schedule',     desc: 'Fires every N ticks (4s)', defaults: { everyTicks: 15, side: 'buy' } },
+    ],
+  },
+  {
     group: 'ANALYSIS', icon: Brain,
     color: 'text-cyan-300 border-cyan-500/40 bg-cyan-500/10',
     chipBg: 'bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30',
