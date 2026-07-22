@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap, GripVertical, Plus, Trash2, Wand2 } from 'lucide-react';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
@@ -359,9 +359,8 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                 if (!meta) return null;
                 const Icon = meta.group.icon;
                 return (
-                  <>
+                  <Fragment key={s.id}>
                     <div
-                      key={s.id}
                       draggable
                       onDragStart={e => { setDragIdx(idx); setDragKind(null); e.dataTransfer.effectAllowed = 'move'; }}
                       onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
@@ -379,7 +378,6 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                       </div>
                     </div>
                     <DropSlot
-                      key={`slot-${idx}`}
                       active={dropIdx === idx + 1}
                       onDragOver={e => { if (dragKind || dragIdx != null) { e.preventDefault(); setDropIdx(idx + 1); } }}
                       onDrop={e => {
@@ -389,7 +387,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                         setDragKind(null); setDragIdx(null); setDropIdx(null);
                       }}
                     />
-                  </>
+                  </Fragment>
                 );
               })}
 
