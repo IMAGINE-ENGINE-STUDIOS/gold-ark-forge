@@ -422,12 +422,13 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                       draggable
                       onDragStart={e => { setDragIdx(idx); setDragKind(null); e.dataTransfer.effectAllowed = 'move'; }}
                       onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-                      className={`relative z-10 shrink-0 w-40 rounded-lg border-2 px-2.5 py-2 shadow-lg backdrop-blur cursor-grab active:cursor-grabbing ${meta.group.color}`}
+                      onClick={() => setEditingId(s.id)}
+                      className={`relative z-10 shrink-0 w-40 rounded-lg border-2 px-2.5 py-2 shadow-lg backdrop-blur cursor-grab active:cursor-grabbing transition-all ${meta.group.color} ${editingId === s.id ? 'ring-2 ring-gold ring-offset-1 ring-offset-navy-dark scale-[1.03]' : 'hover:brightness-110'}`}
                     >
                       <div className="flex items-center gap-1.5">
                         <Icon className="w-3 h-3 opacity-80" />
                         <span className="text-[10px] font-display tracking-wider truncate flex-1">{meta.item.label}</span>
-                        <button onClick={() => removeStep(idx)} title="remove"
+                        <button onClick={(e) => { e.stopPropagation(); removeStep(idx); }} title="remove"
                           className="text-marble/40 hover:text-red-400"><X className="w-3 h-3" /></button>
                       </div>
                       <div className="text-[8px] font-mono text-marble/50 mt-0.5 truncate">{s.kind}</div>
