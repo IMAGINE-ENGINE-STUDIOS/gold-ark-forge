@@ -547,6 +547,14 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                     value={String(step.params.symbol ?? 'GLD')}
                     onChange={(t) => updateParam(step.id, 'symbol', t)}
                   />
+                ) : (step.kind === 'trigger.priceAbove' || step.kind === 'trigger.priceBelow') ? (
+                  <PriceTriggerSettings
+                    step={step}
+                    symbol={workflowSymbol}
+                    livePrice={resolvePrice(workflowSymbol)}
+                    onChange={(k, v) => updateParam(step.id, k, v)}
+                    direction={step.kind === 'trigger.priceAbove' ? 'above' : 'below'}
+                  />
                 ) : keys.length === 0 ? (
                   <div className="text-[9px] font-mono text-marble/40 italic">No parameters — this block runs as-is.</div>
                 ) : (
