@@ -167,10 +167,11 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
   const [dragKind, setDragKind] = useState<NodeKind | null>(null);       // dragging FROM palette
   const [dragIdx,  setDragIdx]  = useState<number | null>(null);          // dragging existing step
   const [dropIdx,  setDropIdx]  = useState<number | null>(null);          // insertion index preview
+  const [editingId, setEditingId] = useState<string | null>(null);        // selected step → settings panel
 
   const insertStep = (kind: NodeKind, at: number) => {
     const meta = paletteByKind.get(kind);
-    if (!meta) return;
+    if (!meta) return null;
     const step: WorkflowStep = { id: genStepId(), kind, params: { ...meta.item.defaults } };
     setSteps(prev => {
       const next = [...prev];
@@ -178,6 +179,8 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
       next.splice(clamped, 0, step);
       return next;
     });
+    setEditingId(step.id);
+    return step.id;
   };
   const moveStep = (from: number, to: number) => {
     setSteps(prev => {
@@ -189,8 +192,15 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     });
   };
   const removeStep = (idx: number) =>
-    setSteps(prev => prev.filter((_, i) => i !== idx));
-  const clearWorkflow = () => setSteps([]);
+    setSteps(prev => {
+      const dead = prev[idx];
+      if (dead && dead.id === editingId) setEditingId(null);
+      return prev.filter((_, i) => i !== idx);
+    });
+  const clearWorkflow = () => { setSteps([]); setEditingId(null); };
+  const updateParam = (id: string, key: string, value: number | string | boolean) => {
+    setSteps(prev => prev.map(s => s.id === id ? { ...s, params: { ...s.params, [key]: value } } : s));
+  };
   const loadPreset = (presetId: string) => {
     const p = PIPELINE_PRESETS.find(x => x.id === presetId);
     if (!p) return;
