@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 export type NodeKind =
+  | 'context.symbol'
   | 'signal.rsi'
   | 'signal.bollinger'
   | 'signal.donchian'
@@ -75,6 +76,10 @@ function rsi(closes: number[], period = 14): number {
 
 // ── registry ────────────────────────────────────────────────
 export const NodeRegistry: Record<NodeKind, PureFn> = {
+  'context.symbol': (p, _i, _ctx) => {
+    const sym = String(p.symbol ?? '');
+    return { type: 'log', message: `symbol=${sym || '—'}` };
+  },
   'signal.rsi': (p, _i, ctx) => {
     const period = Number(p.period ?? 14);
     const os = Number(p.oversold ?? 30);
