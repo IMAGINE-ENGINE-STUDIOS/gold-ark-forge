@@ -11,6 +11,12 @@ export type NodeKind =
   | 'filter.volatility'
   | 'risk.atrStop'
   | 'risk.maxPositionPct'
+  | 'risk.fixedUsd'
+  | 'analysis.trend'
+  | 'analysis.momentum'
+  | 'predict.forecast'
+  | 'action.buy'
+  | 'action.sell'
   | 'execution.orderIntent'
   | 'monitor.log';
 
@@ -113,6 +119,64 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     const pct = Number(p.pct ?? 0.05);
     const sizeUsd = ctx.equity * pct;
     return { type: 'risk', sizeUsd, reason: `size $${sizeUsd.toFixed(0)} (${(pct * 100).toFixed(1)}% equity)` };
+  },
+  'risk.fixedUsd': (p) => {
+    const sizeUsd = Math.max(0, Number(p.sizeUsd ?? 500));
+    return { type: 'risk', sizeUsd, reason: `fixed $${sizeUsd.toFixed(0)} per trade` };
+  },
+  'analysis.trend': (p, _i, ctx) => {
+    const period = Math.min(Number(p.period ?? 30), ctx.candles.length);
+    if (period < 5) return { type: 'signal', value: 0, reason: 'insufficient trend data' };
+    const win = ctx.candles.slice(-period);
+    const first = win[0], last = win[win.length - 1];
+    const slopePct = (last - first) / first;
+    const strong = Number(p.strongPct ?? 0.01);
+    const value = slopePct > strong ? +1 : slopePct < -strong ? -1 : 0;
+    return { type: 'signal', value, reason: `TREND ${period}b Δ=${(slopePct * 100).toFixed(2)}%` };
+  },
+  'analysis.momentum': (p, _i, ctx) => {
+    const lookback = Math.min(Number(p.lookback ?? 10), ctx.candles.length - 1);
+    if (lookback < 2) return { type: 'signal', value: 0, reason: 'insufficient momentum data' };
+    const now = ctx.candles[ctx.candles.length - 1];
+    const past = ctx.candles[ctx.candles.length - 1 - lookback];
+    const roc = (now - past) / past;
+    const th = Number(p.threshold ?? 0.005);
+    const value = roc > th ? +1 : roc < -th ? -1 : 0;
+    return { type: 'signal', value, reason: `MOMO ${lookback}b ROC=${(roc * 100).toFixed(2)}%` };
+  },
+  'predict.forecast': (p, _i, ctx) => {
+    const period = Math.min(Number(p.period ?? 20), ctx.candles.length);
+    const horizon = Math.max(1, Number(p.horizon ?? 5));
+    if (period < 5) return { type: 'signal', value: 0, reason: 'insufficient forecast data' };
+    const win = ctx.candles.slice(-period);
+    // linear regression slope
+    const n = win.length;
+    const xs = Array.from({ length: n }, (_, i) => i);
+    const mx = mean(xs), my = mean(win);
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (win[i] - my); den += (xs[i] - mx) ** 2; }
+    const slope = den === 0 ? 0 : num / den;
+    const projected = ctx.price + slope * horizon;
+    const expectedPct = (projected - ctx.price) / ctx.price;
+    const th = Number(p.threshold ?? 0.003);
+    const value = expectedPct > th ? +1 : expectedPct < -th ? -1 : 0;
+    return { type: 'signal', value, reason: `FCST +${horizon}b →${projected.toFixed(2)} (${(expectedPct * 100).toFixed(2)}%)` };
+  },
+  'action.buy': (_p, inputs, ctx) => {
+    const risk = inputs.find(i => i.type === 'risk' && (i as any).sizeUsd > 0) as any;
+    const stop = inputs.find(i => i.type === 'risk' && (i as any).stopPrice != null) as any;
+    const gate = inputs.find(i => i.type === 'gate') as any;
+    if (gate && !gate.pass) return { type: 'log', message: `BUY blocked: ${gate.reason}` };
+    const sizeUsd = risk?.sizeUsd ?? ctx.equity * 0.02;
+    return { type: 'intent', side: 'buy', sizeUsd, stopPrice: stop?.stopPrice, reason: `forced BUY | ${risk?.reason ?? '2% default'}` };
+  },
+  'action.sell': (_p, inputs, ctx) => {
+    const risk = inputs.find(i => i.type === 'risk' && (i as any).sizeUsd > 0) as any;
+    const stop = inputs.find(i => i.type === 'risk' && (i as any).stopPrice != null) as any;
+    const gate = inputs.find(i => i.type === 'gate') as any;
+    if (gate && !gate.pass) return { type: 'log', message: `SELL blocked: ${gate.reason}` };
+    const sizeUsd = risk?.sizeUsd ?? ctx.equity * 0.02;
+    return { type: 'intent', side: 'sell', sizeUsd, stopPrice: stop?.stopPrice, reason: `forced SELL | ${risk?.reason ?? '2% default'}` };
   },
   'execution.orderIntent': (_p, inputs) => {
     const sig = inputs.find(i => i.type === 'signal') as any;
