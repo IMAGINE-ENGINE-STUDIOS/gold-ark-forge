@@ -167,10 +167,11 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
   const [dragKind, setDragKind] = useState<NodeKind | null>(null);       // dragging FROM palette
   const [dragIdx,  setDragIdx]  = useState<number | null>(null);          // dragging existing step
   const [dropIdx,  setDropIdx]  = useState<number | null>(null);          // insertion index preview
+  const [editingId, setEditingId] = useState<string | null>(null);        // selected step → settings panel
 
   const insertStep = (kind: NodeKind, at: number) => {
     const meta = paletteByKind.get(kind);
-    if (!meta) return;
+    if (!meta) return null;
     const step: WorkflowStep = { id: genStepId(), kind, params: { ...meta.item.defaults } };
     setSteps(prev => {
       const next = [...prev];
@@ -178,6 +179,8 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
       next.splice(clamped, 0, step);
       return next;
     });
+    setEditingId(step.id);
+    return step.id;
   };
   const moveStep = (from: number, to: number) => {
     setSteps(prev => {
@@ -189,8 +192,15 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     });
   };
   const removeStep = (idx: number) =>
-    setSteps(prev => prev.filter((_, i) => i !== idx));
-  const clearWorkflow = () => setSteps([]);
+    setSteps(prev => {
+      const dead = prev[idx];
+      if (dead && dead.id === editingId) setEditingId(null);
+      return prev.filter((_, i) => i !== idx);
+    });
+  const clearWorkflow = () => { setSteps([]); setEditingId(null); };
+  const updateParam = (id: string, key: string, value: number | string | boolean) => {
+    setSteps(prev => prev.map(s => s.id === id ? { ...s, params: { ...s.params, [key]: value } } : s));
+  };
   const loadPreset = (presetId: string) => {
     const p = PIPELINE_PRESETS.find(x => x.id === presetId);
     if (!p) return;
@@ -412,12 +422,13 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                       draggable
                       onDragStart={e => { setDragIdx(idx); setDragKind(null); e.dataTransfer.effectAllowed = 'move'; }}
                       onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
-                      className={`relative z-10 shrink-0 w-40 rounded-lg border-2 px-2.5 py-2 shadow-lg backdrop-blur cursor-grab active:cursor-grabbing ${meta.group.color}`}
+                      onClick={() => setEditingId(s.id)}
+                      className={`relative z-10 shrink-0 w-40 rounded-lg border-2 px-2.5 py-2 shadow-lg backdrop-blur cursor-grab active:cursor-grabbing transition-all ${meta.group.color} ${editingId === s.id ? 'ring-2 ring-gold ring-offset-1 ring-offset-navy-dark scale-[1.03]' : 'hover:brightness-110'}`}
                     >
                       <div className="flex items-center gap-1.5">
                         <Icon className="w-3 h-3 opacity-80" />
                         <span className="text-[10px] font-display tracking-wider truncate flex-1">{meta.item.label}</span>
-                        <button onClick={() => removeStep(idx)} title="remove"
+                        <button onClick={(e) => { e.stopPropagation(); removeStep(idx); }} title="remove"
                           className="text-marble/40 hover:text-red-400"><X className="w-3 h-3" /></button>
                       </div>
                       <div className="text-[8px] font-mono text-marble/50 mt-0.5 truncate">{s.kind}</div>
@@ -467,6 +478,76 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
               Drag any card from the gallery onto the lane — or pick a starter below.
             </div>
           )}
+
+          {/* SETTINGS PANEL — opens when a step is dropped or clicked */}
+          {editingId && (() => {
+            const step = steps.find(s => s.id === editingId);
+            if (!step) return null;
+            const meta = paletteByKind.get(step.kind);
+            if (!meta) return null;
+            const Icon = meta.group.icon;
+            const keys = Object.keys(meta.item.defaults);
+            return (
+              <div className={`rounded-lg border-2 p-3 space-y-2 ${meta.group.color}`}>
+                <div className="flex items-center gap-2">
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-display tracking-[0.15em]">{meta.item.label} · SETTINGS</span>
+                  <span className="text-[8px] font-mono text-marble/50 truncate flex-1">{step.kind}</span>
+                  <button onClick={() => setEditingId(null)} className="text-marble/50 hover:text-marble p-1" title="close">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="text-[9px] font-mono text-marble/50">{meta.item.desc}</div>
+                {keys.length === 0 ? (
+                  <div className="text-[9px] font-mono text-marble/40 italic">No parameters — this block runs as-is.</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {keys.map(k => {
+                      const def = meta.item.defaults[k];
+                      const cur = step.params[k];
+                      const type = typeof def;
+                      return (
+                        <label key={k} className="flex flex-col gap-0.5">
+                          <span className="text-[8px] font-display tracking-wider text-marble/50 uppercase">{k}</span>
+                          {type === 'boolean' ? (
+                            <select
+                              value={String(cur)}
+                              onChange={e => updateParam(step.id, k, e.target.value === 'true')}
+                              className="bg-navy-dark/70 border border-gold/20 rounded px-2 py-1 text-[10px] font-mono text-marble outline-none focus:border-gold/50"
+                            >
+                              <option value="true">true</option>
+                              <option value="false">false</option>
+                            </select>
+                          ) : type === 'number' ? (
+                            <input
+                              type="number"
+                              value={typeof cur === 'number' && Number.isFinite(cur) ? cur : ''}
+                              step={String(def).includes('.') || Math.abs(Number(def)) < 1 ? 0.001 : 1}
+                              onChange={e => {
+                                const v = e.target.value;
+                                updateParam(step.id, k, v === '' ? 0 : Number(v));
+                              }}
+                              className="bg-navy-dark/70 border border-gold/20 rounded px-2 py-1 text-[10px] font-mono text-marble outline-none focus:border-gold/50"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={String(cur ?? '')}
+                              onChange={e => updateParam(step.id, k, e.target.value)}
+                              className="bg-navy-dark/70 border border-gold/20 rounded px-2 py-1 text-[10px] font-mono text-marble outline-none focus:border-gold/50"
+                            />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="text-[8px] font-mono text-marble/30 pt-1 border-t border-white/5">
+                  Changes apply live — new pipeline deployments use the current values.
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Presets */}
           <div className="flex items-center gap-1.5 flex-wrap pt-1">
