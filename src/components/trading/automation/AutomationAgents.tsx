@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Brain, Search, Shield, Scale, CheckCircle2, Clock, Send, Loader2, Check, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Brain, Search, Shield, Scale, CheckCircle2, Clock, Send, Loader2, Check, X, Zap, LineChart, Globe2 } from 'lucide-react';
 import GeniusPanel from '@/components/trading/GeniusPanel';
 import type { useGeniusTrader } from '@/hooks/useGeniusTrader';
 import { useAgentApprovals } from '@/hooks/useAgentApprovals';
@@ -11,6 +11,7 @@ interface Props {
   equity?: number;
   positions?: Array<{ symbol: string; side: string; qty: number; entry: number }>;
   prices?: Record<string, number>;
+  candles?: Record<string, number[]>;
   onApprovedTrade?: (proposal: { symbol: string; side: 'buy' | 'sell'; sizeUsd: number; reason: string }) => void;
 }
 
@@ -26,26 +27,42 @@ const ROSTER = [
   {
     key: 'research',
     name: 'RESEARCH AGENT',
-    role: 'News + on-chain thesis drafter',
+    role: 'Thesis drafter · indicators + risk',
     icon: Search,
-    status: 'PHASE 2',
-    detail: 'Read-only tool set (getQuote, getNews, getIndicators). Untrusted content wrapped in <untrusted_content>. Never registered with write tools.',
+    status: 'LIVE',
+    detail: 'Reads live prices, computes SMA/EMA/RSI/ATR, ranks opportunities, sizes risk. Proposes trades — executes when autonomous.',
   },
   {
     key: 'risk',
     name: 'RISK SENTINEL',
     role: 'Drawdown + exposure monitor',
     icon: Shield,
-    status: 'PHASE 2',
-    detail: 'Watches equity curve, correlation, and per-strategy DD. Can request a kill-switch — approval required.',
+    status: 'LIVE',
+    detail: 'Reads positions, calcRisk on each, flags concentration and drawdown. Proposes hedges/closes.',
   },
   {
     key: 'rebalancer',
     name: 'REBALANCER',
     role: 'Target-weight enforcer',
     icon: Scale,
-    status: 'PHASE 2',
-    detail: 'Deterministic drift check; proposes orders through the approval queue when weights breach bands.',
+    status: 'LIVE',
+    detail: 'Compares live weights vs target (metals/crypto/cash). Proposes orders when drift > 5%.',
+  },
+  {
+    key: 'quant',
+    name: 'QUANT AGENT',
+    role: 'Multi-factor scanner',
+    icon: LineChart,
+    status: 'LIVE',
+    detail: 'Runs rankOpportunities across the universe, computes ATR-based SL/TP, sizes via calcRisk. Executes autonomous when conviction ≥ 0.7.',
+  },
+  {
+    key: 'macro',
+    name: 'MACRO STRATEGIST',
+    role: 'Cross-asset regime allocator',
+    icon: Globe2,
+    status: 'LIVE',
+    detail: 'Reads GLD/SLV/BTC/SPY/TLT together, decides regime, proposes rotation.',
   },
 ] as const;
 
@@ -54,33 +71,48 @@ const STATUS_STYLE: Record<string, string> = {
   'PHASE 2': 'text-amber-400 border-amber-500/30 bg-amber-500/10',
 };
 
-type AgentKey = 'research' | 'risk' | 'rebalancer';
+type AgentKey = 'research' | 'risk' | 'rebalancer' | 'quant' | 'macro';
 
 const AGENT_PROMPTS: Record<AgentKey, string> = {
   research: 'Draft a thesis for the strongest current opportunity in metals or crypto. If confident, propose one trade.',
   risk: 'Review my current positions for concentration or drawdown risk. Recommend a defensive rebalance if needed.',
   rebalancer: 'Suggest orders to move toward a balanced 60% metals / 30% crypto / 10% cash portfolio.',
+  quant: 'Scan the universe with rankOpportunities. Pick the top setup, compute ATR stop/target, size at 1% portfolio risk, and act.',
+  macro: 'Assess the current macro regime (risk-on/off, inflation, rates). Recommend one rotation trade.',
 };
 
-export default function AutomationAgents({ genius, equity = 100_000, positions = [], prices = {}, onApprovedTrade }: Props) {
+export default function AutomationAgents({ genius, equity = 100_000, positions = [], prices = {}, candles = {}, onApprovedTrade }: Props) {
   const approvals = useAgentApprovals();
   const [active, setActive] = useState<AgentKey>('research');
   const [prompt, setPrompt] = useState<string>(AGENT_PROMPTS.research);
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<string>('');
+  const [autonomous, setAutonomous] = useState(false);
+  const executedRef = useRef<Set<string>>(new Set());
+
+  // Auto-execute any approval that arrives with status 'approved' (autonomous path)
+  useEffect(() => {
+    for (const a of approvals.items) {
+      if (a.status === 'approved' && !executedRef.current.has(a.id)) {
+        executedRef.current.add(a.id);
+        onApprovedTrade?.(a.proposal);
+        toast.success(`⚡ AUTO · ${a.proposal.side.toUpperCase()} ${a.proposal.symbol} $${a.proposal.sizeUsd}`);
+      }
+    }
+  }, [approvals.items, onApprovedTrade]);
 
   const runAgent = async () => {
     setBusy(true);
     setReply('');
     try {
       const { data, error } = await supabase.functions.invoke('automation-agent', {
-        body: { agent: active, prompt, context: { equity, positions, prices } },
+        body: { agent: active, prompt, autonomous, context: { equity, positions, prices, candles } },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       setReply((data as any)?.reply ?? '(no reply)');
       const n = (data as any)?.proposalIds?.length ?? 0;
-      toast.success(n ? `${n} trade proposal(s) queued for approval` : 'Agent finished · no proposals');
+      toast.success(n ? `${n} action(s) from agent` : 'Agent finished · no actions');
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       setReply(`error: ${msg}`);
@@ -108,19 +140,29 @@ export default function AutomationAgents({ genius, equity = 100_000, positions =
         <div className="flex items-center gap-2">
           <Brain className="w-4 h-4 text-gold" />
           <span className="text-[11px] font-display tracking-[0.2em] text-gold-light">AI AGENTS</span>
-          <span className="text-[9px] font-mono text-marble/25">· proposal-only · human approval required</span>
+          <span className="text-[9px] font-mono text-marble/25">
+            · {autonomous ? 'autonomous · auto-executes on conviction' : 'advisory · human approval required'}
+          </span>
         </div>
-        <div className="flex items-center gap-1 text-[9px] font-mono text-emerald-400/70">
-          <CheckCircle2 className="w-3 h-3" /> approval-gated
-        </div>
+        <button
+          onClick={() => setAutonomous(v => !v)}
+          className={`flex items-center gap-1 text-[9px] font-display tracking-wider px-2 py-1 rounded border transition-colors ${
+            autonomous
+              ? 'text-amber-300 border-amber-500/40 bg-amber-500/10'
+              : 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20'
+          }`}
+          title="Autonomous mode: agent may auto-execute trades ≤10% equity when conviction ≥ 0.7"
+        >
+          {autonomous ? <><Zap className="w-3 h-3" /> AUTONOMOUS</> : <><CheckCircle2 className="w-3 h-3" /> ADVISORY</>}
+        </button>
       </div>
 
       {/* Roster */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {ROSTER.map(agent => {
           const Icon = agent.icon;
           const style = STATUS_STYLE[agent.status] ?? 'text-marble/40 border-gold/15 bg-navy-dark/40';
-          const isSelectable = agent.key === 'research' || agent.key === 'risk' || agent.key === 'rebalancer';
+          const isSelectable = agent.key !== 'genius';
           const isActive = isSelectable && agent.key === active;
           return (
             <button
@@ -139,7 +181,7 @@ export default function AutomationAgents({ genius, equity = 100_000, positions =
                   <span className="text-[10px] font-display tracking-wider text-gold-light">{agent.name}</span>
                 </div>
                 <span className={`text-[7px] font-display tracking-wider px-1 py-0.5 rounded border ${style}`}>
-                  {isSelectable ? 'READY' : agent.status}
+                  {agent.status}
                 </span>
               </div>
               <div className="text-[9px] font-mono text-marble/50 mb-1">{agent.role}</div>
@@ -151,7 +193,12 @@ export default function AutomationAgents({ genius, equity = 100_000, positions =
 
       {/* AGENT CONSOLE */}
       <div className="rounded-xl border border-gold/15 bg-gradient-to-br from-navy-light/40 to-navy-dark/40 p-3 space-y-2">
-        <div className="text-[9px] font-display tracking-[0.15em] text-gold/60">■ AGENT CONSOLE · {active.toUpperCase()}</div>
+        <div className="flex items-center justify-between">
+          <div className="text-[9px] font-display tracking-[0.15em] text-gold/60">■ AGENT CONSOLE · {active.toUpperCase()}</div>
+          <div className="text-[8px] font-mono text-marble/40">
+            {Object.keys(candles).length} symbols · ${equity.toLocaleString()} equity · {positions.length} open
+          </div>
+        </div>
         <textarea
           value={prompt}
           onChange={e => setPrompt(e.target.value)}
@@ -162,10 +209,14 @@ export default function AutomationAgents({ genius, equity = 100_000, positions =
         <button
           onClick={runAgent}
           disabled={busy || !prompt.trim()}
-          className="w-full text-[10px] font-display tracking-[0.15em] py-2 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-40 text-emerald-400 transition-colors flex items-center justify-center gap-2"
+          className={`w-full text-[10px] font-display tracking-[0.15em] py-2 rounded border disabled:opacity-40 transition-colors flex items-center justify-center gap-2 ${
+            autonomous
+              ? 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300'
+              : 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+          }`}
         >
-          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-          {busy ? 'THINKING…' : 'RUN AGENT'}
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : (autonomous ? <Zap className="w-3 h-3" /> : <Send className="w-3 h-3" />)}
+          {busy ? 'THINKING…' : (autonomous ? 'DISPATCH AUTONOMOUS' : 'RUN AGENT')}
         </button>
         {reply && (
           <div className="rounded bg-navy-dark/70 border border-gold/10 p-2 text-[10px] font-mono text-marble/70 whitespace-pre-wrap max-h-64 overflow-y-auto">
