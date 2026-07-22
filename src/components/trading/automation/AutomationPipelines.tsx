@@ -181,6 +181,10 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
   const pipesRef = useRef<RunningPipe[]>([]);
   useEffect(() => { pipesRef.current = pipes; }, [pipes]);
 
+  // 1s live-price tick so the settings panel reflects the current reference-symbol price.
+  const [, setLiveTick] = useState(0);
+  useEffect(() => { const iv = setInterval(() => setLiveTick(t => t + 1), 1000); return () => clearInterval(iv); }, []);
+
   // ── DRAG-AND-DROP WORKFLOW STATE ─────────────────────────────
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [dragKind, setDragKind] = useState<NodeKind | null>(null);       // dragging FROM palette
@@ -194,18 +198,18 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     const step: WorkflowStep = { id: genStepId(), kind, params: { ...meta.item.defaults } };
     setSteps(prev => {
       const next = [...prev];
-      // Auto-inject a Symbol node at the head if this kind needs one and none exists yet.
+      let target = Math.max(0, Math.min(at, next.length));
+      // If this kind needs a symbol and none exists, inject one directly BEFORE the new step.
       const needsSymbol = REQUIRES_SYMBOL.has(kind) && kind !== 'context.symbol'
         && !next.some(s => s.kind === 'context.symbol');
       if (needsSymbol) {
         const symMeta = paletteByKind.get('context.symbol');
         if (symMeta) {
-          next.unshift({ id: genStepId(), kind: 'context.symbol', params: { ...symMeta.item.defaults, symbol } });
-          if (at > 0) at += 1;
+          next.splice(target, 0, { id: genStepId(), kind: 'context.symbol', params: { ...symMeta.item.defaults, symbol } });
+          target += 1;
         }
       }
-      const clamped = Math.max(0, Math.min(at, next.length));
-      next.splice(clamped, 0, step);
+      next.splice(target, 0, step);
       return next;
     });
     setEditingId(step.id);
