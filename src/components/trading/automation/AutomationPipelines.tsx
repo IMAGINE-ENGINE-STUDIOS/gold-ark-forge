@@ -103,6 +103,7 @@ const PALETTE: PaletteGroup[] = [
     color: 'text-red-300 border-red-500/40 bg-red-500/10',
     chipBg: 'bg-red-500/10 hover:bg-red-500/20 border-red-500/30',
     items: [
+      { kind: 'alert.notify', label: 'Alert Toast', desc: 'Ping user when upstream fires', defaults: { message: 'Pipeline event' } },
       { kind: 'monitor.log', label: 'Log', desc: 'Trace last output', defaults: { tag: 'LOG' } },
     ],
   },
