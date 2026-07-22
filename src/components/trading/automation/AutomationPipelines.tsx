@@ -537,7 +537,13 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                   </button>
                 </div>
                 <div className="text-[9px] font-mono text-marble/50">{meta.item.desc}</div>
-                {keys.length === 0 ? (
+                {step.kind === 'context.symbol' ? (
+                  <SymbolPicker
+                    label="REFERENCE SYMBOL"
+                    value={String(step.params.symbol ?? 'GLD')}
+                    onChange={(t) => updateParam(step.id, 'symbol', t)}
+                  />
+                ) : keys.length === 0 ? (
                   <div className="text-[9px] font-mono text-marble/40 italic">No parameters — this block runs as-is.</div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -608,7 +614,14 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                 <span className="text-[8px] font-mono text-amber-400">add BUY, SELL, or Order Intent to fire trades</span>
               )}
             </div>
-            <SymbolPicker label="SYMBOL" value={symbol} onChange={setSymbol} />
+            {steps.some(s => s.kind === 'context.symbol') ? (
+              <div className="flex items-center justify-between rounded border border-gold/20 bg-navy-dark/70 px-2.5 py-1.5">
+                <span className="text-[8px] font-display tracking-[0.15em] text-marble/40">SYMBOL (from workflow)</span>
+                <span className="text-[10px] font-mono tracking-wider text-gold-light">{workflowSymbol}</span>
+              </div>
+            ) : (
+              <SymbolPicker label="SYMBOL (fallback — drop a Symbol block to lock)" value={symbol} onChange={setSymbol} />
+            )}
             <button
               onClick={deploy}
               disabled={!currentPipeline}
