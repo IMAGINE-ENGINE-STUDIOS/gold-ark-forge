@@ -7,6 +7,10 @@ export type NodeKind =
   | 'signal.rsi'
   | 'signal.bollinger'
   | 'signal.donchian'
+  | 'trigger.priceAbove'
+  | 'trigger.priceBelow'
+  | 'trigger.crossover'
+  | 'trigger.schedule'
   | 'filter.regime'
   | 'filter.volatility'
   | 'risk.atrStop'
@@ -18,6 +22,7 @@ export type NodeKind =
   | 'action.buy'
   | 'action.sell'
   | 'execution.orderIntent'
+  | 'alert.notify'
   | 'monitor.log';
 
 export interface PipelineContext {
@@ -25,6 +30,8 @@ export interface PipelineContext {
   price: number;
   candles: number[];   // recent closes
   equity: number;
+  now: number;         // ms epoch of the current tick
+  tickCount: number;   // monotonic tick index for this runner
 }
 
 export interface NodeSpec {
@@ -45,6 +52,7 @@ export type NodeOutput =
   | { type: 'gate'; pass: boolean; reason: string }
   | { type: 'risk'; sizeUsd: number; stopPrice?: number; reason: string }
   | { type: 'intent'; side: 'buy' | 'sell'; sizeUsd: number; stopPrice?: number; reason: string }
+  | { type: 'alert'; severity: 'info' | 'warn'; message: string }
   | { type: 'log'; message: string };
 
 export type PureFn = (params: Record<string, any>, inputs: NodeOutput[], ctx: PipelineContext) => NodeOutput;
@@ -91,6 +99,36 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     const hi = Math.max(...win), lo = Math.min(...win);
     const value = ctx.price >= hi ? +1 : ctx.price <= lo ? -1 : 0;
     return { type: 'signal', value, reason: `Donchian hi=${hi.toFixed(2)} lo=${lo.toFixed(2)}` };
+  },
+  'trigger.priceAbove': (p, _i, ctx) => {
+    const threshold = Number(p.threshold ?? 0);
+    const value = ctx.price > threshold ? +1 : 0;
+    return { type: 'signal', value, reason: `price ${ctx.price.toFixed(2)} ${value ? '>' : '≤'} ${threshold}` };
+  },
+  'trigger.priceBelow': (p, _i, ctx) => {
+    const threshold = Number(p.threshold ?? 0);
+    const value = ctx.price < threshold ? -1 : 0;
+    return { type: 'signal', value, reason: `price ${ctx.price.toFixed(2)} ${value ? '<' : '≥'} ${threshold}` };
+  },
+  'trigger.crossover': (p, _i, ctx) => {
+    const fast = Number(p.fastPeriod ?? 9);
+    const slow = Number(p.slowPeriod ?? 21);
+    if (ctx.candles.length < slow + 1) return { type: 'signal', value: 0, reason: `warmup ${ctx.candles.length}/${slow + 1}` };
+    const fastNow = mean(ctx.candles.slice(-fast));
+    const slowNow = mean(ctx.candles.slice(-slow));
+    const fastPrev = mean(ctx.candles.slice(-fast - 1, -1));
+    const slowPrev = mean(ctx.candles.slice(-slow - 1, -1));
+    const value = fastPrev <= slowPrev && fastNow > slowNow ? +1
+                : fastPrev >= slowPrev && fastNow < slowNow ? -1
+                : 0;
+    return { type: 'signal', value, reason: `${fast}/${slow} MA cross ${value > 0 ? 'up' : value < 0 ? 'down' : 'flat'}` };
+  },
+  'trigger.schedule': (p, _i, ctx) => {
+    const everyTicks = Math.max(1, Number(p.everyTicks ?? 15));
+    const side = String(p.side ?? 'buy');
+    const fires = ctx.tickCount > 0 && ctx.tickCount % everyTicks === 0;
+    if (!fires) return { type: 'signal', value: 0, reason: `sched idle (${ctx.tickCount}/${everyTicks})` };
+    return { type: 'signal', value: side === 'sell' ? -1 : +1, reason: `sched ${side.toUpperCase()} every ${everyTicks} ticks` };
   },
   'filter.regime': (_p, _i, ctx) => {
     const n = Math.min(50, ctx.candles.length);
@@ -166,7 +204,9 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     const risk = inputs.find(i => i.type === 'risk' && (i as any).sizeUsd > 0) as any;
     const stop = inputs.find(i => i.type === 'risk' && (i as any).stopPrice != null) as any;
     const gate = inputs.find(i => i.type === 'gate') as any;
+    const sig = inputs.find(i => i.type === 'signal') as any;
     if (gate && !gate.pass) return { type: 'log', message: `BUY blocked: ${gate.reason}` };
+    if (sig && sig.value <= 0) return { type: 'log', message: `BUY idle (${sig.reason})` };
     const sizeUsd = risk?.sizeUsd ?? ctx.equity * 0.02;
     return { type: 'intent', side: 'buy', sizeUsd, stopPrice: stop?.stopPrice, reason: `forced BUY | ${risk?.reason ?? '2% default'}` };
   },
@@ -174,7 +214,9 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     const risk = inputs.find(i => i.type === 'risk' && (i as any).sizeUsd > 0) as any;
     const stop = inputs.find(i => i.type === 'risk' && (i as any).stopPrice != null) as any;
     const gate = inputs.find(i => i.type === 'gate') as any;
+    const sig = inputs.find(i => i.type === 'signal') as any;
     if (gate && !gate.pass) return { type: 'log', message: `SELL blocked: ${gate.reason}` };
+    if (sig && sig.value >= 0) return { type: 'log', message: `SELL idle (${sig.reason})` };
     const sizeUsd = risk?.sizeUsd ?? ctx.equity * 0.02;
     return { type: 'intent', side: 'sell', sizeUsd, stopPrice: stop?.stopPrice, reason: `forced SELL | ${risk?.reason ?? '2% default'}` };
   },
@@ -193,6 +235,15 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
       stopPrice: stop?.stopPrice,
       reason: `${sig.reason} | ${risk.reason}${stop ? ' | ' + stop.reason : ''}`,
     };
+  },
+  'alert.notify': (p, inputs) => {
+    const sig = inputs.find(i => i.type === 'signal') as any;
+    const intent = inputs.find(i => i.type === 'intent') as any;
+    const message = String(p.message ?? 'pipeline alert');
+    const active = (sig && sig.value !== 0) || !!intent;
+    if (!active) return { type: 'log', message: `alert idle: ${message}` };
+    const detail = intent ? `${intent.side.toUpperCase()} ${intent.reason}` : sig?.reason ?? '';
+    return { type: 'alert', severity: 'warn', message: `${message} — ${detail}` };
   },
   'monitor.log': (p, inputs) => {
     const last = inputs[inputs.length - 1];

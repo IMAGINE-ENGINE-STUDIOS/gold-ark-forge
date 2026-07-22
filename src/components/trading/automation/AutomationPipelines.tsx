@@ -6,6 +6,7 @@ import RuleBuilder from '@/components/trading/RuleBuilder';
 import type { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import SymbolPicker from '@/components/shared/SymbolPicker';
 import { PIPELINE_PRESETS, evaluate, type Pipeline, type NodeKind, type NodeSpec } from '@/lib/pipelines/nodes';
+import { toast } from 'sonner';
 
 interface Props {
   alertsHook: ReturnType<typeof usePriceAlerts>;
@@ -38,6 +39,17 @@ const PALETTE: PaletteGroup[] = [
       { kind: 'signal.rsi',       label: 'RSI',       desc: 'Mean-revert oscillator', defaults: { period: 14, oversold: 30, overbought: 70 } },
       { kind: 'signal.bollinger', label: 'Bollinger', desc: 'σ-band reversion',       defaults: { period: 20, k: 2 } },
       { kind: 'signal.donchian',  label: 'Donchian',  desc: 'Breakout channel',       defaults: { period: 20 } },
+    ],
+  },
+  {
+    group: 'TRIGGERS', icon: Bell,
+    color: 'text-yellow-300 border-yellow-500/40 bg-yellow-500/10',
+    chipBg: 'bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/30',
+    items: [
+      { kind: 'trigger.priceAbove', label: 'Price Above',  desc: 'Fires when px > threshold', defaults: { threshold: 100 } },
+      { kind: 'trigger.priceBelow', label: 'Price Below',  desc: 'Fires when px < threshold', defaults: { threshold: 50 } },
+      { kind: 'trigger.crossover',  label: 'MA Crossover', desc: 'Fast/slow MA cross',       defaults: { fastPeriod: 9, slowPeriod: 21 } },
+      { kind: 'trigger.schedule',   label: 'Schedule',     desc: 'Fires every N ticks (4s)', defaults: { everyTicks: 15, side: 'buy' } },
     ],
   },
   {
@@ -91,6 +103,7 @@ const PALETTE: PaletteGroup[] = [
     color: 'text-red-300 border-red-500/40 bg-red-500/10',
     chipBg: 'bg-red-500/10 hover:bg-red-500/20 border-red-500/30',
     items: [
+      { kind: 'alert.notify', label: 'Alert Toast', desc: 'Ping user when upstream fires', defaults: { message: 'Pipeline event' } },
       { kind: 'monitor.log', label: 'Log', desc: 'Trace last output', defaults: { tag: 'LOG' } },
     ],
   },
@@ -113,7 +126,7 @@ interface WorkflowStep {
 function buildPipeline(steps: WorkflowStep[], name = 'Custom Workflow'): Pipeline {
   const nodes: NodeSpec[] = steps.map((s, idx) => {
     let inputs: string[] | undefined;
-    if (s.kind === 'execution.orderIntent') {
+    if (s.kind === 'execution.orderIntent' || s.kind === 'alert.notify') {
       inputs = steps.slice(0, idx).map(x => x.id);
     } else if (s.kind === 'action.buy' || s.kind === 'action.sell') {
       inputs = steps.slice(0, idx).map(x => x.id);
@@ -138,6 +151,7 @@ interface RunningPipe {
   lastLog: string;
   bootPrice: number;
   realized: number;
+  tickCount: number;
 }
 
 export default function AutomationPipelines({ alertsHook, resolvePrice, getCandleHistory, equity, submitOrder }: Props) {
@@ -201,26 +215,37 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
         if (p.status !== 'running') return p;
         const price = resolvePrice(p.symbol);
         const candles = getCandleHistory(p.symbol) ?? [];
-        if (!price || candles.length < 20) return { ...p, lastLog: 'waiting for data…' };
-        const res = evaluate(p.pipeline, { symbol: p.symbol, price, candles, equity });
+        const nextTick = p.tickCount + 1;
+        if (!price || candles.length < 20) return { ...p, tickCount: nextTick, lastLog: 'waiting for data…' };
+        const res = evaluate(p.pipeline, {
+          symbol: p.symbol, price, candles, equity,
+          now: Date.now(), tickCount: nextTick,
+        });
         if ('error' in res) return { ...p, lastLog: `error: ${res.error}` };
         let newIntents = p.intents;
         let realized = p.realized;
         let lastLog = res.logs[res.logs.length - 1] ?? 'idle';
+        for (const out of Object.values(res.outputs)) {
+          if ((out as any).type === 'alert') {
+            const msg = (out as any).message as string;
+            toast.warning(`🔔 ${p.pipeline.name} · ${p.symbol}`, { description: msg });
+            lastLog = `alert: ${msg}`;
+          }
+        }
         for (const intent of res.intents) {
           newIntents += 1;
           const qty = Math.max(0, intent.sizeUsd / price);
           if (qty > 0) {
             try {
-              submitOrder({ symbol: p.symbol, side: intent.side, type: 'market', qty, source: 'pipeline' });
-              realized += 0; // realized tracked by paper engine
+              const order = submitOrder({ symbol: p.symbol, side: intent.side, type: 'market', qty, price, botSource: true });
+              if (order?.closedPnl !== undefined) realized += order.closedPnl;
               lastLog = `${intent.side.toUpperCase()} ${qty.toFixed(4)} @ ${price.toFixed(2)} — ${intent.reason.slice(0,60)}`;
             } catch (e) {
               lastLog = `order failed: ${(e as Error).message}`;
             }
           }
         }
-        return { ...p, intents: newIntents, realized, lastLog };
+        return { ...p, tickCount: nextTick, intents: newIntents, realized, lastLog };
       });
       setPipes(updated);
     }, 4000);
@@ -233,8 +258,9 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     const px = resolvePrice(symbol);
     setPipes(list => [
       ...list,
-      { id, pipeline: currentPipeline, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0 },
+      { id, pipeline: currentPipeline, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0, tickCount: 0 },
     ]);
+    toast.success(`Pipeline deployed · ${symbol} · ${currentPipeline.nodes.length} nodes`);
   };
 
   const toggle = (k: LegacyKey) => setOpenLegacy(prev => {
