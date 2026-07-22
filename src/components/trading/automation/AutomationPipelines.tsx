@@ -711,3 +711,102 @@ function DropSlot({
     </div>
   );
 }
+
+// Live-price aware settings for price triggers.
+// User picks a mode: PERCENT (from current live price) or ABSOLUTE (specific price).
+// The engine reads `offsetPct` first; when 0 it falls back to `threshold`.
+function PriceTriggerSettings({
+  step, symbol, livePrice, onChange, direction,
+}: {
+  step: WorkflowStep;
+  symbol: string;
+  livePrice: number;
+  onChange: (key: string, value: number | string | boolean) => void;
+  direction: 'above' | 'below';
+}) {
+  const mode = String(step.params.mode ?? (Number(step.params.threshold ?? 0) > 0 ? 'absolute' : 'percent'));
+  const offsetPct = Number(step.params.offsetPct ?? (direction === 'below' ? -2 : 2));
+  const threshold = Number(step.params.threshold ?? 0);
+  const px = Number.isFinite(livePrice) && livePrice > 0 ? livePrice : 0;
+  const derivedFromPct = px > 0 ? px * (1 + offsetPct / 100) : 0;
+  const effective = mode === 'absolute' && threshold > 0 ? threshold : derivedFromPct;
+  const setMode = (m: 'percent' | 'absolute') => {
+    onChange('mode', m);
+    if (m === 'percent') { onChange('threshold', 0); }
+    else { onChange('offsetPct', 0); if (px > 0 && !threshold) onChange('threshold', Number(px.toFixed(2))); }
+  };
+  const quickChips = direction === 'above' ? [0.5, 1, 2, 5, 10] : [-0.5, -1, -2, -5, -10];
+  return (
+    <div className="space-y-2">
+      {/* Live reference price */}
+      <div className="flex items-center justify-between rounded border border-gold/20 bg-navy-dark/70 px-2.5 py-1.5">
+        <span className="text-[8px] font-display tracking-[0.15em] text-marble/40">LIVE · {symbol || '—'}</span>
+        <span className="text-[11px] font-mono tracking-wider text-gold-light">
+          {px > 0 ? `$${px.toFixed(px < 10 ? 4 : 2)}` : '—'}
+        </span>
+      </div>
+      {/* Mode toggle */}
+      <div className="grid grid-cols-2 gap-1">
+        <button onClick={() => setMode('percent')}
+          className={`text-[9px] font-display tracking-wider py-1 rounded border ${mode === 'percent' ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-gold/15 text-marble/50 hover:border-gold/30'}`}>
+          % {direction === 'above' ? 'GROWTH' : 'LOSS'}
+        </button>
+        <button onClick={() => setMode('absolute')}
+          className={`text-[9px] font-display tracking-wider py-1 rounded border ${mode === 'absolute' ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-gold/15 text-marble/50 hover:border-gold/30'}`}>
+          SPECIFIC $
+        </button>
+      </div>
+      {mode === 'percent' ? (
+        <div className="space-y-1.5">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[8px] font-display tracking-wider text-marble/50 uppercase">Offset %</span>
+            <input
+              type="number" step={0.1}
+              value={Number.isFinite(offsetPct) ? offsetPct : ''}
+              onChange={e => onChange('offsetPct', e.target.value === '' ? 0 : Number(e.target.value))}
+              className="bg-navy-dark/70 border border-gold/20 rounded px-2 py-1 text-[10px] font-mono text-marble outline-none focus:border-gold/50"
+            />
+          </label>
+          <div className="flex flex-wrap gap-1">
+            {quickChips.map(v => (
+              <button key={v} onClick={() => onChange('offsetPct', v)}
+                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${offsetPct === v ? 'border-gold/60 text-gold-light bg-gold/10' : 'border-gold/15 text-marble/50 hover:border-gold/40'}`}>
+                {v > 0 ? `+${v}%` : `${v}%`}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[8px] font-display tracking-wider text-marble/50 uppercase">Target Price ($)</span>
+            <input
+              type="number" step={0.01}
+              value={Number.isFinite(threshold) && threshold > 0 ? threshold : ''}
+              onChange={e => onChange('threshold', e.target.value === '' ? 0 : Number(e.target.value))}
+              className="bg-navy-dark/70 border border-gold/20 rounded px-2 py-1 text-[10px] font-mono text-marble outline-none focus:border-gold/50"
+            />
+          </label>
+          {px > 0 && (
+            <button onClick={() => onChange('threshold', Number(px.toFixed(2)))}
+              className="text-[9px] font-mono px-2 py-0.5 rounded border border-gold/20 text-marble/60 hover:border-gold/50 hover:text-gold-light">
+              use live · ${px.toFixed(2)}
+            </button>
+          )}
+        </div>
+      )}
+      {/* Effective threshold + delta */}
+      <div className="rounded border border-white/5 bg-navy-dark/40 px-2 py-1 text-[9px] font-mono text-marble/60 flex items-center justify-between">
+        <span>fires when price {direction === 'above' ? '>' : '<'} </span>
+        <span className="text-gold-light">
+          {effective > 0 ? `$${effective.toFixed(effective < 10 ? 4 : 2)}` : '—'}
+          {px > 0 && effective > 0 && (
+            <span className={`ml-1.5 ${((effective - px) / px) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              ({((effective - px) / px * 100).toFixed(2)}%)
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
