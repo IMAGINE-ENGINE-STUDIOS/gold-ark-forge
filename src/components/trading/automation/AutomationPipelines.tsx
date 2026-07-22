@@ -139,6 +139,7 @@ interface RunningPipe {
   lastLog: string;
   bootPrice: number;
   realized: number;
+  tickCount: number;
 }
 
 export default function AutomationPipelines({ alertsHook, resolvePrice, getCandleHistory, equity, submitOrder }: Props) {
