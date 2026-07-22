@@ -123,9 +123,18 @@ PALETTE.forEach(g => g.items.forEach(it => paletteByKind.set(it.kind, { item: it
 // Node kinds that operate on a reference symbol — inserting one auto-prepends
 // a context.symbol node if the workflow doesn't already carry one.
 const REQUIRES_SYMBOL = new Set<NodeKind>([
+  'signal.rsi',
+  'signal.bollinger',
+  'signal.donchian',
   'trigger.priceAbove',
   'trigger.priceBelow',
   'trigger.crossover',
+  'filter.regime',
+  'filter.volatility',
+  'risk.atrStop',
+  'analysis.trend',
+  'analysis.momentum',
+  'predict.forecast',
   'action.buy',
   'action.sell',
   'execution.orderIntent',
