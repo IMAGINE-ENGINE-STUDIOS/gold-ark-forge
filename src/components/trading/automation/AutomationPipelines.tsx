@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap, GripVertical, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap, GripVertical, Plus, Trash2, Wand2, TrendingUp, TrendingDown, Sparkles, Brain, DollarSign } from 'lucide-react';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RuleBuilder from '@/components/trading/RuleBuilder';
@@ -41,6 +41,23 @@ const PALETTE: PaletteGroup[] = [
     ],
   },
   {
+    group: 'ANALYSIS', icon: Brain,
+    color: 'text-cyan-300 border-cyan-500/40 bg-cyan-500/10',
+    chipBg: 'bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30',
+    items: [
+      { kind: 'analysis.trend',    label: 'Analyze Trend',    desc: 'Slope over N bars',       defaults: { period: 30, strongPct: 0.01 } },
+      { kind: 'analysis.momentum', label: 'Analyze Momentum', desc: 'Rate-of-change lookback', defaults: { lookback: 10, threshold: 0.005 } },
+    ],
+  },
+  {
+    group: 'PREDICT', icon: Sparkles,
+    color: 'text-fuchsia-300 border-fuchsia-500/40 bg-fuchsia-500/10',
+    chipBg: 'bg-fuchsia-500/10 hover:bg-fuchsia-500/20 border-fuchsia-500/30',
+    items: [
+      { kind: 'predict.forecast', label: 'Forecast Price', desc: 'Linear-reg N→horizon', defaults: { period: 20, horizon: 5, threshold: 0.003 } },
+    ],
+  },
+  {
     group: 'FILTER', icon: Filter,
     color: 'text-purple-300 border-purple-500/40 bg-purple-500/10',
     chipBg: 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30',
@@ -55,14 +72,17 @@ const PALETTE: PaletteGroup[] = [
     chipBg: 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30',
     items: [
       { kind: 'risk.maxPositionPct', label: 'Position %', desc: '% equity sizer',       defaults: { pct: 0.05 } },
+      { kind: 'risk.fixedUsd',       label: 'How Much $', desc: 'Fixed USD per trade',  defaults: { sizeUsd: 500 } },
       { kind: 'risk.atrStop',        label: 'ATR Stop',   desc: 'k × ATR trailing stop',defaults: { mult: 1.5 } },
     ],
   },
   {
-    group: 'EXECUTION', icon: ArrowRight,
+    group: 'ACTION', icon: ArrowRight,
     color: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
     chipBg: 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30',
     items: [
+      { kind: 'action.buy',            label: 'BUY',          desc: 'Force buy this asset',  defaults: {} },
+      { kind: 'action.sell',           label: 'SELL',         desc: 'Force sell this asset', defaults: {} },
       { kind: 'execution.orderIntent', label: 'Order Intent', desc: 'Combine → order', defaults: {} },
     ],
   },
@@ -94,6 +114,8 @@ function buildPipeline(steps: WorkflowStep[], name = 'Custom Workflow'): Pipelin
   const nodes: NodeSpec[] = steps.map((s, idx) => {
     let inputs: string[] | undefined;
     if (s.kind === 'execution.orderIntent') {
+      inputs = steps.slice(0, idx).map(x => x.id);
+    } else if (s.kind === 'action.buy' || s.kind === 'action.sell') {
       inputs = steps.slice(0, idx).map(x => x.id);
     } else if (s.kind === 'monitor.log' && idx > 0) {
       inputs = [steps[idx - 1].id];
@@ -168,7 +190,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
     () => steps.length ? buildPipeline(steps, workflowName) : null,
     [steps, workflowName]
   );
-  const hasExec = steps.some(s => s.kind === 'execution.orderIntent');
+  const hasExec = steps.some(s => s.kind === 'execution.orderIntent' || s.kind === 'action.buy' || s.kind === 'action.sell');
 
   // ── LIVE RUNNER — 4s tick ─────────────────────────────
   useEffect(() => {
@@ -437,7 +459,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
             <div className="flex items-center justify-between">
               <div className="text-[8px] font-display tracking-wider text-marble/40">DEPLOY THIS WORKFLOW</div>
               {steps.length > 0 && !hasExec && (
-                <span className="text-[8px] font-mono text-amber-400">add an Order Intent node to fire trades</span>
+                <span className="text-[8px] font-mono text-amber-400">add BUY, SELL, or Order Intent to fire trades</span>
               )}
             </div>
             <SymbolPicker label="SYMBOL" value={symbol} onChange={setSymbol} />
