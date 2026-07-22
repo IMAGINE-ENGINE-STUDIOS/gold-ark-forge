@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, Activity, Filter, Shield, ArrowRight, Bell, Workflow, CalendarDays, Play, Pause, X, Zap, GripVertical, Plus, Trash2, Wand2 } from 'lucide-react';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RuleBuilder from '@/components/trading/RuleBuilder';
 import type { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import SymbolPicker from '@/components/shared/SymbolPicker';
-import { PIPELINE_PRESETS, evaluate, type Pipeline } from '@/lib/pipelines/nodes';
+import { PIPELINE_PRESETS, evaluate, type Pipeline, type NodeKind, type NodeSpec } from '@/lib/pipelines/nodes';
 
 interface Props {
   alertsHook: ReturnType<typeof usePriceAlerts>;
@@ -15,13 +15,95 @@ interface Props {
   submitOrder: (p: any) => any;
 }
 
-const NODE_KINDS: Array<{ group: string; icon: React.ElementType; color: string; nodes: string[] }> = [
-  { group: 'SIGNAL',    icon: Activity, color: 'text-blue-400 border-blue-500/30 bg-blue-500/5', nodes: ['signal.rsi', 'signal.macd', 'signal.bollinger', 'signal.wave', 'signal.apex'] },
-  { group: 'FILTER',    icon: Filter,   color: 'text-purple-400 border-purple-500/30 bg-purple-500/5', nodes: ['filter.regime', 'filter.session', 'filter.volatility'] },
-  { group: 'RISK',      icon: Shield,   color: 'text-amber-400 border-amber-500/30 bg-amber-500/5', nodes: ['risk.atrStop', 'risk.halfKelly', 'risk.maxPositionPct', 'risk.maxDD'] },
-  { group: 'EXECUTION', icon: ArrowRight, color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5', nodes: ['execution.orderIntent'] },
-  { group: 'MONITOR',   icon: Bell,     color: 'text-red-400 border-red-500/30 bg-red-500/5', nodes: ['monitor.drawdownAlert', 'monitor.log'] },
+// Palette: only kinds registered in NodeRegistry (drag-and-droppable, guaranteed to compile/evaluate).
+interface PaletteItem {
+  kind: NodeKind;
+  label: string;
+  desc: string;
+  defaults: Record<string, number | string | boolean>;
+}
+interface PaletteGroup {
+  group: string;
+  icon: React.ElementType;
+  color: string;         // border/text/bg triplet for slot chrome
+  chipBg: string;        // solid tint for gallery cards
+  items: PaletteItem[];
+}
+const PALETTE: PaletteGroup[] = [
+  {
+    group: 'SIGNAL', icon: Activity,
+    color: 'text-blue-300 border-blue-500/40 bg-blue-500/10',
+    chipBg: 'bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30',
+    items: [
+      { kind: 'signal.rsi',       label: 'RSI',       desc: 'Mean-revert oscillator', defaults: { period: 14, oversold: 30, overbought: 70 } },
+      { kind: 'signal.bollinger', label: 'Bollinger', desc: 'σ-band reversion',       defaults: { period: 20, k: 2 } },
+      { kind: 'signal.donchian',  label: 'Donchian',  desc: 'Breakout channel',       defaults: { period: 20 } },
+    ],
+  },
+  {
+    group: 'FILTER', icon: Filter,
+    color: 'text-purple-300 border-purple-500/40 bg-purple-500/10',
+    chipBg: 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30',
+    items: [
+      { kind: 'filter.regime',     label: 'Regime',     desc: 'Trend-strength gate',     defaults: {} },
+      { kind: 'filter.volatility', label: 'Volatility', desc: 'σ ceiling gate',          defaults: { period: 20, maxSigma: 0.05 } },
+    ],
+  },
+  {
+    group: 'RISK', icon: Shield,
+    color: 'text-amber-300 border-amber-500/40 bg-amber-500/10',
+    chipBg: 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30',
+    items: [
+      { kind: 'risk.maxPositionPct', label: 'Position %', desc: '% equity sizer',       defaults: { pct: 0.05 } },
+      { kind: 'risk.atrStop',        label: 'ATR Stop',   desc: 'k × ATR trailing stop',defaults: { mult: 1.5 } },
+    ],
+  },
+  {
+    group: 'EXECUTION', icon: ArrowRight,
+    color: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
+    chipBg: 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30',
+    items: [
+      { kind: 'execution.orderIntent', label: 'Order Intent', desc: 'Combine → order', defaults: {} },
+    ],
+  },
+  {
+    group: 'MONITOR', icon: Bell,
+    color: 'text-red-300 border-red-500/40 bg-red-500/10',
+    chipBg: 'bg-red-500/10 hover:bg-red-500/20 border-red-500/30',
+    items: [
+      { kind: 'monitor.log', label: 'Log', desc: 'Trace last output', defaults: { tag: 'LOG' } },
+    ],
+  },
 ];
+
+const paletteByKind = new Map<NodeKind, { item: PaletteItem; group: PaletteGroup }>();
+PALETTE.forEach(g => g.items.forEach(it => paletteByKind.set(it.kind, { item: it, group: g })));
+
+// Workflow node = palette item + generated id + editable params.
+interface WorkflowStep {
+  id: string;
+  kind: NodeKind;
+  params: Record<string, number | string | boolean>;
+}
+
+// Compile linear workflow → Pipeline for the engine:
+// - each non-execution node has no inputs (pure signal/filter/risk)
+// - execution.orderIntent receives every prior node's id as inputs
+// - monitor.log receives the immediately preceding node's id
+function buildPipeline(steps: WorkflowStep[], name = 'Custom Workflow'): Pipeline {
+  const nodes: NodeSpec[] = steps.map((s, idx) => {
+    let inputs: string[] | undefined;
+    if (s.kind === 'execution.orderIntent') {
+      inputs = steps.slice(0, idx).map(x => x.id);
+    } else if (s.kind === 'monitor.log' && idx > 0) {
+      inputs = [steps[idx - 1].id];
+    }
+    return { id: s.id, kind: s.kind, params: s.params, inputs };
+  });
+  return { id: `wf-${Date.now().toString(36)}`, name, nodes };
+}
+
+const genStepId = () => `n${Math.random().toString(36).slice(2, 8)}`;
 
 type LegacyKey = 'schedule' | 'alerts' | 'rules';
 
@@ -38,13 +120,55 @@ interface RunningPipe {
 
 export default function AutomationPipelines({ alertsHook, resolvePrice, getCandleHistory, equity, submitOrder }: Props) {
   const [openLegacy, setOpenLegacy] = useState<Set<LegacyKey>>(new Set());
-  const [selectedId, setSelectedId] = useState<string>(PIPELINE_PRESETS[0].id);
+  const [workflowName, setWorkflowName] = useState<string>('Custom Workflow');
   const [symbol, setSymbol] = useState<string>('GLD');
   const [pipes, setPipes] = useState<RunningPipe[]>([]);
   const pipesRef = useRef<RunningPipe[]>([]);
   useEffect(() => { pipesRef.current = pipes; }, [pipes]);
 
-  const selected = useMemo(() => PIPELINE_PRESETS.find(p => p.id === selectedId)!, [selectedId]);
+  // ── DRAG-AND-DROP WORKFLOW STATE ─────────────────────────────
+  const [steps, setSteps] = useState<WorkflowStep[]>([]);
+  const [dragKind, setDragKind] = useState<NodeKind | null>(null);       // dragging FROM palette
+  const [dragIdx,  setDragIdx]  = useState<number | null>(null);          // dragging existing step
+  const [dropIdx,  setDropIdx]  = useState<number | null>(null);          // insertion index preview
+
+  const insertStep = (kind: NodeKind, at: number) => {
+    const meta = paletteByKind.get(kind);
+    if (!meta) return;
+    const step: WorkflowStep = { id: genStepId(), kind, params: { ...meta.item.defaults } };
+    setSteps(prev => {
+      const next = [...prev];
+      const clamped = Math.max(0, Math.min(at, next.length));
+      next.splice(clamped, 0, step);
+      return next;
+    });
+  };
+  const moveStep = (from: number, to: number) => {
+    setSteps(prev => {
+      const next = [...prev];
+      const [it] = next.splice(from, 1);
+      const clamped = Math.max(0, Math.min(to > from ? to - 1 : to, next.length));
+      next.splice(clamped, 0, it);
+      return next;
+    });
+  };
+  const removeStep = (idx: number) =>
+    setSteps(prev => prev.filter((_, i) => i !== idx));
+  const clearWorkflow = () => setSteps([]);
+  const loadPreset = (presetId: string) => {
+    const p = PIPELINE_PRESETS.find(x => x.id === presetId);
+    if (!p) return;
+    setSteps(p.nodes
+      .filter(n => paletteByKind.has(n.kind))
+      .map(n => ({ id: genStepId(), kind: n.kind, params: { ...n.params } })));
+    setWorkflowName(p.name);
+  };
+
+  const currentPipeline = useMemo(
+    () => steps.length ? buildPipeline(steps, workflowName) : null,
+    [steps, workflowName]
+  );
+  const hasExec = steps.some(s => s.kind === 'execution.orderIntent');
 
   // ── LIVE RUNNER — 4s tick ─────────────────────────────
   useEffect(() => {
@@ -82,11 +206,12 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
   }, [resolvePrice, getCandleHistory, equity, submitOrder]);
 
   const deploy = () => {
+    if (!currentPipeline) return;
     const id = `pipe-${Date.now().toString(36)}`;
     const px = resolvePrice(symbol);
     setPipes(list => [
       ...list,
-      { id, pipeline: selected, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0 },
+      { id, pipeline: currentPipeline, symbol, status: 'running', intents: 0, lastLog: 'starting…', bootPrice: px, realized: 0 },
     ]);
   };
 
@@ -103,7 +228,7 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
         <div className="flex items-center gap-2">
           <Workflow className="w-4 h-4 text-gold" />
           <span className="text-[11px] font-display tracking-[0.2em] text-gold-light">PIPELINE BUILDER</span>
-          <span className="text-[9px] font-mono text-marble/25">· typed DAG · no eval · live</span>
+          <span className="text-[9px] font-mono text-marble/25">· drag → drop → deploy · live</span>
         </div>
         <div className="text-[9px] font-mono text-marble/40">
           <span className="text-emerald-400">{pipes.filter(p => p.status === 'running').length}</span>/{pipes.length} running
@@ -152,64 +277,182 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
         </div>
       )}
 
-      {/* Node palette preview */}
-      <div className="rounded-xl border border-gold/15 bg-gradient-to-br from-navy-light/40 to-navy-dark/40 p-4">
-        <div className="text-[9px] font-display tracking-[0.15em] text-marble/40 mb-3">NODE PALETTE</div>
-        <div className="space-y-2">
-          {NODE_KINDS.map(g => {
+      {/* ── VISUAL WORKFLOW BUILDER ────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-3">
+        {/* GALLERY */}
+        <aside className="rounded-xl border border-gold/15 bg-gradient-to-br from-navy-light/40 to-navy-dark/60 p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[9px] font-display tracking-[0.15em] text-gold/60">■ GALLERY</div>
+            <div className="text-[8px] font-mono text-marble/30">drag →</div>
+          </div>
+          {PALETTE.map(g => {
             const Icon = g.icon;
             return (
-              <div key={g.group} className="flex items-center gap-2">
-                <div className={`flex items-center gap-1 text-[8px] font-display tracking-wider px-2 py-1 rounded border w-24 ${g.color}`}>
+              <div key={g.group} className="space-y-1.5">
+                <div className={`flex items-center gap-1 text-[8px] font-display tracking-wider px-1.5 py-0.5 rounded border ${g.color}`}>
                   <Icon className="w-3 h-3" /> {g.group}
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {g.nodes.map(n => (
-                    <code key={n} className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-navy-dark/60 border border-gold/10 text-marble/50">
-                      {n}
-                    </code>
+                <div className="space-y-1">
+                  {g.items.map(it => (
+                    <div
+                      key={it.kind}
+                      draggable
+                      onDragStart={e => { setDragKind(it.kind); setDragIdx(null); e.dataTransfer.effectAllowed = 'copy'; }}
+                      onDragEnd={() => { setDragKind(null); setDropIdx(null); }}
+                      onDoubleClick={() => insertStep(it.kind, steps.length)}
+                      title="drag into workflow (or double-click to append)"
+                      className={`group cursor-grab active:cursor-grabbing rounded border px-2 py-1.5 flex items-center gap-1.5 transition-colors ${g.chipBg}`}
+                    >
+                      <GripVertical className="w-3 h-3 text-marble/40 group-hover:text-marble/70" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-display tracking-wide text-marble/85 truncate">{it.label}</div>
+                        <div className="text-[8px] font-mono text-marble/40 truncate">{it.desc}</div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
             );
           })}
-        </div>
+        </aside>
 
-        <div className="mt-4 pt-3 border-t border-gold/10 text-[9px] font-mono text-marble/40 leading-relaxed">
-          <span className="text-gold/70">Guarantees:</span> compile via Kahn topo-sort (rejects cycles), evaluate via fixed <code className="text-gold">NodeRegistry&lt;NodeKind,PureFn&gt;</code> — never <code className="text-red-400">eval</code> or <code className="text-red-400">new Function</code>. Params are primitives validated by per-kind Zod schema. Max 50 nodes, depth ≤ 12. Execution nodes emit <code className="text-emerald-400">OrderIntent</code> objects; broker calls are gated by the server-side approval queue.
-        </div>
-      </div>
+        {/* WORKFLOW LANE */}
+        <div className="rounded-xl border border-gold/15 bg-gradient-to-br from-navy-light/30 to-navy-dark/60 p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="text-[9px] font-display tracking-[0.15em] text-gold/60">■ WORKFLOW</div>
+            <input
+              value={workflowName}
+              onChange={e => setWorkflowName(e.target.value)}
+              className="flex-1 bg-navy-dark/60 border border-gold/15 rounded px-2 py-1 text-[10px] font-display tracking-wider text-gold-light outline-none focus:border-gold/40 min-w-0"
+              placeholder="workflow name"
+            />
+            <span className="text-[8px] font-mono text-marble/40 whitespace-nowrap">{steps.length} step{steps.length === 1 ? '' : 's'}</span>
+            {steps.length > 0 && (
+              <button onClick={clearWorkflow} title="clear workflow"
+                className="text-marble/40 hover:text-red-400 p-1"><Trash2 className="w-3 h-3" /></button>
+            )}
+          </div>
 
-      {/* Preset pipelines + deploy */}
-      <div>
-        <div className="text-[9px] font-display tracking-[0.15em] text-marble/40 mb-2">STARTER PIPELINES</div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-          {PIPELINE_PRESETS.map(p => {
-            const isActive = p.id === selectedId;
-            return (
-              <button key={p.id} onClick={() => setSelectedId(p.id)}
-                className={`text-left rounded-lg p-3 border transition-all ${
-                  isActive
-                    ? 'border-gold/40 bg-gradient-to-br from-gold/10 to-gold/5 shadow-lg shadow-gold/10'
-                    : 'border-gold/10 bg-navy-dark/40 hover:border-gold/25'
-                }`}>
-                <div className="text-[10px] font-display tracking-wider text-gold-light mb-1">{p.name}</div>
-                <div className="text-[9px] font-mono text-marble/40 leading-relaxed">
-                  {p.nodes.map(n => n.kind.split('.')[1] ?? n.kind).join(' → ')}
+          {/* horizontal lane — grows infinitely, scrolls when overflow */}
+          <div
+            className="relative overflow-x-auto pb-2"
+            onDragOver={e => { if (dragKind || dragIdx != null) { e.preventDefault(); } }}
+          >
+            <div className="relative min-h-[110px] flex items-center gap-0" style={{ minWidth: 'max-content' }}>
+              {/* baseline rail */}
+              <div className="absolute left-4 right-4 top-1/2 h-[2px] bg-gradient-to-r from-gold/10 via-gold/40 to-gold/10 pointer-events-none" />
+
+              {/* leading drop-slot */}
+              <DropSlot
+                active={dropIdx === 0}
+                onDragOver={e => { if (dragKind || dragIdx != null) { e.preventDefault(); setDropIdx(0); } }}
+                onDrop={e => {
+                  e.preventDefault();
+                  if (dragKind) insertStep(dragKind, 0);
+                  else if (dragIdx != null) moveStep(dragIdx, 0);
+                  setDragKind(null); setDragIdx(null); setDropIdx(null);
+                }}
+              />
+
+              {steps.map((s, idx) => {
+                const meta = paletteByKind.get(s.kind);
+                if (!meta) return null;
+                const Icon = meta.group.icon;
+                return (
+                  <>
+                    <div
+                      key={s.id}
+                      draggable
+                      onDragStart={e => { setDragIdx(idx); setDragKind(null); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragEnd={() => { setDragIdx(null); setDropIdx(null); }}
+                      className={`relative z-10 shrink-0 w-40 rounded-lg border-2 px-2.5 py-2 shadow-lg backdrop-blur cursor-grab active:cursor-grabbing ${meta.group.color}`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Icon className="w-3 h-3 opacity-80" />
+                        <span className="text-[10px] font-display tracking-wider truncate flex-1">{meta.item.label}</span>
+                        <button onClick={() => removeStep(idx)} title="remove"
+                          className="text-marble/40 hover:text-red-400"><X className="w-3 h-3" /></button>
+                      </div>
+                      <div className="text-[8px] font-mono text-marble/50 mt-0.5 truncate">{s.kind}</div>
+                      <div className="text-[8px] font-mono text-marble/40 mt-1 truncate">
+                        {Object.entries(s.params).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(' ') || '—'}
+                      </div>
+                    </div>
+                    <DropSlot
+                      key={`slot-${idx}`}
+                      active={dropIdx === idx + 1}
+                      onDragOver={e => { if (dragKind || dragIdx != null) { e.preventDefault(); setDropIdx(idx + 1); } }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        if (dragKind) insertStep(dragKind, idx + 1);
+                        else if (dragIdx != null) moveStep(dragIdx, idx + 1);
+                        setDragKind(null); setDragIdx(null); setDropIdx(null);
+                      }}
+                    />
+                  </>
+                );
+              })}
+
+              {/* end cap — always-visible drop hint */}
+              <div className="relative z-10 shrink-0 flex items-center">
+                <div
+                  onDragOver={e => { if (dragKind || dragIdx != null) { e.preventDefault(); setDropIdx(steps.length); } }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    if (dragKind) insertStep(dragKind, steps.length);
+                    else if (dragIdx != null) moveStep(dragIdx, steps.length);
+                    setDragKind(null); setDragIdx(null); setDropIdx(null);
+                  }}
+                  className={`w-32 h-16 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors ${
+                    dropIdx === steps.length
+                      ? 'border-gold/60 bg-gold/10 text-gold'
+                      : 'border-gold/20 bg-navy-dark/40 text-marble/40 hover:border-gold/40'
+                  }`}
+                >
+                  <Plus className="w-4 h-4 mb-0.5" />
+                  <span className="text-[8px] font-display tracking-wider">DROP HERE</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {steps.length === 0 && (
+            <div className="text-[9px] font-mono text-marble/40 text-center py-2">
+              Drag any card from the gallery onto the lane — or pick a starter below.
+            </div>
+          )}
+
+          {/* Presets */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <Wand2 className="w-3 h-3 text-gold/50" />
+            <span className="text-[8px] font-display tracking-wider text-marble/40">STARTERS:</span>
+            {PIPELINE_PRESETS.map(p => (
+              <button key={p.id} onClick={() => loadPreset(p.id)}
+                className="text-[9px] font-mono px-2 py-0.5 rounded border border-gold/15 text-marble/60 hover:border-gold/40 hover:text-gold-light">
+                {p.name}
               </button>
-            );
-          })}
-        </div>
-        <div className="rounded-lg bg-navy-dark/60 border border-gold/10 p-3 space-y-2">
-          <div className="text-[8px] font-display tracking-wider text-marble/40">DEPLOY {selected.name.toUpperCase()}</div>
-          <SymbolPicker label="SYMBOL" value={symbol} onChange={setSymbol} />
-          <button onClick={deploy}
-            className="w-full text-[10px] font-display tracking-[0.15em] py-2 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 flex items-center justify-center gap-2">
-            <Play className="w-3 h-3" /> DEPLOY PIPELINE · PAPER
-          </button>
-          <div className="text-[8px] font-mono text-marble/30 leading-relaxed">
-            Ticks every 4s. Nodes evaluated in topo order via fixed registry. Intents submit market orders through paper engine.
+            ))}
+          </div>
+
+          {/* Deploy row */}
+          <div className="rounded-lg bg-navy-dark/60 border border-gold/10 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[8px] font-display tracking-wider text-marble/40">DEPLOY THIS WORKFLOW</div>
+              {steps.length > 0 && !hasExec && (
+                <span className="text-[8px] font-mono text-amber-400">add an Order Intent node to fire trades</span>
+              )}
+            </div>
+            <SymbolPicker label="SYMBOL" value={symbol} onChange={setSymbol} />
+            <button
+              onClick={deploy}
+              disabled={!currentPipeline}
+              className="w-full text-[10px] font-display tracking-[0.15em] py-2 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed text-emerald-400 flex items-center justify-center gap-2"
+            >
+              <Play className="w-3 h-3" /> DEPLOY PIPELINE · PAPER
+            </button>
+            <div className="text-[8px] font-mono text-marble/30 leading-relaxed">
+              Ticks every 4s. Steps evaluated left→right via fixed registry. Execution nodes emit paper orders.
+            </div>
           </div>
         </div>
       </div>
@@ -243,6 +486,36 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function DropSlot({
+  active, onDragOver, onDrop,
+}: {
+  active: boolean;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+}) {
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={`relative z-10 shrink-0 flex items-center justify-center transition-all ${
+        active ? 'w-16' : 'w-6'
+      }`}
+    >
+      <div className={`transition-all rounded ${
+        active
+          ? 'w-full h-16 border-2 border-dashed border-gold/60 bg-gold/10'
+          : 'w-4 h-[2px] bg-transparent'
+      }`}>
+        {active && (
+          <div className="w-full h-full flex items-center justify-center text-gold/70">
+            <ArrowRight className="w-3 h-3" />
+          </div>
+        )}
       </div>
     </div>
   );
