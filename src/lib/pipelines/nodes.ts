@@ -32,6 +32,7 @@ export interface PipelineContext {
   equity: number;
   now: number;         // ms epoch of the current tick
   tickCount: number;   // monotonic tick index for this runner
+  basePrice?: number;  // reference symbol price captured at deploy — anchors % offset triggers
 }
 
 export interface NodeSpec {
@@ -101,14 +102,25 @@ export const NodeRegistry: Record<NodeKind, PureFn> = {
     return { type: 'signal', value, reason: `Donchian hi=${hi.toFixed(2)} lo=${lo.toFixed(2)}` };
   },
   'trigger.priceAbove': (p, _i, ctx) => {
-    const threshold = Number(p.threshold ?? 0);
+    // Reference-symbol aware: prefer % offset from the deploy-time base price of ctx.symbol.
+    const offsetPct = Number(p.offsetPct ?? 0);
+    const base = Number(ctx.basePrice ?? ctx.price);
+    const abs  = Number(p.threshold ?? 0);
+    const threshold = offsetPct !== 0 || !abs
+      ? base * (1 + offsetPct / 100)
+      : abs;
     const value = ctx.price > threshold ? +1 : 0;
-    return { type: 'signal', value, reason: `price ${ctx.price.toFixed(2)} ${value ? '>' : '≤'} ${threshold}` };
+    return { type: 'signal', value, reason: `${ctx.symbol} ${ctx.price.toFixed(2)} ${value ? '>' : '≤'} ${threshold.toFixed(2)} (base ${base.toFixed(2)} +${offsetPct}%)` };
   },
   'trigger.priceBelow': (p, _i, ctx) => {
-    const threshold = Number(p.threshold ?? 0);
+    const offsetPct = Number(p.offsetPct ?? 0);
+    const base = Number(ctx.basePrice ?? ctx.price);
+    const abs  = Number(p.threshold ?? 0);
+    const threshold = offsetPct !== 0 || !abs
+      ? base * (1 + offsetPct / 100)
+      : abs;
     const value = ctx.price < threshold ? -1 : 0;
-    return { type: 'signal', value, reason: `price ${ctx.price.toFixed(2)} ${value ? '<' : '≥'} ${threshold}` };
+    return { type: 'signal', value, reason: `${ctx.symbol} ${ctx.price.toFixed(2)} ${value ? '<' : '≥'} ${threshold.toFixed(2)} (base ${base.toFixed(2)} ${offsetPct}%)` };
   },
   'trigger.crossover': (p, _i, ctx) => {
     const fast = Number(p.fastPeriod ?? 9);
