@@ -635,14 +635,6 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
                 <span className="text-[8px] font-mono text-amber-400">add BUY, SELL, or Order Intent to fire trades</span>
               )}
             </div>
-            {steps.some(s => s.kind === 'context.symbol') ? (
-              <div className="flex items-center justify-between rounded border border-gold/20 bg-navy-dark/70 px-2.5 py-1.5">
-                <span className="text-[8px] font-display tracking-[0.15em] text-marble/40">SYMBOL (from workflow)</span>
-                <span className="text-[10px] font-mono tracking-wider text-gold-light">{workflowSymbol}</span>
-              </div>
-            ) : (
-              <SymbolPicker label="SYMBOL (fallback — drop a Symbol block to lock)" value={symbol} onChange={setSymbol} />
-            )}
             <button
               onClick={deploy}
               disabled={!currentPipeline}
