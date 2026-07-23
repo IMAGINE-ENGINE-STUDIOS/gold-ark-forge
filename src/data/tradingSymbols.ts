@@ -605,6 +605,7 @@ export const WATCHLIST_CATEGORIES: WatchlistCategory[] = [
       { key: 'vxus', label: 'Total Intl Stock', ticker: 'VXUS', cat: 'etfs', sub: 'equity_etf' },
       { key: 'eem', label: 'EM Markets', ticker: 'EEM', cat: 'etfs', sub: 'equity_etf' },
       { key: 'vea', label: 'Developed Mkts', ticker: 'VEA', cat: 'etfs', sub: 'equity_etf' },
+      { key: 'gld_etf', label: 'SPDR Gold', ticker: 'GLD', cat: 'etfs', sub: 'commodity_etf' },
       { key: 'iau', label: 'iShares Gold', ticker: 'IAU', cat: 'etfs', sub: 'commodity_etf' },
       { key: 'slv_etf', label: 'iShares Silver', ticker: 'SLV', cat: 'etfs', sub: 'commodity_etf' },
       { key: 'uso', label: 'US Oil Fund', ticker: 'USO', cat: 'etfs', sub: 'commodity_etf' },
