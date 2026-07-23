@@ -616,12 +616,12 @@ export default function AutomationPipelines({ alertsHook, resolvePrice, getCandl
           })()}
 
           {/* Presets */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-1">
-            <Wand2 className="w-3 h-3 text-gold/50" />
-            <span className="text-[8px] font-display tracking-wider text-marble/40">STARTERS:</span>
+          <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+            <Wand2 className="w-3 h-3 text-gold/50 shrink-0" />
+            <span className="text-[8px] font-display tracking-wider text-marble/40 shrink-0">STARTERS:</span>
             {PIPELINE_PRESETS.map(p => (
               <button key={p.id} onClick={() => loadPreset(p.id)}
-                className="text-[9px] font-mono px-2 py-0.5 rounded border border-gold/15 text-marble/60 hover:border-gold/40 hover:text-gold-light">
+                className="text-[9px] font-mono px-2 py-0.5 rounded border border-gold/15 text-marble/60 hover:border-gold/40 hover:text-gold-light whitespace-nowrap shrink-0">
                 {p.name}
               </button>
             ))}
