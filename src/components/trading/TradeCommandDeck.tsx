@@ -4,6 +4,7 @@ import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 
 interface Props {
   tradingMode: 'live' | 'paper';
@@ -160,7 +161,16 @@ function RiskPulse({ positions, equity }: { positions: Array<{ currentPrice: num
 export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
-  const spread = activePrice * 0.0002;
+  // ── LIVE PRICE: same source as GALiveChart (Binance WS for crypto,
+  // sub-second simulated jitter for metals/energy/etc.) so the header
+  // number ticks in lock-step with the chart.
+  const wsPrices = useWebSocketPrices([activeSymbol.key]);
+  const wsTick = wsPrices[activeSymbol.key];
+  const { price: streamedPrice } = useSimulatedStream(activePrice, 0, activeSymbol.key);
+  const livePrice = wsTick?.price && wsTick.price > 0 ? wsTick.price : streamedPrice;
+  const displayPrice = livePrice > 0 ? livePrice : activePrice;
+
+  const spread = displayPrice * 0.0002;
   const equity = paper.account.equity;
   const pnl = paper.account.totalPnl;
   const pnlPct = paper.account.startingBalance > 0 ? (pnl / paper.account.startingBalance) * 100 : 0;
@@ -205,18 +215,18 @@ export default function TradeCommandDeck({
           {/* Price + integrated Technical Pulse */}
           <div className="flex items-center gap-5 flex-1 min-w-[300px]">
             <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
-              ${activePrice < 10
-                ? activePrice.toFixed(4)
-                : activePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${displayPrice < 10
+                ? displayPrice.toFixed(4)
+                : displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="flex flex-col gap-0.5 leading-tight">
               <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
                 <span className="text-white/50 mr-1">BID</span>
-                {(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
+                {(displayPrice - spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
               </span>
               <span className="text-[10px] font-mono text-red-400 tabular-nums">
                 <span className="text-white/50 mr-1">ASK</span>
-                {(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
+                {(displayPrice + spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
               </span>
             </div>
             <TechnicalPulse candles={activeCandles} />
