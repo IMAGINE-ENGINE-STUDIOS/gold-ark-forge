@@ -505,12 +505,6 @@ function TradeTabContent({
 
       {/* Column 2: Market Context */}
       <div className="space-y-3">
-        <CollapsibleSection title="MARKET PULSE" icon={Activity} defaultOpen>
-          <div className="space-y-3">
-            <GAPriceCards />
-          </div>
-        </CollapsibleSection>
-
         <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
           <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
         </CollapsibleSection>
