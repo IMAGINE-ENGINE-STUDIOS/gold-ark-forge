@@ -762,7 +762,7 @@ const TradingBridge = () => {
   // Accumulate real price ticks for each symbol
   const candleHistoryRef = useRef<Record<string, { timestamps: number[]; prices: number[] }>>({});
 
-  // Bootstrap candle history from CoinGecko sparklines or synthetic historical data
+  // Bootstrap only from real historical series when available; otherwise wait for live ticks.
   const bootstrappedRef = useRef<Set<string>>(new Set());
 
   const seedCandleHistory = useCallback((ticker: string, sym: { key: string; cat: string }) => {
@@ -774,45 +774,6 @@ const TradingBridge = () => {
       candleHistoryRef.current[ticker] = history;
       return;
     }
-
-    // Helper: generate realistic price series with trends, pullbacks, and breakouts
-    const generateRealisticSeries = (basePrice: number, count: number, volatilityPct: number) => {
-      const prices: number[] = [];
-      const timestamps: number[] = [];
-      const now = Date.now();
-      const hourMs = 3600_000;
-      let p = basePrice * (1 - volatilityPct * 2 * (Math.random() - 0.3));
-      
-      // Create 3-4 trend phases to give indicators clear signals
-      const phases = [
-        { len: Math.floor(count * 0.25), drift: volatilityPct * 1.5 },   // uptrend
-        { len: Math.floor(count * 0.15), drift: -volatilityPct * 1.2 },  // pullback
-        { len: Math.floor(count * 0.35), drift: volatilityPct * 1.8 },   // strong uptrend
-        { len: count, drift: -volatilityPct * 0.5 },                      // consolidation/mild pullback
-      ];
-      
-      // Randomize direction for each symbol so not all trend the same way
-      const directionFlip = Math.random() > 0.4 ? 1 : -1;
-      let phaseIdx = 0;
-      let phaseRemaining = phases[0].len;
-      
-      for (let i = 0; i < count; i++) {
-        if (phaseRemaining <= 0 && phaseIdx < phases.length - 1) {
-          phaseIdx++;
-          phaseRemaining = phases[phaseIdx].len;
-        }
-        phaseRemaining--;
-        
-        const phaseDrift = phases[phaseIdx].drift * directionFlip;
-        const noise = (Math.random() - 0.5) * basePrice * volatilityPct * 0.8;
-        const momentum = phaseDrift * basePrice * (0.5 + Math.random() * 0.5);
-        p = p + momentum + noise;
-        p = Math.max(basePrice * 0.85, Math.min(basePrice * 1.15, p));
-        prices.push(parseFloat(p.toFixed(p < 10 ? 4 : 2)));
-        timestamps.push(now - (count - i) * hourMs);
-      }
-      return { prices, timestamps };
-    };
 
     // Crypto: use CoinGecko sparkline_in_7d (168 hourly data points)
     if (sym.cat === 'crypto' && cryptoDataAll) {
@@ -831,49 +792,9 @@ const TradingBridge = () => {
       }
     }
 
-    // Metals: generate realistic historical prices with trends
-    if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
-      const metalKey = metalMap[sym.key];
-      const basePrice = metalKey ? (metalPricesData?.[metalKey]?.price_usd ?? 0) : 0;
-      if (basePrice > 0) {
-        const seed = generateRealisticSeries(basePrice, 168, 0.003);
-        history.prices = [...seed.prices, ...history.prices];
-        history.timestamps = [...seed.timestamps, ...history.timestamps];
-        bootstrappedRef.current.add(ticker);
-        candleHistoryRef.current[ticker] = history;
-        return;
-      }
-    }
-
-    // Energy: generate realistic historical with stronger trends
-    if (sym.cat === 'energy') {
-      const feed = oilPricesData?.find(p => p.symbol === ticker);
-      const basePrice = feed?.price ?? 0;
-      if (basePrice > 0) {
-        const seed = generateRealisticSeries(basePrice, 168, 0.005);
-        history.prices = [...seed.prices, ...history.prices];
-        history.timestamps = [...seed.timestamps, ...history.timestamps];
-        bootstrappedRef.current.add(ticker);
-        candleHistoryRef.current[ticker] = history;
-        return;
-      }
-    }
-
-    // Fallback for any category: generate from resolved price
-    const resolvedSym = ALL_SYMBOLS.find(s => s.ticker === ticker);
-    if (resolvedSym) {
-      const basePrice = resolveSymbolPrice(resolvedSym);
-      if (basePrice > 0) {
-        const seed = generateRealisticSeries(basePrice, 168, 0.004);
-        history.prices = [...seed.prices, ...history.prices];
-        history.timestamps = [...seed.timestamps, ...history.timestamps];
-        bootstrappedRef.current.add(ticker);
-        candleHistoryRef.current[ticker] = history;
-        return;
-      }
-    }
-  }, [cryptoDataAll, metalPricesData, oilPricesData, resolveSymbolPrice]);
+    bootstrappedRef.current.add(ticker);
+    candleHistoryRef.current[ticker] = history;
+  }, [cryptoDataAll]);
 
   const getCandleData = useCallback((ticker: string) => {
     const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
@@ -1820,7 +1741,7 @@ const TradingBridge = () => {
           {activePrice > 0 && (
             <span className="text-[8px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
           )}
-          <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
+          <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'LIVE'}</span>
           {waveBot.config.enabled && (
             <span className="text-[8px] font-mono text-purple-400/60 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
@@ -1876,7 +1797,7 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
   const startingBalance = isLive ? 0 : paper.account.startingBalance;
   const roi = startingBalance > 0 ? ((equity - startingBalance) / startingBalance) * 100 : 0;
 
-  // Build equity curve from actual paper orders (simulated replay)
+  // Build equity curve from actual paper orders or live account equity.
   const pnlCurve = useMemo(() => {
     if (isLive) {
       // Live mode: show current equity point only (no fake data)

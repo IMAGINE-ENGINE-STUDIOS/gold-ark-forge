@@ -428,22 +428,6 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   'ALL': { points: 180, intervalMs: 30 * 24 * 3_600_000, candleMs: 30 * 24 * 3_600_000, volatility: 0.035, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) },
 };
 
-const seededRandom = (seed: number) => {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
-  };
-};
-
-const hashSeed = (str: string): number => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-};
-
 const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: number): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
   const totalPrices = sparkline.length;
@@ -461,37 +445,6 @@ const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: numb
     const low = Math.min(...slice);
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
     data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(2)), open: parseFloat(open.toFixed(2)), close: parseFloat(close.toFixed(2)), high: parseFloat(high.toFixed(2)), low: parseFloat(low.toFixed(2)) });
-  }
-  return data;
-};
-
-const generateChartData = (price: number, change: number, tf: Timeframe, symbolKey: string): ChartDataPoint[] => {
-  const cfg = tfConfigs[tf];
-  const seed = hashSeed(`${symbolKey}:${tf}:${Math.floor(Date.now() / 3_600_000)}`);
-  const rand = seededRandom(seed);
-  const data: ChartDataPoint[] = [];
-  const now = Date.now();
-  let walkPrice = price / (1 + change / 100);
-  // Generate ~6× the visible window so users can slide left into deep history.
-  // Capped so memory stays reasonable on long timeframes.
-  const totalPoints = Math.min(cfg.points * 6, 3000);
-  const drift = (price - walkPrice) / totalPoints;
-  for (let i = 0; i < totalPoints; i++) {
-    const r1 = rand() - 0.5;
-    const r2 = rand() - 0.5;
-    const r3 = rand();
-    const step = drift + r1 * walkPrice * cfg.volatility * 2;
-    walkPrice += step;
-    const spread = Math.abs(r2) * walkPrice * cfg.volatility * 1.5;
-    const direction = r1 > 0;
-    const open = walkPrice - (direction ? spread * 0.3 : -spread * 0.3);
-    const close = walkPrice;
-    const wickUp = r3 * walkPrice * cfg.volatility * 0.8;
-    const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
-    const high = Math.max(open, close) + wickUp;
-    const low = Math.min(open, close) - wickDown;
-    const time = new Date(now - (totalPoints - i) * cfg.intervalMs);
-    data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(price < 10 ? 4 : 2)), open: parseFloat(open.toFixed(price < 10 ? 4 : 2)), close: parseFloat(close.toFixed(price < 10 ? 4 : 2)), high: parseFloat(high.toFixed(price < 10 ? 4 : 2)), low: parseFloat(low.toFixed(price < 10 ? 4 : 2)) });
   }
   return data;
 };
@@ -539,15 +492,20 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     const symbolChanged = symbolKey !== lastSymbolRef.current;
     const tfChanged = tf !== lastTfRef.current;
     const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
-    if (symbolChanged || tfChanged || dataArrived) {
+    const livePriceArrived = candlesRef.current.length === 0 && price > 0;
+    if (symbolChanged || tfChanged || dataArrived || livePriceArrived) {
       lastSymbolRef.current = symbolKey;
       lastTfRef.current = tf;
-      candlesRef.current = [...historicalData];
+      const decimals = price < 10 ? 4 : 2;
+      const liveSeed: ChartDataPoint[] = price > 0
+        ? [{ time: cfg.labelFn(new Date()), value: parseFloat(price.toFixed(decimals)), open: parseFloat(price.toFixed(decimals)), close: parseFloat(price.toFixed(decimals)), high: parseFloat(price.toFixed(decimals)), low: parseFloat(price.toFixed(decimals)) }]
+        : [];
+      candlesRef.current = historicalData.length > 0 ? [...historicalData] : liveSeed;
       currentCandleStartRef.current = Date.now();
       tickCountRef.current = 0;
-      setCandles([...historicalData]);
+      setCandles([...candlesRef.current]);
     }
-  }, [symbolKey, tf, historicalData]);
+  }, [symbolKey, tf, historicalData, price, cfg]);
 
   useEffect(() => {
     if (price <= 0 || candlesRef.current.length === 0) return;
@@ -793,9 +751,8 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
     const effectivePrice = basePrice || price;
     if (effectivePrice <= 0) return [];
     if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, effectivePrice);
-    return generateChartData(effectivePrice, change, tf, symbolKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sparklineData, tf, symbolKey, basePrice]);
+    return [];
+  }, [sparklineData, tf, basePrice, price]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
