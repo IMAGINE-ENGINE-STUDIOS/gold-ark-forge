@@ -1,8 +1,9 @@
-import { ArrowUpDown, Briefcase, Gauge, Shield, Activity } from 'lucide-react';
+import { ArrowUpDown, Briefcase, Shield, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import RiskThermometer from './RiskThermometer';
-import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
+import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
 
 interface Props {
@@ -18,13 +19,82 @@ interface Props {
 // ─── Section header (inside unified panel) ─────────────
 function SectionLabel({ icon: Icon, title, badge }: { icon: React.ElementType; title: string; badge?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-3">
+    <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
         <Icon className="w-3.5 h-3.5 text-white/80" strokeWidth={2.2} />
-        <span className="font-display text-[11px] tracking-[0.22em] text-white font-semibold">{title}</span>
+        <span className="font-display text-[10.5px] tracking-[0.24em] text-white font-semibold">{title}</span>
       </div>
-      {badge && <span className="text-[9px] font-mono tracking-wider text-white/70">{badge}</span>}
+      {badge && <span className="text-[9px] font-mono tracking-[0.14em] text-white/55">{badge}</span>}
     </div>
+  );
+}
+
+// ─── Micro Technical Pulse (integrated in header) ──────
+function TechnicalPulse({ candles }: { candles?: { closes: number[]; highs: number[]; lows: number[] } | null }) {
+  const snap = useMemo(() => (candles ? buildTechnicalSnapshot(candles) : null), [candles]);
+
+  if (!snap) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03]">
+        <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
+        <span className="text-[9px] font-mono tracking-[0.18em] text-white/50">CALIBRATING</span>
+      </div>
+    );
+  }
+
+  const { overallSignal, totalBuy, totalSell, totalNeutral, overallBias } = snap;
+  const isBull = overallSignal.includes('BUY');
+  const isBear = overallSignal.includes('SELL');
+  const Icon = isBull ? TrendingUp : isBear ? TrendingDown : Minus;
+
+  const tone = isBull
+    ? { text: 'text-emerald-300', glow: 'shadow-[0_0_20px_-4px_rgba(52,211,153,0.55)]', dot: 'bg-emerald-400', bar: 'from-emerald-500/80 to-emerald-300', ring: 'border-emerald-400/40', bg: 'bg-emerald-500/10' }
+    : isBear
+    ? { text: 'text-red-300', glow: 'shadow-[0_0_20px_-4px_rgba(248,113,113,0.5)]', dot: 'bg-red-400', bar: 'from-red-500/80 to-red-300', ring: 'border-red-400/40', bg: 'bg-red-500/10' }
+    : { text: 'text-white/80', glow: '', dot: 'bg-white/50', bar: 'from-white/40 to-white/70', ring: 'border-white/15', bg: 'bg-white/[0.05]' };
+
+  // Bias meter: -100..100 → 0..100
+  const pct = Math.max(0, Math.min(100, 50 + overallBias / 2));
+
+  return (
+    <div className={`relative flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl border ${tone.ring} ${tone.bg} ${tone.glow} backdrop-blur-md transition-all duration-500`}>
+      {/* Animated pulse dot */}
+      <div className="relative flex items-center justify-center w-4 h-4">
+        <span className={`absolute inset-0 rounded-full ${tone.dot} opacity-30 animate-ping`} />
+        <span className={`relative w-1.5 h-1.5 rounded-full ${tone.dot}`} />
+      </div>
+
+      <Icon className={`w-3.5 h-3.5 ${tone.text}`} strokeWidth={2.4} />
+
+      <div className="flex flex-col leading-tight">
+        <span className={`font-display text-[10px] tracking-[0.22em] font-bold ${tone.text}`}>{overallSignal}</span>
+        {/* Bias micro-bar */}
+        <div className="relative w-[92px] h-[3px] mt-0.5 rounded-full bg-white/[0.08] overflow-hidden">
+          <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/20" />
+          <div
+            className={`absolute top-0 bottom-0 rounded-full bg-gradient-to-r ${tone.bar} transition-all duration-700 ease-out`}
+            style={
+              overallBias >= 0
+                ? { left: '50%', width: `${Math.min(50, pct - 50)}%` }
+                : { right: '50%', width: `${Math.min(50, 50 - pct)}%` }
+            }
+          />
+        </div>
+      </div>
+
+      {/* Signal counts */}
+      <div className="flex items-center gap-1.5 pl-2 ml-1 border-l border-white/10">
+        <MiniCount value={totalBuy} className="text-emerald-400" />
+        <MiniCount value={totalNeutral} className="text-white/50" />
+        <MiniCount value={totalSell} className="text-red-400" />
+      </div>
+    </div>
+  );
+}
+
+function MiniCount({ value, className }: { value: number; className: string }) {
+  return (
+    <span className={`font-mono text-[10px] font-semibold tabular-nums ${className}`}>{value}</span>
   );
 }
 
@@ -59,9 +129,9 @@ export default function TradeCommandDeck({
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_60%_at_50%_-10%,rgba(255,255,255,0.08),transparent_60%)]" />
 
         {/* ── HEADER STRIP ─────────────────────────────── */}
-        <div className="relative flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4 border-b border-white/[0.06]">
+        <div className="relative flex flex-wrap items-center gap-x-7 gap-y-4 px-7 py-5 border-b border-white/[0.06]">
           {/* Symbol */}
-          <div className="flex items-center gap-3 min-w-[190px]">
+          <div className="flex items-center gap-3 min-w-[180px]">
             <div className="relative">
               <div className="absolute -inset-1 rounded-full bg-[hsl(43,90%,60%)]/25 blur-md" />
               <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-[hsl(43,95%,68%)] via-[hsl(43,85%,55%)] to-[hsl(43,70%,38%)] flex items-center justify-center text-black font-display text-[10px] font-bold tracking-wider shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
@@ -69,14 +139,14 @@ export default function TradeCommandDeck({
               </div>
             </div>
             <div className="leading-tight">
-              <div className="text-[9px] font-display tracking-[0.28em] text-white/60 font-medium">{activeSymbol.cat.toUpperCase()}</div>
+              <div className="text-[9px] font-display tracking-[0.28em] text-white/55 font-medium">{activeSymbol.cat.toUpperCase()}</div>
               <div className="font-display text-[15px] tracking-wide text-white font-semibold">{activeSymbol.label}</div>
             </div>
           </div>
 
-          {/* Price */}
-          <div className="flex items-baseline gap-4 flex-1 min-w-[240px]">
-            <div className="font-mono text-[34px] leading-none font-semibold text-white tracking-tight tabular-nums">
+          {/* Price + integrated Technical Pulse */}
+          <div className="flex items-center gap-5 flex-1 min-w-[300px]">
+            <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
               ${activePrice < 10
                 ? activePrice.toFixed(4)
                 : activePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -91,6 +161,7 @@ export default function TradeCommandDeck({
                 {(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
               </span>
             </div>
+            <TechnicalPulse candles={activeCandles} />
           </div>
 
           {/* Account chips */}
@@ -109,32 +180,28 @@ export default function TradeCommandDeck({
         {/* ── BODY: three internal sections ───────────── */}
         <div className="relative grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.06]">
           {/* Order */}
-          <div className="lg:col-span-4 p-6">
-            <SectionLabel icon={ArrowUpDown} title="ORDER" badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} />
+          <div className="lg:col-span-5 p-7">
+            <SectionLabel icon={ArrowUpDown} title="ORDER TICKET" badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} />
             <div className="text-white [&_*]:!text-inherit">{orderTicket}</div>
           </div>
 
-          {/* Technicals + Risk merged */}
-          <div className="lg:col-span-5 p-6 space-y-6">
+          {/* Risk */}
+          <div className="lg:col-span-4 p-7 space-y-6">
             <div>
-              <SectionLabel icon={Gauge} title="TECHNICALS" badge={activeSymbol.ticker} />
-              <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
-            </div>
-            <div className="pt-5 border-t border-white/[0.06]">
               <SectionLabel icon={Shield} title="PORTFOLIO RISK" badge="LIVE" />
               {tradingMode === 'paper' && (
                 <RiskThermometer positions={paper.positions} equity={paper.account.equity} />
               )}
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <StatTile label="POSITIONS" value={String(paper.positions.length)} />
-                <StatTile label="WIN RATE" value={`${paper.account.winRate.toFixed(0)}%`} />
-                <StatTile label="TRADES" value={String(paper.account.totalTrades)} />
-              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              <StatTile label="POSITIONS" value={String(paper.positions.length)} />
+              <StatTile label="WIN RATE" value={`${paper.account.winRate.toFixed(0)}%`} />
+              <StatTile label="TRADES" value={String(paper.account.totalTrades)} />
             </div>
           </div>
 
           {/* Portfolio */}
-          <div className="lg:col-span-3 p-6 space-y-6">
+          <div className="lg:col-span-3 p-7 space-y-6">
             <div>
               <SectionLabel icon={Briefcase} title="PORTFOLIO" badge="AGGREGATE" />
               <PortfolioSummary />
@@ -176,9 +243,9 @@ function Chip({
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white/[0.04] border border-white/[0.08] px-2 py-1.5 text-center">
-      <div className="text-[9px] font-display tracking-[0.18em] text-white/60 font-medium">{label}</div>
-      <div className="font-mono text-[13px] font-semibold text-white tabular-nums">{value}</div>
+    <div className="rounded-xl bg-white/[0.035] border border-white/[0.07] px-2.5 py-2 text-center">
+      <div className="text-[8.5px] font-display tracking-[0.2em] text-white/55 font-medium">{label}</div>
+      <div className="font-mono text-[14px] mt-0.5 font-semibold text-white tabular-nums">{value}</div>
     </div>
   );
 }
