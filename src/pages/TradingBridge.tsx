@@ -917,13 +917,12 @@ const TradingBridge = () => {
         return Math.max(-1, Math.min(1, bias));
       }
     }
-    // Fallback: use change% as proxy
+    // Fallback: use real change% as proxy, never synthetic drift
     const sym = ALL_SYMBOLS.find(s => s.ticker === _ticker);
     if (!sym) return 0;
-    const sp = SYNTHETIC_PRICES[sym.key];
-    const change = sp?.c ?? 0;
+    const change = liveFeed.resolveChange(sym);
     return Math.max(-1, Math.min(1, change / 5));
-  }, []);
+  }, [liveFeed]);
 
   // Helper to get candle history prices for wave bot
   const getCandleHistory = useCallback((ticker: string): number[] | null => {
