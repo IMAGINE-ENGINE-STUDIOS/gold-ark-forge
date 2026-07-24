@@ -162,30 +162,11 @@ export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
   // ── LIVE PRICE: REAL DATA ONLY.
-  // Crypto → Binance WebSocket tick.
-  // Everything else → the upstream `activePrice` prop (already routed through
-  // the shared useLiveMarketData feed in TradingBridge). No local simulation.
-  const wsPrices = useWebSocketPrices([activeSymbol.key]);
-  const wsTick = wsPrices[activeSymbol.key];
-  const displayPrice = wsTick?.price && wsTick.price > 0 ? wsTick.price : activePrice;
-
-  // ── BID / ASK: snapshot the price at the moment the user opens this symbol
-  // and keep it fixed until they switch symbols (mirrors how a broker DOM
-  // shows the entry reference at chart-open time).
-  const [entryRef, setEntryRef] = useState<number>(displayPrice);
-  const lastSymbolRef = useRef<string>(activeSymbol.key);
-  useEffect(() => {
-    if (lastSymbolRef.current !== activeSymbol.key) {
-      lastSymbolRef.current = activeSymbol.key;
-      if (displayPrice > 0) setEntryRef(displayPrice);
-      return;
-    }
-    // Seed once when the first real price arrives for this symbol.
-    if (entryRef <= 0 && displayPrice > 0) setEntryRef(displayPrice);
-  }, [activeSymbol.key, displayPrice, entryRef]);
-
-  const refPrice = entryRef > 0 ? entryRef : displayPrice;
-  const spread = refPrice * 0.0002;
+  // `activePrice` is already resolved from the shared useLiveMarketData feed
+  // in TradingBridge (Binance WS for crypto, real feeds for metals/energy).
+  // No local simulation, no synthetic fallback.
+  const displayPrice = activePrice;
+  const hasPrice = displayPrice > 0;
   const equity = paper.account.equity;
   const pnl = paper.account.totalPnl;
   const pnlPct = paper.account.startingBalance > 0 ? (pnl / paper.account.startingBalance) * 100 : 0;
