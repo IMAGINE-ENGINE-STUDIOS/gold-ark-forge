@@ -883,10 +883,14 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
 
   const headerStats = useMemo(() => {
     const rsiArr = computeRSIArray(chartValues);
-    const rsi = rsiArr[rsiArr.length - 1] ?? 50;
-    const sma20 = computeSMA(chartValues, 20).at(-1) ?? price;
-    const ema20 = computeEMA(chartValues, 20).at(-1) ?? price;
-    const atr = computeATR(chartHighs, chartLows, chartValues).at(-1) ?? 0;
+    const rawRsi = rsiArr[rsiArr.length - 1];
+    const rawSma20 = computeSMA(chartValues, 20).at(-1);
+    const rawEma20 = computeEMA(chartValues, 20).at(-1);
+    const rawAtr = computeATR(chartHighs, chartLows, chartValues).at(-1);
+    const rsi = Number.isFinite(rawRsi) ? rawRsi : 50;
+    const sma20 = Number.isFinite(rawSma20) ? rawSma20 : price;
+    const ema20 = Number.isFinite(rawEma20) ? rawEma20 : price;
+    const atr = Number.isFinite(rawAtr) ? rawAtr : 0;
     const macdData = computeMACD(chartValues);
     const macdVal = macdData.macd.at(-1) ?? 0;
     const macdSig = macdData.signal.at(-1) ?? 0;
