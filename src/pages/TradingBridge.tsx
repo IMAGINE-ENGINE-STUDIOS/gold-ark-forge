@@ -684,22 +684,17 @@ const TradingBridge = () => {
   // Single source of truth: delegates to the shared live-market hook so every
   // widget in EXECUTE/TRADE (Command Deck price, bid/ask, indicators, positions)
   // ticks from the exact same real-time stream as Eagle View / Showroom.
+  // ── REAL DATA ONLY. No synthetic fallback. If a symbol has no live feed,
+  // the UI shows a clear NO DATA state instead of a fabricated price.
   const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
-    const live = liveFeed.resolvePrice(sym);
-    if (live > 0) return live;
-    const sp = SYNTHETIC_PRICES[sym.key];
-    return sp?.p ?? 0;
+    return liveFeed.resolvePrice(sym);
   }, [liveFeed]);
 
   // Resolve current price for active symbol — recomputes on every WS tick
   const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
 
   // Resolve 24h change % for active symbol from the same live feed
-  const activeChange = useMemo(() => {
-    const c = liveFeed.resolveChange(activeSymbol);
-    if (c !== 0) return c;
-    return SYNTHETIC_PRICES[activeSymbol.key]?.c ?? 0;
-  }, [activeSymbol, liveFeed]);
+  const activeChange = useMemo(() => liveFeed.resolveChange(activeSymbol), [activeSymbol, liveFeed]);
 
   // Build a price map for all held paper positions and keep them updated
   const resolvePriceForTicker = useCallback((ticker: string): number => {
