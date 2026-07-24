@@ -210,20 +210,23 @@ export default function TradeCommandDeck({
 
           {/* Price + integrated Technical Pulse */}
           <div className="flex items-center gap-5 flex-1 min-w-[300px]">
-            <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
-              ${displayPrice < 10
-                ? displayPrice.toFixed(4)
-                : displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="flex flex-col gap-0.5 leading-tight">
-              <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
-                <span className="text-white/50 mr-1">BID</span>
-                {(refPrice - spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
-              </span>
-              <span className="text-[10px] font-mono text-red-400 tabular-nums">
-                <span className="text-white/50 mr-1">ASK</span>
-                {(refPrice + spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
-              </span>
+            <div className="flex flex-col">
+              <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
+                {hasPrice ? (
+                  <>${displayPrice < 10
+                    ? displayPrice.toFixed(4)
+                    : displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                ) : (
+                  <span className="text-white/40">—</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className={`inline-flex items-center gap-1 text-[9px] font-mono tracking-wider px-1.5 py-0.5 rounded border ${hasPrice ? 'text-emerald-300 bg-emerald-500/10 border-emerald-400/25' : 'text-amber-300 bg-amber-500/10 border-amber-400/25'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${hasPrice ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  {hasPrice ? 'LIVE' : 'NO DATA'}
+                </span>
+                <span className="text-[9px] font-mono text-white/40">REAL FEED ONLY</span>
+              </div>
             </div>
             <TechnicalPulse candles={activeCandles} />
             {tradingMode === 'paper' && (
