@@ -50,7 +50,7 @@ import RuleBuilder from '@/components/trading/RuleBuilder';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
-import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import SymbolLogo from '@/components/trading/SymbolLogo';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
@@ -684,22 +684,17 @@ const TradingBridge = () => {
   // Single source of truth: delegates to the shared live-market hook so every
   // widget in EXECUTE/TRADE (Command Deck price, bid/ask, indicators, positions)
   // ticks from the exact same real-time stream as Eagle View / Showroom.
+  // ── REAL DATA ONLY. No synthetic fallback. If a symbol has no live feed,
+  // the UI shows a clear NO DATA state instead of a fabricated price.
   const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
-    const live = liveFeed.resolvePrice(sym);
-    if (live > 0) return live;
-    const sp = SYNTHETIC_PRICES[sym.key];
-    return sp?.p ?? 0;
+    return liveFeed.resolvePrice(sym);
   }, [liveFeed]);
 
   // Resolve current price for active symbol — recomputes on every WS tick
   const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
 
   // Resolve 24h change % for active symbol from the same live feed
-  const activeChange = useMemo(() => {
-    const c = liveFeed.resolveChange(activeSymbol);
-    if (c !== 0) return c;
-    return SYNTHETIC_PRICES[activeSymbol.key]?.c ?? 0;
-  }, [activeSymbol, liveFeed]);
+  const activeChange = useMemo(() => liveFeed.resolveChange(activeSymbol), [activeSymbol, liveFeed]);
 
   // Build a price map for all held paper positions and keep them updated
   const resolvePriceForTicker = useCallback((ticker: string): number => {
@@ -922,13 +917,12 @@ const TradingBridge = () => {
         return Math.max(-1, Math.min(1, bias));
       }
     }
-    // Fallback: use change% as proxy
+    // Fallback: use real change% as proxy, never synthetic drift
     const sym = ALL_SYMBOLS.find(s => s.ticker === _ticker);
     if (!sym) return 0;
-    const sp = SYNTHETIC_PRICES[sym.key];
-    const change = sp?.c ?? 0;
+    const change = liveFeed.resolveChange(sym);
     return Math.max(-1, Math.min(1, change / 5));
-  }, []);
+  }, [liveFeed]);
 
   // Helper to get candle history prices for wave bot
   const getCandleHistory = useCallback((ticker: string): number[] | null => {

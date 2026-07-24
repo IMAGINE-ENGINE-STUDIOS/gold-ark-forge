@@ -1,10 +1,10 @@
 import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+
 
 interface Props {
   tradingMode: 'live' | 'paper';
@@ -162,30 +162,11 @@ export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
   // ── LIVE PRICE: REAL DATA ONLY.
-  // Crypto → Binance WebSocket tick.
-  // Everything else → the upstream `activePrice` prop (already routed through
-  // the shared useLiveMarketData feed in TradingBridge). No local simulation.
-  const wsPrices = useWebSocketPrices([activeSymbol.key]);
-  const wsTick = wsPrices[activeSymbol.key];
-  const displayPrice = wsTick?.price && wsTick.price > 0 ? wsTick.price : activePrice;
-
-  // ── BID / ASK: snapshot the price at the moment the user opens this symbol
-  // and keep it fixed until they switch symbols (mirrors how a broker DOM
-  // shows the entry reference at chart-open time).
-  const [entryRef, setEntryRef] = useState<number>(displayPrice);
-  const lastSymbolRef = useRef<string>(activeSymbol.key);
-  useEffect(() => {
-    if (lastSymbolRef.current !== activeSymbol.key) {
-      lastSymbolRef.current = activeSymbol.key;
-      if (displayPrice > 0) setEntryRef(displayPrice);
-      return;
-    }
-    // Seed once when the first real price arrives for this symbol.
-    if (entryRef <= 0 && displayPrice > 0) setEntryRef(displayPrice);
-  }, [activeSymbol.key, displayPrice, entryRef]);
-
-  const refPrice = entryRef > 0 ? entryRef : displayPrice;
-  const spread = refPrice * 0.0002;
+  // `activePrice` is already resolved from the shared useLiveMarketData feed
+  // in TradingBridge (Binance WS for crypto, real feeds for metals/energy).
+  // No local simulation, no synthetic fallback.
+  const displayPrice = activePrice;
+  const hasPrice = displayPrice > 0;
   const equity = paper.account.equity;
   const pnl = paper.account.totalPnl;
   const pnlPct = paper.account.startingBalance > 0 ? (pnl / paper.account.startingBalance) * 100 : 0;
@@ -229,20 +210,23 @@ export default function TradeCommandDeck({
 
           {/* Price + integrated Technical Pulse */}
           <div className="flex items-center gap-5 flex-1 min-w-[300px]">
-            <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
-              ${displayPrice < 10
-                ? displayPrice.toFixed(4)
-                : displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="flex flex-col gap-0.5 leading-tight">
-              <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
-                <span className="text-white/50 mr-1">BID</span>
-                {(refPrice - spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
-              </span>
-              <span className="text-[10px] font-mono text-red-400 tabular-nums">
-                <span className="text-white/50 mr-1">ASK</span>
-                {(refPrice + spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
-              </span>
+            <div className="flex flex-col">
+              <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
+                {hasPrice ? (
+                  <>${displayPrice < 10
+                    ? displayPrice.toFixed(4)
+                    : displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                ) : (
+                  <span className="text-white/40">—</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className={`inline-flex items-center gap-1 text-[9px] font-mono tracking-wider px-1.5 py-0.5 rounded border ${hasPrice ? 'text-emerald-300 bg-emerald-500/10 border-emerald-400/25' : 'text-amber-300 bg-amber-500/10 border-amber-400/25'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${hasPrice ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  {hasPrice ? 'LIVE' : 'NO DATA'}
+                </span>
+                <span className="text-[9px] font-mono text-white/40">REAL FEED ONLY</span>
+              </div>
             </div>
             <TechnicalPulse candles={activeCandles} />
             {tradingMode === 'paper' && (

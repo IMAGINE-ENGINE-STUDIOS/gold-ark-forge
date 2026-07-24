@@ -16,8 +16,8 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
-import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+import { CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
   enrichChartData,
@@ -757,6 +757,9 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const wsPrices = useWebSocketPrices([symbolKey]);
   const wsData = wsPrices[symbolKey];
 
+  // ── REAL DATA ONLY. No synthetic jitter, no fallback fake prices.
+  // Crypto → Binance WebSocket tick; Metals/Energy → respective real feeds.
+  // If no feed exists the chart shows a clear NO DATA state instead of lying.
   const { basePrice, baseChange } = useMemo(() => {
     if (wsData && wsData.price > 0) return { basePrice: wsData.price, baseChange: wsData.change24h };
     if (category === 'metals') {
@@ -773,14 +776,12 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
-    return { basePrice: sp.p, baseChange: sp.c };
+    return { basePrice: 0, baseChange: 0 };
   }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
 
-  const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
+  const price = basePrice;
+  const change = baseChange;
   const isWsLive = !!wsData && wsData.price > 0;
-  const price = isWsLive ? wsData.price : streamedPrice;
-  const change = isWsLive ? wsData.change24h : streamedChange;
 
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
@@ -1177,8 +1178,9 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       >
         {price === 0 || liveCandles.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
-            <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
-            <span className="text-marble/30 text-xs font-display tracking-[0.2em]">LOADING MARKET DATA</span>
+            <Wifi className="w-10 h-10 text-marble/20" />
+            <span className="text-marble/40 text-xs font-display tracking-[0.2em]">NO LIVE DATA</span>
+            <span className="text-marble/25 text-[10px] font-mono">Real feed unavailable for this symbol</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -1281,7 +1283,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
               APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
             </span>
           )}
-           <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
+           <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'LIVE'} · {visibleCandles.length}/{liveCandles.length} bars</span>
             {(zoom.zoomLabel !== 'FIT' || zoom.isPanned) && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
                 🔍 {zoom.zoomLabel} · RESET
