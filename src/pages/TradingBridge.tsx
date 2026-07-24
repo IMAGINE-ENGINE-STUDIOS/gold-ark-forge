@@ -80,6 +80,7 @@ import DrawdownChart from '@/components/trading/DrawdownChart';
 import SessionBreakdown from '@/components/trading/SessionBreakdown';
 import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
+import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
 
 // ─── Collapsible Section Component ───────────────────────
 function CollapsibleSection({ 
@@ -478,54 +479,21 @@ function TradeTabContent({
   activeCandles?: { closes: number[]; highs: number[]; lows: number[] } | null;
 }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-      {/* Column 1: Order Execution */}
-      <div className="space-y-3">
-        <CollapsibleSection 
-          title="ORDER TICKET" 
-          icon={ArrowUpDown} 
-          badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} 
-          defaultOpen
-        >
-          {tradingMode === 'paper' ? (
-            <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-          ) : (
-            <TradingPanel activeSymbol={activeSymbol.ticker} />
-          )}
-        </CollapsibleSection>
-
-        <CollapsibleSection title="DEPTH OF MARKET" icon={BarChart3}>
-          <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
-        </CollapsibleSection>
-
-        <CollapsibleSection title="TIME & SALES" icon={Clock}>
-          <GATimeSales symbol={activeSymbol.ticker} price={activePrice} />
-        </CollapsibleSection>
-      </div>
-
-      {/* Column 2: Market Context */}
-      <div className="space-y-3">
-        <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
-          <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
-        </CollapsibleSection>
-      </div>
-
-      {/* Column 3: Portfolio */}
-      <div className="space-y-3">
-        {tradingMode === 'paper' && (
-          <RiskThermometer positions={paper.positions} equity={paper.account.equity} />
-        )}
-        <CollapsibleSection title="PORTFOLIO" icon={Briefcase} defaultOpen>
-          <PortfolioSummary />
-        </CollapsibleSection>
-
-        {activeConn && (
-          <CollapsibleSection title="POSITIONS" icon={TrendingUp}>
-            <PositionsPanel connectionId={activeConn.id} />
-          </CollapsibleSection>
-        )}
-      </div>
-    </div>
+    <TradeCommandDeck
+      tradingMode={tradingMode}
+      activeSymbol={activeSymbol}
+      activePrice={activePrice}
+      paper={paper}
+      activeConn={activeConn}
+      activeCandles={activeCandles}
+      orderTicket={
+        tradingMode === 'paper' ? (
+          <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+        ) : (
+          <TradingPanel activeSymbol={activeSymbol.ticker} />
+        )
+      }
+    />
   );
 }
 
