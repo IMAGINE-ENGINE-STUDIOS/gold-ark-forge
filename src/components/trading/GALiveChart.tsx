@@ -1283,7 +1283,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
               APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
             </span>
           )}
-           <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
+           <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'LIVE'} · {visibleCandles.length}/{liveCandles.length} bars</span>
             {(zoom.zoomLabel !== 'FIT' || zoom.isPanned) && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
                 🔍 {zoom.zoomLabel} · RESET
