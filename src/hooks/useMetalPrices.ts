@@ -13,21 +13,31 @@ export const useMetalPrices = () => {
   return useQuery({
     queryKey: ['metal-prices'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('price_feeds')
-        .select('*');
-
+      // Invoke the live edge function directly so we always get the latest
+      // spot price (gold-api.com, free, no key). It also upserts price_feeds
+      // in the background for other consumers.
+      const { data, error } = await supabase.functions.invoke('fetch-metal-prices', { body: {} });
       if (error) throw error;
 
-      // Transform to a map for easier access
+      const now = data?.updated_at ?? new Date().toISOString();
+      const p = data?.prices ?? {};
       const priceMap: Record<string, PriceFeed> = {};
-      (data as PriceFeed[]).forEach((feed) => {
-        priceMap[feed.metal_type] = feed;
+      (['gold', 'silver', 'platinum'] as const).forEach((metal) => {
+        const row = p[metal];
+        if (!row || typeof row.price_usd !== 'number' || row.price_usd <= 0) return;
+        priceMap[metal] = {
+          id: metal,
+          metal_type: metal,
+          price_usd: row.price_usd,
+          change_24h: row.change_24h ?? 0,
+          updated_at: now,
+        };
       });
-
       return priceMap;
     },
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 5000,  // Live tick every 5s
+    staleTime: 2500,
+    retry: 1,
   });
 };
 
