@@ -1178,8 +1178,9 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       >
         {price === 0 || liveCandles.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
-            <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
-            <span className="text-marble/30 text-xs font-display tracking-[0.2em]">LOADING MARKET DATA</span>
+            <Wifi className="w-10 h-10 text-marble/20" />
+            <span className="text-marble/40 text-xs font-display tracking-[0.2em]">NO LIVE DATA</span>
+            <span className="text-marble/25 text-[10px] font-mono">Real feed unavailable for this symbol</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
