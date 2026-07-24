@@ -215,18 +215,18 @@ export default function TradeCommandDeck({
           {/* Price + integrated Technical Pulse */}
           <div className="flex items-center gap-5 flex-1 min-w-[300px]">
             <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
-              ${activePrice < 10
-                ? activePrice.toFixed(4)
-                : activePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${displayPrice < 10
+                ? displayPrice.toFixed(4)
+                : displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="flex flex-col gap-0.5 leading-tight">
               <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
                 <span className="text-white/50 mr-1">BID</span>
-                {(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
+                {(displayPrice - spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
               </span>
               <span className="text-[10px] font-mono text-red-400 tabular-nums">
                 <span className="text-white/50 mr-1">ASK</span>
-                {(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
+                {(displayPrice + spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
               </span>
             </div>
             <TechnicalPulse candles={activeCandles} />
