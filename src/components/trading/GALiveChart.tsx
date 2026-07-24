@@ -757,6 +757,9 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const wsPrices = useWebSocketPrices([symbolKey]);
   const wsData = wsPrices[symbolKey];
 
+  // ── REAL DATA ONLY. No synthetic jitter, no fallback fake prices.
+  // Crypto → Binance WebSocket tick; Metals/Energy → respective real feeds.
+  // If no feed exists the chart shows a clear NO DATA state instead of lying.
   const { basePrice, baseChange } = useMemo(() => {
     if (wsData && wsData.price > 0) return { basePrice: wsData.price, baseChange: wsData.change24h };
     if (category === 'metals') {
@@ -773,14 +776,11 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
-    return { basePrice: sp.p, baseChange: sp.c };
+    return { basePrice: 0, baseChange: 0 };
   }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
 
-  const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
-  const isWsLive = !!wsData && wsData.price > 0;
-  const price = isWsLive ? wsData.price : streamedPrice;
-  const change = isWsLive ? wsData.change24h : streamedChange;
+  const price = basePrice;
+  const change = baseChange;
 
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
