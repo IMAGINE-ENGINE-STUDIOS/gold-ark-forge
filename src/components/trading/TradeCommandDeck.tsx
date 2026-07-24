@@ -237,11 +237,11 @@ export default function TradeCommandDeck({
             <div className="flex flex-col gap-0.5 leading-tight">
               <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
                 <span className="text-white/50 mr-1">BID</span>
-                {(displayPrice - spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
+                {(refPrice - spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
               </span>
               <span className="text-[10px] font-mono text-red-400 tabular-nums">
                 <span className="text-white/50 mr-1">ASK</span>
-                {(displayPrice + spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
+                {(refPrice + spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
               </span>
             </div>
             <TechnicalPulse candles={activeCandles} />
