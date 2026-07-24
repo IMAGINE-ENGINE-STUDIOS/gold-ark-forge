@@ -689,6 +689,9 @@ const TradingBridge = () => {
   const { data: metalPricesData } = useMetalPrices();
   const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
+  // ─── Unified LIVE feed (WebSocket ticks for crypto, real polls for metals/energy) ───
+  // Same source powering Eagle View, Showroom, Intelligence and Oil & Gas widgets.
+  const liveFeed = useLiveMarketData();
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
   const { user } = useAuth();
@@ -705,48 +708,25 @@ const TradingBridge = () => {
   }, [symbolSearch]);
 
   // ─── Unified Price Resolver ──────────────────────────
-  // Single source of truth for price resolution across ALL tabs
+  // Single source of truth: delegates to the shared live-market hook so every
+  // widget in EXECUTE/TRADE (Command Deck price, bid/ask, indicators, positions)
+  // ticks from the exact same real-time stream as Eagle View / Showroom.
   const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
-    if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
-      const key = metalMap[sym.key];
-      const price = key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
-      if (price > 0) return price;
-    }
-    if (sym.cat === 'crypto') {
-      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
-      if (coin?.current_price) return coin.current_price;
-    }
-    if (sym.cat === 'energy') {
-      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
-      if (feed?.price) return feed.price;
-    }
-    // Fallback: use synthetic prices so bot can always trade
+    const live = liveFeed.resolvePrice(sym);
+    if (live > 0) return live;
     const sp = SYNTHETIC_PRICES[sym.key];
     return sp?.p ?? 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData]);
+  }, [liveFeed]);
 
-  // Resolve current price for active symbol
+  // Resolve current price for active symbol — recomputes on every WS tick
   const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
 
-  // Resolve change % for active symbol
+  // Resolve 24h change % for active symbol from the same live feed
   const activeChange = useMemo(() => {
-    const sym = activeSymbol;
-    if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
-      const key = metalMap[sym.key];
-      return key ? (metalPricesData?.[key]?.change_24h ?? 0) : 0;
-    }
-    if (sym.cat === 'crypto') {
-      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
-      return coin?.price_change_percentage_24h ?? 0;
-    }
-    if (sym.cat === 'energy') {
-      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
-      if (feed) return feed.change;
-    }
-    return SYNTHETIC_PRICES[sym.key]?.c ?? 0;
-  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
+    const c = liveFeed.resolveChange(activeSymbol);
+    if (c !== 0) return c;
+    return SYNTHETIC_PRICES[activeSymbol.key]?.c ?? 0;
+  }, [activeSymbol, liveFeed]);
 
   // Build a price map for all held paper positions and keep them updated
   const resolvePriceForTicker = useCallback((ticker: string): number => {
