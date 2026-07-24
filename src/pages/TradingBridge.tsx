@@ -16,7 +16,6 @@ import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
-import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
 import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
