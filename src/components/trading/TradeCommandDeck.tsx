@@ -1,5 +1,5 @@
 import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
