@@ -1,8 +1,7 @@
-import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
-import RiskThermometer from './RiskThermometer';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
 
@@ -98,6 +97,65 @@ function MiniCount({ value, className }: { value: number; className: string }) {
   );
 }
 
+// ─── Micro Risk Pulse (integrated in header) ───────────
+function RiskPulse({ positions, equity }: { positions: Array<{ currentPrice: number; qty: number; symbol: string }>; equity: number }) {
+  const { level, score, label, concentration } = useMemo(() => {
+    if (positions.length === 0 || equity <= 0) {
+      return { level: 'none' as const, score: 0, label: 'NO RISK', concentration: 0 };
+    }
+    const posValues = positions.map((p) => p.currentPrice * p.qty);
+    const totalExposure = posValues.reduce((s, v) => s + v, 0);
+    const maxPosition = Math.max(...posValues);
+    const concentration = totalExposure > 0 ? (maxPosition / totalExposure) * 100 : 0;
+    const exposureRatio = (totalExposure / equity) * 100;
+    const score = Math.min(100, concentration * 0.5 + exposureRatio * 0.3 + (positions.length > 5 ? 10 : 0));
+    if (score < 30) return { level: 'low' as const, score, label: 'LOW RISK', concentration };
+    if (score < 60) return { level: 'medium' as const, score, label: 'MODERATE', concentration };
+    return { level: 'high' as const, score, label: 'HIGH RISK', concentration };
+  }, [positions, equity]);
+
+  const tone =
+    level === 'low'
+      ? { text: 'text-emerald-300', dot: 'bg-emerald-400', bar: 'from-emerald-500/80 to-emerald-300', ring: 'border-emerald-400/40', bg: 'bg-emerald-500/10', glow: 'shadow-[0_0_20px_-4px_rgba(52,211,153,0.55)]' }
+      : level === 'medium'
+      ? { text: 'text-amber-300', dot: 'bg-amber-400', bar: 'from-amber-500/80 to-amber-300', ring: 'border-amber-400/40', bg: 'bg-amber-500/10', glow: 'shadow-[0_0_20px_-4px_rgba(251,191,36,0.55)]' }
+      : level === 'high'
+      ? { text: 'text-red-300', dot: 'bg-red-400', bar: 'from-red-500/80 to-red-300', ring: 'border-red-400/40', bg: 'bg-red-500/10', glow: 'shadow-[0_0_20px_-4px_rgba(248,113,113,0.5)]' }
+      : { text: 'text-white/70', dot: 'bg-white/40', bar: 'from-white/40 to-white/70', ring: 'border-white/15', bg: 'bg-white/[0.05]', glow: '' };
+
+  const barWidth = Math.max(4, Math.min(100, score));
+
+  return (
+    <div className={`relative flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl border ${tone.ring} ${tone.bg} ${tone.glow} backdrop-blur-md transition-all duration-500`}>
+      <div className="relative flex items-center justify-center w-4 h-4">
+        <span className={`absolute inset-0 rounded-full ${tone.dot} opacity-30 animate-ping`} />
+        <span className={`relative w-1.5 h-1.5 rounded-full ${tone.dot}`} />
+      </div>
+
+      {concentration > 50 ? (
+        <AlertTriangle className={`w-3.5 h-3.5 ${tone.text}`} strokeWidth={2.4} />
+      ) : (
+        <Shield className={`w-3.5 h-3.5 ${tone.text}`} strokeWidth={2.4} />
+      )}
+
+      <div className="flex flex-col leading-tight">
+        <span className={`font-display text-[10px] tracking-[0.22em] font-bold ${tone.text}`}>{label}</span>
+        <div className="relative w-[92px] h-[3px] mt-0.5 rounded-full bg-white/[0.08] overflow-hidden">
+          <div
+            className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${tone.bar} transition-all duration-700 ease-out`}
+            style={{ width: `${barWidth}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 pl-2 ml-1 border-l border-white/10">
+        <span className={`font-mono text-[10px] font-semibold tabular-nums ${tone.text}`}>{Math.round(score)}</span>
+        <span className="font-mono text-[9px] text-white/40">/100</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Command Deck — one unified Apple-style glass panel ──
 export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
@@ -162,6 +220,9 @@ export default function TradeCommandDeck({
               </span>
             </div>
             <TechnicalPulse candles={activeCandles} />
+            {tradingMode === 'paper' && (
+              <RiskPulse positions={paper.positions} equity={paper.account.equity} />
+            )}
           </div>
 
           {/* Account chips */}
@@ -180,20 +241,10 @@ export default function TradeCommandDeck({
         {/* ── BODY: three internal sections ───────────── */}
         <div className="relative grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.06]">
           {/* Order */}
-          <div className="lg:col-span-5 p-7">
+          <div className="lg:col-span-8 p-7 space-y-6">
             <SectionLabel icon={ArrowUpDown} title="ORDER TICKET" badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} />
             <div className="text-white [&_*]:!text-inherit">{orderTicket}</div>
-          </div>
-
-          {/* Risk */}
-          <div className="lg:col-span-4 p-7 space-y-6">
-            <div>
-              <SectionLabel icon={Shield} title="PORTFOLIO RISK" badge="LIVE" />
-              {tradingMode === 'paper' && (
-                <RiskThermometer positions={paper.positions} equity={paper.account.equity} />
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 gap-2.5 pt-4 border-t border-white/[0.06]">
               <StatTile label="POSITIONS" value={String(paper.positions.length)} />
               <StatTile label="WIN RATE" value={`${paper.account.winRate.toFixed(0)}%`} />
               <StatTile label="TRADES" value={String(paper.account.totalTrades)} />
@@ -201,7 +252,7 @@ export default function TradeCommandDeck({
           </div>
 
           {/* Portfolio */}
-          <div className="lg:col-span-3 p-7 space-y-6">
+          <div className="lg:col-span-4 p-7 space-y-6">
             <div className="[&_>div]:!bg-transparent [&_>div]:!border-0 [&_>div]:!shadow-none [&_>div]:!p-0">
               <PortfolioSummary />
             </div>
