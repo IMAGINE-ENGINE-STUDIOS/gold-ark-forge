@@ -271,16 +271,25 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
     <div className="space-y-3">
       {/* Order Form */}
       <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="flex gap-2">
+        {/* Side Selector — glassmorphic segmented control with LED glow */}
+        <div className="relative grid grid-cols-2 rounded-xl bg-navy-dark/60 backdrop-blur-xl border border-gold/10 p-1 overflow-hidden shadow-[inset_0_1px_0_hsl(var(--gold)/0.08)]">
+          <span
+            aria-hidden
+            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-all duration-300 ease-out ${
+              side === 'buy'
+                ? 'left-1 bg-gradient-to-b from-emerald-400/25 to-emerald-600/15 border border-emerald-400/40 shadow-[0_0_20px_hsl(152_82%_50%/0.35),inset_0_1px_0_hsl(152_82%_70%/0.3)]'
+                : 'left-[calc(50%+0px)] bg-gradient-to-b from-red-400/25 to-red-600/15 border border-red-400/40 shadow-[0_0_20px_hsl(0_82%_55%/0.35),inset_0_1px_0_hsl(0_82%_70%/0.3)]'
+            }`}
+          />
           <button type="button" onClick={() => setSide('buy')}
-            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
-              side === 'buy' ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
+            className={`relative z-10 py-2 rounded-lg font-display text-xs tracking-[0.15em] transition-colors flex items-center justify-center gap-1.5 ${
+              side === 'buy' ? 'text-emerald-200' : 'text-marble/40 hover:text-marble/70'
             }`}>
             <TrendingUp className="w-3 h-3" /> BUY
           </button>
           <button type="button" onClick={() => setSide('sell')}
-            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
-              side === 'sell' ? 'bg-red-500/20 border border-red-500/50 text-red-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
+            className={`relative z-10 py-2 rounded-lg font-display text-xs tracking-[0.15em] transition-colors flex items-center justify-center gap-1.5 ${
+              side === 'sell' ? 'text-red-200' : 'text-marble/40 hover:text-marble/70'
             }`}>
             <TrendingDown className="w-3 h-3" /> SELL
           </button>
@@ -352,10 +361,26 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
           </div>
         )}
 
-        <Button type="submit" disabled={!qty || (side === 'buy' && totalCost > paper.account.cash) || (side === 'sell' && (ownedQty <= 0 || parsedQty > ownedQty))}
-          className={`w-full font-display tracking-wider ${side === 'buy' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
-          {side === 'sell' && ownedQty <= 0 ? `NO ${activeSymbol.ticker} TO SELL` : side === 'sell' && parsedQty > ownedQty ? `MAX ${ownedQty} OWNED` : `${side.toUpperCase()} ${parsedQty > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : activeSymbol.ticker}`}
-        </Button>
+        <button
+          type="submit"
+          disabled={!qty || (side === 'buy' && totalCost > paper.account.cash) || (side === 'sell' && (ownedQty <= 0 || parsedQty > ownedQty))}
+          className={`group relative w-full h-11 rounded-xl overflow-hidden font-display text-sm tracking-[0.18em] text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:saturate-50 border ${
+            side === 'buy'
+              ? 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 border-emerald-300/60 shadow-[0_8px_24px_-6px_hsl(152_82%_45%/0.55),inset_0_1px_0_hsl(152_82%_80%/0.5)] hover:shadow-[0_10px_30px_-4px_hsl(152_82%_50%/0.7),inset_0_1px_0_hsl(152_82%_85%/0.6)]'
+              : 'bg-gradient-to-b from-red-400 via-red-500 to-red-700 border-red-300/60 shadow-[0_8px_24px_-6px_hsl(0_82%_50%/0.55),inset_0_1px_0_hsl(0_82%_80%/0.5)] hover:shadow-[0_10px_30px_-4px_hsl(0_82%_55%/0.7),inset_0_1px_0_hsl(0_82%_85%/0.6)]'
+          }`}
+        >
+          <span aria-hidden className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent pointer-events-none" />
+          <span aria-hidden className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_50%_120%,hsl(var(--marble)/0.4),transparent_60%)] pointer-events-none`} />
+          <span className="relative flex items-center justify-center gap-2">
+            {side === 'buy' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            {side === 'sell' && ownedQty <= 0
+              ? `NO ${activeSymbol.ticker} TO SELL`
+              : side === 'sell' && parsedQty > ownedQty
+              ? `MAX ${ownedQty} OWNED`
+              : `${side.toUpperCase()} ${activeSymbol.ticker}${parsedQty > 0 ? ` · $${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}`}
+          </span>
+        </button>
       </form>
 
       {/* Paper Positions */}
