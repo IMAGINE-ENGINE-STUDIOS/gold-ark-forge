@@ -781,6 +781,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
 
   const price = basePrice;
   const change = baseChange;
+  const isWsLive = !!wsData && wsData.price > 0;
 
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
