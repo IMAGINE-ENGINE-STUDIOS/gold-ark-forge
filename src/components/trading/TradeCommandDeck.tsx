@@ -1,4 +1,4 @@
-import { ArrowUpDown, Briefcase, Shield, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
