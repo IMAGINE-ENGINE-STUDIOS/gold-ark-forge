@@ -269,15 +269,6 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
   return (
     <div className="space-y-3">
-      {/* Bid/Ask Spread Indicator */}
-      {safeActivePrice > 0 && (
-        <div className="flex items-center justify-between bg-navy-light/20 rounded px-2 py-1 border border-gold/5">
-          <span className="text-[8px] font-mono text-emerald-400/70">BID: ${fixedMarketNumber(safeActivePrice - spread / 2, safeActivePrice < 10 ? 4 : 2)}</span>
-          <span className="text-[7px] font-mono text-marble/20">SPREAD: ${fixedMarketNumber(spread, safeActivePrice < 10 ? 4 : 2)}</span>
-          <span className="text-[8px] font-mono text-red-400/70">ASK: ${fixedMarketNumber(safeActivePrice + spread / 2, safeActivePrice < 10 ? 4 : 2)}</span>
-        </div>
-      )}
-
       {/* Order Form */}
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="flex gap-2">
