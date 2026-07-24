@@ -16,7 +16,6 @@ import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
-import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
 import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
@@ -1478,7 +1477,6 @@ const TradingBridge = () => {
                       }}
                     />
                     <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
-                      <GAMarketPulse />
                       <GACrossAssetDashboard />
                       <GAAssetOverview />
                       <GAMiniCharts />
@@ -1820,7 +1818,6 @@ const TradingBridge = () => {
                         }}
                       />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
-                        <GAMarketPulse />
                         <GACrossAssetDashboard />
                         <GAPerformanceDashboard />
                         <GATradingSessions />
