@@ -1,4 +1,4 @@
-import { ArrowUpDown, Briefcase, Shield, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
@@ -202,8 +202,7 @@ export default function TradeCommandDeck({
 
           {/* Portfolio */}
           <div className="lg:col-span-3 p-7 space-y-6">
-            <div>
-              <SectionLabel icon={Briefcase} title="PORTFOLIO" badge="AGGREGATE" />
+            <div className="[&_>div]:!bg-transparent [&_>div]:!border-0 [&_>div]:!shadow-none [&_>div]:!p-0">
               <PortfolioSummary />
             </div>
             {activeConn && (
