@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
-import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
 
 interface Props {
@@ -161,14 +161,11 @@ function RiskPulse({ positions, equity }: { positions: Array<{ currentPrice: num
 export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
-  // ── Live price feed (same source as GALiveChart indicator) ──
+  // ── REAL-DATA ONLY price feed (mirrors GALiveChart exactly) ──
   const wsPrices = useWebSocketPrices([activeSymbol.key]);
   const wsData = wsPrices[activeSymbol.key];
-  const wsPrice = wsData?.price ?? 0;
-  const basePrice = wsPrice > 0 ? wsPrice : activePrice;
-  const baseChange = wsData?.change24h ?? 0;
-  const { price: streamedPrice } = useSimulatedStream(basePrice, baseChange, activeSymbol.key);
-  const livePrice = streamedPrice > 0 ? streamedPrice : basePrice;
+  const isWsLive = !!wsData && wsData.price > 0;
+  const livePrice = isWsLive ? wsData!.price : activePrice;
 
   const spread = livePrice * 0.0002;
   const equity = paper.account.equity;

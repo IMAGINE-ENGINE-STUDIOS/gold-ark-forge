@@ -139,26 +139,10 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   return prices;
 };
 
-// Simulate real-time streaming for non-crypto assets (metals, stocks, bonds, energy, forex)
-// Uses micro-jitter on top of base prices to create sub-second visual updates
-export const useSimulatedStream = (basePrice: number, baseChange: number, symbolKey: string) => {
-  const [streamedPrice, setStreamedPrice] = useState(basePrice);
-  const [streamedChange, setStreamedChange] = useState(baseChange);
-
-  useEffect(() => {
-    if (!basePrice || basePrice === 0) return;
-    setStreamedPrice(basePrice);
-    setStreamedChange(baseChange);
-
-    const interval = setInterval(() => {
-      setStreamedPrice(prev => {
-        const jitter = (Math.random() - 0.5) * prev * 0.0003; // 0.03% jitter
-        return parseFloat((prev + jitter).toFixed(prev < 10 ? 4 : 2));
-      });
-    }, 800 + Math.random() * 400); // 800-1200ms intervals
-
-    return () => clearInterval(interval);
-  }, [basePrice, baseChange, symbolKey]);
-
-  return { price: streamedPrice, change: streamedChange };
+// REAL-DATA ONLY passthrough. No synthetic jitter, no fake ticks.
+// Kept as a hook (and named identically) so all existing callers continue to
+// receive the latest REAL base value from their feed (WS / Supabase / REST).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const useSimulatedStream = (basePrice: number, baseChange: number, _symbolKey: string) => {
+  return { price: basePrice, change: baseChange };
 };
