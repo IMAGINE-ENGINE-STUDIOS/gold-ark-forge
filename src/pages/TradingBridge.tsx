@@ -1478,7 +1478,6 @@ const TradingBridge = () => {
                       }}
                     />
                     <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
-                      <GAMarketPulse />
                       <GACrossAssetDashboard />
                       <GAAssetOverview />
                       <GAMiniCharts />
@@ -1820,7 +1819,6 @@ const TradingBridge = () => {
                         }}
                       />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
-                        <GAMarketPulse />
                         <GACrossAssetDashboard />
                         <GAPerformanceDashboard />
                         <GATradingSessions />
