@@ -4,7 +4,7 @@ import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+
 
 interface Props {
   tradingMode: 'live' | 'paper';
