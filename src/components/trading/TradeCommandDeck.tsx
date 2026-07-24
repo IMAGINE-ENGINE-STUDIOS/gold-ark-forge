@@ -161,7 +161,16 @@ function RiskPulse({ positions, equity }: { positions: Array<{ currentPrice: num
 export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
-  const spread = activePrice * 0.0002;
+  // ── LIVE PRICE: same source as GALiveChart (Binance WS for crypto,
+  // sub-second simulated jitter for metals/energy/etc.) so the header
+  // number ticks in lock-step with the chart.
+  const wsPrices = useWebSocketPrices([activeSymbol.key]);
+  const wsTick = wsPrices[activeSymbol.key];
+  const { price: streamedPrice } = useSimulatedStream(activePrice, 0, activeSymbol.key);
+  const livePrice = wsTick?.price && wsTick.price > 0 ? wsTick.price : streamedPrice;
+  const displayPrice = livePrice > 0 ? livePrice : activePrice;
+
+  const spread = displayPrice * 0.0002;
   const equity = paper.account.equity;
   const pnl = paper.account.totalPnl;
   const pnlPct = paper.account.startingBalance > 0 ? (pnl / paper.account.startingBalance) * 100 : 0;
