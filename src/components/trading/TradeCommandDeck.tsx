@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
 
 interface Props {
@@ -160,7 +161,16 @@ function RiskPulse({ positions, equity }: { positions: Array<{ currentPrice: num
 export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
-  const spread = activePrice * 0.0002;
+  // ── Live price feed (same source as GALiveChart indicator) ──
+  const wsPrices = useWebSocketPrices([activeSymbol.key]);
+  const wsData = wsPrices[activeSymbol.key];
+  const wsPrice = wsData?.price ?? 0;
+  const basePrice = wsPrice > 0 ? wsPrice : activePrice;
+  const baseChange = wsData?.change24h ?? 0;
+  const { price: streamedPrice } = useSimulatedStream(basePrice, baseChange, activeSymbol.key);
+  const livePrice = streamedPrice > 0 ? streamedPrice : basePrice;
+
+  const spread = livePrice * 0.0002;
   const equity = paper.account.equity;
   const pnl = paper.account.totalPnl;
   const pnlPct = paper.account.startingBalance > 0 ? (pnl / paper.account.startingBalance) * 100 : 0;
@@ -204,19 +214,20 @@ export default function TradeCommandDeck({
 
           {/* Price + integrated Technical Pulse */}
           <div className="flex items-center gap-5 flex-1 min-w-[300px]">
-            <div className="font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
-              ${activePrice < 10
-                ? activePrice.toFixed(4)
-                : activePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="relative font-mono text-[32px] leading-none font-semibold text-white tracking-tight tabular-nums">
+              ${livePrice < 10
+                ? livePrice.toFixed(4)
+                : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="absolute -top-1 -right-3 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse" />
             </div>
             <div className="flex flex-col gap-0.5 leading-tight">
               <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
                 <span className="text-white/50 mr-1">BID</span>
-                {(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
+                {(livePrice - spread / 2).toFixed(livePrice < 10 ? 4 : 2)}
               </span>
               <span className="text-[10px] font-mono text-red-400 tabular-nums">
                 <span className="text-white/50 mr-1">ASK</span>
-                {(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}
+                {(livePrice + spread / 2).toFixed(livePrice < 10 ? 4 : 2)}
               </span>
             </div>
             <TechnicalPulse candles={activeCandles} />
