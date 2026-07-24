@@ -17,7 +17,7 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
+import { CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
   enrichChartData,
