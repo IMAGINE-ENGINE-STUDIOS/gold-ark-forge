@@ -1,6 +1,4 @@
 import { ArrowUpDown, TrendingUp, TrendingDown, Briefcase, Gauge, Shield, Activity, Zap } from 'lucide-react';
-import PaperTradingPanel from './__paper_reexport';
-import TradingPanel from './TradingPanel';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import RiskThermometer from './RiskThermometer';
@@ -14,6 +12,7 @@ interface Props {
   paper: ReturnType<typeof usePaperTrading>;
   activeConn?: { id: string } | null;
   activeCandles?: { closes: number[]; highs: number[]; lows: number[] } | null;
+  orderTicket: React.ReactNode;
 }
 
 // ─── Glass Card wrapper ─────────────────────────────────
@@ -161,7 +160,7 @@ function CommandHeader({
 }
 
 // ─── Command Deck ───────────────────────────────────────
-export default function TradeCommandDeck({ tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles }: Props) {
+export default function TradeCommandDeck({ tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket }: Props) {
   return (
     <div className="relative space-y-3">
       {/* ambient glow backdrop */}
@@ -180,11 +179,7 @@ export default function TradeCommandDeck({ tradingMode, activeSymbol, activePric
           badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'}
           className="lg:col-span-4"
         >
-          {tradingMode === 'paper' ? (
-            <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-          ) : (
-            <TradingPanel activeSymbol={activeSymbol.ticker} />
-          )}
+          {orderTicket}
         </GlassCard>
 
         {/* Technicals + Risk (center column) */}
