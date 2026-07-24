@@ -202,8 +202,7 @@ export default function TradeCommandDeck({
 
           {/* Portfolio */}
           <div className="lg:col-span-3 p-7 space-y-6">
-            <div>
-              <SectionLabel icon={Briefcase} title="PORTFOLIO" badge="AGGREGATE" />
+            <div className="[&_>div]:!bg-transparent [&_>div]:!border-0 [&_>div]:!shadow-none [&_>div]:!p-0">
               <PortfolioSummary />
             </div>
             {activeConn && (
