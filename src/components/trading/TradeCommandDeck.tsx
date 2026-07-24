@@ -1,10 +1,10 @@
 import { ArrowUpDown, Shield, Activity, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PortfolioSummary from './PortfolioSummary';
 import PositionsPanel from './PositionsPanel';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
-import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 
 interface Props {
   tradingMode: 'live' | 'paper';
@@ -161,16 +161,31 @@ function RiskPulse({ positions, equity }: { positions: Array<{ currentPrice: num
 export default function TradeCommandDeck({
   tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles, orderTicket,
 }: Props) {
-  // ── LIVE PRICE: same source as GALiveChart (Binance WS for crypto,
-  // sub-second simulated jitter for metals/energy/etc.) so the header
-  // number ticks in lock-step with the chart.
+  // ── LIVE PRICE: REAL DATA ONLY.
+  // Crypto → Binance WebSocket tick.
+  // Everything else → the upstream `activePrice` prop (already routed through
+  // the shared useLiveMarketData feed in TradingBridge). No local simulation.
   const wsPrices = useWebSocketPrices([activeSymbol.key]);
   const wsTick = wsPrices[activeSymbol.key];
-  const { price: streamedPrice } = useSimulatedStream(activePrice, 0, activeSymbol.key);
-  const livePrice = wsTick?.price && wsTick.price > 0 ? wsTick.price : streamedPrice;
-  const displayPrice = livePrice > 0 ? livePrice : activePrice;
+  const displayPrice = wsTick?.price && wsTick.price > 0 ? wsTick.price : activePrice;
 
-  const spread = displayPrice * 0.0002;
+  // ── BID / ASK: snapshot the price at the moment the user opens this symbol
+  // and keep it fixed until they switch symbols (mirrors how a broker DOM
+  // shows the entry reference at chart-open time).
+  const [entryRef, setEntryRef] = useState<number>(displayPrice);
+  const lastSymbolRef = useRef<string>(activeSymbol.key);
+  useEffect(() => {
+    if (lastSymbolRef.current !== activeSymbol.key) {
+      lastSymbolRef.current = activeSymbol.key;
+      if (displayPrice > 0) setEntryRef(displayPrice);
+      return;
+    }
+    // Seed once when the first real price arrives for this symbol.
+    if (entryRef <= 0 && displayPrice > 0) setEntryRef(displayPrice);
+  }, [activeSymbol.key, displayPrice, entryRef]);
+
+  const refPrice = entryRef > 0 ? entryRef : displayPrice;
+  const spread = refPrice * 0.0002;
   const equity = paper.account.equity;
   const pnl = paper.account.totalPnl;
   const pnlPct = paper.account.startingBalance > 0 ? (pnl / paper.account.startingBalance) * 100 : 0;
@@ -222,11 +237,11 @@ export default function TradeCommandDeck({
             <div className="flex flex-col gap-0.5 leading-tight">
               <span className="text-[10px] font-mono text-emerald-400 tabular-nums">
                 <span className="text-white/50 mr-1">BID</span>
-                {(displayPrice - spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
+                {(refPrice - spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
               </span>
               <span className="text-[10px] font-mono text-red-400 tabular-nums">
                 <span className="text-white/50 mr-1">ASK</span>
-                {(displayPrice + spread / 2).toFixed(displayPrice < 10 ? 4 : 2)}
+                {(refPrice + spread / 2).toFixed(refPrice < 10 ? 4 : 2)}
               </span>
             </div>
             <TechnicalPulse candles={activeCandles} />
