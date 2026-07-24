@@ -269,24 +269,6 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
   return (
     <div className="space-y-3">
-      {/* Paper Account Summary */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/30 font-display tracking-wider">EQUITY</div>
-          <div className="text-xs font-mono text-marble">${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-        </div>
-        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/30 font-display tracking-wider">CASH</div>
-          <div className="text-xs font-mono text-marble">${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-        </div>
-        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/30 font-display tracking-wider">P&L</div>
-          <div className={`text-xs font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {paper.account.totalPnl >= 0 ? '+' : ''}${paper.account.totalPnl.toFixed(2)}
-          </div>
-        </div>
-      </div>
-
       {/* Bid/Ask Spread Indicator */}
       {safeActivePrice > 0 && (
         <div className="flex items-center justify-between bg-navy-light/20 rounded px-2 py-1 border border-gold/5">
