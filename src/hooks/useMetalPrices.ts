@@ -13,29 +13,26 @@ export const useMetalPrices = () => {
   return useQuery({
     queryKey: ['metal-prices'],
     queryFn: async () => {
-      // Invoke the live edge function directly so we always get the latest
-      // spot price (gold-api.com, free, no key). It also upserts price_feeds
-      // in the background for other consumers.
-      const { data, error } = await supabase.functions.invoke('fetch-metal-prices', { body: {} });
+      // Refresh the structured backend feed, then read the app-wide source of truth.
+      // UI widgets must consume price_feeds so chart, trade deck, Eagle View and
+      // marketplace stay synchronized from the same structured live rows.
+      await supabase.functions.invoke('fetch-metal-prices', { body: {} }).catch(() => null);
+
+      const { data, error } = await supabase
+        .from('price_feeds')
+        .select('*')
+        .order('metal_type', { ascending: true });
+
       if (error) throw error;
 
-      const now = data?.updated_at ?? new Date().toISOString();
-      const p = data?.prices ?? {};
       const priceMap: Record<string, PriceFeed> = {};
-      (['gold', 'silver', 'platinum'] as const).forEach((metal) => {
-        const row = p[metal];
-        if (!row || typeof row.price_usd !== 'number' || row.price_usd <= 0) return;
-        priceMap[metal] = {
-          id: metal,
-          metal_type: metal,
-          price_usd: row.price_usd,
-          change_24h: row.change_24h ?? 0,
-          updated_at: now,
-        };
+      (data ?? []).forEach((row) => {
+        if (!row.metal_type || typeof row.price_usd !== 'number' || row.price_usd <= 0) return;
+        priceMap[row.metal_type] = row as PriceFeed;
       });
       return priceMap;
     },
-    refetchInterval: 5000,  // Live tick every 5s
+    refetchInterval: 5000,
     staleTime: 2500,
     retry: 1,
   });

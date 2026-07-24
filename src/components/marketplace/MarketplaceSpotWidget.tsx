@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import LivePulse from '@/components/ga-widgets/LivePulse';
 
 interface MarketplaceSpotWidgetProps {
@@ -41,8 +40,7 @@ const MarketplaceSpotWidget = ({
   wsChange,
   isWsLive = false,
 }: MarketplaceSpotWidgetProps) => {
-  const { price: streamedPrice } = useSimulatedStream(basePrice, baseChange, symbolKey);
-  const livePrice = isWsLive && wsPrice && wsPrice > 0 ? wsPrice : streamedPrice;
+  const livePrice = isWsLive && wsPrice && wsPrice > 0 ? wsPrice : basePrice;
   const liveChange = isWsLive && typeof wsChange === 'number' ? wsChange : baseChange;
   const [sparkData, setSparkData] = useState<{ v: number }[]>([]);
   const prevBaseRef = useRef(0);
@@ -50,16 +48,8 @@ const MarketplaceSpotWidget = ({
   useEffect(() => {
     if (basePrice <= 0 || basePrice === prevBaseRef.current) return;
     prevBaseRef.current = basePrice;
-
-    const start = basePrice / (1 + baseChange / 100);
-    const seed = Array.from({ length: compact ? 14 : 18 }, (_, index) => {
-      const progress = index / (compact ? 13 : 17);
-      const noise = (Math.sin(index * 1.35) * 0.002 + Math.cos(index * 0.75) * 0.0015) * basePrice;
-      return { v: start + (basePrice - start) * progress + noise };
-    });
-
-    setSparkData(seed);
-  }, [basePrice, baseChange, compact]);
+    setSparkData(prev => [...prev.slice(-MAX_SPARK_POINTS + 1), { v: basePrice }]);
+  }, [basePrice]);
 
   useEffect(() => {
     if (livePrice <= 0) return;

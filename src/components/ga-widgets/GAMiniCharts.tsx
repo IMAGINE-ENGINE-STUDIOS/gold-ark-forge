@@ -1,7 +1,6 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { LineChart as LineIcon } from 'lucide-react';
@@ -14,24 +13,13 @@ const MAX_SPARK = 30;
 
 // Live sparkline sub-component for metals
 const LiveMetalMiniChart = ({ metalType, basePrice, change }: { metalType: string; basePrice: number; change: number }) => {
-  const { price } = useSimulatedStream(basePrice, change, metalType);
+  const price = basePrice;
   const [data, setData] = useState<{ v: number }[]>([]);
-  const seeded = useRef(false);
+  const lastPrice = useRef(0);
 
   useEffect(() => {
-    if (basePrice > 0 && !seeded.current) {
-      const start = basePrice / (1 + change / 100);
-      setData(Array.from({ length: 20 }, (_, i) => {
-        const progress = i / 19;
-        const noise = Math.sin(i * 1.5) * basePrice * 0.003 + Math.cos(i * 0.8) * basePrice * 0.002;
-        return { v: start + (basePrice - start) * progress + noise };
-      }));
-      seeded.current = true;
-    }
-  }, [basePrice, change]);
-
-  useEffect(() => {
-    if (price > 0 && seeded.current) {
+    if (price > 0 && price !== lastPrice.current) {
+      lastPrice.current = price;
       setData(prev => [...prev.slice(-MAX_SPARK + 1), { v: price }]);
     }
   }, [price]);

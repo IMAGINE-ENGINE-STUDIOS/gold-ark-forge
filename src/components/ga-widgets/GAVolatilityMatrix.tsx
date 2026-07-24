@@ -33,10 +33,10 @@ const GAVolatilityMatrix = () => {
         price: c.current_price, category: 'CRYPTO',
       });
     });
-    if (metals?.gold) list.push({ name: 'Gold', symbol: 'XAU', vol24h: Math.abs(metals.gold.change_24h ?? 0), vol7d: Math.abs((metals.gold.change_24h ?? 0) * 2.5), price: metals.gold.price_usd, category: 'METALS' });
-    if (metals?.silver) list.push({ name: 'Silver', symbol: 'XAG', vol24h: Math.abs(metals.silver.change_24h ?? 0), vol7d: Math.abs((metals.silver.change_24h ?? 0) * 3), price: metals.silver.price_usd, category: 'METALS' });
+    if (metals?.gold) list.push({ name: 'Gold', symbol: 'XAU', vol24h: Math.abs(metals.gold.change_24h ?? 0), vol7d: 0, price: metals.gold.price_usd, category: 'METALS' });
+    if (metals?.silver) list.push({ name: 'Silver', symbol: 'XAG', vol24h: Math.abs(metals.silver.change_24h ?? 0), vol7d: 0, price: metals.silver.price_usd, category: 'METALS' });
     oil?.slice(0, 2).forEach(p => {
-      list.push({ name: p.name, symbol: p.symbol, vol24h: Math.abs(p.change), vol7d: Math.abs(p.change * 2.8), price: p.price, category: 'ENERGY' });
+      list.push({ name: p.name, symbol: p.symbol, vol24h: Math.abs(p.change), vol7d: 0, price: p.price, category: 'ENERGY' });
     });
     return list.sort((a, b) => b.vol24h - a.vol24h);
   }, [crypto, metals, oil]);

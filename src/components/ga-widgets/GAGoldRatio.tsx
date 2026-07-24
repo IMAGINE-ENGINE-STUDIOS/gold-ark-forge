@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import WidgetShell from './WidgetShell';
 import AnimatedNumber from './AnimatedNumber';
 
@@ -14,7 +13,7 @@ interface PriceFeed {
 // Live-streaming price display for a single metal
 const LiveMetalPrice = ({ metal, basePrices }: { metal: 'gold' | 'silver' | 'platinum'; basePrices: Record<string, PriceFeed> }) => {
   const p = basePrices[metal];
-  const { price } = useSimulatedStream(p?.price_usd ?? 0, p?.change_24h ?? 0, metal);
+  const price = p?.price_usd ?? 0;
   const change = p?.change_24h ?? 0;
   const pos = change >= 0;
 
@@ -32,9 +31,9 @@ const LiveMetalPrice = ({ metal, basePrices }: { metal: 'gold' | 'silver' | 'pla
 
 // Live ratio component
 const LiveRatio = ({ basePrices }: { basePrices: Record<string, PriceFeed> }) => {
-  const { price: goldLive } = useSimulatedStream(basePrices.gold?.price_usd ?? 0, 0, 'gold');
-  const { price: silverLive } = useSimulatedStream(basePrices.silver?.price_usd ?? 0, 0, 'silver');
-  const { price: platLive } = useSimulatedStream(basePrices.platinum?.price_usd ?? 0, 0, 'platinum');
+  const goldLive = basePrices.gold?.price_usd ?? 0;
+  const silverLive = basePrices.silver?.price_usd ?? 0;
+  const platLive = basePrices.platinum?.price_usd ?? 0;
 
   const gsr = silverLive > 0 ? (goldLive / silverLive) : 0;
   const gpr = platLive > 0 ? (goldLive / platLive) : 0;

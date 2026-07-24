@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { WATCHLIST_CATEGORIES, SYNTHETIC_PRICES, CATEGORY_COLORS } from '@/data/tradingSymbols';
-import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { WATCHLIST_CATEGORIES, CATEGORY_COLORS } from '@/data/tradingSymbols';
+import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import LivePulse from './LivePulse';
@@ -13,33 +13,20 @@ const ALL_CRYPTO_KEYS = WATCHLIST_CATEGORIES
 
 const MAX_SPARK = 24;
 
-// ─── Single Asset Card with simulated stream ─────────────
+// ─── Single Asset Card with real live stream only ─────────────
 const AssetCard = ({
   symbolKey, label, ticker, cat, basePrice, baseChange, isWsLive,
 }: {
   symbolKey: string; label: string; ticker: string; cat: string;
   basePrice: number; baseChange: number; isWsLive: boolean;
 }) => {
-  const { price: livePrice } = useSimulatedStream(basePrice, baseChange, symbolKey);
+  const livePrice = basePrice;
   const [spark, setSpark] = useState<{ v: number }[]>([]);
-  const seeded = useRef(false);
+  const lastPrice = useRef(0);
 
-  // Seed sparkline
   useEffect(() => {
-    if (basePrice <= 0 || seeded.current) return;
-    seeded.current = true;
-    const start = basePrice / (1 + baseChange / 100);
-    const pts = Array.from({ length: 16 }, (_, i) => {
-      const p = i / 15;
-      const noise = Math.sin(i * 1.3) * 0.002 * basePrice;
-      return { v: start + (basePrice - start) * p + noise };
-    });
-    setSpark(pts);
-  }, [basePrice, baseChange]);
-
-  // Append live ticks
-  useEffect(() => {
-    if (livePrice > 0) {
+    if (livePrice > 0 && livePrice !== lastPrice.current) {
+      lastPrice.current = livePrice;
       setSpark(prev => [...prev.slice(-MAX_SPARK + 1), { v: livePrice }]);
     }
   }, [livePrice]);
@@ -153,9 +140,6 @@ const GAAllAssetPriceCards = () => {
       const m = metalPrices[key as 'gold' | 'silver' | 'platinum'];
       return { price: m.price_usd, change: m.change_24h ?? 0, wsLive: false };
     }
-    // 4. Synthetic fallback
-    const syn = SYNTHETIC_PRICES[key];
-    if (syn) return { price: syn.p, change: syn.c, wsLive: false };
     return { price: 0, change: 0, wsLive: false };
   };
 
