@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PriceFeed {
@@ -10,6 +11,23 @@ export interface PriceFeed {
 }
 
 export const useMetalPrices = () => {
+  const qc = useQueryClient();
+
+  // Realtime push: refetch immediately when price_feeds changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('price_feeds-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'price_feeds' },
+        () => qc.invalidateQueries({ queryKey: ['metal-prices'] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
   return useQuery({
     queryKey: ['metal-prices'],
     queryFn: async () => {
