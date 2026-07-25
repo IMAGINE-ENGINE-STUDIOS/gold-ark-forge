@@ -8,7 +8,7 @@ import { Link } from "react-router-dom";
  * - Order ticket: local paper trade (kept intentionally simple + reliable)
  */
 
-type Cat = "Crypto" | "Metals" | "Energy" | "FX" | "Index" | "Stocks";
+type Cat = "Crypto" | "Metals" | "Energy" | "FX" | "Index" | "Stocks" | "ETF" | "Futures";
 
 interface Sym {
   label: string;
@@ -58,7 +58,53 @@ const SYMBOLS: Sym[] = [
   { label: "Alphabet", tv: "NASDAQ:GOOGL", cat: "Stocks" },
 ];
 
-const CATS: (Cat | "All")[] = ["All", "Crypto", "Metals", "Energy", "FX", "Index", "Stocks"];
+// Yahoo-tracked symbols (mirrored via TradingView tickers so charts stay live).
+// Yahoo symbol -> TradingView symbol.
+const YAHOO_SYMBOLS: (Sym & { yahoo: string })[] = [
+  // ETFs
+  { label: "SPY · S&P 500 ETF",    tv: "AMEX:SPY",   cat: "ETF",     yahoo: "SPY" },
+  { label: "QQQ · Nasdaq 100 ETF", tv: "NASDAQ:QQQ", cat: "ETF",     yahoo: "QQQ" },
+  { label: "DIA · Dow ETF",        tv: "AMEX:DIA",   cat: "ETF",     yahoo: "DIA" },
+  { label: "IWM · Russell 2000",   tv: "AMEX:IWM",   cat: "ETF",     yahoo: "IWM" },
+  { label: "GLD · Gold ETF",       tv: "AMEX:GLD",   cat: "ETF",     yahoo: "GLD" },
+  { label: "SLV · Silver ETF",     tv: "AMEX:SLV",   cat: "ETF",     yahoo: "SLV" },
+  { label: "USO · US Oil Fund",    tv: "AMEX:USO",   cat: "ETF",     yahoo: "USO" },
+  { label: "UNG · Nat Gas Fund",   tv: "AMEX:UNG",   cat: "ETF",     yahoo: "UNG" },
+  { label: "TLT · 20Y Treasuries", tv: "NASDAQ:TLT", cat: "ETF",     yahoo: "TLT" },
+  { label: "HYG · High Yield",     tv: "AMEX:HYG",   cat: "ETF",     yahoo: "HYG" },
+  // Indexes (Yahoo carets)
+  { label: "S&P 500 Index",   tv: "SP:SPX",     cat: "Index",   yahoo: "^GSPC" },
+  { label: "Nasdaq Composite", tv: "NASDAQ:IXIC", cat: "Index", yahoo: "^IXIC" },
+  { label: "Dow Jones Index",  tv: "DJ:DJI",    cat: "Index",   yahoo: "^DJI" },
+  { label: "Russell 2000",     tv: "TVC:RUT",   cat: "Index",   yahoo: "^RUT" },
+  { label: "VIX Volatility",   tv: "TVC:VIX",   cat: "Index",   yahoo: "^VIX" },
+  { label: "US Dollar Index",  tv: "TVC:DXY",   cat: "Index",   yahoo: "DX-Y.NYB" },
+  // Futures
+  { label: "Crude Oil (CL)",   tv: "NYMEX:CL1!", cat: "Futures", yahoo: "CL=F" },
+  { label: "Brent (BZ)",       tv: "NYMEX:BZ1!", cat: "Futures", yahoo: "BZ=F" },
+  { label: "Nat Gas (NG)",     tv: "NYMEX:NG1!", cat: "Futures", yahoo: "NG=F" },
+  { label: "Gold Futures (GC)",  tv: "COMEX:GC1!", cat: "Futures", yahoo: "GC=F" },
+  { label: "Silver Futures (SI)",tv: "COMEX:SI1!", cat: "Futures", yahoo: "SI=F" },
+  { label: "Copper (HG)",      tv: "COMEX:HG1!", cat: "Futures", yahoo: "HG=F" },
+  { label: "Corn (ZC)",        tv: "CBOT:ZC1!",  cat: "Futures", yahoo: "ZC=F" },
+  { label: "Wheat (ZW)",       tv: "CBOT:ZW1!",  cat: "Futures", yahoo: "ZW=F" },
+  { label: "Soybeans (ZS)",    tv: "CBOT:ZS1!",  cat: "Futures", yahoo: "ZS=F" },
+  // Extra US equities available on Yahoo
+  { label: "Netflix",   tv: "NASDAQ:NFLX", cat: "Stocks", yahoo: "NFLX" },
+  { label: "AMD",       tv: "NASDAQ:AMD",  cat: "Stocks", yahoo: "AMD" },
+  { label: "Intel",     tv: "NASDAQ:INTC", cat: "Stocks", yahoo: "INTC" },
+  { label: "Coinbase",  tv: "NASDAQ:COIN", cat: "Stocks", yahoo: "COIN" },
+  { label: "MicroStrategy", tv: "NASDAQ:MSTR", cat: "Stocks", yahoo: "MSTR" },
+  { label: "Palantir",  tv: "NASDAQ:PLTR", cat: "Stocks", yahoo: "PLTR" },
+  { label: "JPMorgan",  tv: "NYSE:JPM",    cat: "Stocks", yahoo: "JPM" },
+  { label: "Berkshire", tv: "NYSE:BRK.B",  cat: "Stocks", yahoo: "BRK-B" },
+  { label: "Exxon",     tv: "NYSE:XOM",    cat: "Stocks", yahoo: "XOM" },
+  { label: "Chevron",   tv: "NYSE:CVX",    cat: "Stocks", yahoo: "CVX" },
+];
+
+SYMBOLS.push(...YAHOO_SYMBOLS);
+
+const CATS: (Cat | "All")[] = ["All", "Crypto", "Metals", "Energy", "FX", "Index", "Stocks", "ETF", "Futures"];
 
 function TVChart({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
