@@ -254,6 +254,35 @@ export default function TVLiteChart({
     return () => { unsub(); if (raf) cancelAnimationFrame(raf); };
   }, [symbolKey, category, tf, kind, livePrice]);
 
+  // Also drive updates whenever the parent's livePrice prop changes — this
+  // guarantees the chart ticks even for symbols routed only through the
+  // parent's useLiveMarketData resolver (metals via gold-api, oil, etc.).
+  useEffect(() => {
+    if (!livePrice || !Number.isFinite(livePrice) || livePrice <= 0) return;
+    const s = seriesRef.current;
+    if (!s) return;
+    const bucketMs = TF_META[tf].bucketMs;
+    const cur = currentBarRef.current;
+    const nowBucket = (Math.floor(Date.now() / bucketMs) * bucketMs / 1000) as UTCTimestamp;
+    if (!cur || (cur.time as number) < (nowBucket as number)) {
+      const next: CandlestickData<UTCTimestamp> = {
+        time: nowBucket,
+        open: cur ? cur.close : livePrice,
+        high: livePrice, low: livePrice, close: livePrice,
+      };
+      currentBarRef.current = next;
+      if (kind === 'candles') (s as ISeriesApi<'Candlestick'>).update(next);
+      else (s as ISeriesApi<'Line'>).update({ time: next.time, value: livePrice });
+    } else {
+      cur.close = livePrice;
+      if (livePrice > cur.high) cur.high = livePrice;
+      if (livePrice < cur.low) cur.low = livePrice;
+      if (kind === 'candles') (s as ISeriesApi<'Candlestick'>).update(cur);
+      else (s as ISeriesApi<'Line'>).update({ time: cur.time, value: livePrice });
+    }
+    setLastPrice(livePrice);
+  }, [livePrice, tf, kind]);
+
   const displayPrice = lastPrice ?? livePrice;
   const changePos = (liveChange ?? 0) >= 0;
 
