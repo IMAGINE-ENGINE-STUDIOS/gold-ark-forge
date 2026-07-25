@@ -1466,6 +1466,14 @@ const TradingBridge = () => {
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
           )}
+          <FeedStatusBadge />
+          <button
+            onClick={() => setFeedPanelOpen(o => !o)}
+            title="Per-symbol live feed status"
+            className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-marble/50 hover:text-gold border border-gold/15 hover:border-gold/40 rounded px-2 py-0.5"
+          >
+            <Radio className="w-3 h-3" /> Feed
+          </button>
           <ConnectWalletButton />
         </div>
       </div>
