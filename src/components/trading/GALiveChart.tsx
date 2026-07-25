@@ -488,13 +488,19 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
   const lastSymbolRef = useRef<string>('');
   const lastTfRef = useRef<Timeframe>('1D');
   const [candles, setCandles] = useState<ChartDataPoint[]>([]);
+  const [clock, setClock] = useState(0);
   const tickCountRef = useRef(0);
   const cfg = tfConfigs[tf];
 
   useEffect(() => {
+    const id = window.setInterval(() => setClock((v) => (v + 1) % 1_000_000), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     const symbolChanged = symbolKey !== lastSymbolRef.current;
     const tfChanged = tf !== lastTfRef.current;
-    const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
+    const dataArrived = historicalData.length > 1 && candlesRef.current.length < Math.min(10, historicalData.length);
     const livePriceArrived = candlesRef.current.length === 0 && price > 0;
     if (symbolChanged || tfChanged || dataArrived || livePriceArrived) {
       lastSymbolRef.current = symbolKey;
@@ -535,7 +541,7 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     }
     tickCountRef.current++;
     setCandles([...arr]);
-  }, [price, cfg.candleMs, cfg.labelFn, tf]);
+  }, [price, clock, cfg.candleMs, cfg.labelFn, tf]);
 
   return candles;
 };
