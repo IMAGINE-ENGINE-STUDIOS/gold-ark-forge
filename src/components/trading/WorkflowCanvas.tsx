@@ -515,6 +515,16 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
             <NodeConfigForm
               node={configNode}
               onChange={(patch) => updateNodeConfig(configNode.id, patch)}
+              contextTicker={(() => {
+                if (!configNode) return null;
+                if (configNode.kind === 'symbol') return configNode.config?.ticker ?? null;
+                const idx = nodes.findIndex(n => n.id === configNode.id);
+                for (let i = idx - 1; i >= 0; i--) {
+                  if (nodes[i].kind === 'symbol') return nodes[i].config?.ticker ?? null;
+                }
+                return null;
+              })()}
+              getPriceByTicker={getPriceByTicker}
             />
           )}
           <DialogFooter>
