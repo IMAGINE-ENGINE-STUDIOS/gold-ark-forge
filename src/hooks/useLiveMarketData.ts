@@ -50,11 +50,8 @@ const feedCandidates = (sym: SymbolLite): string[] => {
 };
 
 const latestRouterTick = (sym: SymbolLite) => {
-  for (const candidate of feedCandidates(sym)) {
-    const tick = FeedRouter.latest(candidate);
-    if (tick && !tick.stale && Number.isFinite(tick.last) && tick.last > 0) return tick;
-  }
-  return undefined;
+  const tick = FeedRouter.latestOf(feedCandidates(sym));
+  return tick && !tick.stale && Number.isFinite(tick.last) && tick.last > 0 ? tick : undefined;
 };
 
 /**
