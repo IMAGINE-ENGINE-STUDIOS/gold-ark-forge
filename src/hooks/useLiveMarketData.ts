@@ -32,6 +32,12 @@ const ENERGY_FEED_SYMBOL: Record<string, string> = {
   oil: 'CL=F', brent: 'BZ=F', natgas: 'NG=F', rbob: 'RB=F', heating_oil: 'HO=F',
 };
 
+const yahooFxTicker = (ticker: string): string | null => {
+  const [base, quote] = ticker.toUpperCase().split('/');
+  if (!base || !quote) return null;
+  return base === 'USD' ? `${quote}=X` : `${base}${quote}=X`;
+};
+
 const feedCandidates = (sym: SymbolLite): string[] => {
   if (sym.cat === 'crypto') {
     const base = CRYPTO_BASE[sym.key] ?? sym.ticker.split('-')[0]?.toUpperCase();
@@ -39,6 +45,7 @@ const feedCandidates = (sym: SymbolLite): string[] => {
   }
   if (sym.cat === 'metals') return [METAL_FEED_SYMBOL[sym.key], sym.ticker].filter(Boolean);
   if (sym.cat === 'energy') return [ENERGY_FEED_SYMBOL[sym.key], sym.ticker].filter(Boolean);
+  if (sym.cat === 'forex') return [yahooFxTicker(sym.ticker), sym.ticker].filter(Boolean);
   return [sym.ticker];
 };
 

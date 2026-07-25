@@ -83,6 +83,7 @@ import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
 import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
 import { bootstrapFeeds } from '@/hooks/useMarketFeed';
+import { BINANCE_STREAMS } from '@/hooks/useWebSocketPrices';
 import type { AssetClass } from '@/lib/feeds/types';
 
 // ─── Collapsible Section Component ───────────────────────
@@ -178,15 +179,30 @@ const ACTIVE_YAHOO_SYMBOL: Record<string, string> = {
   oil: 'CL=F', brent: 'BZ=F', natgas: 'NG=F', rbob: 'RB=F', heating_oil: 'HO=F',
 };
 
+const yahooFxTicker = (ticker: string): string | null => {
+  const [base, quote] = ticker.toUpperCase().split('/');
+  if (!base || !quote) return null;
+  return base === 'USD' ? `${quote}=X` : `${base}${quote}=X`;
+};
+
+const cryptoBaseFor = (sym: { key: string; label: string; ticker: string }) => {
+  const stream = BINANCE_STREAMS[sym.key];
+  if (stream?.endsWith('usdt')) return stream.slice(0, -4).toUpperCase();
+  const fromLabel = sym.label.split('/')[0]?.toUpperCase();
+  if (fromLabel && /^[A-Z0-9]{2,12}$/.test(fromLabel)) return fromLabel;
+  return sym.ticker.split('-')[0]?.toUpperCase() ?? null;
+};
+
 const yahooSymbolFor = (sym: { key: string; cat: string; ticker: string }) => {
   if (sym.cat === 'energy') return ACTIVE_YAHOO_SYMBOL[sym.key] ?? sym.ticker;
-  if (sym.cat === 'stocks' || sym.cat === 'etfs') return sym.ticker;
+  if (sym.cat === 'forex') return yahooFxTicker(sym.ticker);
+  if (sym.cat === 'stocks' || sym.cat === 'etfs' || sym.cat === 'bonds' || sym.cat === 'reits') return sym.ticker;
   return null;
 };
 
 const assetClassFor = (sym: { cat: string }): AssetClass => {
   if (sym.cat === 'energy') return 'energy';
-  if (sym.cat === 'fx') return 'fx';
+  if (sym.cat === 'fx' || sym.cat === 'forex') return 'fx';
   if (sym.cat === 'bonds') return 'bond';
   return 'stocks';
 };
@@ -741,6 +757,14 @@ const TradingBridge = () => {
   const activeChange = useMemo(() => liveFeed.resolveChange(activeSymbol), [activeSymbol, liveFeed]);
 
   useEffect(() => {
+    bootstrapFeeds();
+  }, []);
+
+  useEffect(() => {
+    if (activeSymbol.cat === 'crypto') {
+      const base = cryptoBaseFor(activeSymbol);
+      if (base) bootstrapFeeds({ crypto: [`${base}/USDT`], cryptoUsd: [`${base}/USD`] });
+    }
     const yahoo = yahooSymbolFor(activeSymbol);
     if (!yahoo) return;
     bootstrapFeeds({ yahoo: [{ symbol: yahoo, assetClass: assetClassFor(activeSymbol) }] });

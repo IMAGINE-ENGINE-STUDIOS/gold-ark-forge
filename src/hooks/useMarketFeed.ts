@@ -24,7 +24,10 @@ export function bootstrapFeeds(opts?: {
   skipMetals?: boolean;
 }) {
   if (bootstrapped) {
+    if (opts?.crypto?.length) startBinance(opts.crypto);
+    if (opts?.cryptoUsd?.length) startCoinbase(opts.cryptoUsd);
     if (opts?.yahoo?.length) startYahoo(opts.yahoo);
+    if (!opts?.skipMetals) FeedRouter.ensureSource('metals', startMetals);
     return;
   }
   bootstrapped = true;

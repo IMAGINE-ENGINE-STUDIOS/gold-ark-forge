@@ -550,7 +550,7 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     const priceChanged = Math.abs(roundedPrice - lastAcceptedPriceRef.current) >= minMove;
     const last = arr[arr.length - 1];
 
-    if (elapsed >= cfg.candleMs && priceChanged) {
+    if (elapsed >= cfg.candleMs) {
       const previousClose = Number.isFinite(Number(last?.close ?? last?.value))
         ? Number(last?.close ?? last?.value)
         : roundedPrice;
