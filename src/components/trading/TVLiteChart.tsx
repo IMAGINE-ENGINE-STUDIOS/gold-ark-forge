@@ -263,7 +263,7 @@ export default function TVLiteChart({
       <div className="flex items-center gap-3 px-3 py-2 border-b border-gold/15 backdrop-blur-md bg-navy-dark/70">
         {headerLeftSlot}
         <div className="flex items-center gap-2 min-w-0">
-          <SymbolLogo symbolKey={symbolKey} label={label} className="w-6 h-6" />
+          <SymbolLogo symbolKey={symbolKey} category={category} ticker={label} size={22} />
           <div className="flex flex-col leading-tight min-w-0">
             <span className="text-[11px] font-display tracking-[0.14em] text-gold truncate">{label}</span>
             <span className="text-[8px] text-gold/40 uppercase tracking-widest">{category} · {TF_META[tf].label}</span>
