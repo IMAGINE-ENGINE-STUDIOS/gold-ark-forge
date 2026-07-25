@@ -154,7 +154,7 @@ export default function TVLiteChart({
         horzLines: { color: 'hsla(45, 40%, 50%, 0.08)' },
       },
       rightPriceScale: { borderColor: 'hsla(45, 40%, 50%, 0.2)', scaleMargins: { top: 0.08, bottom: 0.08 } },
-      timeScale: { borderColor: 'hsla(45, 40%, 50%, 0.2)', timeVisible: true, secondsVisible: true, rightOffset: 6 },
+      timeScale: { borderColor: 'hsla(45, 40%, 50%, 0.2)', timeVisible: true, secondsVisible: true, rightOffset: 12, barSpacing: 6 },
       crosshair: { mode: CrosshairMode.Normal },
       autoSize: true,
     });
@@ -208,7 +208,7 @@ export default function TVLiteChart({
     }
 
     currentBarRef.current = data.length ? { ...data[data.length - 1] } : null;
-    chart.timeScale().fitContent();
+    if (data.length) chart.timeScale().fitContent();
   }, [kind, tf, symbolKey, category, seed, livePrice]);
 
   // Live-tick loop — update the current bar on every incoming tick from FeedRouter.
