@@ -1481,6 +1481,13 @@ const TradingBridge = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
+        {feedPanelOpen && (
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex justify-end" onClick={() => setFeedPanelOpen(false)}>
+            <div className="w-full max-w-md h-full p-3" onClick={(e) => e.stopPropagation()}>
+              <SymbolFeedStatusPanel onClose={() => setFeedPanelOpen(false)} className="h-full" />
+            </div>
+          </div>
+        )}
         {/* Watchlist Sidebar */}
         <div className={`${sidebarCollapsed ? 'w-12' : 'w-48'} transition-all duration-200 bg-navy-dark border-r border-gold/10 flex flex-col flex-shrink-0`}>
           <div className="flex items-center justify-between px-2 py-1.5 border-b border-gold/10 flex-shrink-0">
