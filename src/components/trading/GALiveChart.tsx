@@ -431,7 +431,7 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   'ALL': { points: 180, intervalMs: 30 * 24 * 3_600_000, candleMs: 30 * 24 * 3_600_000, volatility: 0.035, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) },
 };
 
-const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: number): ChartDataPoint[] => {
+const buildFromSparkline = (sparkline: number[], tf: Timeframe, livePrice: number): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
   const totalPrices = sparkline.length;
   const step = Math.max(1, Math.floor(totalPrices / cfg.points));
@@ -448,6 +448,27 @@ const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: numb
     const low = Math.min(...slice);
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
     data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(2)), open: parseFloat(open.toFixed(2)), close: parseFloat(close.toFixed(2)), high: parseFloat(high.toFixed(2)), low: parseFloat(low.toFixed(2)) });
+  }
+  const live = Number(livePrice);
+  if (Number.isFinite(live) && live > 0) {
+    const decimals = live < 10 ? 4 : 2;
+    const roundedLive = parseFloat(live.toFixed(decimals));
+    const last = data[data.length - 1];
+    if (last) {
+      last.value = roundedLive;
+      last.close = roundedLive;
+      last.high = parseFloat(Math.max(Number(last.high) || roundedLive, roundedLive).toFixed(decimals));
+      last.low = parseFloat(Math.min(Number(last.low) || roundedLive, roundedLive).toFixed(decimals));
+    } else {
+      data.push({
+        time: cfg.labelFn(new Date()),
+        value: roundedLive,
+        open: roundedLive,
+        close: roundedLive,
+        high: roundedLive,
+        low: roundedLive,
+      });
+    }
   }
   return data;
 };
@@ -485,6 +506,7 @@ const OIL_SYMBOL_MAP: Record<string, string> = {
 const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: ChartDataPoint[], symbolKey: string) => {
   const candlesRef = useRef<ChartDataPoint[]>([]);
   const currentCandleStartRef = useRef<number>(0);
+  const lastAcceptedPriceRef = useRef<number>(0);
   const lastSymbolRef = useRef<string>('');
   const lastTfRef = useRef<Timeframe>('1D');
   const [candles, setCandles] = useState<ChartDataPoint[]>([]);
@@ -511,6 +533,7 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
         : [];
       candlesRef.current = historicalData.length > 0 ? [...historicalData] : liveSeed;
       currentCandleStartRef.current = Date.now();
+      lastAcceptedPriceRef.current = price > 0 ? parseFloat(price.toFixed(decimals)) : 0;
       tickCountRef.current = 0;
       setCandles([...candlesRef.current]);
     }
@@ -521,26 +544,45 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     const now = Date.now();
     const elapsed = now - currentCandleStartRef.current;
     const arr = candlesRef.current;
-    if (elapsed >= cfg.candleMs) {
-      const newCandle: ChartDataPoint = { time: cfg.labelFn(new Date()), value: price, open: price, close: price, high: price, low: price };
+    const decimals = price < 10 ? 4 : 2;
+    const roundedPrice = parseFloat(price.toFixed(decimals));
+    const minMove = Math.max(1 / Math.pow(10, decimals), Math.abs(roundedPrice) * 0.000001);
+    const priceChanged = Math.abs(roundedPrice - lastAcceptedPriceRef.current) >= minMove;
+    const last = arr[arr.length - 1];
+
+    if (elapsed >= cfg.candleMs && priceChanged) {
+      const previousClose = Number.isFinite(Number(last?.close ?? last?.value))
+        ? Number(last?.close ?? last?.value)
+        : roundedPrice;
+      const newCandle: ChartDataPoint = {
+        time: cfg.labelFn(new Date()),
+        value: roundedPrice,
+        open: parseFloat(previousClose.toFixed(decimals)),
+        close: roundedPrice,
+        high: parseFloat(Math.max(previousClose, roundedPrice).toFixed(decimals)),
+        low: parseFloat(Math.min(previousClose, roundedPrice).toFixed(decimals)),
+      };
       arr.push(newCandle);
       // Retain a generous history buffer so users can slide left through
       // deep history without losing the past as new candles roll in.
       const maxPoints = tf === 'RT' ? 600 : Math.max(cfg.points * 6, 1500);
       if (arr.length > maxPoints) arr.splice(0, arr.length - maxPoints);
       currentCandleStartRef.current = now;
-    } else {
-      const last = arr[arr.length - 1];
-      if (last) {
-        const decimals = price < 10 ? 4 : 2;
-        last.close = parseFloat(price.toFixed(decimals));
-        last.value = last.close;
-        last.high = parseFloat(Math.max(last.high, price).toFixed(decimals));
-        last.low = parseFloat(Math.min(last.low, price).toFixed(decimals));
-      }
+      lastAcceptedPriceRef.current = roundedPrice;
+      tickCountRef.current++;
+      setCandles([...arr]);
+      return;
     }
-    tickCountRef.current++;
-    setCandles([...arr]);
+
+    if (last && (priceChanged || last.value !== roundedPrice || last.close !== roundedPrice)) {
+      last.close = roundedPrice;
+      last.value = roundedPrice;
+      last.high = parseFloat(Math.max(Number(last.high) || roundedPrice, roundedPrice).toFixed(decimals));
+      last.low = parseFloat(Math.min(Number(last.low) || roundedPrice, roundedPrice).toFixed(decimals));
+      lastAcceptedPriceRef.current = roundedPrice;
+      tickCountRef.current++;
+      setCandles([...arr]);
+    }
   }, [price, clock, cfg.candleMs, cfg.labelFn, tf]);
 
   return candles;
@@ -769,7 +811,7 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
       return buildFromSparkline(yahooBars.closes, tf, basePrice);
     }
     return [];
-  }, [sparklineData, yahooBars, tf, hasEffectivePrice]);
+  }, [sparklineData, yahooBars, tf, hasEffectivePrice, basePrice]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
