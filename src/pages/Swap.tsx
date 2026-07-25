@@ -104,7 +104,10 @@ const YAHOO_SYMBOLS: (Sym & { yahoo: string })[] = [
   { label: "Chevron",   tv: "NYSE:CVX",    cat: "Stocks", yahoo: "CVX" },
 ];
 
-SYMBOLS.push(...YAHOO_SYMBOLS);
+// Merge Yahoo-tracked symbols, deduped by TradingView ticker.
+for (const y of YAHOO_SYMBOLS) {
+  if (!SYMBOLS.some((s) => s.tv === y.tv)) SYMBOLS.push(y);
+}
 
 const CAT_TO_ASSET: Record<Cat, AssetClass> = {
   Crypto: "crypto",
