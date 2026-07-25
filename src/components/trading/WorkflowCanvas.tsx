@@ -1,8 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TrendingUp, TrendingDown, OctagonX, CalendarClock, BellRing, BellOff,
   Zap, Waves, Brain, Shield, Target, Activity, Repeat, Timer, Trash2, Plus,
-  Search, Tag, Settings2, Sparkles,
+  Search, Tag, Settings2, Sparkles, Play, AlertTriangle, CheckCircle2, XCircle, Info,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,16 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
+import {
+  runWorkflow, validateWorkflow,
+  type EngineLogEntry, type EngineNode, type ValidationIssue,
+} from '@/lib/workflowEngine';
+import type { usePaperTrading } from '@/hooks/usePaperTrading';
+
+export interface WorkflowCanvasProps {
+  paper?: ReturnType<typeof usePaperTrading>;
+  getPriceByTicker?: (ticker: string) => number;
+}
 
 type NodeKind =
   | 'symbol'
@@ -108,8 +118,67 @@ const tintClasses = (tint: string) => {
   }
 };
 
-export default function WorkflowCanvas() {
-  const [nodes, setNodes] = useState<WorkflowNode[]>([]);
+const STORAGE_KEY = 'ga_workflow_v1';
+
+type PersistedNode = { id: string; kind: NodeKind; label: string; tint: string; config: NodeConfig };
+const serialize = (nodes: WorkflowNode[]): PersistedNode[] =>
+  nodes.map(({ id, kind, label, tint, config }) => ({ id, kind, label, tint, config }));
+const hydrate = (arr: PersistedNode[]): WorkflowNode[] =>
+  arr.map(p => {
+    const gi = GALLERY.find(g => g.kind === p.kind);
+    return { ...p, Icon: gi?.Icon ?? Tag };
+  });
+
+export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanvasProps = {}) {
+  const [nodes, setNodes] = useState<WorkflowNode[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return hydrate(JSON.parse(raw));
+    } catch { /* ignore */ }
+    return [];
+  });
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(serialize(nodes))); } catch { /* ignore */ }
+  }, [nodes]);
+
+  const [running, setRunning] = useState(false);
+  const [execLog, setExecLog] = useState<EngineLogEntry[]>([]);
+  const issues: ValidationIssue[] = useMemo(() => validateWorkflow(nodes as unknown as EngineNode[]), [nodes]);
+  const errorCount = issues.filter(i => i.level === 'error').length;
+
+  const handleRun = async () => {
+    if (running) return;
+    setExecLog([]);
+    if (!paper || !getPriceByTicker) {
+      setExecLog([{ ts: Date.now(), step: 0, kind: 'symbol', status: 'error', message: 'Runtime not wired — open PIPELINE tab from Trading Bridge.' }]);
+      return;
+    }
+    if (errorCount > 0) {
+      setExecLog(issues.filter(i => i.level === 'error').map(i => ({
+        ts: Date.now(), step: i.step, kind: 'symbol' as const, status: 'error' as const, message: i.message,
+      })));
+      return;
+    }
+    setRunning(true);
+    try {
+      await runWorkflow(
+        nodes as unknown as EngineNode[],
+        {
+          submitOrder: (p) => {
+            const o = paper.submitOrder(p);
+            return { id: o.id, price: o.price, fees: o.fees };
+          },
+          getPriceByTicker,
+          account: paper.account,
+        },
+        (entry) => setExecLog(prev => [...prev, entry]),
+      );
+    } catch (err: any) {
+      setExecLog(prev => [...prev, { ts: Date.now(), step: 0, kind: 'symbol', status: 'error', message: err?.message ?? String(err) }]);
+    } finally {
+      setRunning(false);
+    }
+  };
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [symbolQuery, setSymbolQuery] = useState('');
@@ -363,16 +432,72 @@ export default function WorkflowCanvas() {
         </div>
 
         {nodes.length > 0 && (
-          <div className="mt-3 flex items-center gap-2">
-            <button className="text-[9px] font-mono tracking-widest text-gold-light border border-gold/40 bg-gold/10 hover:bg-gold/20 px-3 py-1 rounded">
-              ▶ RUN WORKFLOW
-            </button>
-            <button className="text-[9px] font-mono tracking-widest text-gold/70 border border-gold/20 hover:border-gold/40 px-3 py-1 rounded">
-              SAVE AS TEMPLATE
-            </button>
-            <span className="text-[8px] font-mono text-gold/40 ml-auto">
-              Drag nodes to reorder · Hover to remove
-            </span>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRun}
+                disabled={running || errorCount > 0}
+                className="flex items-center gap-1 text-[9px] font-mono tracking-widest text-gold-light border border-gold/40 bg-gold/10 hover:bg-gold/20 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1 rounded"
+              >
+                <Play className="w-3 h-3" /> {running ? 'RUNNING…' : 'RUN WORKFLOW'}
+              </button>
+              <button
+                onClick={() => setExecLog([])}
+                className="text-[9px] font-mono tracking-widest text-gold/70 border border-gold/20 hover:border-gold/40 px-3 py-1 rounded"
+              >
+                CLEAR LOG
+              </button>
+              <span className="text-[8px] font-mono text-gold/50 ml-auto flex items-center gap-2">
+                {errorCount > 0 ? (
+                  <span className="flex items-center gap-1 text-rose-400">
+                    <AlertTriangle className="w-3 h-3" /> {errorCount} ISSUE{errorCount === 1 ? '' : 'S'}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <CheckCircle2 className="w-3 h-3" /> VALID
+                  </span>
+                )}
+                <span className="text-gold/40">·</span>
+                <span>{paper ? `PAPER $${paper.account.equity.toFixed(0)}` : 'RUNTIME OFF'}</span>
+              </span>
+            </div>
+
+            {issues.length > 0 && (
+              <div className="border border-rose-500/20 bg-rose-500/5 rounded p-2 space-y-0.5 max-h-24 overflow-y-auto">
+                {issues.map((i, idx) => (
+                  <div key={idx} className={`text-[9px] font-mono flex items-start gap-1 ${i.level === 'error' ? 'text-rose-300' : 'text-amber-300'}`}>
+                    {i.level === 'error' ? <XCircle className="w-2.5 h-2.5 mt-0.5" /> : <AlertTriangle className="w-2.5 h-2.5 mt-0.5" />}
+                    <span>STEP {i.step}: {i.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {execLog.length > 0 && (
+              <div className="border border-gold/20 bg-black/60 rounded p-2 max-h-40 overflow-y-auto space-y-0.5">
+                <div className="text-[9px] font-mono tracking-widest text-gold/60 mb-1">EXECUTION LOG</div>
+                {execLog.map((e, idx) => {
+                  const color =
+                    e.status === 'ok' ? 'text-emerald-300' :
+                    e.status === 'error' ? 'text-rose-300' :
+                    e.status === 'skip' ? 'text-amber-300' :
+                    'text-gold/70';
+                  const IconEl =
+                    e.status === 'ok' ? CheckCircle2 :
+                    e.status === 'error' ? XCircle :
+                    e.status === 'skip' ? AlertTriangle :
+                    Info;
+                  return (
+                    <div key={idx} className={`text-[9px] font-mono flex items-start gap-1 ${color}`}>
+                      <IconEl className="w-2.5 h-2.5 mt-0.5" />
+                      <span className="text-gold/40 w-12 shrink-0">STEP {e.step}</span>
+                      <span className="uppercase w-16 shrink-0 text-gold/50">{e.kind}</span>
+                      <span className="flex-1">{e.message}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
