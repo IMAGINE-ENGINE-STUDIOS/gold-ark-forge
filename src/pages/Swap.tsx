@@ -108,12 +108,12 @@ SYMBOLS.push(...YAHOO_SYMBOLS);
 
 const CAT_TO_ASSET: Record<Cat, AssetClass> = {
   Crypto: "crypto",
-  Metals: "metal",
+  Metals: "metals",
   Energy: "energy",
   FX: "fx",
   Index: "index",
-  Stocks: "stock",
-  ETF: "stock",
+  Stocks: "stocks",
+  ETF: "stocks",
   Futures: "energy",
 };
 
