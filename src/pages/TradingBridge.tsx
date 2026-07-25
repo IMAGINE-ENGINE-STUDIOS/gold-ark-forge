@@ -82,6 +82,7 @@ import SessionBreakdown from '@/components/trading/SessionBreakdown';
 import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
+import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
 
 // ─── Collapsible Section Component ───────────────────────
 function CollapsibleSection({ 
@@ -1059,6 +1060,7 @@ const TradingBridge = () => {
             </button>
           </div>
           <div className="flex items-center gap-2">
+            <FeedStatusBadge />
             <ConnectWalletButton />
           </div>
         </div>
