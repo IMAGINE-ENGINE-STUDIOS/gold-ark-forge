@@ -39,42 +39,80 @@ serve(async (req) => {
       });
     }
 
-    // Binance geoblocks many datacenter IPs (HTTP 451). Try the US-friendly
-    // endpoint first, then the global one, then the vision mirror. All three
-    // speak the same v3 shape so callers see identical JSON either way.
-    const hosts = [
-      "https://api.binance.us",
-      "https://api.binance.com",
-      "https://data-api.binance.vision",
-    ];
-    const tickerPath = symbols.length === 1
-      ? `/api/v3/ticker/24hr?symbol=${symbols[0]}`
-      : `/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
-    let tickerResp: Response | null = null;
-    let workingHost = hosts[0];
-    for (const host of hosts) {
-      try {
-        const r = await fetch(host + tickerPath);
-        if (r.ok) { tickerResp = r; workingHost = host; break; }
-      } catch (_) { /* try next host */ }
-    }
-    if (!tickerResp) throw new Error(`All Binance hosts blocked (451)`);
-
-    const tickerJson = await tickerResp.json();
-    const rows = Array.isArray(tickerJson) ? tickerJson : [tickerJson];
+    // Multi-exchange fallback so we never serve stale mirror data.
+    // Order: Coinbase (never geoblocked) → Kraken → Binance US → Binance global → vision mirror.
     const quotes: Record<string, { price: number; change24h: number; volume: number; timestamp: number; source: string }> = {};
-    for (const row of rows) {
-      const key = keyForSymbol(String(row.symbol ?? ""));
-      const price = Number(row.lastPrice);
-      if (!key || !Number.isFinite(price) || price <= 0) continue;
-      quotes[key] = {
-        price,
-        change24h: Number(row.priceChangePercent) || 0,
-        volume: Number(row.quoteVolume) || 0,
-        timestamp: Date.now(),
-        source: "binance_rest",
-      };
+
+    // ── 1. Coinbase (per-symbol) ──
+    const COINBASE_MAP: Record<string, string> = {
+      BTCUSDT: "BTC-USD", ETHUSDT: "ETH-USD", SOLUSDT: "SOL-USD", XRPUSDT: "XRP-USD",
+      ADAUSDT: "ADA-USD", DOGEUSDT: "DOGE-USD", DOTUSDT: "DOT-USD", LINKUSDT: "LINK-USD",
+      AVAXUSDT: "AVAX-USD", MATICUSDT: "MATIC-USD", LTCUSDT: "LTC-USD", UNIUSDT: "UNI-USD",
+      NEARUSDT: "NEAR-USD", APTUSDT: "APT-USD", SUIUSDT: "SUI-USD", ARBUSDT: "ARB-USD",
+      OPUSDT: "OP-USD", INJUSDT: "INJ-USD", RENDERUSDT: "RENDER-USD", FILUSDT: "FIL-USD",
+      ATOMUSDT: "ATOM-USD", ALGOUSDT: "ALGO-USD", XLMUSDT: "XLM-USD", HBARUSDT: "HBAR-USD",
+      SHIBUSDT: "SHIB-USD", PEPEUSDT: "PEPE-USD",
+    };
+    await Promise.all(symbols.map(async (sym) => {
+      const key = keyForSymbol(sym);
+      const cb = COINBASE_MAP[sym];
+      if (!key || !cb) return;
+      try {
+        const [tickerR, statsR] = await Promise.all([
+          fetch(`https://api.exchange.coinbase.com/products/${cb}/ticker`),
+          fetch(`https://api.exchange.coinbase.com/products/${cb}/stats`),
+        ]);
+        if (!tickerR.ok) return;
+        const t = await tickerR.json();
+        const s = statsR.ok ? await statsR.json() : {};
+        const price = Number(t.price);
+        const open = Number(s.open);
+        if (!Number.isFinite(price) || price <= 0) return;
+        const change24h = Number.isFinite(open) && open > 0 ? ((price - open) / open) * 100 : 0;
+        quotes[key] = {
+          price,
+          change24h,
+          volume: Number(t.volume) || Number(s.volume) || 0,
+          timestamp: Date.now(),
+          source: "coinbase_rest",
+        };
+      } catch (_) { /* fall through to next source */ }
+    }));
+
+    // ── 2. Binance fallback for anything Coinbase didn't cover ──
+    const missing = symbols.filter(s => !quotes[keyForSymbol(s) ?? ""]);
+    let workingHost = "https://api.binance.us";
+    if (missing.length > 0) {
+      const hosts = ["https://api.binance.us", "https://api.binance.com", "https://data-api.binance.vision"];
+      const tickerPath = missing.length === 1
+        ? `/api/v3/ticker/24hr?symbol=${missing[0]}`
+        : `/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(missing))}`;
+      let tickerResp: Response | null = null;
+      for (const host of hosts) {
+        try {
+          const r = await fetch(host + tickerPath);
+          if (r.ok) { tickerResp = r; workingHost = host; break; }
+        } catch (_) { /* try next host */ }
+      }
+      if (tickerResp) {
+        const tickerJson = await tickerResp.json();
+        const rows = Array.isArray(tickerJson) ? tickerJson : [tickerJson];
+        for (const row of rows) {
+          const key = keyForSymbol(String(row.symbol ?? ""));
+          const price = Number(row.lastPrice);
+          if (!key || !Number.isFinite(price) || price <= 0) continue;
+          quotes[key] = {
+            price,
+            change24h: Number(row.priceChangePercent) || 0,
+            volume: Number(row.quoteVolume) || 0,
+            timestamp: Date.now(),
+            source: "binance_rest",
+          };
+        }
+      }
     }
+
+    if (Object.keys(quotes).length === 0) throw new Error("All crypto sources unavailable");
 
     const candles: Record<string, { closes: number[]; highs: number[]; lows: number[]; source: string }> = {};
     if (body.includeKlines) {

@@ -32,8 +32,8 @@ export const useMetalPrices = () => {
       });
       return priceMap;
     },
-    refetchInterval: 2000,
-    staleTime: 1000,
+    refetchInterval: 1000,
+    staleTime: 500,
     retry: 1,
   });
 };
