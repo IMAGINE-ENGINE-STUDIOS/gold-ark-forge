@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { resolveSymbolPrice } from '@/lib/priceResolution';
 
 /**
  * LivePriceIndicator — reusable live price readout.
@@ -8,7 +7,7 @@ import { resolveSymbolPrice } from '@/lib/priceResolution';
  *
  * Priority for price source:
  *   1. `getPriceByTicker` prop (widget-scoped resolver)
- *   2. global `resolveSymbolPrice` fallback
+ *   2. returns 0 (renders em-dash) when unavailable
  *
  * Drop into any widget:
  *   <LivePriceIndicator ticker={sym} />
@@ -27,12 +26,9 @@ export interface LivePriceIndicatorProps {
 }
 
 function resolve(ticker: string, getPriceByTicker?: (t: string) => number): number {
-  if (getPriceByTicker) {
-    const p = getPriceByTicker(ticker);
-    if (p && p > 0) return p;
-  }
+  if (!getPriceByTicker) return 0;
   try {
-    const p = resolveSymbolPrice(ticker);
+    const p = getPriceByTicker(ticker);
     return typeof p === 'number' && p > 0 ? p : 0;
   } catch {
     return 0;
