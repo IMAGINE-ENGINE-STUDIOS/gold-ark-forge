@@ -57,20 +57,24 @@ const latestRouterTick = (sym: SymbolLite) => {
  * used elsewhere in the app, so every table stays in lockstep.
  */
 export function useLiveMarketData() {
-  const [, setFeedVersion] = useState(0);
+  const [feedVersion, setFeedVersion] = useState(0);
   const { data: metalPricesData } = useMetalPrices();
   const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
 
   useEffect(() => {
     let frame = 0;
-    return FeedRouter.subscribeAll(() => {
+    const unsubscribe = FeedRouter.subscribeAll(() => {
       if (frame) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
         setFeedVersion((v) => (v + 1) % 1_000_000);
       });
     });
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      unsubscribe();
+    };
   }, []);
 
   const cryptoStreamKeys = useMemo(
@@ -134,7 +138,7 @@ export function useLiveMarketData() {
       if (feed?.price) return feed.price;
     }
     return 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
+  }, [feedVersion, metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
 
   const resolveChange = useCallback((sym: SymbolLite): number => {
     const routerTick = latestRouterTick(sym);
@@ -161,7 +165,7 @@ export function useLiveMarketData() {
       if (feed) return feed.change ?? 0;
     }
     return 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
+  }, [feedVersion, metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
 
   const resolvePriceByTicker = useCallback((ticker: string): number => {
     const s = ALL_SYMBOLS.find(x => x.ticker === ticker);
