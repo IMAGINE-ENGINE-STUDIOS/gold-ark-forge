@@ -47,6 +47,7 @@ import OrderHistory from '@/components/trading/OrderHistory';
 import BacktestPanel from '@/components/trading/BacktestPanel';
 import DepthOfMarket from '@/components/trading/DepthOfMarket';
 import RuleBuilder from '@/components/trading/RuleBuilder';
+import WorkflowCanvas from '@/components/trading/WorkflowCanvas';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
