@@ -32,6 +32,10 @@ export function bootstrapFeeds(opts?: {
   FeedRouter.ensureSource('coinbase', () => startCoinbase(cbDefaults));
   if (!opts?.skipMetals) FeedRouter.ensureSource('metals', startMetals);
   if (opts?.yahoo?.length) FeedRouter.ensureSource('yahoo', () => startYahoo(opts.yahoo!));
+  if (typeof window !== 'undefined') {
+    // dev/debug access — read-only handle in the console: __feed.latest('BTC/USDT')
+    (window as unknown as { __feed?: unknown }).__feed = FeedRouter;
+  }
 }
 
 export function useMarketFeed(symbol: string | null | undefined) {
