@@ -17,6 +17,7 @@ import {
   type EngineLogEntry, type EngineNode, type ValidationIssue,
 } from '@/lib/workflowEngine';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
+import { LivePriceIndicator } from './LivePriceIndicator';
 
 export interface WorkflowCanvasProps {
   paper?: ReturnType<typeof usePaperTrading>;
