@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ExternalLink, Brain, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Activity, ExternalLink, Brain, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck, Landmark } from 'lucide-react';
 import Header from '@/components/Header';
 import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import { useLiveMarketData } from '@/hooks/useLiveMarketData';
@@ -13,6 +13,7 @@ import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAVolatilityMatrix from '@/components/ga-widgets/GAVolatilityMatrix';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
+import { GATreasuryPanel } from '@/components/ga-widgets/GATreasuryPanel';
 
 const safeNumber = (value: unknown, fallback = 0) => {
   if (value === null || value === undefined || value === '') return fallback;
@@ -42,7 +43,7 @@ export default function EagleView() {
   const live = useLiveMarketData();
   const [tick, setTick] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  const [intelTab, setIntelTab] = useState<'gauge' | 'context' | 'macro' | 'cross'>('gauge');
+  const [intelTab, setIntelTab] = useState<'gauge' | 'context' | 'macro' | 'cross' | 'sovereign'>('gauge');
   const [rankedRows, setRankedRows] = useState<PrecisionRow[]>([]);
   const [rankDirection, setRankDirection] = useState<Direction>('long');
 
@@ -193,6 +194,7 @@ export default function EagleView() {
                   { k: 'context', label: 'CONTEXT', icon: Newspaper },
                   { k: 'macro',   label: 'MACRO',   icon: CalendarDays },
                   { k: 'cross',   label: 'CROSS',   icon: Flame },
+                  { k: 'sovereign', label: 'SOVEREIGN', icon: Landmark },
                 ] as const).map(t => {
                   const Icon = t.icon;
                   const active = intelTab === t.k;
@@ -231,6 +233,11 @@ export default function EagleView() {
               {intelTab === 'cross' && (
                 <div className="grid grid-cols-1 gap-3">
                   <GACrossAssetDashboard />
+                </div>
+              )}
+              {intelTab === 'sovereign' && (
+                <div className="grid grid-cols-1 gap-3">
+                  <GATreasuryPanel />
                 </div>
               )}
             </div>
