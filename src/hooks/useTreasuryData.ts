@@ -46,7 +46,8 @@ export const useTreasuryData = () => {
     if (tbill != null) {
       FeedRouter.publish({
         symbol: 'US/TBILL',
-        price: tbill,
+        assetClass: 'bond',
+        last: tbill,
         ts: Date.now(),
         source: 'treasury',
         latencyMs: 0,
