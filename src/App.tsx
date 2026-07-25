@@ -34,6 +34,7 @@ import PersonaPage from "./pages/PersonaPage";
 import DeckEditor from "./pages/DeckEditor";
 import Dataroom from "./pages/Dataroom";
 import NotFound from "./pages/NotFound";
+import Swap from "./pages/Swap";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,7 @@ const App = () => {
             <Route path="/deck-editor" element={<DeckEditor />} />
             <Route path="/globe" element={<Globe />} />
             <Route path="/dataroom" element={<Dataroom />} />
+            <Route path="/swap" element={<Swap />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
