@@ -76,13 +76,14 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import RiskThermometer from '@/components/trading/RiskThermometer';
 import { showTradeRecap } from '@/components/trading/TradeRecapToast';
-import FirstTradeGuide from '@/components/trading/FirstTradeGuide';
 import DrawdownChart from '@/components/trading/DrawdownChart';
 import SessionBreakdown from '@/components/trading/SessionBreakdown';
 import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
 import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
+import { bootstrapFeeds } from '@/hooks/useMarketFeed';
+import type { AssetClass } from '@/lib/feeds/types';
 
 // ─── Collapsible Section Component ───────────────────────
 function CollapsibleSection({ 
@@ -172,6 +173,23 @@ const TAB_TO_CATEGORY: Record<BottomTab, BottomCategory> =
     cat.tabs.forEach(t => { acc[t] = cat.key; });
     return acc;
   }, {} as Record<BottomTab, BottomCategory>);
+
+const ACTIVE_YAHOO_SYMBOL: Record<string, string> = {
+  oil: 'CL=F', brent: 'BZ=F', natgas: 'NG=F', rbob: 'RB=F', heating_oil: 'HO=F',
+};
+
+const yahooSymbolFor = (sym: { key: string; cat: string; ticker: string }) => {
+  if (sym.cat === 'energy') return ACTIVE_YAHOO_SYMBOL[sym.key] ?? sym.ticker;
+  if (sym.cat === 'stocks' || sym.cat === 'etfs') return sym.ticker;
+  return null;
+};
+
+const assetClassFor = (sym: { cat: string }): AssetClass => {
+  if (sym.cat === 'energy') return 'energy';
+  if (sym.cat === 'fx') return 'fx';
+  if (sym.cat === 'bonds') return 'bond';
+  return 'stocks';
+};
 
 // ─── Paper Trading Panel ─────────────────────────────────
 const finiteMarketNumber = (value: unknown, fallback = 0) => {
@@ -722,6 +740,12 @@ const TradingBridge = () => {
   // Resolve 24h change % for active symbol from the same live feed
   const activeChange = useMemo(() => liveFeed.resolveChange(activeSymbol), [activeSymbol, liveFeed]);
 
+  useEffect(() => {
+    const yahoo = yahooSymbolFor(activeSymbol);
+    if (!yahoo) return;
+    bootstrapFeeds({ yahoo: [{ symbol: yahoo, assetClass: assetClassFor(activeSymbol) }] });
+  }, [activeSymbol]);
+
   // Build a price map for all held paper positions and keep them updated
   const resolvePriceForTicker = useCallback((ticker: string): number => {
     const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
@@ -1118,6 +1142,8 @@ const TradingBridge = () => {
             symbolKey={activeSymbol.key}
             category={activeSymbol.cat}
             label={activeSymbol.label}
+            livePrice={activePrice}
+            liveChange={activeChange}
             onSymbolChange={setActiveSymbol}
             headerLeftSlot={<BrokerHeaderButton />}
             headerRightSlot={<ModeToggle />}
@@ -1376,7 +1402,6 @@ const TradingBridge = () => {
         )}
 
         <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
-        <FirstTradeGuide />
       </div>
     );
   }
@@ -1483,6 +1508,8 @@ const TradingBridge = () => {
                   symbolKey={activeSymbol.key}
                   category={activeSymbol.cat}
                   label={activeSymbol.label}
+                  livePrice={activePrice}
+                  liveChange={activeChange}
                   onSymbolChange={setActiveSymbol}
                   headerLeftSlot={<BrokerHeaderButton />}
                   headerRightSlot={<ModeToggle />}
@@ -1762,7 +1789,6 @@ const TradingBridge = () => {
         </div>
       </div>
       <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
-      <FirstTradeGuide />
     </div>
   );
 };

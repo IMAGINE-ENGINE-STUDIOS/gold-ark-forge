@@ -4,8 +4,11 @@ import { Activity } from 'lucide-react';
 
 const SOURCE_LABEL: Record<string, string> = {
   binance: 'Binance WS',
+  'binance-ws': 'Binance WS',
   coinbase: 'Coinbase',
+  'coinbase-ws': 'Coinbase WS',
   metals: 'Gold-API',
+  'gold-api': 'Gold-API',
   yahoo: 'Yahoo',
   realtime: 'Cloud Bus',
   fred: 'FRED',

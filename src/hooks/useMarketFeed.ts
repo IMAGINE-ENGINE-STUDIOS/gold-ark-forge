@@ -23,7 +23,10 @@ export function bootstrapFeeds(opts?: {
   yahoo?: Array<{ symbol: string; assetClass: AssetClass }>;
   skipMetals?: boolean;
 }) {
-  if (bootstrapped) return;
+  if (bootstrapped) {
+    if (opts?.yahoo?.length) startYahoo(opts.yahoo);
+    return;
+  }
   bootstrapped = true;
   FeedRouter.ensureSource('realtime', startRealtimeBridge);
   const cryptoDefaults = opts?.crypto ?? ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT'];

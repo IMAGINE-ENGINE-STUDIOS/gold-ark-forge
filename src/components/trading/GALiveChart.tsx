@@ -396,6 +396,8 @@ interface Props {
   symbolKey: string;
   category: string;
   label: string;
+  livePrice?: number;
+  liveChange?: number;
   onSymbolChange?: (sym: WatchlistSymbol) => void;
   headerLeftSlot?: ReactNode;
   headerRightSlot?: ReactNode;
@@ -415,7 +417,7 @@ interface TFConfig {
 }
 
 const tfConfigs: Record<Timeframe, TFConfig> = {
-  'RT': { points: 60, intervalMs: 5_000, candleMs: 5_000, volatility: 0.0002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+  'RT': { points: 60, intervalMs: 1_000, candleMs: 1_000, volatility: 0.0002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
   '1H': { points: 12, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '4H': { points: 48, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0005, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1D': { points: 96, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
@@ -486,13 +488,19 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
   const lastSymbolRef = useRef<string>('');
   const lastTfRef = useRef<Timeframe>('1D');
   const [candles, setCandles] = useState<ChartDataPoint[]>([]);
+  const [clock, setClock] = useState(0);
   const tickCountRef = useRef(0);
   const cfg = tfConfigs[tf];
 
   useEffect(() => {
+    const id = window.setInterval(() => setClock((v) => (v + 1) % 1_000_000), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     const symbolChanged = symbolKey !== lastSymbolRef.current;
     const tfChanged = tf !== lastTfRef.current;
-    const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
+    const dataArrived = historicalData.length > 1 && candlesRef.current.length < Math.min(10, historicalData.length);
     const livePriceArrived = candlesRef.current.length === 0 && price > 0;
     if (symbolChanged || tfChanged || dataArrived || livePriceArrived) {
       lastSymbolRef.current = symbolKey;
@@ -533,7 +541,7 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     }
     tickCountRef.current++;
     setCandles([...arr]);
-  }, [price, cfg.candleMs, cfg.labelFn, tf]);
+  }, [price, clock, cfg.candleMs, cfg.labelFn, tf]);
 
   return candles;
 };
@@ -696,7 +704,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
 // ═══════════════════════════════════════════════════════════
 // GOLD ARROW LIVE — Swap Terminal Chart
 // ═══════════════════════════════════════════════════════════
-const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlot, headerRightSlot }: Props) => {
+const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymbolChange, headerLeftSlot, headerRightSlot }: Props) => {
   const [tf, setTf] = useState<Timeframe>('RT');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
@@ -720,6 +728,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   // Crypto → Binance WebSocket tick; Metals/Energy → respective real feeds.
   // If no feed exists the chart shows a clear NO DATA state instead of lying.
   const { basePrice, baseChange } = useMemo(() => {
+    if (livePrice && livePrice > 0) return { basePrice: livePrice, baseChange: liveChange ?? 0 };
     if (wsData && wsData.price > 0) return { basePrice: wsData.price, baseChange: wsData.change24h };
     if (category === 'metals') {
       const key = METAL_MAP[symbolKey];
@@ -736,7 +745,7 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
     return { basePrice: 0, baseChange: 0 };
-  }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
+  }, [symbolKey, category, livePrice, liveChange, metalPrices, cryptoData, oilPrices, wsData]);
 
   const price = basePrice;
   const change = baseChange;
@@ -752,15 +761,15 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   // indices, equities). Provides deep history parity with crypto sparklines.
   const { data: yahooBars } = useHistoricalBars(symbolKey, category !== 'crypto');
 
+  const hasEffectivePrice = basePrice > 0;
   const historicalData = useMemo(() => {
-    const effectivePrice = basePrice || price;
-    if (effectivePrice <= 0) return [];
-    if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, effectivePrice);
+    if (!hasEffectivePrice) return [];
+    if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, basePrice);
     if (yahooBars?.closes?.length && yahooBars.closes.length > 10) {
-      return buildFromSparkline(yahooBars.closes, tf, effectivePrice);
+      return buildFromSparkline(yahooBars.closes, tf, basePrice);
     }
     return [];
-  }, [sparklineData, yahooBars, tf, basePrice, price]);
+  }, [sparklineData, yahooBars, tf, hasEffectivePrice]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 

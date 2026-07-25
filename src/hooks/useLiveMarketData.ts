@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
@@ -6,12 +6,48 @@ import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { BINANCE_STREAMS, useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import { supabase } from '@/integrations/supabase/client';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
+import { FeedRouter } from '@/lib/feeds/router';
 
 type SymbolLite = { key: string; cat: string; ticker: string };
 
 type BackendMarketData = {
   quotes?: Record<string, { price: number; change24h: number; volume: number; timestamp: number; source: string }>;
   candles?: Record<string, { closes: number[]; highs: number[]; lows: number[]; source: string }>;
+};
+
+const CRYPTO_BASE: Record<string, string> = {
+  bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL', xrp: 'XRP', bnb: 'BNB',
+  cardano: 'ADA', avalanche: 'AVAX', polkadot: 'DOT', chainlink: 'LINK', dogecoin: 'DOGE',
+  polygon: 'MATIC', litecoin: 'LTC', uniswap: 'UNI', near: 'NEAR', aptos: 'APT', sui: 'SUI',
+  arbitrum: 'ARB', optimism: 'OP', injective: 'INJ', render: 'RENDER', filecoin: 'FIL',
+  cosmos: 'ATOM', algorand: 'ALGO', stellar: 'XLM', vechain: 'VET', hedera: 'HBAR',
+  tron: 'TRX', shiba: 'SHIB', pepe: 'PEPE',
+};
+
+const METAL_FEED_SYMBOL: Record<string, string> = {
+  gold: 'XAU/USD', silver: 'XAG/USD', platinum: 'XPT/USD', palladium: 'XPD/USD',
+};
+
+const ENERGY_FEED_SYMBOL: Record<string, string> = {
+  oil: 'CL=F', brent: 'BZ=F', natgas: 'NG=F', rbob: 'RB=F', heating_oil: 'HO=F',
+};
+
+const feedCandidates = (sym: SymbolLite): string[] => {
+  if (sym.cat === 'crypto') {
+    const base = CRYPTO_BASE[sym.key] ?? sym.ticker.split('-')[0]?.toUpperCase();
+    return base ? [`${base}/USD`, `${base}/USDT`, sym.ticker] : [sym.ticker];
+  }
+  if (sym.cat === 'metals') return [METAL_FEED_SYMBOL[sym.key], sym.ticker].filter(Boolean);
+  if (sym.cat === 'energy') return [ENERGY_FEED_SYMBOL[sym.key], sym.ticker].filter(Boolean);
+  return [sym.ticker];
+};
+
+const latestRouterTick = (sym: SymbolLite) => {
+  for (const candidate of feedCandidates(sym)) {
+    const tick = FeedRouter.latest(candidate);
+    if (tick && !tick.stale && Number.isFinite(tick.last) && tick.last > 0) return tick;
+  }
+  return undefined;
 };
 
 /**
@@ -21,9 +57,25 @@ type BackendMarketData = {
  * used elsewhere in the app, so every table stays in lockstep.
  */
 export function useLiveMarketData() {
+  const [feedVersion, setFeedVersion] = useState(0);
   const { data: metalPricesData } = useMetalPrices();
   const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
+
+  useEffect(() => {
+    let frame = 0;
+    const unsubscribe = FeedRouter.subscribeAll(() => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        setFeedVersion((v) => (v + 1) % 1_000_000);
+      });
+    });
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      unsubscribe();
+    };
+  }, []);
 
   const cryptoStreamKeys = useMemo(
     () => ALL_SYMBOLS
@@ -61,6 +113,9 @@ export function useLiveMarketData() {
   });
 
   const resolvePrice = useCallback((sym: SymbolLite): number => {
+    const routerTick = latestRouterTick(sym);
+    if (routerTick) return routerTick.last;
+
     if (sym.cat === 'metals') {
       const map: Record<string, string> = {
         gold: 'gold', silver: 'silver', platinum: 'platinum',
@@ -83,9 +138,12 @@ export function useLiveMarketData() {
       if (feed?.price) return feed.price;
     }
     return 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
+  }, [feedVersion, metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
 
   const resolveChange = useCallback((sym: SymbolLite): number => {
+    const routerTick = latestRouterTick(sym);
+    if (routerTick?.change24h !== undefined && Number.isFinite(routerTick.change24h)) return routerTick.change24h;
+
     if (sym.cat === 'metals') {
       const map: Record<string, string> = {
         gold: 'gold', silver: 'silver', platinum: 'platinum',
@@ -107,7 +165,7 @@ export function useLiveMarketData() {
       if (feed) return feed.change ?? 0;
     }
     return 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
+  }, [feedVersion, metalPricesData, cryptoDataAll, oilPricesData, cryptoTickPrices, backendCryptoQuotes]);
 
   const resolvePriceByTicker = useCallback((ticker: string): number => {
     const s = ALL_SYMBOLS.find(x => x.ticker === ticker);
