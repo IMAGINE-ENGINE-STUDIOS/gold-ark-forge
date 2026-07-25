@@ -124,7 +124,7 @@ function TVChart({ symbol }: { symbol: string }) {
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol,
-      interval: "5",
+      interval: "1",
       timezone: "Etc/UTC",
       theme: "dark",
       style: "1",
