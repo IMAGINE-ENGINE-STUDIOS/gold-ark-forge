@@ -546,35 +546,9 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 }
 
 // ─── Per-kind configuration form ─────────────────────────
-function LivePriceReadout({ ticker, getPriceByTicker }: { ticker: string | null; getPriceByTicker?: (t: string) => number }) {
-  const [price, setPrice] = useState<number>(() => (ticker && getPriceByTicker ? getPriceByTicker(ticker) : 0));
-  useEffect(() => {
-    if (!ticker || !getPriceByTicker) return;
-    setPrice(getPriceByTicker(ticker));
-    const id = setInterval(() => setPrice(getPriceByTicker(ticker)), 1000);
-    return () => clearInterval(id);
-  }, [ticker, getPriceByTicker]);
-  if (!ticker) {
-    return (
-      <div className="flex items-center justify-between rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
-        <span className="text-[9px] font-mono tracking-wider text-amber-400/80">NO SYMBOL CONTEXT</span>
-        <span className="text-[9px] font-mono text-amber-400/60">Add a SYMBOL earlier in chain</span>
-      </div>
-    );
-  }
-  const live = price > 0;
-  return (
-    <div className="flex items-center justify-between rounded border border-gold/30 bg-gold/5 px-2 py-1.5">
-      <div className="flex items-center gap-1.5">
-        <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gold/40'}`} />
-        <span className="text-[9px] font-mono tracking-wider text-gold/70">LIVE · {ticker}</span>
-      </div>
-      <span className="text-[11px] font-mono font-semibold text-gold-light">
-        {live ? `$${price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 4 : 2 })}` : '—'}
-      </span>
-    </div>
-  );
-}
+// LivePriceReadout was extracted into the reusable <LivePriceIndicator />
+// module at src/components/trading/LivePriceIndicator.tsx so it can be
+// dropped into any widget across the app.
 
 function NodeConfigForm({
   node,
@@ -602,7 +576,7 @@ function NodeConfigForm({
     if (livePrice > 0) onChange({ [field]: Number(livePrice.toFixed(livePrice < 10 ? 4 : 2)) });
   };
   const LiveBlock = showLive ? (
-    <LivePriceReadout ticker={tickerForLive} getPriceByTicker={getPriceByTicker} />
+    <LivePriceIndicator ticker={tickerForLive} getPriceByTicker={getPriceByTicker} />
   ) : null;
   const UseLiveBtn = ({ field }: { field: string }) => (
     <button
