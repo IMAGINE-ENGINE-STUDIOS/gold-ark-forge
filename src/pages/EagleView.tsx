@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Feather, Activity, Radio, ExternalLink, Layers, Store, Brain, Fuel, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Activity, ExternalLink, Brain, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import Header from '@/components/Header';
 import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import { useLiveMarketData } from '@/hooks/useLiveMarketData';
