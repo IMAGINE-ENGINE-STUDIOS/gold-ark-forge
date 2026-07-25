@@ -1,28 +1,45 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { WATCHLIST_CATEGORIES, CATEGORY_COLORS } from '@/data/tradingSymbols';
-import { bootstrapFeeds, useFeedHealth } from '@/hooks/useMarketFeed';
-import { useLiveMarketData } from '@/hooks/useLiveMarketData';
-import { buildTradingViewSymbols } from '@/lib/feeds/tradingViewSymbols';
+import { WATCHLIST_CATEGORIES, SYNTHETIC_PRICES, CATEGORY_COLORS } from '@/data/tradingSymbols';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useCryptoData } from '@/hooks/useCryptoData';
 import LivePulse from './LivePulse';
+
+const ALL_CRYPTO_KEYS = WATCHLIST_CATEGORIES
+  .filter(c => c.label.startsWith('CRYPTO'))
+  .flatMap(c => c.items.map(i => i.key));
 
 const MAX_SPARK = 24;
 
-// ─── Single Asset Card with real live stream only ─────────────
+// ─── Single Asset Card with simulated stream ─────────────
 const AssetCard = ({
   symbolKey, label, ticker, cat, basePrice, baseChange, isWsLive,
 }: {
   symbolKey: string; label: string; ticker: string; cat: string;
   basePrice: number; baseChange: number; isWsLive: boolean;
 }) => {
-  const livePrice = basePrice;
+  const { price: livePrice } = useSimulatedStream(basePrice, baseChange, symbolKey);
   const [spark, setSpark] = useState<{ v: number }[]>([]);
-  const lastPrice = useRef(0);
+  const seeded = useRef(false);
 
+  // Seed sparkline
   useEffect(() => {
-    if (livePrice > 0 && livePrice !== lastPrice.current) {
-      lastPrice.current = livePrice;
+    if (basePrice <= 0 || seeded.current) return;
+    seeded.current = true;
+    const start = basePrice / (1 + baseChange / 100);
+    const pts = Array.from({ length: 16 }, (_, i) => {
+      const p = i / 15;
+      const noise = Math.sin(i * 1.3) * 0.002 * basePrice;
+      return { v: start + (basePrice - start) * p + noise };
+    });
+    setSpark(pts);
+  }, [basePrice, baseChange]);
+
+  // Append live ticks
+  useEffect(() => {
+    if (livePrice > 0) {
       setSpark(prev => [...prev.slice(-MAX_SPARK + 1), { v: livePrice }]);
     }
   }, [livePrice]);
@@ -98,43 +115,54 @@ const AssetCard = ({
 
 // ─── Main Component ──────────────────────────────────────
 const GAAllAssetPriceCards = () => {
-  const live = useLiveMarketData();
-  const health = useFeedHealth(1000);
+  const wsPrices = useWebSocketPrices(ALL_CRYPTO_KEYS);
+  const { data: metalPrices } = useMetalPrices();
+  const { data: cryptoData } = useCryptoData(30);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const allSymbols = useMemo(() => WATCHLIST_CATEGORIES.flatMap((category) => category.items), []);
-
-  useEffect(() => {
-    bootstrapFeeds({ tradingView: buildTradingViewSymbols(allSymbols) });
-  }, [allSymbols]);
-
-  const sourceLine = useMemo(() => {
-    const liveSources = health.filter((h) => h.ok).map((h) => h.source);
-    return liveSources.length ? liveSources.join(' · ') : 'CONNECTING';
-  }, [health]);
+  // Build a crypto price lookup by key
+  const cryptoLookup = useMemo(() => {
+    const map: Record<string, { price: number; change: number }> = {};
+    if (cryptoData) {
+      const keyToId: Record<string, string> = {
+        bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana',
+        xrp: 'ripple', bnb: 'binancecoin', cardano: 'cardano',
+        avalanche: 'avalanche-2', polkadot: 'polkadot', chainlink: 'chainlink',
+        dogecoin: 'dogecoin', tron: 'tron',
+      };
+      cryptoData.forEach(coin => {
+        const key = Object.entries(keyToId).find(([_, id]) => id === coin.id)?.[0] ?? coin.symbol;
+        map[key] = { price: coin.current_price, change: coin.price_change_percentage_24h ?? 0 };
+      });
+    }
+    return map;
+  }, [cryptoData]);
 
   const resolvePrice = (key: string, cat: string): { price: number; change: number; wsLive: boolean } => {
-    const sym = allSymbols.find((item) => item.key === key && item.cat === cat);
-    if (!sym) return { price: 0, change: 0, wsLive: false };
-    const price = live.resolvePrice(sym);
-    const change = live.resolveChange(sym);
-    return { price, change, wsLive: price > 0 };
+    // 1. WebSocket (crypto)
+    const ws = wsPrices[key];
+    if (ws && ws.price > 0) {
+      return { price: ws.price, change: ws.change24h, wsLive: true };
+    }
+    // 2. CoinGecko API (crypto)
+    if (cat === 'crypto' && cryptoLookup[key]) {
+      return { price: cryptoLookup[key].price, change: cryptoLookup[key].change, wsLive: false };
+    }
+    // 3. Metal price feeds (DB)
+    if (cat === 'metals' && metalPrices?.[key as 'gold' | 'silver' | 'platinum']) {
+      const m = metalPrices[key as 'gold' | 'silver' | 'platinum'];
+      return { price: m.price_usd, change: m.change_24h ?? 0, wsLive: false };
+    }
+    // 4. Synthetic fallback
+    const syn = SYNTHETIC_PRICES[key];
+    if (syn) return { price: syn.p, change: syn.c, wsLive: false };
+    return { price: 0, change: 0, wsLive: false };
   };
 
   const toggle = (label: string) => setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-gold/15 bg-navy-light/35 px-4 py-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <Activity className="w-4 h-4 text-emerald-400" />
-          <span className="font-display text-[10px] tracking-[0.24em] text-marble/70">TRADINGVIEW + DIRECT FEED ROUTER</span>
-        </div>
-        <div className="flex items-center gap-2 min-w-0">
-          <LivePulse connected={health.some((h) => h.ok)} label="LIVE" />
-          <span className="text-[9px] font-mono text-marble/35 truncate max-w-[70vw]">{sourceLine}</span>
-        </div>
-      </div>
       {WATCHLIST_CATEGORIES.map(category => {
         const isCollapsed = collapsed[category.label];
         const catColor = CATEGORY_COLORS[category.items[0]?.cat] ?? 'hsl(43,72%,50%)';

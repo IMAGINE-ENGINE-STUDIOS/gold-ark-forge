@@ -13,28 +13,21 @@ export const useMetalPrices = () => {
   return useQuery({
     queryKey: ['metal-prices'],
     queryFn: async () => {
-      // Refresh the structured backend feed, then read the app-wide source of truth.
-      // UI widgets must consume price_feeds so chart, trade deck, Eagle View and
-      // marketplace stay synchronized from the same structured live rows.
-      await supabase.functions.invoke('fetch-metal-prices', { body: {} }).catch(() => null);
-
       const { data, error } = await supabase
         .from('price_feeds')
-        .select('*')
-        .order('metal_type', { ascending: true });
+        .select('*');
 
       if (error) throw error;
 
+      // Transform to a map for easier access
       const priceMap: Record<string, PriceFeed> = {};
-      (data ?? []).forEach((row) => {
-        if (!row.metal_type || typeof row.price_usd !== 'number' || row.price_usd <= 0) return;
-        priceMap[row.metal_type] = row as PriceFeed;
+      (data as PriceFeed[]).forEach((feed) => {
+        priceMap[feed.metal_type] = feed;
       });
+
       return priceMap;
     },
-    refetchInterval: 1000,
-    staleTime: 500,
-    retry: 1,
+    refetchInterval: 60000, // Refetch every minute
   });
 };
 

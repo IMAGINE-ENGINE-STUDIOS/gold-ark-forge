@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * GALivePriceNotice — Real-time price display widget
- * Powered entirely by GA infrastructure live price feeds.
+ * Powered entirely by GA infrastructure (WebSocket + simulated streams).
  * Flashes green/red on tick changes with smooth transitions.
  */
 const GALivePriceNotice = ({

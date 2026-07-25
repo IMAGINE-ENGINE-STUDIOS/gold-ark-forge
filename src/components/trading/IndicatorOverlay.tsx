@@ -211,7 +211,7 @@ export const computeMomentum = (prices: number[], period = 14): number[] => {
 export const computeOBV = (closes: number[], volumes?: number[]): number[] => {
   const result: number[] = [0];
   for (let i = 1; i < closes.length; i++) {
-    const vol = volumes?.[i] ?? 1;
+    const vol = volumes?.[i] ?? 1000 + Math.random() * 500;
     if (closes[i] > closes[i - 1]) result.push(result[i - 1] + vol);
     else if (closes[i] < closes[i - 1]) result.push(result[i - 1] - vol);
     else result.push(result[i - 1]);
@@ -219,14 +219,14 @@ export const computeOBV = (closes: number[], volumes?: number[]): number[] => {
   return result;
 };
 
-export const computeMFI = (highs: number[], lows: number[], closes: number[], period = 14, volumes?: number[]): number[] => {
+export const computeMFI = (highs: number[], lows: number[], closes: number[], period = 14): number[] => {
   const tp = closes.map((c, i) => (highs[i] + lows[i] + c) / 3);
   const result: number[] = [];
   for (let i = 0; i < closes.length; i++) {
     if (i < period) { result.push(NaN); continue; }
     let posFlow = 0, negFlow = 0;
     for (let j = i - period + 1; j <= i; j++) {
-      const flow = tp[j] * (volumes?.[j] ?? 1);
+      const flow = tp[j] * (1000 + Math.random() * 500);
       if (tp[j] > tp[j - 1]) posFlow += flow;
       else negFlow += flow;
     }
@@ -288,8 +288,8 @@ export const computeDeMarker = (highs: number[], lows: number[], period = 14): n
   return result;
 };
 
-export const computeForceIndex = (closes: number[], period = 13, volumes?: number[]): number[] => {
-  const raw = closes.map((c, i) => i === 0 ? 0 : (c - closes[i - 1]) * (volumes?.[i] ?? 1));
+export const computeForceIndex = (closes: number[], period = 13): number[] => {
+  const raw = closes.map((c, i) => i === 0 ? 0 : (c - closes[i - 1]) * (1000 + Math.random() * 500));
   return computeEMA(raw, period);
 };
 
@@ -308,12 +308,12 @@ export const computeOsMA = (prices: number[]): number[] => {
   return macdData.histogram;
 };
 
-export const computeVWAP = (highs: number[], lows: number[], closes: number[], volumes?: number[]): number[] => {
+export const computeVWAP = (highs: number[], lows: number[], closes: number[]): number[] => {
   const result: number[] = [];
   let cumTPV = 0, cumVol = 0;
   for (let i = 0; i < closes.length; i++) {
     const tp = (highs[i] + lows[i] + closes[i]) / 3;
-    const vol = volumes?.[i] ?? 1;
+    const vol = 1000 + Math.random() * 500;
     cumTPV += tp * vol;
     cumVol += vol;
     result.push(cumTPV / cumVol);
@@ -357,7 +357,7 @@ export const computeKeltner = (highs: number[], lows: number[], closes: number[]
   };
 };
 
-export const computeCMF = (highs: number[], lows: number[], closes: number[], period = 20, volumes?: number[]): number[] => {
+export const computeCMF = (highs: number[], lows: number[], closes: number[], period = 20): number[] => {
   const result: number[] = [];
   for (let i = 0; i < closes.length; i++) {
     if (i < period - 1) { result.push(NaN); continue; }
@@ -365,7 +365,7 @@ export const computeCMF = (highs: number[], lows: number[], closes: number[], pe
     for (let j = i - period + 1; j <= i; j++) {
       const hl = highs[j] - lows[j];
       const mfm = hl === 0 ? 0 : ((closes[j] - lows[j]) - (highs[j] - closes[j])) / hl;
-      const vol = volumes?.[j] ?? 1;
+      const vol = 1000 + Math.random() * 500;
       sumMFV += mfm * vol;
       sumVol += vol;
     }
@@ -374,13 +374,13 @@ export const computeCMF = (highs: number[], lows: number[], closes: number[], pe
   return result;
 };
 
-export const computeADLine = (highs: number[], lows: number[], closes: number[], volumes?: number[]): number[] => {
+export const computeADLine = (highs: number[], lows: number[], closes: number[]): number[] => {
   const result: number[] = [];
   let ad = 0;
   for (let i = 0; i < closes.length; i++) {
     const hl = highs[i] - lows[i];
     const mfm = hl === 0 ? 0 : ((closes[i] - lows[i]) - (highs[i] - closes[i])) / hl;
-    const vol = volumes?.[i] ?? 1;
+    const vol = 1000 + Math.random() * 500;
     ad += mfm * vol;
     result.push(ad);
   }

@@ -1,51 +1,107 @@
-## What's actually happening (verified this turn)
 
-I hit every upstream directly. Here's the ground truth:
 
-| Source | Status | Sample |
-|---|---|---|
-| gold-api.com (XAU) | ✅ LIVE | $4,053.70, updated seconds ago |
-| `fetch-metal-prices` edge fn | ✅ LIVE | gold/silver/platinum returning fresh |
-| `fetch-binance-market` edge fn | ⚠️ Returns data, but **stale** ($64k BTC in 2026 = mirror lag) |
-| Binance direct WebSocket (browser) | ❌ Failing — `[WS] Reconnecting attempt 5/10` in your console. Sandbox/preview network is geoblocked from `stream.binance.com`. |
-| U.S. Treasury FiscalData API | ❌ **Never actually integrated.** Only appears in marketing slides (`PartnersAndTractionSlide.tsx`) and category labels. No edge function, no hook, no adapter. |
-| FRED / Stooq (`stream-fred`) | ✅ Deployed |
-| Yahoo (`stream-yahoo`) | ✅ Deployed |
+## Plan: Cesium Globe — Geospatial Energy & Asset Intelligence
 
-So three separate problems are stacked into one complaint:
-1. **Treasury data was promised in a slide but never coded.**
-2. **Crypto WebSocket is failing in the browser** → prices only refresh via the 1.5s REST poll, and even that poll is hitting a stale Binance mirror.
-3. **Metals ARE live** — but if the UI shows the same number for 30s, it's because gold-api itself only ticks every few seconds and the WS badge/status may look "disconnected".
+### Overview
+Create a new `/globe` page with a full-screen Cesium 3D Earth (realistic Bing Maps tiles via Cesium Ion) that plots all tradeable assets, chokepoints, producers, and energy infrastructure at their real-world coordinates. Clicking a pin opens a Gold Arrow-styled info panel with live price signals, description cards, risk indices, and news feeds — reusing existing OG and GA widgets.
 
-## Plan
+### Dependencies
+- `cesium` + `resium` (React wrapper for CesiumJS)
+- Cesium Ion access token stored as a runtime secret (`CESIUM_ION_TOKEN`) — will prompt you to enter it
 
-### 1. Build the missing Treasury integration (real, not marketing)
-- New edge function `stream-treasury` calling U.S. Treasury FiscalData API (no key required):
-  - `/v2/accounting/od/avg_interest_rates` — live avg interest on all marketable Treasuries
-  - `/v2/accounting/od/debt_to_penny` — daily total public debt
-  - `/v1/accounting/od/rates_of_exchange` — official FX rates
-- New hook `useTreasuryData.ts` polling every 60s (Treasury updates daily, no need faster).
-- Surface in Eagle View "Decision Intelligence" deck as a **Macro / Sovereign** pillar (10Y avg yield, debt trend), and expose to GADS scoring for bonds/metals correlation.
+### New Files
 
-### 2. Fix crypto so it's genuinely live
-- Replace failing browser-direct Binance WS with a **server-side WebSocket relay** — new edge function `stream-crypto-ws` that opens the Binance combined stream from Deno and re-broadcasts via Supabase Realtime channel `market:crypto`.
-- Client subscribes to that channel via `realtimeBridge.ts` (already wired for `market_ticks`). No more geoblock, sub-second ticks.
-- Fallback chain in `fetch-binance-market`: add Coinbase (`api.exchange.coinbase.com/products/BTC-USD/ticker`) and Kraken (`api.kraken.com/0/public/Ticker`) BEFORE the Binance mirrors. These aren't geoblocked and are real-time. Fixes the stale $64k BTC.
+**1. `src/pages/Globe.tsx`** — Main page component
+- Full-viewport Cesium `Viewer` with no header/footer (immersive mode)
+- Floating Gold Arrow logo top-left, nav button to return home
+- Dark theme matching navy/gold palette (custom Cesium CSS overrides)
+- Camera starts with a slow globe spin, stops on interaction
 
-### 3. Prove metals are live in the UI
-- Add a visible "last tick" timestamp + pulsing dot on the price row (like the FeedStatusBadge) so you can see gold-api refreshing every 2s instead of guessing.
-- Bump gold-api poll from 2s → 1s and add ETag caching in `fetch-metal-prices` so we don't waste calls when the value hasn't changed.
+**2. `src/components/globe/GlobeViewer.tsx`** — Cesium viewer setup
+- Cesium Ion token loaded from env (`VITE_CESIUM_ION_TOKEN`)
+- Bing Maps Aerial imagery for realistic tiles
+- Cesium terrain for 3D elevation
+- Custom dark atmosphere/sky styling
+- Disable default Cesium UI (timeline, animation, credits minimal)
 
-### 4. One consolidated `FeedStatus` panel
-- Extend the badge in `TradingBridge` header to list each source with green/amber/red + last-tick age: Binance WS, Coinbase relay, gold-api, Yahoo, FRED, **Treasury (new)**. So when something silently fails you see it immediately instead of assuming everything is broken.
+**3. `src/components/globe/GlobeMarkers.tsx`** — Entity layer
+- Plots all geolocated data as Cesium `Entity` billboards/points:
+  - **Chokepoints** (8 locations from `OGChokepoints.tsx` data — Hormuz, Suez, Malacca, Bab el-Mandeb, Cape, Panama, Turkish Straits, Danish Straits)
+  - **Top Producers** (10 countries with HQ coordinates — US, Saudi, Russia, Canada, Iraq, China, UAE, Brazil, Kuwait, Norway)
+  - **Venezuela** special marker with full indicator panel
+  - **Major exchanges / asset HQs** (COMEX NY, LME London, Binance global, CME Chicago, ICE Atlanta)
+- Color-coded pins by category (red=critical chokepoints, orange=elevated, green=low risk, blue=producers, gold=exchanges)
+- Risk-level pulsing animation on chokepoint markers
 
-## Technical notes
+**4. `src/components/globe/GlobeInfoPanel.tsx`** — Slide-in detail panel
+- Right-side panel (400px) that opens when a marker is clicked
+- Renders contextual content based on marker type:
+  - **Chokepoint**: Risk score gauge, throughput chart, vessel count, insurance premium, closure probability, military presence, key commodities, weekly throughput sparkline, incident notes — all data from existing `CHOKEPOINTS` array
+  - **Producer**: Country flag, production (mbpd), YoY change, bar chart, percentage of global supply
+  - **Venezuela**: Full 8-indicator dashboard (production, exports, revenue, refining, heavy crude price, Chevron JV, dark fleet, sanctions) — reuses data from `OGChokepoints.tsx`
+  - **Exchange/Asset HQ**: Live price card (reuses `OGPriceCards` data), sparkline, change %
+- Gold Arrow styling (navy background, gold accents, Greek key borders)
 
-- Treasury FiscalData is fully free, no auth, CORS-open — but we still route through an edge fn for caching + normalization.
-- Coinbase & Kraken public REST endpoints are CORS-open, so the fallback can even run client-side if the edge relay is down.
-- Server-side WS relay uses `Deno.upgradeWebSocket` on the edge fn and a single upstream connection fan-out; Supabase Realtime handles delivery to all browser clients.
-- No schema changes required — `market_ticks` table already exists and is used by `realtimeBridge`.
+**5. `src/components/globe/GlobeLegend.tsx`** — Floating legend overlay
+- Bottom-left legend showing marker color meanings
+- Category filter toggles (Chokepoints / Producers / Exchanges / Venezuela)
 
-## Files to touch
-- **New**: `supabase/functions/stream-treasury/index.ts`, `supabase/functions/stream-crypto-ws/index.ts`, `src/hooks/useTreasuryData.ts`, `src/lib/feeds/sources/treasury.ts`, `src/lib/feeds/sources/coinbaseRelay.ts`
-- **Edit**: `supabase/functions/fetch-binance-market/index.ts` (Coinbase/Kraken fallback), `src/hooks/useWebSocketPrices.ts` (route via Realtime relay), `src/hooks/useMetalPrices.ts` (1s poll), `src/components/trading/FeedStatusBadge.tsx` (expand), `src/pages/EagleView.tsx` (Treasury pillar)
+**6. `src/components/globe/GlobeNewsTicker.tsx`** — Bottom news bar
+- Horizontal scrolling energy news ticker (reuses `OGNewsFeed` data)
+- Semi-transparent navy bar at bottom of globe
+
+**7. `src/data/globeLocations.ts`** — Centralized coordinate registry
+- All marker coordinates, metadata, and category assignments
+- Links to existing data hooks (`useOilGasPrices`, chokepoint data, production data)
+
+### Data Sources (all existing)
+- Chokepoints: `OGChokepoints.tsx` CHOKEPOINTS array (8 locations with lat/lng)
+- Venezuela: `OGChokepoints.tsx` VENEZUELA_INDICATORS array
+- Producers: `OGProductionMap.tsx` production data (will add lat/lng coordinates)
+- Live prices: `useOilGasPrices()` hook
+- News: `OGNewsFeed` component data
+
+### Route
+- Add `/globe` route in `App.tsx`
+- Add "Globe" nav link in `Header.tsx` with a `Globe` lucide icon
+
+### Technical Details
+
+```text
+┌─────────────────────────────────────────────────┐
+│  [GA Logo]  GOLD ARROW GLOBE    [Home] [Filter] │
+│                                                  │
+│         ┌──────────────────────┐                 │
+│         │                      │  ┌────────────┐ │
+│         │    CESIUM 3D EARTH   │  │ INFO PANEL │ │
+│         │                      │  │            │ │
+│         │  🔴 Hormuz           │  │ Risk: 68   │ │
+│         │  🟡 Suez             │  │ Flow: 20.5 │ │
+│         │  🔵 Saudi Arabia     │  │ Vessels:42 │ │
+│         │  ⭐ COMEX            │  │ [Charts]   │ │
+│         │                      │  │            │ │
+│         └──────────────────────┘  └────────────┘ │
+│  [Legend: ● Chokepoint ● Producer ● Exchange]    │
+│  ═══ ENERGY NEWS TICKER ════════════════════════ │
+└─────────────────────────────────────────────────┘
+```
+
+- Cesium Ion token: stored via `add_secret` tool, exposed as `VITE_CESIUM_ION_TOKEN` for client-side use (publishable key pattern)
+- Resium provides React components: `<Viewer>`, `<Entity>`, `<BillboardGraphics>`, `<PointGraphics>`
+- Camera fly-to animation when clicking markers
+- All data is client-side (no new edge functions needed)
+
+### Files Modified
+- `src/App.tsx` — add `/globe` route
+- `src/components/Header.tsx` — add Globe nav link
+- `package.json` — add `cesium`, `resium` dependencies
+
+### Files Created
+- `src/pages/Globe.tsx`
+- `src/components/globe/GlobeViewer.tsx`
+- `src/components/globe/GlobeMarkers.tsx`
+- `src/components/globe/GlobeInfoPanel.tsx`
+- `src/components/globe/GlobeLegend.tsx`
+- `src/components/globe/GlobeNewsTicker.tsx`
+- `src/data/globeLocations.ts`
+

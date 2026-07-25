@@ -1,6 +1,5 @@
-import { Maximize, Grid3X3, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
+import { Maximize, Grid3X3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
 
 interface DeckToolbarProps {
   current: number;
@@ -34,9 +33,6 @@ const DeckToolbar = ({ current, total, onPrev, onNext, onPresent, showGrid, onTo
       </Button>
       <Button variant="ghost" size="sm" onClick={onPresent} className="gap-1.5 text-primary">
         <Maximize className="h-3.5 w-3.5" /> Present
-      </Button>
-      <Button asChild variant="outline" size="sm" className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10">
-        <Link to="/deck-editor"><Pencil className="h-3.5 w-3.5" /> Edit Deck</Link>
       </Button>
     </div>
   </div>

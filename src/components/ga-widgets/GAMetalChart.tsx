@@ -1,4 +1,5 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3, MoreHorizontal } from 'lucide-react';
@@ -19,15 +20,40 @@ type Timeframe = typeof timeframes[number];
 interface TFConfig {
   points: number;
   intervalMs: number;
+  noiseScale: number;
   labelFn: (d: Date) => string;
 }
 
 const tfConfigs: Record<Exclude<Timeframe, 'RT'>, TFConfig> = {
-  '1H': { points: 12, intervalMs: 5 * 60 * 1000, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '4H': { points: 48, intervalMs: 5 * 60 * 1000, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '1D': { points: 96, intervalMs: 15 * 60 * 1000, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  '1W': { points: 84, intervalMs: 2 * 60 * 60 * 1000, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
-  '1M': { points: 120, intervalMs: 6 * 60 * 60 * 1000, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+  '1H': { points: 12, intervalMs: 5 * 60 * 1000, noiseScale: 0.001, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '4H': { points: 48, intervalMs: 5 * 60 * 1000, noiseScale: 0.002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1D': { points: 96, intervalMs: 15 * 60 * 1000, noiseScale: 0.003, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  '1W': { points: 84, intervalMs: 2 * 60 * 60 * 1000, noiseScale: 0.008, labelFn: (d) => d.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit' }) },
+  '1M': { points: 120, intervalMs: 6 * 60 * 60 * 1000, noiseScale: 0.015, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+};
+
+const generateChartData = (price: number, change: number, tf: Exclude<Timeframe, 'RT'>) => {
+  const cfg = tfConfigs[tf];
+  const data = [];
+  const startPrice = price / (1 + change / 100);
+  const now = Date.now();
+
+  for (let i = 0; i < cfg.points; i++) {
+    const progress = i / (cfg.points - 1);
+    const trend = startPrice + (price - startPrice) * progress;
+    const noise = Math.sin(i * 2.3 + progress * 5) * price * cfg.noiseScale + Math.cos(i * 1.1) * price * cfg.noiseScale * 0.7;
+    const volatility = Math.sin(i * 0.5 + progress * 3) * price * cfg.noiseScale * 0.5;
+    const value = trend + noise + volatility;
+    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+
+    data.push({
+      time: cfg.labelFn(time),
+      value: parseFloat(value.toFixed(2)),
+      high: parseFloat((value + Math.abs(noise) * 0.5).toFixed(2)),
+      low: parseFloat((value - Math.abs(noise) * 0.5).toFixed(2)),
+    });
+  }
+  return data;
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -62,6 +88,7 @@ interface RTCandle {
 const useRealtimeCandles = (basePrice: number, metal: MetalKey, active: boolean) => {
   const [candles, setCandles] = useState<RTCandle[]>([]);
   const candleRef = useRef<RTCandle | null>(null);
+  const { price: livePrice } = useSimulatedStream(basePrice, 0, metal);
 
   // Reset candles when metal changes
   useEffect(() => {
@@ -73,7 +100,9 @@ const useRealtimeCandles = (basePrice: number, metal: MetalKey, active: boolean)
     if (!active || basePrice === 0) return;
 
     const tick = () => {
-      const price = basePrice;
+      const now = new Date();
+      const timeLabel = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const price = livePrice || basePrice;
 
       setCandles(prev => {
         const updated = [...prev];
@@ -96,7 +125,7 @@ const useRealtimeCandles = (basePrice: number, metal: MetalKey, active: boolean)
     const candleTimer = setInterval(() => {
       const now = new Date();
       const timeLabel = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const price = basePrice;
+      const price = livePrice || basePrice;
       const newCandle: RTCandle = { time: timeLabel, value: price, high: price, low: price };
       candleRef.current = newCandle;
       setCandles(prev => [...prev.slice(-MAX_RT_CANDLES + 1), newCandle]);
@@ -120,7 +149,7 @@ const useRealtimeCandles = (basePrice: number, metal: MetalKey, active: boolean)
       clearInterval(candleTimer);
       clearInterval(tickTimer);
     };
-  }, [active, basePrice, metal]);
+  }, [active, basePrice, metal, livePrice]);
 
   return candles;
 };
@@ -139,13 +168,14 @@ const GAMetalChart = () => {
   const config = metalConfig[activeMetal];
 
   const isRT = activeTimeframe === 'RT';
-  const displayPrice = basePrice;
+  const { price: livePrice } = useSimulatedStream(basePrice, change, activeMetal);
+  const displayPrice = isRT ? livePrice : basePrice;
 
-  const rtCandles = useRealtimeCandles(basePrice, activeMetal, true);
+  const rtCandles = useRealtimeCandles(basePrice, activeMetal, isRT);
 
   const chartData = useMemo(
-    () => rtCandles.slice(-((activeTimeframe === 'RT' ? MAX_RT_CANDLES : tfConfigs[activeTimeframe as Exclude<Timeframe, 'RT'>].points))),
-    [rtCandles, activeTimeframe]
+    () => isRT ? rtCandles : generateChartData(basePrice, change, activeTimeframe as Exclude<Timeframe, 'RT'>),
+    [isRT, rtCandles, basePrice, change, activeTimeframe]
   );
 
   return (

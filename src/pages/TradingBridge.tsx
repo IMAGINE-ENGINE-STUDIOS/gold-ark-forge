@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain, Tag, Workflow } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, ChevronRight, Calculator, AlertTriangle, TrendingUp, TrendingDown, Percent, DollarSign, PieChart, Clock, Copy, Share2, Star, Award, Flame, LineChart as LineChartIcon, ArrowUpDown, Menu, X, FlaskConical, Layers, Search, CalendarDays, Bell, RotateCcw, ChevronDown, Zap, BookOpen, Brain, Tag } from 'lucide-react';
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import GALiveChart from '@/components/trading/TVLiteChart';
+import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
 import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GALivePriceNotice from '@/components/ga-widgets/GALivePriceNotice';
@@ -16,6 +16,7 @@ import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
+import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
 import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
@@ -40,7 +41,6 @@ import WaveBotPanel from '@/components/trading/WaveBotPanel';
 import GeniusPanel from '@/components/trading/GeniusPanel';
 import { useWaveBot } from '@/hooks/useWaveBot';
 import { useGeniusTrader } from '@/hooks/useGeniusTrader';
-import AutomationEngine from '@/components/trading/automation/AutomationEngine';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
@@ -50,8 +50,7 @@ import RuleBuilder from '@/components/trading/RuleBuilder';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
-import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
-import { SymbolRanker } from '@/components/trading/SymbolRanker';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import SymbolLogo from '@/components/trading/SymbolLogo';
 import { useBrokerConnections, usePositions, useOrders, useAlpacaAccount } from '@/hooks/useBrokerTrading';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
@@ -60,7 +59,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { useLiveMarketData } from '@/hooks/useLiveMarketData';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { usePaperTrading, type PaperPosition } from '@/hooks/usePaperTrading';
@@ -76,18 +74,11 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Tooltip as RadixTooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import RiskThermometer from '@/components/trading/RiskThermometer';
 import { showTradeRecap } from '@/components/trading/TradeRecapToast';
+import FirstTradeGuide from '@/components/trading/FirstTradeGuide';
 import DrawdownChart from '@/components/trading/DrawdownChart';
 import SessionBreakdown from '@/components/trading/SessionBreakdown';
 import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
-import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
-import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
-import { SymbolFeedStatusPanel } from '@/components/feeds/SymbolFeedStatusPanel';
-import { Radio } from 'lucide-react';
-import { bootstrapFeeds } from '@/hooks/useMarketFeed';
-import { BINANCE_STREAMS } from '@/hooks/useWebSocketPrices';
-import type { AssetClass } from '@/lib/feeds/types';
-import { canonicalFeedSymbol, tradingViewSymbolsFor } from '@/lib/feeds/tradingViewSymbols';
 
 // ─── Collapsible Section Component ───────────────────────
 function CollapsibleSection({ 
@@ -150,80 +141,11 @@ const BOTTOM_TABS = [
   { key: 'risk', label: 'RISK', icon: Shield },
   { key: 'strategies', label: 'STRATEGIES', icon: Bot },
   { key: 'social', label: 'SOCIAL', icon: Users },
-  // ─── Automation Engine sub-tabs (three-pillar rebuild) ───
-  { key: 'bots',      label: 'BOTS',      icon: Bot },
-  { key: 'agents',    label: 'AGENTS',    icon: Brain },
-  { key: 'pipelines', label: 'PIPELINES', icon: Workflow },
 ] as const;
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 
-// ─── Bottom Tab Categories (workflow grouping) ───────────
-const BOTTOM_CATEGORIES = [
-  { key: 'execute',    label: 'EXECUTE',    icon: ArrowUpDown, tabs: ['trade', 'book'] as BottomTab[] },
-  { key: 'automation', label: 'AUTOMATION', icon: Bot,         tabs: ['bots', 'agents', 'pipelines'] as BottomTab[] },
-  { key: 'research',   label: 'RESEARCH',   icon: Layers,      tabs: ['market', 'analytics', 'backtest'] as BottomTab[] },
-  { key: 'risk',       label: 'RISK',       icon: Shield,      tabs: ['risk'] as BottomTab[] },
-  { key: 'community',  label: 'COMMUNITY',  icon: Users,       tabs: ['social'] as BottomTab[] },
-] as const;
-
-type BottomCategory = (typeof BOTTOM_CATEGORIES)[number]['key'];
-
-const TAB_META: Record<BottomTab, { label: string; icon: React.ElementType }> =
-  BOTTOM_TABS.reduce((acc, t) => { acc[t.key] = { label: t.label, icon: t.icon }; return acc; }, {} as any);
-
-const TAB_TO_CATEGORY: Record<BottomTab, BottomCategory> =
-  BOTTOM_CATEGORIES.reduce((acc, cat) => {
-    cat.tabs.forEach(t => { acc[t] = cat.key; });
-    return acc;
-  }, {} as Record<BottomTab, BottomCategory>);
-
-const ACTIVE_YAHOO_SYMBOL: Record<string, string> = {
-  oil: 'CL=F', brent: 'BZ=F', natgas: 'NG=F', rbob: 'RB=F', heating_oil: 'HO=F',
-};
-
-const yahooFxTicker = (ticker: string): string | null => {
-  const [base, quote] = ticker.toUpperCase().split('/');
-  if (!base || !quote) return null;
-  return base === 'USD' ? `${quote}=X` : `${base}${quote}=X`;
-};
-
-const cryptoBaseFor = (sym: { key: string; label: string; ticker: string }) => {
-  const stream = BINANCE_STREAMS[sym.key];
-  if (stream?.endsWith('usdt')) return stream.slice(0, -4).toUpperCase();
-  const fromLabel = sym.label.split('/')[0]?.toUpperCase();
-  if (fromLabel && /^[A-Z0-9]{2,12}$/.test(fromLabel)) return fromLabel;
-  return sym.ticker.split('-')[0]?.toUpperCase() ?? null;
-};
-
-const yahooSymbolFor = (sym: { key: string; cat: string; ticker: string }) => {
-  if (sym.cat === 'energy') return ACTIVE_YAHOO_SYMBOL[sym.key] ?? sym.ticker;
-  if (sym.cat === 'forex') return yahooFxTicker(sym.ticker);
-  if (sym.cat === 'stocks' || sym.cat === 'etfs' || sym.cat === 'bonds' || sym.cat === 'reits') return sym.ticker;
-  return null;
-};
-
-const assetClassFor = (sym: { cat: string }): AssetClass => {
-  if (sym.cat === 'crypto') return 'crypto';
-  if (sym.cat === 'metals') return 'metals';
-  if (sym.cat === 'energy') return 'energy';
-  if (sym.cat === 'fx' || sym.cat === 'forex') return 'fx';
-  if (sym.cat === 'bonds') return 'bond';
-  return 'stocks';
-};
-
 // ─── Paper Trading Panel ─────────────────────────────────
-const finiteMarketNumber = (value: unknown, fallback = 0) => {
-  if (value === null || value === undefined || value === '') return fallback;
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : fallback;
-};
-
-const fixedMarketNumber = (value: unknown, digits = 2, fallback = '—') => {
-  const n = finiteMarketNumber(value, NaN);
-  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
-};
-
 function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   activeSymbol: { key: string; label: string; ticker: string; cat: string };
   activePrice: number;
@@ -239,12 +161,11 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   const { toast } = useToast();
 
   const parsedQty = parseFloat(qty) || 0;
-  const safeActivePrice = finiteMarketNumber(activePrice, 0);
-  const fillPrice = orderType === 'market' ? safeActivePrice : (parseFloat(limitPrice) || safeActivePrice);
+  const fillPrice = orderType === 'market' ? activePrice : (parseFloat(limitPrice) || activePrice);
   const totalCost = parsedQty * fillPrice;
   const portfolioPct = paper.account.equity > 0 ? (totalCost / paper.account.equity) * 100 : 0;
   const remainingCash = side === 'buy' ? paper.account.cash - totalCost : paper.account.cash + totalCost;
-  const spread = safeActivePrice * 0.0002;
+  const spread = activePrice * 0.0002;
 
   // Find owned position for the active symbol
   const ownedPosition = paper.positions.find(
@@ -253,7 +174,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
   const ownedQty = ownedPosition?.qty ?? 0;
 
   const setQtyPercent = (pct: number) => {
-    if (safeActivePrice <= 0) return;
+    if (activePrice <= 0) return;
     if (side === 'sell') {
       // For sells, percentage of owned position qty
       if (ownedQty <= 0) return;
@@ -261,7 +182,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
       setQty(sellQty < 1 ? sellQty.toFixed(4) : Math.floor(sellQty).toString());
     } else {
       // For buys, percentage of available cash
-      const maxQty = (paper.account.cash * pct) / safeActivePrice;
+      const maxQty = (paper.account.cash * pct) / activePrice;
       setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
     }
   };
@@ -273,10 +194,10 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         side,
         qty: parseFloat(qty),
         type: orderType === 'stop_limit' ? 'limit' : (orderType === 'stop' ? 'stop' : orderType),
-        price: safeActivePrice,
+        price: activePrice,
         limitPrice: orderType === 'limit' || orderType === 'stop_limit' ? parseFloat(limitPrice) : undefined,
       });
-      showTradeRecap({ side, qty: parseFloat(qty), symbol: activeSymbol.ticker, price: safeActivePrice });
+      showTradeRecap({ side, qty: parseFloat(qty), symbol: activeSymbol.ticker, price: activePrice });
       setQty('');
     } catch (err) {
       toast({ title: 'Order Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
@@ -285,7 +206,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!qty || !safeActivePrice) return;
+    if (!qty || !activePrice) return;
     setConfirmData({
       symbol: activeSymbol.ticker,
       symbolKey: activeSymbol.key,
@@ -309,27 +230,45 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
 
   return (
     <div className="space-y-3">
+      {/* Paper Account Summary */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+          <div className="text-[7px] text-marble/30 font-display tracking-wider">EQUITY</div>
+          <div className="text-xs font-mono text-marble">${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+        </div>
+        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+          <div className="text-[7px] text-marble/30 font-display tracking-wider">CASH</div>
+          <div className="text-xs font-mono text-marble">${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+        </div>
+        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
+          <div className="text-[7px] text-marble/30 font-display tracking-wider">P&L</div>
+          <div className={`text-xs font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {paper.account.totalPnl >= 0 ? '+' : ''}${paper.account.totalPnl.toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      {/* Bid/Ask Spread Indicator */}
+      {activePrice > 0 && (
+        <div className="flex items-center justify-between bg-navy-light/20 rounded px-2 py-1 border border-gold/5">
+          <span className="text-[8px] font-mono text-emerald-400/70">BID: ${(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[7px] font-mono text-marble/20">SPREAD: ${spread.toFixed(activePrice < 10 ? 4 : 2)}</span>
+          <span className="text-[8px] font-mono text-red-400/70">ASK: ${(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
+        </div>
+      )}
+
       {/* Order Form */}
       <form onSubmit={handleSubmit} className="space-y-2">
-        {/* Side Selector — glassmorphic segmented control with LED glow */}
-        <div className="relative grid grid-cols-2 rounded-xl bg-navy-dark/60 backdrop-blur-xl border border-gold/10 p-1 overflow-hidden shadow-[inset_0_1px_0_hsl(var(--gold)/0.08)]">
-          <span
-            aria-hidden
-            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-all duration-300 ease-out ${
-              side === 'buy'
-                ? 'left-1 bg-gradient-to-b from-emerald-400/25 to-emerald-600/15 border border-emerald-400/40 shadow-[0_0_20px_hsl(152_82%_50%/0.35),inset_0_1px_0_hsl(152_82%_70%/0.3)]'
-                : 'left-[calc(50%+0px)] bg-gradient-to-b from-red-400/25 to-red-600/15 border border-red-400/40 shadow-[0_0_20px_hsl(0_82%_55%/0.35),inset_0_1px_0_hsl(0_82%_70%/0.3)]'
-            }`}
-          />
+        <div className="flex gap-2">
           <button type="button" onClick={() => setSide('buy')}
-            className={`relative z-10 py-2 rounded-lg font-display text-xs tracking-[0.15em] transition-colors flex items-center justify-center gap-1.5 ${
-              side === 'buy' ? 'text-emerald-200' : 'text-marble/40 hover:text-marble/70'
+            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
+              side === 'buy' ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
             }`}>
             <TrendingUp className="w-3 h-3" /> BUY
           </button>
           <button type="button" onClick={() => setSide('sell')}
-            className={`relative z-10 py-2 rounded-lg font-display text-xs tracking-[0.15em] transition-colors flex items-center justify-center gap-1.5 ${
-              side === 'sell' ? 'text-red-200' : 'text-marble/40 hover:text-marble/70'
+            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
+              side === 'sell' ? 'bg-red-500/20 border border-red-500/50 text-red-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
             }`}>
             <TrendingDown className="w-3 h-3" /> SELL
           </button>
@@ -367,9 +306,9 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
             <Input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="Limit Price" step="0.01"
               className="bg-navy-light border-gold/20 text-marble font-mono text-sm pr-14" required />
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
-              <button type="button" onClick={() => setLimitPrice(p => fixedMarketNumber((parseFloat(p || String(safeActivePrice)) - (safeActivePrice < 10 ? 0.01 : 1)), safeActivePrice < 10 ? 4 : 2, '0'))}
+              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) - (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
                 className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">−</button>
-              <button type="button" onClick={() => setLimitPrice(p => fixedMarketNumber((parseFloat(p || String(safeActivePrice)) + (safeActivePrice < 10 ? 0.01 : 1)), safeActivePrice < 10 ? 4 : 2, '0'))}
+              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) + (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
                 className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">+</button>
             </div>
           </div>
@@ -380,10 +319,10 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         )}
 
         {/* Order Cost Breakdown */}
-        {parsedQty > 0 && safeActivePrice > 0 && (
+        {parsedQty > 0 && activePrice > 0 && (
           <div className="bg-navy-dark/50 rounded-lg p-2 space-y-1 border border-gold/5">
             <div className="flex justify-between text-[9px] font-mono">
-              <span className="text-marble/40">{parsedQty} × ${fillPrice < 10 ? fixedMarketNumber(fillPrice, 4) : fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="text-marble/40">{parsedQty} × ${fillPrice < 10 ? fillPrice.toFixed(4) : fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               <span className="text-marble font-semibold">${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between text-[8px] font-mono">
@@ -401,26 +340,10 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={!qty || (side === 'buy' && totalCost > paper.account.cash) || (side === 'sell' && (ownedQty <= 0 || parsedQty > ownedQty))}
-          className={`group relative w-full h-11 rounded-xl overflow-hidden font-display text-sm tracking-[0.18em] text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:saturate-50 border ${
-            side === 'buy'
-              ? 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700 border-emerald-300/60 shadow-[0_8px_24px_-6px_hsl(152_82%_45%/0.55),inset_0_1px_0_hsl(152_82%_80%/0.5)] hover:shadow-[0_10px_30px_-4px_hsl(152_82%_50%/0.7),inset_0_1px_0_hsl(152_82%_85%/0.6)]'
-              : 'bg-gradient-to-b from-red-400 via-red-500 to-red-700 border-red-300/60 shadow-[0_8px_24px_-6px_hsl(0_82%_50%/0.55),inset_0_1px_0_hsl(0_82%_80%/0.5)] hover:shadow-[0_10px_30px_-4px_hsl(0_82%_55%/0.7),inset_0_1px_0_hsl(0_82%_85%/0.6)]'
-          }`}
-        >
-          <span aria-hidden className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent pointer-events-none" />
-          <span aria-hidden className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_50%_120%,hsl(var(--marble)/0.4),transparent_60%)] pointer-events-none`} />
-          <span className="relative flex items-center justify-center gap-2">
-            {side === 'buy' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            {side === 'sell' && ownedQty <= 0
-              ? `NO ${activeSymbol.ticker} TO SELL`
-              : side === 'sell' && parsedQty > ownedQty
-              ? `MAX ${ownedQty} OWNED`
-              : `${side.toUpperCase()} ${activeSymbol.ticker}${parsedQty > 0 ? ` · $${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}`}
-          </span>
-        </button>
+        <Button type="submit" disabled={!qty || (side === 'buy' && totalCost > paper.account.cash) || (side === 'sell' && (ownedQty <= 0 || parsedQty > ownedQty))}
+          className={`w-full font-display tracking-wider ${side === 'buy' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
+          {side === 'sell' && ownedQty <= 0 ? `NO ${activeSymbol.ticker} TO SELL` : side === 'sell' && parsedQty > ownedQty ? `MAX ${ownedQty} OWNED` : `${side.toUpperCase()} ${parsedQty > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : activeSymbol.ticker}`}
+        </Button>
       </form>
 
       {/* Paper Positions */}
@@ -428,32 +351,25 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
         <div className="space-y-1">
           <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
           {paper.positions.map(pos => {
-            const rawLive = (pos.symbol === activeSymbol.ticker && activePrice > 0
-              ? safeActivePrice
-              : pos.currentPrice);
-            const livePrice = Number.isFinite(rawLive as number) && (rawLive as number) > 0
-              ? (rawLive as number)
-              : finiteMarketNumber(pos.entryPrice, 0);
-            const entryPrice = finiteMarketNumber(pos.entryPrice, 0);
-            const qtyValue = finiteMarketNumber(pos.qty, 0);
+            const livePrice = pos.symbol === activeSymbol.ticker && activePrice > 0 ? activePrice : pos.currentPrice;
             const livePnl = pos.side === 'buy'
-              ? (livePrice - entryPrice) * qtyValue
-              : (entryPrice - livePrice) * qtyValue;
-            const livePnlPct = entryPrice > 0 && qtyValue > 0 ? (livePnl / (entryPrice * qtyValue)) * 100 : 0;
+              ? (livePrice - pos.entryPrice) * pos.qty
+              : (pos.entryPrice - livePrice) * pos.qty;
+            const livePnlPct = pos.entryPrice > 0 ? (livePnl / (pos.entryPrice * pos.qty)) * 100 : 0;
             const isProfit = livePnl >= 0;
             return (
               <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
                 <div>
                   <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
-                  <div className="text-[8px] text-marble/25">{qtyValue} @ ${fixedMarketNumber(entryPrice, 2)}</div>
+                  <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</div>
                 </div>
                 <div className="text-right flex items-center gap-2">
                   <div>
                     <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                      ${livePrice < 10 ? fixedMarketNumber(livePrice, 4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${livePrice < 10 ? livePrice.toFixed(4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div className={`text-[9px] font-mono ${livePnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {livePnl >= 0 ? '+' : ''}${fixedMarketNumber(livePnl, 2)} ({fixedMarketNumber(livePnlPct, 1)}%)
+                      {livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)} ({livePnlPct.toFixed(1)}%)
                     </div>
                   </div>
                   <button onClick={() => paper.closePosition(pos.id, livePrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
@@ -472,7 +388,7 @@ function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
             <div key={o.id} className="flex items-center justify-between px-2 py-1 text-[9px] font-mono text-marble/30 border-b border-gold/5">
               <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
               <span>{o.qty} {o.symbol}</span>
-              <span>${fixedMarketNumber(o.price, 2)}</span>
+              <span>${o.price.toFixed(2)}</span>
             </div>
           ))}
         </div>
@@ -518,21 +434,60 @@ function TradeTabContent({
   activeCandles?: { closes: number[]; highs: number[]; lows: number[] } | null;
 }) {
   return (
-    <TradeCommandDeck
-      tradingMode={tradingMode}
-      activeSymbol={activeSymbol}
-      activePrice={activePrice}
-      paper={paper}
-      activeConn={activeConn}
-      activeCandles={activeCandles}
-      orderTicket={
-        tradingMode === 'paper' ? (
-          <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-        ) : (
-          <TradingPanel activeSymbol={activeSymbol.ticker} />
-        )
-      }
-    />
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {/* Column 1: Order Execution */}
+      <div className="space-y-3">
+        <CollapsibleSection 
+          title="ORDER TICKET" 
+          icon={ArrowUpDown} 
+          badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} 
+          defaultOpen
+        >
+          {tradingMode === 'paper' ? (
+            <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
+          ) : (
+            <TradingPanel activeSymbol={activeSymbol.ticker} />
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection title="DEPTH OF MARKET" icon={BarChart3}>
+          <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="TIME & SALES" icon={Clock}>
+          <GATimeSales symbol={activeSymbol.ticker} price={activePrice} />
+        </CollapsibleSection>
+      </div>
+
+      {/* Column 2: Market Context */}
+      <div className="space-y-3">
+        <CollapsibleSection title="MARKET PULSE" icon={Activity} defaultOpen>
+          <div className="space-y-3">
+            <GAPriceCards />
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
+          <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
+        </CollapsibleSection>
+      </div>
+
+      {/* Column 3: Portfolio */}
+      <div className="space-y-3">
+        {tradingMode === 'paper' && (
+          <RiskThermometer positions={paper.positions} equity={paper.account.equity} />
+        )}
+        <CollapsibleSection title="PORTFOLIO" icon={Briefcase} defaultOpen>
+          <PortfolioSummary />
+        </CollapsibleSection>
+
+        {activeConn && (
+          <CollapsibleSection title="POSITIONS" icon={TrendingUp}>
+            <PositionsPanel connectionId={activeConn.id} />
+          </CollapsibleSection>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -694,28 +649,9 @@ const TradingBridge = () => {
     updatePrefs({ last_symbol_key: activeSymbol.key });
   }, [activeSymbol.key]);
   const [bottomTab, setBottomTab] = useState<BottomTab>('trade');
-  const [bottomCategory, setBottomCategory] = useState<BottomCategory>('execute');
-  const [lastTabByCat, setLastTabByCat] = useState<Record<BottomCategory, BottomTab>>({
-    execute: 'trade',
-    automation: 'bots',
-    research: 'market',
-    risk: 'risk',
-    community: 'social',
-  });
-  const selectCategory = (cat: BottomCategory) => {
-    setBottomCategory(cat);
-    setBottomTab(lastTabByCat[cat]);
-  };
-  const selectSubTab = (tab: BottomTab) => {
-    setBottomTab(tab);
-    const cat = TAB_TO_CATEGORY[tab];
-    setBottomCategory(cat);
-    setLastTabByCat(prev => ({ ...prev, [cat]: tab }));
-  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
-  const [feedPanelOpen, setFeedPanelOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSnap, setDrawerSnap] = useState<string | number | null>(0.5);
@@ -728,9 +664,6 @@ const TradingBridge = () => {
   const { data: metalPricesData } = useMetalPrices();
   const { data: cryptoDataAll } = useCryptoData(50);
   const { data: oilPricesData } = useOilGasPrices();
-  // ─── Unified LIVE feed (WebSocket ticks for crypto, real polls for metals/energy) ───
-  // Same source powering Eagle View, Showroom, Intelligence and Oil & Gas widgets.
-  const liveFeed = useLiveMarketData();
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
   const { user } = useAuth();
@@ -747,44 +680,48 @@ const TradingBridge = () => {
   }, [symbolSearch]);
 
   // ─── Unified Price Resolver ──────────────────────────
-  // Single source of truth: delegates to the shared live-market hook so every
-  // widget in EXECUTE/TRADE (Command Deck price, bid/ask, indicators, positions)
-  // ticks from the exact same real-time stream as Eagle View / Showroom.
-  // ── REAL DATA ONLY. No synthetic fallback. If a symbol has no live feed,
-  // the UI shows a clear NO DATA state instead of a fabricated price.
+  // Single source of truth for price resolution across ALL tabs
   const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
-    return liveFeed.resolvePrice(sym);
-  }, [liveFeed]);
+    if (sym.cat === 'metals') {
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
+      const key = metalMap[sym.key];
+      const price = key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
+      if (price > 0) return price;
+    }
+    if (sym.cat === 'crypto') {
+      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
+      if (coin?.current_price) return coin.current_price;
+    }
+    if (sym.cat === 'energy') {
+      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
+      if (feed?.price) return feed.price;
+    }
+    // Fallback: use synthetic prices so bot can always trade
+    const sp = SYNTHETIC_PRICES[sym.key];
+    return sp?.p ?? 0;
+  }, [metalPricesData, cryptoDataAll, oilPricesData]);
 
-  // Resolve current price for active symbol — recomputes on every WS tick
+  // Resolve current price for active symbol
   const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
 
-  // Resolve 24h change % for active symbol from the same live feed
-  const activeChange = useMemo(() => liveFeed.resolveChange(activeSymbol), [activeSymbol, liveFeed]);
-
-  useEffect(() => {
-    bootstrapFeeds();
-  }, []);
-
-  useEffect(() => {
-    if (activeSymbol.cat === 'crypto') {
-      const base = cryptoBaseFor(activeSymbol);
-      if (base) bootstrapFeeds({ crypto: [`${base}/USDT`], cryptoUsd: [`${base}/USD`] });
+  // Resolve change % for active symbol
+  const activeChange = useMemo(() => {
+    const sym = activeSymbol;
+    if (sym.cat === 'metals') {
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
+      const key = metalMap[sym.key];
+      return key ? (metalPricesData?.[key]?.change_24h ?? 0) : 0;
     }
-    const tvSymbols = tradingViewSymbolsFor(activeSymbol);
-    if (tvSymbols.length) {
-      bootstrapFeeds({
-        tradingView: [{
-          symbol: canonicalFeedSymbol(activeSymbol),
-          assetClass: assetClassFor(activeSymbol),
-          tvSymbols,
-        }],
-      });
+    if (sym.cat === 'crypto') {
+      const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
+      return coin?.price_change_percentage_24h ?? 0;
     }
-    const yahoo = yahooSymbolFor(activeSymbol);
-    if (!yahoo) return;
-    bootstrapFeeds({ yahoo: [{ symbol: yahoo, assetClass: assetClassFor(activeSymbol) }] });
-  }, [activeSymbol]);
+    if (sym.cat === 'energy') {
+      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
+      if (feed) return feed.change;
+    }
+    return SYNTHETIC_PRICES[sym.key]?.c ?? 0;
+  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
 
   // Build a price map for all held paper positions and keep them updated
   const resolvePriceForTicker = useCallback((ticker: string): number => {
@@ -827,7 +764,7 @@ const TradingBridge = () => {
   // Accumulate real price ticks for each symbol
   const candleHistoryRef = useRef<Record<string, { timestamps: number[]; prices: number[] }>>({});
 
-  // Bootstrap only from real historical series when available; otherwise wait for live ticks.
+  // Bootstrap candle history from CoinGecko sparklines or synthetic historical data
   const bootstrappedRef = useRef<Set<string>>(new Set());
 
   const seedCandleHistory = useCallback((ticker: string, sym: { key: string; cat: string }) => {
@@ -839,6 +776,45 @@ const TradingBridge = () => {
       candleHistoryRef.current[ticker] = history;
       return;
     }
+
+    // Helper: generate realistic price series with trends, pullbacks, and breakouts
+    const generateRealisticSeries = (basePrice: number, count: number, volatilityPct: number) => {
+      const prices: number[] = [];
+      const timestamps: number[] = [];
+      const now = Date.now();
+      const hourMs = 3600_000;
+      let p = basePrice * (1 - volatilityPct * 2 * (Math.random() - 0.3));
+      
+      // Create 3-4 trend phases to give indicators clear signals
+      const phases = [
+        { len: Math.floor(count * 0.25), drift: volatilityPct * 1.5 },   // uptrend
+        { len: Math.floor(count * 0.15), drift: -volatilityPct * 1.2 },  // pullback
+        { len: Math.floor(count * 0.35), drift: volatilityPct * 1.8 },   // strong uptrend
+        { len: count, drift: -volatilityPct * 0.5 },                      // consolidation/mild pullback
+      ];
+      
+      // Randomize direction for each symbol so not all trend the same way
+      const directionFlip = Math.random() > 0.4 ? 1 : -1;
+      let phaseIdx = 0;
+      let phaseRemaining = phases[0].len;
+      
+      for (let i = 0; i < count; i++) {
+        if (phaseRemaining <= 0 && phaseIdx < phases.length - 1) {
+          phaseIdx++;
+          phaseRemaining = phases[phaseIdx].len;
+        }
+        phaseRemaining--;
+        
+        const phaseDrift = phases[phaseIdx].drift * directionFlip;
+        const noise = (Math.random() - 0.5) * basePrice * volatilityPct * 0.8;
+        const momentum = phaseDrift * basePrice * (0.5 + Math.random() * 0.5);
+        p = p + momentum + noise;
+        p = Math.max(basePrice * 0.85, Math.min(basePrice * 1.15, p));
+        prices.push(parseFloat(p.toFixed(p < 10 ? 4 : 2)));
+        timestamps.push(now - (count - i) * hourMs);
+      }
+      return { prices, timestamps };
+    };
 
     // Crypto: use CoinGecko sparkline_in_7d (168 hourly data points)
     if (sym.cat === 'crypto' && cryptoDataAll) {
@@ -857,9 +833,49 @@ const TradingBridge = () => {
       }
     }
 
-    bootstrappedRef.current.add(ticker);
-    candleHistoryRef.current[ticker] = history;
-  }, [cryptoDataAll]);
+    // Metals: generate realistic historical prices with trends
+    if (sym.cat === 'metals') {
+      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
+      const metalKey = metalMap[sym.key];
+      const basePrice = metalKey ? (metalPricesData?.[metalKey]?.price_usd ?? 0) : 0;
+      if (basePrice > 0) {
+        const seed = generateRealisticSeries(basePrice, 168, 0.003);
+        history.prices = [...seed.prices, ...history.prices];
+        history.timestamps = [...seed.timestamps, ...history.timestamps];
+        bootstrappedRef.current.add(ticker);
+        candleHistoryRef.current[ticker] = history;
+        return;
+      }
+    }
+
+    // Energy: generate realistic historical with stronger trends
+    if (sym.cat === 'energy') {
+      const feed = oilPricesData?.find(p => p.symbol === ticker);
+      const basePrice = feed?.price ?? 0;
+      if (basePrice > 0) {
+        const seed = generateRealisticSeries(basePrice, 168, 0.005);
+        history.prices = [...seed.prices, ...history.prices];
+        history.timestamps = [...seed.timestamps, ...history.timestamps];
+        bootstrappedRef.current.add(ticker);
+        candleHistoryRef.current[ticker] = history;
+        return;
+      }
+    }
+
+    // Fallback for any category: generate from resolved price
+    const resolvedSym = ALL_SYMBOLS.find(s => s.ticker === ticker);
+    if (resolvedSym) {
+      const basePrice = resolveSymbolPrice(resolvedSym);
+      if (basePrice > 0) {
+        const seed = generateRealisticSeries(basePrice, 168, 0.004);
+        history.prices = [...seed.prices, ...history.prices];
+        history.timestamps = [...seed.timestamps, ...history.timestamps];
+        bootstrappedRef.current.add(ticker);
+        candleHistoryRef.current[ticker] = history;
+        return;
+      }
+    }
+  }, [cryptoDataAll, metalPricesData, oilPricesData, resolveSymbolPrice]);
 
   const getCandleData = useCallback((ticker: string) => {
     const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);
@@ -928,12 +944,13 @@ const TradingBridge = () => {
         return Math.max(-1, Math.min(1, bias));
       }
     }
-    // Fallback: use real change% as proxy, never synthetic drift
+    // Fallback: use change% as proxy
     const sym = ALL_SYMBOLS.find(s => s.ticker === _ticker);
     if (!sym) return 0;
-    const change = liveFeed.resolveChange(sym);
+    const sp = SYNTHETIC_PRICES[sym.key];
+    const change = sp?.c ?? 0;
     return Math.max(-1, Math.min(1, change / 5));
-  }, [liveFeed]);
+  }, []);
 
   // Helper to get candle history prices for wave bot
   const getCandleHistory = useCallback((ticker: string): number[] | null => {
@@ -1100,7 +1117,7 @@ const TradingBridge = () => {
   // ─── MOBILE LAYOUT ──────────────────────────────────
 
   const handleTabClick = (tabKey: BottomTab) => {
-    selectSubTab(tabKey);
+    setBottomTab(tabKey);
     if (!drawerOpen) {
       setDrawerOpen(true);
       setDrawerSnap(0.5);
@@ -1124,7 +1141,6 @@ const TradingBridge = () => {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <FeedStatusBadge />
             <ConnectWalletButton />
           </div>
         </div>
@@ -1182,8 +1198,6 @@ const TradingBridge = () => {
             symbolKey={activeSymbol.key}
             category={activeSymbol.cat}
             label={activeSymbol.label}
-            livePrice={activePrice}
-            liveChange={activeChange}
             onSymbolChange={setActiveSymbol}
             headerLeftSlot={<BrokerHeaderButton />}
             headerRightSlot={<ModeToggle />}
@@ -1221,16 +1235,16 @@ const TradingBridge = () => {
             <div className="w-10 h-1 rounded-full bg-marble/15" />
           </button>
           <div className="flex overflow-x-auto scrollbar-hide pb-[env(safe-area-inset-bottom)] px-1">
-            {BOTTOM_CATEGORIES.map((cat) => (
+            {BOTTOM_TABS.map((tab) => (
               <button
-                key={cat.key}
-                onClick={() => { selectCategory(cat.key); if (!drawerOpen) { setDrawerOpen(true); setDrawerSnap(0.5); } }}
-                className={`flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[56px] transition-colors flex-shrink-0 ${
-                  drawerOpen && bottomCategory === cat.key ? 'text-gold' : 'text-marble/30'
+                key={tab.key}
+                onClick={() => handleTabClick(tab.key)}
+                className={`flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[48px] transition-colors flex-shrink-0 ${
+                  drawerOpen && bottomTab === tab.key ? 'text-gold' : 'text-marble/30'
                 }`}
               >
-                <cat.icon className="w-4 h-4" />
-                <span className="text-[7px] font-display tracking-wider whitespace-nowrap">{cat.label}</span>
+                <tab.icon className="w-3.5 h-3.5" />
+                <span className="text-[6px] font-display tracking-wider whitespace-nowrap">{tab.label}</span>
               </button>
             ))}
           </div>
@@ -1263,43 +1277,23 @@ const TradingBridge = () => {
                 <div className="w-10 h-1 rounded-full bg-marble/20" />
               </button>
 
-              {/* Two-level tab nav inside drawer */}
-              <div className="flex overflow-x-auto scrollbar-hide px-2 pt-1 pb-1 gap-1 flex-shrink-0 border-b border-gold/10">
-                {BOTTOM_CATEGORIES.map((cat) => (
+              {/* Tab bar inside drawer */}
+              <div className="flex overflow-x-auto scrollbar-hide px-2 pb-2 gap-1 flex-shrink-0">
+                {BOTTOM_TABS.map((tab) => (
                   <button
-                    key={cat.key}
-                    onClick={() => selectCategory(cat.key)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-[0.14em] whitespace-nowrap transition-all flex-shrink-0 ${
-                      bottomCategory === cat.key
+                    key={tab.key}
+                    onClick={() => setBottomTab(tab.key)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-display tracking-wider whitespace-nowrap transition-all flex-shrink-0 ${
+                      bottomTab === tab.key
                         ? 'bg-gold/15 text-gold border border-gold/30'
                         : 'text-marble/35 border border-gold/5'
                     }`}
                   >
-                    <cat.icon className="w-3 h-3" />
-                    {cat.label}
+                    <tab.icon className="w-3 h-3" />
+                    {tab.label}
                   </button>
                 ))}
               </div>
-              {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.length > 1 && (
-                <div className="flex overflow-x-auto scrollbar-hide px-3 py-1.5 gap-3 flex-shrink-0">
-                  {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.map((t) => {
-                    const meta = TAB_META[t];
-                    const active = bottomTab === t;
-                    return (
-                      <button
-                        key={t}
-                        onClick={() => selectSubTab(t)}
-                        className={`flex items-center gap-1 pb-1 text-[9px] font-display tracking-wider whitespace-nowrap transition-colors border-b-2 ${
-                          active ? 'text-gold border-gold' : 'text-marble/40 border-transparent hover:text-marble/70'
-                        }`}
-                      >
-                        <meta.icon className="w-3 h-3" />
-                        {meta.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
 
               {/* Drawer content — scrollable */}
               <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-3">
@@ -1313,19 +1307,8 @@ const TradingBridge = () => {
                     activeCandles={getCandleData(activeSymbol.ticker)}
                   />
                 )}
-                {(bottomTab === 'bots' || bottomTab === 'agents' || bottomTab === 'pipelines') && (
-                  <AutomationEngine
-                    sub={bottomTab as 'bots' | 'agents' | 'pipelines'}
-                    waveBot={waveBot}
-                    genius={genius}
-                    alertsHook={priceAlertsHook}
-                    resolvePrice={resolvePriceForTicker}
-                    getCandleHistory={getCandleHistory}
-                    onClosePosition={(id, price) => handleClosePosition(id, price)}
-                    onNavigate={(sym) => { setActiveSymbol(sym); setDrawerOpen(false); }}
-                    equity={paper.account.equity}
-                    paper={{ submitOrder: paper.submitOrder, positions: paper.positions }}
-                  />
+                {bottomTab === 'genius' && (
+                  <GeniusPanel {...genius} />
                 )}
                 {bottomTab === 'book' && tradingMode === 'paper' && (
                   <div className="space-y-4">
@@ -1387,20 +1370,35 @@ const TradingBridge = () => {
                   </div>
                 )}
                 {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
+                {bottomTab === 'bot' && (
+                  <WaveBotPanel
+                    config={waveBot.config}
+                    updateConfig={waveBot.updateConfig}
+                    trades={waveBot.trades}
+                    stats={waveBot.stats}
+                    killAll={waveBot.killAll}
+                    clearHistory={waveBot.clearHistory}
+                    botPositions={waveBot.botPositions}
+                    resolvePrice={resolvePriceForTicker}
+                    onClosePosition={(id, price) => handleClosePosition(id, price)}
+                    onNavigate={(sym) => setActiveSymbol(sym)}
+                    equity={paper.account.equity}
+                  />
+                )}
+                {bottomTab === 'automate' && (
+                  <div className="space-y-4">
+                    <SchedulePanel />
+                    <div className="border-t border-gold/10 pt-4">
+                      <PriceAlerts alertsHook={priceAlertsHook} />
+                    </div>
+                  </div>
+                )}
                 {bottomTab === 'backtest' && <BacktestPanel />}
                 {bottomTab === 'analytics' && (
                   <div className="space-y-4">
                     <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
-                    <SymbolRanker
-                      getCandleData={getCandleData}
-                      resolvePrice={resolvePriceForTicker}
-                      activeCategory={activeSymbol.cat}
-                      onSelectSymbol={(t) => {
-                        const s = ALL_SYMBOLS.find(x => x.ticker === t);
-                        if (s) setActiveSymbol(s);
-                      }}
-                    />
                     <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
+                      <GAMarketPulse />
                       <GACrossAssetDashboard />
                       <GAAssetOverview />
                       <GAMiniCharts />
@@ -1435,6 +1433,14 @@ const TradingBridge = () => {
                     <GANewsFeed />
                   </div>
                 )}
+                {bottomTab === 'strategies' && (
+                  <div className="space-y-4">
+                    <StrategiesPanel />
+                    <div className="border-t border-gold/10 pt-4">
+                      <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
+                    </div>
+                  </div>
+                )}
                 {bottomTab === 'social' && <SocialPanel />}
               </div>
             </div>
@@ -1442,6 +1448,7 @@ const TradingBridge = () => {
         )}
 
         <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
+        <FirstTradeGuide />
       </div>
     );
   }
@@ -1462,32 +1469,17 @@ const TradingBridge = () => {
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => selectSubTab('pipelines')} className="relative p-1 text-gold/60 hover:text-gold">
+            <button onClick={() => setBottomTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
               <Bell className="w-3.5 h-3.5" />
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
           )}
-          <FeedStatusBadge />
-          <button
-            onClick={() => setFeedPanelOpen(o => !o)}
-            title="Per-symbol live feed status"
-            className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-marble/50 hover:text-gold border border-gold/15 hover:border-gold/40 rounded px-2 py-0.5"
-          >
-            <Radio className="w-3 h-3" /> Feed
-          </button>
           <ConnectWalletButton />
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
-        {feedPanelOpen && (
-          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex justify-end" onClick={() => setFeedPanelOpen(false)}>
-            <div className="w-full max-w-md h-full p-3" onClick={(e) => e.stopPropagation()}>
-              <SymbolFeedStatusPanel onClose={() => setFeedPanelOpen(false)} className="h-full" />
-            </div>
-          </div>
-        )}
         {/* Watchlist Sidebar */}
         <div className={`${sidebarCollapsed ? 'w-12' : 'w-48'} transition-all duration-200 bg-navy-dark border-r border-gold/10 flex flex-col flex-shrink-0`}>
           <div className="flex items-center justify-between px-2 py-1.5 border-b border-gold/10 flex-shrink-0">
@@ -1563,8 +1555,6 @@ const TradingBridge = () => {
                   symbolKey={activeSymbol.key}
                   category={activeSymbol.cat}
                   label={activeSymbol.label}
-                  livePrice={activePrice}
-                  liveChange={activeChange}
                   onSymbolChange={setActiveSymbol}
                   headerLeftSlot={<BrokerHeaderButton />}
                   headerRightSlot={<ModeToggle />}
@@ -1598,48 +1588,21 @@ const TradingBridge = () => {
             <ResizablePanel defaultSize={35} minSize={15}>
               <div className="h-full flex flex-col">
                 <div className="relative flex-shrink-0">
-                  <div className="bg-navy-dark/80 border-b border-gold/10">
-                    {/* Primary: workflow categories */}
-                    <div className="flex items-center gap-1 px-2 pt-1 overflow-x-auto scrollbar-hide">
-                      {BOTTOM_CATEGORIES.map((cat) => {
-                        const active = bottomCategory === cat.key;
-                        return (
-                          <button
-                            key={cat.key}
-                            onClick={() => selectCategory(cat.key)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t text-[10px] font-display tracking-[0.16em] transition-all whitespace-nowrap flex-shrink-0 border-b-2 ${
-                              active
-                                ? 'text-gold border-gold bg-gold/10'
-                                : 'text-marble/40 hover:text-marble/70 border-transparent'
-                            }`}
-                          >
-                            <cat.icon className="w-3.5 h-3.5" />
-                            {cat.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Secondary: sub-tabs of active category (hidden when only one) */}
-                    {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.length > 1 && (
-                      <div className="flex items-center gap-3 px-4 py-1 bg-navy-dark/50 border-t border-gold/5 overflow-x-auto scrollbar-hide">
-                        {BOTTOM_CATEGORIES.find(c => c.key === bottomCategory)!.tabs.map((t) => {
-                          const meta = TAB_META[t];
-                          const active = bottomTab === t;
-                          return (
-                            <button
-                              key={t}
-                              onClick={() => selectSubTab(t)}
-                              className={`flex items-center gap-1 py-0.5 text-[9px] font-display tracking-wider transition-colors whitespace-nowrap flex-shrink-0 ${
-                                active ? 'text-gold' : 'text-marble/35 hover:text-marble/60'
-                              }`}
-                            >
-                              <meta.icon className="w-3 h-3" />
-                              {meta.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                  <div className="flex items-center gap-1 px-2 py-1 bg-navy-dark/80 border-b border-gold/10 overflow-x-auto scrollbar-hide">
+                    {BOTTOM_TABS.map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setBottomTab(tab.key)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-display tracking-wider transition-all whitespace-nowrap flex-shrink-0 ${
+                          bottomTab === tab.key
+                            ? 'bg-gold/15 text-gold border border-gold/30'
+                            : 'text-marble/35 hover:text-marble/60 border border-transparent'
+                        }`}
+                      >
+                        <tab.icon className="w-3 h-3" />
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
                   <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-navy-dark/80 to-transparent" />
                   <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-navy-dark/80 to-transparent" />
@@ -1656,19 +1619,8 @@ const TradingBridge = () => {
                       activeCandles={getCandleData(activeSymbol.ticker)}
                     />
                   )}
-                  {(bottomTab === 'bots' || bottomTab === 'agents' || bottomTab === 'pipelines') && (
-                    <AutomationEngine
-                      sub={bottomTab as 'bots' | 'agents' | 'pipelines'}
-                      waveBot={waveBot}
-                      genius={genius}
-                      alertsHook={priceAlertsHook}
-                      resolvePrice={resolvePriceForTicker}
-                      getCandleHistory={getCandleHistory}
-                      onClosePosition={(id, price) => handleClosePosition(id, price)}
-                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                      equity={paper.account.equity}
-                      paper={{ submitOrder: paper.submitOrder, positions: paper.positions }}
-                    />
+                  {bottomTab === 'genius' && (
+                    <GeniusPanel {...genius} />
                   )}
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
@@ -1744,20 +1696,35 @@ const TradingBridge = () => {
                       </CollapsibleSection>
                     </div>
                   )}
+                  {bottomTab === 'bot' && (
+                    <WaveBotPanel
+                      config={waveBot.config}
+                      updateConfig={waveBot.updateConfig}
+                      trades={waveBot.trades}
+                      stats={waveBot.stats}
+                      killAll={waveBot.killAll}
+                      clearHistory={waveBot.clearHistory}
+                      botPositions={waveBot.botPositions}
+                      resolvePrice={resolvePriceForTicker}
+                      onClosePosition={(id, price) => handleClosePosition(id, price)}
+                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
+                      equity={paper.account.equity}
+                    />
+                  )}
+                  {bottomTab === 'automate' && (
+                    <div className="space-y-4">
+                      <SchedulePanel />
+                      <div className="border-t border-gold/10 pt-4">
+                        <PriceAlerts alertsHook={priceAlertsHook} />
+                      </div>
+                    </div>
+                  )}
                   {bottomTab === 'backtest' && <BacktestPanel />}
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
                       <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
-                      <SymbolRanker
-                        getCandleData={getCandleData}
-                        resolvePrice={resolvePriceForTicker}
-                        activeCategory={activeSymbol.cat}
-                        onSelectSymbol={(t) => {
-                          const s = ALL_SYMBOLS.find(x => x.ticker === t);
-                          if (s) setActiveSymbol(s);
-                        }}
-                      />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
+                        <GAMarketPulse />
                         <GACrossAssetDashboard />
                         <GAPerformanceDashboard />
                         <GATradingSessions />
@@ -1796,6 +1763,14 @@ const TradingBridge = () => {
                       <div className="lg:col-span-2"><GANewsFeed /></div>
                     </div>
                   )}
+                  {bottomTab === 'strategies' && (
+                    <div className="space-y-4">
+                      <StrategiesPanel />
+                      <div className="border-t border-gold/10 pt-4">
+                        <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
+                      </div>
+                    </div>
+                  )}
                   {bottomTab === 'social' && <SocialPanel />}
                 </div>
               </div>
@@ -1825,7 +1800,7 @@ const TradingBridge = () => {
           {activePrice > 0 && (
             <span className="text-[8px] font-mono text-marble/15">SPREAD: ${(activePrice * 0.0002).toFixed(activePrice < 10 ? 4 : 2)}</span>
           )}
-          <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'LIVE'}</span>
+          <span className="text-[8px] font-mono text-marble/12">{activeSymbol.cat === 'crypto' ? 'WS' : 'SIM'}</span>
           {waveBot.config.enabled && (
             <span className="text-[8px] font-mono text-purple-400/60 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
@@ -1844,6 +1819,7 @@ const TradingBridge = () => {
         </div>
       </div>
       <BrokerConnectDialog open={brokerDialogOpen} onOpenChange={setBrokerDialogOpen} />
+      <FirstTradeGuide />
     </div>
   );
 };
@@ -1880,7 +1856,7 @@ function AnalyticsPanel({ connectionId, tradingMode, paper }: { connectionId?: s
   const startingBalance = isLive ? 0 : paper.account.startingBalance;
   const roi = startingBalance > 0 ? ((equity - startingBalance) / startingBalance) * 100 : 0;
 
-  // Build equity curve from actual paper orders or live account equity.
+  // Build equity curve from actual paper orders (simulated replay)
   const pnlCurve = useMemo(() => {
     if (isLive) {
       // Live mode: show current equity point only (no fake data)

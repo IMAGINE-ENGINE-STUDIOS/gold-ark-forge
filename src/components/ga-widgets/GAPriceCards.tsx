@@ -1,4 +1,5 @@
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useState, useEffect, useRef } from 'react';
@@ -38,7 +39,7 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
   const basePrice = feed?.price_usd ?? 0;
   const change = feed?.change_24h ?? 0;
 
-  const livePrice = basePrice;
+  const { price: livePrice } = useSimulatedStream(basePrice, change, metalType);
 
   const [sparkData, setSparkData] = useState<{ v: number }[]>([]);
   const prevBasePrice = useRef(0);
@@ -46,9 +47,15 @@ const GAPriceCard = ({ metalType }: { metalType: 'gold' | 'silver' | 'platinum' 
   useEffect(() => {
     if (basePrice > 0 && basePrice !== prevBasePrice.current) {
       prevBasePrice.current = basePrice;
-      setSparkData(prev => [...prev.slice(-MAX_SPARK_POINTS + 1), { v: basePrice }]);
+      const start = basePrice / (1 + change / 100);
+      const seed = Array.from({ length: 20 }, (_, i) => {
+        const progress = i / 19;
+        const noise = (Math.sin(i * 1.5) * 0.003 + Math.cos(i * 0.8) * 0.002) * basePrice;
+        return { v: start + (basePrice - start) * progress + noise };
+      });
+      setSparkData(seed);
     }
-  }, [basePrice]);
+  }, [basePrice, change]);
 
   useEffect(() => {
     if (livePrice > 0) {

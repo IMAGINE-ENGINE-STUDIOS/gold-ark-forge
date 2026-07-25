@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface WebSocketPrice {
   symbol: string;
@@ -13,7 +13,7 @@ type PriceMap = Record<string, WebSocketPrice>;
 const BINANCE_WS = 'wss://stream.binance.com:9443/ws';
 
 // Map our symbol keys to Binance stream names
-export const BINANCE_STREAMS: Record<string, string> = {
+const BINANCE_STREAMS: Record<string, string> = {
   bitcoin: 'btcusdt', ethereum: 'ethusdt', solana: 'solusdt',
   xrp: 'xrpusdt', cardano: 'adausdt', dogecoin: 'dogeusdt',
   polkadot: 'dotusdt', chainlink: 'linkusdt', avalanche: 'avaxusdt',
@@ -26,9 +26,6 @@ export const BINANCE_STREAMS: Record<string, string> = {
   bnb: 'bnbusdt', shiba: 'shibusdt', pepe: 'pepeusdt',
 };
 
-const keyForStream = (stream: string) =>
-  Object.entries(BINANCE_STREAMS).find(([, v]) => v === stream)?.[0];
-
 export const useWebSocketPrices = (symbolKeys: string[]) => {
   const [prices, setPrices] = useState<PriceMap>({});
   const wsRef = useRef<WebSocket | null>(null);
@@ -37,16 +34,11 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 10;
 
-  const streamKeys = useMemo(
-    () => Array.from(new Set(symbolKeys.filter(k => BINANCE_STREAMS[k]))).sort(),
-    [symbolKeys.join('|')],
-  );
-
-  const streamKeyToken = streamKeys.join('|');
-
   const connect = useCallback(() => {
     // Only connect for crypto symbols that have Binance streams
-    const streams = streamKeys.map(k => `${BINANCE_STREAMS[k]}@miniTicker`);
+    const streams = symbolKeys
+      .filter(k => BINANCE_STREAMS[k])
+      .map(k => `${BINANCE_STREAMS[k]}@miniTicker`);
 
     if (streams.length === 0) return;
 
@@ -78,7 +70,7 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
 
           if (data.e === '24hrMiniTicker') {
             const symbol = data.s?.toLowerCase().replace('usdt', '');
-            const key = keyForStream(`${symbol}usdt`);
+            const key = Object.entries(BINANCE_STREAMS).find(([_, v]) => v === `${symbol}usdt`)?.[0];
             if (key) {
               const price = parseFloat(data.c);
               const open = parseFloat(data.o);
@@ -122,7 +114,7 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
       const delay = Math.min(5000 * Math.pow(2, retryCountRef.current - 1), 30000);
       reconnectTimer.current = setTimeout(connect, delay);
     }
-  }, [streamKeyToken]);
+  }, [symbolKeys]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -139,3 +131,26 @@ export const useWebSocketPrices = (symbolKeys: string[]) => {
   return prices;
 };
 
+// Simulate real-time streaming for non-crypto assets (metals, stocks, bonds, energy, forex)
+// Uses micro-jitter on top of base prices to create sub-second visual updates
+export const useSimulatedStream = (basePrice: number, baseChange: number, symbolKey: string) => {
+  const [streamedPrice, setStreamedPrice] = useState(basePrice);
+  const [streamedChange, setStreamedChange] = useState(baseChange);
+
+  useEffect(() => {
+    if (!basePrice || basePrice === 0) return;
+    setStreamedPrice(basePrice);
+    setStreamedChange(baseChange);
+
+    const interval = setInterval(() => {
+      setStreamedPrice(prev => {
+        const jitter = (Math.random() - 0.5) * prev * 0.0003; // 0.03% jitter
+        return parseFloat((prev + jitter).toFixed(prev < 10 ? 4 : 2));
+      });
+    }, 800 + Math.random() * 400); // 800-1200ms intervals
+
+    return () => clearInterval(interval);
+  }, [basePrice, baseChange, symbolKey]);
+
+  return { price: streamedPrice, change: streamedChange };
+};

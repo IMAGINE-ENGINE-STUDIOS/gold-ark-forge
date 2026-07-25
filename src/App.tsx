@@ -4,8 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "@/contexts/WalletContext";
-import { useEffect } from "react";
-import { bootstrapFeeds } from "@/hooks/useMarketFeed";
 import WalletSelectorDialog from "@/components/wallet/WalletSelectorDialog";
 import Index from "./pages/Index";
 import Marketplace from "./pages/Marketplace";
@@ -20,41 +18,17 @@ import TradingViewShowroom from "./pages/TradingViewShowroom";
 import Intelligence from "./pages/Intelligence";
 import OilGasIntelligence from "./pages/OilGasIntelligence";
 import TradingBridge from "./pages/TradingBridge";
-import EagleView from "./pages/EagleView";
 import LogRegistry from "./pages/LogRegistry";
 import LogRegistry2 from "./pages/LogRegistry2";
 import OldBots from "./pages/OldBots";
 import Login from "./pages/Login";
 import Deck from "./pages/Deck";
 import Globe from "./pages/Globe";
-import SuperAdmin from "./pages/SuperAdmin";
-import SwapAssetAdmin from "./pages/SwapAssetAdmin";
-import TradeSimulation from "./pages/TradeSimulation";
-import PersonaPage from "./pages/PersonaPage";
-import DeckEditor from "./pages/DeckEditor";
-import Dataroom from "./pages/Dataroom";
 import NotFound from "./pages/NotFound";
-import Swap from "./pages/Swap";
 
 const queryClient = new QueryClient();
 
-const App = () => {
-  useEffect(() => {
-    // Kick off the unified real-time feed layer (Binance + Coinbase WS,
-    // gold-api metals poll, Supabase Realtime bridge). Idempotent.
-    bootstrapFeeds({
-      yahoo: [
-        { symbol: 'SPY', assetClass: 'stocks' },
-        { symbol: '^GSPC', assetClass: 'index' },
-        { symbol: '^IXIC', assetClass: 'index' },
-        { symbol: '^VIX', assetClass: 'index' },
-        { symbol: 'DX-Y.NYB', assetClass: 'fx' },
-        { symbol: 'CL=F', assetClass: 'energy' },
-        { symbol: 'NG=F', assetClass: 'energy' },
-      ],
-    });
-  }, []);
-  return (
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <WalletProvider>
@@ -75,24 +49,14 @@ const App = () => {
             <Route path="/intelligence" element={<Intelligence />} />
             <Route path="/oil-gas" element={<OilGasIntelligence />} />
             <Route path="/trading-bridge" element={<TradingBridge />} />
-            <Route path="/eagle-view" element={<EagleView />} />
             <Route path="/log-registry" element={<LogRegistry />} />
             <Route path="/log-registry-2" element={<LogRegistry2 />} />
             <Route path="/old-bots" element={<OldBots />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/super-admin" element={<SuperAdmin />} />
-            <Route path="/swap-asset-admin" element={<SwapAssetAdmin />} />
-            <Route path="/trade-simulation" element={<TradeSimulation />} />
-            <Route path="/for-sovereigns" element={<PersonaPage />} />
-            <Route path="/for-institutions" element={<PersonaPage />} />
-            <Route path="/for-exporters" element={<PersonaPage />} />
             <Route path="/deck" element={<Deck />} />
-            <Route path="/deck-editor" element={<DeckEditor />} />
             <Route path="/globe" element={<Globe />} />
-            <Route path="/dataroom" element={<Dataroom />} />
-            <Route path="/swap" element={<Swap />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -100,7 +64,6 @@ const App = () => {
       </WalletProvider>
     </TooltipProvider>
   </QueryClientProvider>
-  );
-};
+);
 
 export default App;

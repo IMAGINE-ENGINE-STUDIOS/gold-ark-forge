@@ -36,6 +36,8 @@ const GAPortfolioAllocator = () => {
     if (sol) map['SOL'] = { price: sol.current_price, change: sol.price_change_percentage_24h ?? 0 };
     const wti = oil?.find(p => p.symbol === 'CL');
     if (wti) map['Oil'] = { price: wti.price, change: wti.change };
+    map['Bonds'] = { price: 100, change: 0.05 };
+    map['Stocks'] = { price: 5940, change: 0.3 };
     map['Cash'] = { price: 1, change: 0 };
     return map;
   }, [metals, crypto, oil]);

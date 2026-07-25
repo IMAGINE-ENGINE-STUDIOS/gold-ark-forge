@@ -30,7 +30,7 @@ const Sparkline = ({ data, positive }: { data: number[]; positive: boolean }) =>
   const w = 100;
   const h = 28;
   const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
-  const gradientId = `spark-${data[0]}-${data[data.length - 1]}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const gradientId = `spark-${Math.random().toString(36).slice(2, 8)}`;
   const fillPoints = `0,${h} ${points} ${w},${h}`;
 
   return (

@@ -14,53 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      agent_approvals: {
-        Row: {
-          agent: string
-          created_at: string
-          decided_at: string | null
-          expires_at: string
-          id: string
-          proposal: Json
-          reasoning: string | null
-          run_id: string | null
-          status: string
-          user_id: string
-        }
-        Insert: {
-          agent: string
-          created_at?: string
-          decided_at?: string | null
-          expires_at?: string
-          id?: string
-          proposal: Json
-          reasoning?: string | null
-          run_id?: string | null
-          status?: string
-          user_id: string
-        }
-        Update: {
-          agent?: string
-          created_at?: string
-          decided_at?: string | null
-          expires_at?: string
-          id?: string
-          proposal?: Json
-          reasoning?: string | null
-          run_id?: string | null
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "agent_approvals_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "automation_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       anchor_leaves: {
         Row: {
           anchor_id: string
@@ -212,136 +165,6 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
-      }
-      automation_configs: {
-        Row: {
-          created_at: string
-          id: string
-          kind: string
-          name: string
-          spec: Json
-          status: string
-          strategy: string
-          symbol: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          kind: string
-          name: string
-          spec?: Json
-          status?: string
-          strategy: string
-          symbol?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          kind?: string
-          name?: string
-          spec?: Json
-          status?: string
-          strategy?: string
-          symbol?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      automation_events: {
-        Row: {
-          created_at: string
-          event_type: string
-          id: string
-          payload: Json
-          run_id: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          event_type: string
-          id?: string
-          payload?: Json
-          run_id?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          event_type?: string
-          id?: string
-          payload?: Json
-          run_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "automation_events_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "automation_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      automation_runs: {
-        Row: {
-          config_id: string | null
-          duration_ms: number | null
-          ended_at: string | null
-          error: string | null
-          id: string
-          kind: string
-          realized_pnl: number
-          started_at: string
-          status: string
-          strategy: string
-          symbol: string | null
-          trades_count: number
-          user_id: string
-        }
-        Insert: {
-          config_id?: string | null
-          duration_ms?: number | null
-          ended_at?: string | null
-          error?: string | null
-          id?: string
-          kind: string
-          realized_pnl?: number
-          started_at?: string
-          status?: string
-          strategy: string
-          symbol?: string | null
-          trades_count?: number
-          user_id: string
-        }
-        Update: {
-          config_id?: string | null
-          duration_ms?: number | null
-          ended_at?: string | null
-          error?: string | null
-          id?: string
-          kind?: string
-          realized_pnl?: number
-          started_at?: string
-          status?: string
-          strategy?: string
-          symbol?: string | null
-          trades_count?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "automation_runs_config_id_fkey"
-            columns: ["config_id"]
-            isOneToOne: false
-            referencedRelation: "automation_configs"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       broker_connections: {
         Row: {
@@ -633,120 +456,6 @@ export type Database = {
           },
         ]
       }
-      documents: {
-        Row: {
-          category: string
-          created_at: string
-          description: string | null
-          file_path: string
-          file_size: number | null
-          id: string
-          mime_type: string | null
-          title: string
-          updated_at: string
-          uploaded_by: string | null
-          visibility: string
-        }
-        Insert: {
-          category?: string
-          created_at?: string
-          description?: string | null
-          file_path: string
-          file_size?: number | null
-          id?: string
-          mime_type?: string | null
-          title: string
-          updated_at?: string
-          uploaded_by?: string | null
-          visibility?: string
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          description?: string | null
-          file_path?: string
-          file_size?: number | null
-          id?: string
-          mime_type?: string | null
-          title?: string
-          updated_at?: string
-          uploaded_by?: string | null
-          visibility?: string
-        }
-        Relationships: []
-      }
-      macro_releases: {
-        Row: {
-          fetched_at: string
-          id: string
-          observed_at: string
-          series_id: string
-          source: string
-          title: string
-          units: string | null
-          value: number | null
-        }
-        Insert: {
-          fetched_at?: string
-          id?: string
-          observed_at: string
-          series_id: string
-          source?: string
-          title: string
-          units?: string | null
-          value?: number | null
-        }
-        Update: {
-          fetched_at?: string
-          id?: string
-          observed_at?: string
-          series_id?: string
-          source?: string
-          title?: string
-          units?: string | null
-          value?: number | null
-        }
-        Relationships: []
-      }
-      market_ticks: {
-        Row: {
-          ask: number | null
-          asset_class: string
-          bid: number | null
-          change_24h: number | null
-          last: number
-          latency_ms: number | null
-          source: string
-          symbol: string
-          ts: string
-          volume_24h: number | null
-        }
-        Insert: {
-          ask?: number | null
-          asset_class: string
-          bid?: number | null
-          change_24h?: number | null
-          last: number
-          latency_ms?: number | null
-          source: string
-          symbol: string
-          ts?: string
-          volume_24h?: number | null
-        }
-        Update: {
-          ask?: number | null
-          asset_class?: string
-          bid?: number | null
-          change_24h?: number | null
-          last?: number
-          latency_ms?: number | null
-          source?: string
-          symbol?: string
-          ts?: string
-          volume_24h?: number | null
-        }
-        Relationships: []
-      }
       paper_portfolios: {
         Row: {
           cash: number
@@ -899,42 +608,6 @@ export type Database = {
         }
         Relationships: []
       }
-      rank_snapshots: {
-        Row: {
-          created_at: string
-          direction: string
-          goal_pct: number
-          horizon_h: number
-          id: string
-          mode: string
-          payload: Json
-          scope: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          direction: string
-          goal_pct: number
-          horizon_h: number
-          id?: string
-          mode: string
-          payload?: Json
-          scope: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          direction?: string
-          goal_pct?: number
-          horizon_h?: number
-          id?: string
-          mode?: string
-          payload?: Json
-          scope?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       reserve_snapshots: {
         Row: {
           bar_count: number
@@ -971,108 +644,6 @@ export type Database = {
         }
         Relationships: []
       }
-      roadmap_goals: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          parent_goal_id: string | null
-          phase_id: string
-          priority: string
-          progress: number
-          sort_order: number
-          status: string
-          target_date: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          parent_goal_id?: string | null
-          phase_id: string
-          priority?: string
-          progress?: number
-          sort_order?: number
-          status?: string
-          target_date?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          parent_goal_id?: string | null
-          phase_id?: string
-          priority?: string
-          progress?: number
-          sort_order?: number
-          status?: string
-          target_date?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "roadmap_goals_parent_goal_id_fkey"
-            columns: ["parent_goal_id"]
-            isOneToOne: false
-            referencedRelation: "roadmap_goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "roadmap_goals_phase_id_fkey"
-            columns: ["phase_id"]
-            isOneToOne: false
-            referencedRelation: "roadmap_phases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      roadmap_phases: {
-        Row: {
-          color: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          end_date: string | null
-          id: string
-          sort_order: number
-          start_date: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          end_date?: string | null
-          id?: string
-          sort_order?: number
-          start_date?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          end_date?: string | null
-          id?: string
-          sort_order?: number
-          start_date?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       siwe_nonces: {
         Row: {
           created_at: string
@@ -1094,132 +665,6 @@ export type Database = {
           id?: string
           nonce?: string
           used?: boolean
-        }
-        Relationships: []
-      }
-      swap_custom_assets: {
-        Row: {
-          asset_type: string
-          base_currency: string
-          blockchain: string | null
-          category: string
-          circulating_supply: number | null
-          company_ceo: string | null
-          company_country: string | null
-          company_description: string | null
-          company_email: string | null
-          company_employees: number | null
-          company_founded_year: number | null
-          company_headquarters: string | null
-          company_industry: string | null
-          company_legal_name: string | null
-          company_logo_url: string | null
-          company_name: string
-          company_phone: string | null
-          company_website: string | null
-          contract_address: string | null
-          created_at: string
-          created_by: string | null
-          cusip: string | null
-          custom_metadata: Json
-          id: string
-          initial_price: number
-          is_listed: boolean
-          isin: string | null
-          jurisdiction: string | null
-          label: string
-          market_cap: number | null
-          prospectus_url: string | null
-          regulatory_status: string | null
-          status: string
-          sub_category: string | null
-          symbol_key: string
-          ticker: string
-          total_supply: number | null
-          updated_at: string
-          whitepaper_url: string | null
-        }
-        Insert: {
-          asset_type?: string
-          base_currency?: string
-          blockchain?: string | null
-          category: string
-          circulating_supply?: number | null
-          company_ceo?: string | null
-          company_country?: string | null
-          company_description?: string | null
-          company_email?: string | null
-          company_employees?: number | null
-          company_founded_year?: number | null
-          company_headquarters?: string | null
-          company_industry?: string | null
-          company_legal_name?: string | null
-          company_logo_url?: string | null
-          company_name: string
-          company_phone?: string | null
-          company_website?: string | null
-          contract_address?: string | null
-          created_at?: string
-          created_by?: string | null
-          cusip?: string | null
-          custom_metadata?: Json
-          id?: string
-          initial_price?: number
-          is_listed?: boolean
-          isin?: string | null
-          jurisdiction?: string | null
-          label: string
-          market_cap?: number | null
-          prospectus_url?: string | null
-          regulatory_status?: string | null
-          status?: string
-          sub_category?: string | null
-          symbol_key: string
-          ticker: string
-          total_supply?: number | null
-          updated_at?: string
-          whitepaper_url?: string | null
-        }
-        Update: {
-          asset_type?: string
-          base_currency?: string
-          blockchain?: string | null
-          category?: string
-          circulating_supply?: number | null
-          company_ceo?: string | null
-          company_country?: string | null
-          company_description?: string | null
-          company_email?: string | null
-          company_employees?: number | null
-          company_founded_year?: number | null
-          company_headquarters?: string | null
-          company_industry?: string | null
-          company_legal_name?: string | null
-          company_logo_url?: string | null
-          company_name?: string
-          company_phone?: string | null
-          company_website?: string | null
-          contract_address?: string | null
-          created_at?: string
-          created_by?: string | null
-          cusip?: string | null
-          custom_metadata?: Json
-          id?: string
-          initial_price?: number
-          is_listed?: boolean
-          isin?: string | null
-          jurisdiction?: string | null
-          label?: string
-          market_cap?: number | null
-          prospectus_url?: string | null
-          regulatory_status?: string | null
-          status?: string
-          sub_category?: string | null
-          symbol_key?: string
-          ticker?: string
-          total_supply?: number | null
-          updated_at?: string
-          whitepaper_url?: string | null
         }
         Relationships: []
       }
@@ -1403,7 +848,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_goldarrow_user: { Args: never; Returns: boolean }
     }
     Enums: {
       anchor_status:
@@ -1412,7 +856,7 @@ export type Database = {
         | "confirmed"
         | "reorged"
         | "abandoned"
-      app_role: "admin" | "user" | "super_admin"
+      app_role: "admin" | "user"
       cert_status: "active" | "frozen" | "revoked" | "redeemed"
       custody_status: "free" | "pledged" | "redeemed"
       holding_status: "active" | "pending_redemption" | "redeemed"
@@ -1562,7 +1006,7 @@ export const Constants = {
         "reorged",
         "abandoned",
       ],
-      app_role: ["admin", "user", "super_admin"],
+      app_role: ["admin", "user"],
       cert_status: ["active", "frozen", "revoked", "redeemed"],
       custody_status: ["free", "pledged", "redeemed"],
       holding_status: ["active", "pending_redemption", "redeemed"],

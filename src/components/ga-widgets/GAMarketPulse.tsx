@@ -2,7 +2,7 @@ import { Gauge, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import LivePulse from './LivePulse';
 import { useMemo } from 'react';
 
@@ -13,6 +13,10 @@ const GAMarketPulse = () => {
   const { data: crypto, isLoading } = useCryptoData(20);
   const { data: oil } = useOilGasPrices();
   const wsPrices = useWebSocketPrices(CRYPTO_WS_KEYS);
+
+  // Live metal prices
+  const { price: goldLive } = useSimulatedStream(metals?.gold?.price_usd ?? 0, metals?.gold?.change_24h ?? 0, 'gold');
+  const { price: silverLive } = useSimulatedStream(metals?.silver?.price_usd ?? 0, metals?.silver?.change_24h ?? 0, 'silver');
 
   const fearGreed = useMemo(() => {
     if (!crypto?.length) return 50;
@@ -33,8 +37,8 @@ const GAMarketPulse = () => {
   // Live spot prices
   const spots = useMemo(() => {
     const items: { label: string; price: number; change: number }[] = [];
-    items.push({ label: 'GOLD', price: metals?.gold?.price_usd ?? 0, change: metals?.gold?.change_24h ?? 0 });
-    items.push({ label: 'SILVER', price: metals?.silver?.price_usd ?? 0, change: metals?.silver?.change_24h ?? 0 });
+    items.push({ label: 'GOLD', price: goldLive, change: metals?.gold?.change_24h ?? 0 });
+    items.push({ label: 'SILVER', price: silverLive, change: metals?.silver?.change_24h ?? 0 });
 
     const btcWs = wsPrices.bitcoin;
     const btc = crypto?.find(c => c.id === 'bitcoin');
@@ -47,7 +51,7 @@ const GAMarketPulse = () => {
     const wti = oil?.find(p => p.symbol === 'CL');
     if (wti) items.push({ label: 'WTI', price: wti.price, change: wti.change });
     return items;
-  }, [metals, crypto, oil, wsPrices]);
+  }, [metals, crypto, oil, goldLive, silverLive, wsPrices]);
 
   return (
     <div className="relative rounded-sm bg-gradient-to-br from-navy via-navy to-navy-light border border-gold/30 overflow-hidden">

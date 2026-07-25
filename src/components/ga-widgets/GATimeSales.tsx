@@ -21,7 +21,7 @@ const GATimeSales = ({ symbol = 'BTC', price = 0 }: Props) => {
   const lastPriceRef = useRef(price);
   const decimals = price < 10 ? 4 : 2;
 
-  // Record observed live price ticks only; size is unavailable without tape feed.
+  // Generate simulated tape data from price ticks
   useEffect(() => {
     if (price <= 0) return;
     const prevPrice = lastPriceRef.current;
@@ -30,11 +30,13 @@ const GATimeSales = ({ symbol = 'BTC', price = 0 }: Props) => {
 
     const side: 'buy' | 'sell' = price >= prevPrice ? 'buy' : 'sell';
     const now = new Date();
+    const size = parseFloat((Math.random() * (price > 100 ? 50 : 5000) + 0.1).toFixed(price > 100 ? 2 : 0));
+
     const trade: Trade = {
-      id: `${now.getTime()}-${price}`,
+      id: `${Date.now()}-${Math.random()}`,
       time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
       price,
-      size: 0,
+      size,
       side,
     };
 
@@ -104,7 +106,7 @@ const GATimeSales = ({ symbol = 'BTC', price = 0 }: Props) => {
             <span className={`text-right font-semibold ${trade.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}`}>
               {trade.price.toFixed(decimals)}
             </span>
-            <span className="text-right text-marble/30">—</span>
+            <span className="text-right text-marble/50">{trade.size.toLocaleString()}</span>
             <span className="text-right flex items-center justify-end gap-0.5">
               {trade.side === 'buy' ? (
                 <ArrowUp className="w-2.5 h-2.5 text-emerald-400" />

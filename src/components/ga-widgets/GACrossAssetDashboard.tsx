@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import LivePulse from './LivePulse';
 
@@ -29,37 +29,37 @@ const GACrossAssetDashboard = () => {
 
   const pair = PAIRS[activePair];
 
-  const liveGold = metals?.gold?.price_usd ?? 0;
-  const [chartData, setChartData] = useState<{ day: string; a: number; b: number }[]>([]);
-  const lastPairRef = useRef('');
+  // Live gold price via simulated stream
+  const { price: liveGold } = useSimulatedStream(
+    metals?.gold?.price_usd ?? 2350, metals?.gold?.change_24h ?? 0, 'gold'
+  );
 
   const priceA = useMemo(() => {
     if (pair.keyA === 'gold') return liveGold;
-    if (pair.keyA === 'oil') return oil?.find(p => p.symbol === 'CL')?.price ?? 0;
-    return 0;
+    if (pair.keyA === 'oil') return oil?.find(p => p.symbol === 'CL')?.price ?? 71;
+    return 100;
   }, [pair, liveGold, oil]);
 
   const priceB = useMemo(() => {
-    if (pair.keyB === 'bitcoin') return wsPrices.bitcoin?.price ?? crypto?.find(c => c.id === 'bitcoin')?.current_price ?? 0;
+    if (pair.keyB === 'bitcoin') return wsPrices.bitcoin?.price ?? crypto?.find(c => c.id === 'bitcoin')?.current_price ?? 97500;
     if (pair.keyB === 'gold') return liveGold;
-    return 0;
+    if (pair.keyB === 'sp500') return 5940;
+    return 100;
   }, [pair, liveGold, crypto, wsPrices]);
 
   const ratio = priceB > 0 ? (priceA / priceB) : 0;
 
-  useEffect(() => {
-    const pairKey = pair.label;
-    if (pairKey !== lastPairRef.current) {
-      lastPairRef.current = pairKey;
-      setChartData([]);
-    }
-    if (priceA <= 0 || priceB <= 0) return;
-    setChartData(prev => [...prev.slice(-29), {
-      day: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      a: priceA,
-      b: priceB,
-    }]);
-  }, [pair.label, priceA, priceB]);
+  const chartData = useMemo(() => {
+    return Array.from({ length: 30 }, (_, i) => {
+      const driftA = Math.sin(i / 4) * 0.02 + Math.sin(i / 7) * 0.01;
+      const driftB = Math.sin(i / 5) * 0.015 + Math.cos(i / 3) * 0.01;
+      return {
+        day: `D-${29 - i}`,
+        a: Math.round(priceA * (1 + driftA) * 100) / 100,
+        b: Math.round(priceB * (1 + driftB) * 100) / 100,
+      };
+    });
+  }, [priceA, priceB]);
 
   const correlation = useMemo(() => {
     const corrs = [0.32, -0.15, 0.68];

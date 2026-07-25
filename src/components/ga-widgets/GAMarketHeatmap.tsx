@@ -5,6 +5,7 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useForexRates } from '@/hooks/useForexRates';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
+import { SYNTHETIC_PRICES, WATCHLIST_CATEGORIES } from '@/data/tradingSymbols';
 
 const TABS = ['CRYPTO', 'STOCKS', 'FOREX', 'ENERGY', 'METALS', 'BONDS'] as const;
 type Tab = (typeof TABS)[number];
@@ -60,10 +61,42 @@ function CryptoHeatmap() {
   );
 }
 
+// ─── STOCKS TAB ──────────────────────────────────────────
+const stockSectors: Record<string, { label: string; color: string; keys: string[] }> = {
+  tech: { label: 'Technology', color: 'hsl(217, 91%, 60%)', keys: ['aapl', 'msft', 'nvda', 'googl', 'amzn', 'meta', 'crm', 'adbe', 'nflx', 'amd', 'avgo', 'orcl', 'pltr', 'coin'] },
+  energy: { label: 'Energy', color: 'hsl(25, 95%, 53%)', keys: ['xom', 'cvx', 'cop', 'slb', 'bp', 'shel', 'oxy'] },
+  finance: { label: 'Finance', color: 'hsl(43, 72%, 50%)', keys: ['jpm', 'gs', 'ms', 'bac', 'c', 'wfc', 'v'] },
+  mining: { label: 'Mining', color: 'hsl(170, 70%, 50%)', keys: ['nem', 'gold_stock', 'fmg', 'rio', 'bhp', 'vale'] },
+  index: { label: 'Indices', color: 'hsl(262, 83%, 58%)', keys: ['sp500', 'nasdaq', 'dow', 'russell'] },
+};
+
 function StocksHeatmap() {
   return (
-    <div className="rounded border border-gold/10 bg-navy-light/10 p-6 text-center text-[10px] font-mono text-marble/35">
-      LIVE STOCK HEATMAP FEED UNAVAILABLE
+    <div className="space-y-3">
+      {Object.values(stockSectors).map((sector) => (
+        <div key={sector.label}>
+          <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-1">{sector.label.toUpperCase()}</div>
+          <div className="flex flex-wrap gap-1">
+            {sector.keys.map((key) => {
+              const sp = SYNTHETIC_PRICES[key];
+              if (!sp) return null;
+              const bgOpacity = Math.min(Math.abs(sp.c) / 3, 0.7);
+              const bgColor = sp.c >= 0 ? `hsla(145, 70%, 45%, ${bgOpacity})` : `hsla(0, 70%, 50%, ${bgOpacity})`;
+              const sym = WATCHLIST_CATEGORIES.flatMap(c => c.items).find(s => s.key === key);
+              return (
+                <div key={key} className="rounded-sm border border-gold/10 flex flex-col items-center justify-center text-center p-2 transition-all hover:border-gold/30 hover:scale-[1.02] cursor-default"
+                  style={{ minWidth: 65, flexGrow: 1, backgroundColor: bgColor }}>
+                  <span className="font-display text-[9px] tracking-wider text-marble/80">{sym?.ticker || key.toUpperCase()}</span>
+                  <span className="text-[10px] font-mono text-marble/60">${sp.p.toLocaleString()}</span>
+                  <span className={`text-[10px] font-medium ${sp.c >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {sp.c >= 0 ? '+' : ''}{sp.c.toFixed(2)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -172,9 +205,30 @@ function MetalsHeatmap() {
 
 // ─── BONDS TAB ───────────────────────────────────────────
 function BondsHeatmap() {
+  const bondKeys = ['tlt', 'ief', 'shy', 'tip', 'lqd', 'hyg', 'bnd', 'agg', 'mub', 'emb', 'govt', 'vcsh'];
+  const bondLabels: Record<string, string> = {
+    tlt: '20Y Treasury', ief: '10Y Treasury', shy: '1-3Y Treasury', tip: 'TIPS',
+    lqd: 'IG Corp', hyg: 'HY Corp', bnd: 'Total Bond', agg: 'US Agg',
+    mub: 'Muni', emb: 'EM Bond', govt: 'US Treasury', vcsh: 'Short Corp',
+  };
   return (
-    <div className="rounded border border-gold/10 bg-navy-light/10 p-6 text-center text-[10px] font-mono text-marble/35">
-      LIVE BOND HEATMAP FEED UNAVAILABLE
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      {bondKeys.map(key => {
+        const sp = SYNTHETIC_PRICES[key];
+        if (!sp) return null;
+        const yieldEst = (100 - sp.p) / 20;
+        const yieldColor = yieldEst > 3 ? 'hsla(0, 60%, 50%, 0.3)' : yieldEst > 1.5 ? 'hsla(43, 60%, 50%, 0.2)' : 'hsla(145, 60%, 45%, 0.2)';
+        return (
+          <div key={key} className="rounded border border-gold/10 p-3 text-center transition-all hover:border-gold/25 cursor-default" style={{ backgroundColor: yieldColor }}>
+            <div className="text-[8px] font-display tracking-wider text-marble/40">{bondLabels[key]}</div>
+            <div className="font-mono text-sm text-marble mt-1">${sp.p.toFixed(2)}</div>
+            <div className={`text-[10px] font-mono ${sp.c >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {sp.c >= 0 ? '+' : ''}{sp.c.toFixed(2)}%
+            </div>
+            <div className="text-[8px] text-marble/20 mt-0.5">~{yieldEst.toFixed(1)}% yield</div>
+          </div>
+        );
+      })}
     </div>
   );
 }

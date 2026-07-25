@@ -32,7 +32,7 @@ const generateNews = (metalPrices: any, crypto: any): NewsItem[] => {
     { title: 'Federal Reserve signals patience on rate cuts, markets react', source: 'GA Macro', category: 'Macro', sentiment: 'neutral' as any, relevance: 'macro' as const },
     { title: 'Platinum supply deficit widens on South African output drop', source: 'WPIC', category: 'Metals', sentiment: 'bullish' as any, relevance: 'platinum' as const },
     { title: 'ETF gold holdings hit 3-year high as investors seek safety', source: 'GA Analytics', category: 'Metals', sentiment: 'bullish' as any, relevance: 'gold' as const },
-    { title: 'Ethereum network activity spikes as gas fees stabilize', source: 'GA Crypto Desk', category: 'Crypto', sentiment: 'neutral' as any, relevance: 'crypto' as const },
+    { title: `Ethereum network activity spikes, gas fees ${Math.random() > 0.5 ? 'rise' : 'stabilize'}`, source: 'GA Crypto Desk', category: 'Crypto', sentiment: 'neutral' as any, relevance: 'crypto' as const },
     { title: 'Treasury yields decline, supporting precious metals complex', source: 'GA Research', category: 'Macro', sentiment: 'bullish' as any, relevance: 'macro' as const },
     { title: 'Silver industrial demand from solar sector reaches record', source: 'Silver Institute', category: 'Metals', sentiment: 'bullish' as any, relevance: 'silver' as const },
     { title: 'BRICS nations accelerate de-dollarization push', source: 'GA Macro', category: 'Macro', sentiment: 'bullish' as any, relevance: 'gold' as const },
@@ -45,7 +45,7 @@ const generateNews = (metalPrices: any, crypto: any): NewsItem[] => {
       title: t.title,
       source: t.source,
       category: t.category,
-      timestamp: new Date(now - i * 3600000).toISOString(),
+      timestamp: new Date(now - i * 3600000 * (1 + Math.random())).toISOString(),
       sentiment: t.sentiment,
       relevance: t.relevance,
     });

@@ -14,8 +14,8 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
   enrichChartData,
@@ -55,6 +55,22 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   '1M': { points: 120, intervalMs: 6 * 3_600_000, candleMs: 6 * 3_600_000, volatility: 0.003, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
 };
 
+const seededRandom = (seed: number) => {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+};
+
+const hashSeed = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+};
+
 const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: number): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
   const totalPrices = sparkline.length;
@@ -72,6 +88,34 @@ const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: numb
     const low = Math.min(...slice);
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
     data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(2)), open: parseFloat(open.toFixed(2)), close: parseFloat(close.toFixed(2)), high: parseFloat(high.toFixed(2)), low: parseFloat(low.toFixed(2)) });
+  }
+  return data;
+};
+
+const generateChartData = (price: number, change: number, tf: Timeframe, symbolKey: string): ChartDataPoint[] => {
+  const cfg = tfConfigs[tf];
+  const seed = hashSeed(`${symbolKey}:${tf}:${Math.floor(Date.now() / 3_600_000)}`);
+  const rand = seededRandom(seed);
+  const data: ChartDataPoint[] = [];
+  const now = Date.now();
+  let walkPrice = price / (1 + change / 100);
+  const drift = (price - walkPrice) / cfg.points;
+  for (let i = 0; i < cfg.points; i++) {
+    const r1 = rand() - 0.5;
+    const r2 = rand() - 0.5;
+    const r3 = rand();
+    const step = drift + r1 * walkPrice * cfg.volatility * 2;
+    walkPrice += step;
+    const spread = Math.abs(r2) * walkPrice * cfg.volatility * 1.5;
+    const direction = r1 > 0;
+    const open = walkPrice - (direction ? spread * 0.3 : -spread * 0.3);
+    const close = walkPrice;
+    const wickUp = r3 * walkPrice * cfg.volatility * 0.8;
+    const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
+    const high = Math.max(open, close) + wickUp;
+    const low = Math.min(open, close) - wickDown;
+    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+    data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(price < 10 ? 4 : 2)), open: parseFloat(open.toFixed(price < 10 ? 4 : 2)), close: parseFloat(close.toFixed(price < 10 ? 4 : 2)), high: parseFloat(high.toFixed(price < 10 ? 4 : 2)), low: parseFloat(low.toFixed(price < 10 ? 4 : 2)) });
   }
   return data;
 };
@@ -119,20 +163,15 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     const symbolChanged = symbolKey !== lastSymbolRef.current;
     const tfChanged = tf !== lastTfRef.current;
     const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
-    const livePriceArrived = candlesRef.current.length === 0 && price > 0;
-    if (symbolChanged || tfChanged || dataArrived || livePriceArrived) {
+    if (symbolChanged || tfChanged || dataArrived) {
       lastSymbolRef.current = symbolKey;
       lastTfRef.current = tf;
-      const decimals = price < 10 ? 4 : 2;
-      const liveSeed = price > 0
-        ? [{ time: cfg.labelFn(new Date()), value: parseFloat(price.toFixed(decimals)), open: parseFloat(price.toFixed(decimals)), close: parseFloat(price.toFixed(decimals)), high: parseFloat(price.toFixed(decimals)), low: parseFloat(price.toFixed(decimals)) }]
-        : [];
-      candlesRef.current = historicalData.length > 0 ? [...historicalData] : liveSeed;
+      candlesRef.current = [...historicalData];
       currentCandleStartRef.current = Date.now();
       tickCountRef.current = 0;
-      setCandles([...candlesRef.current]);
+      setCandles([...historicalData]);
     }
-  }, [symbolKey, tf, historicalData, price, cfg]);
+  }, [symbolKey, tf, historicalData]);
 
   useEffect(() => {
     if (price <= 0 || candlesRef.current.length === 0) return;
@@ -245,12 +284,14 @@ const GALiveStandalone = () => {
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    return { basePrice: 0, baseChange: 0 };
+    const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
+    return { basePrice: sp.p, baseChange: sp.c };
   }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
 
+  const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
   const isWsLive = !!wsData && wsData.price > 0;
-  const price = basePrice;
-  const change = baseChange;
+  const price = isWsLive ? wsData.price : streamedPrice;
+  const change = isWsLive ? wsData.change24h : streamedChange;
 
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
@@ -262,8 +303,9 @@ const GALiveStandalone = () => {
     const effectivePrice = basePrice || price;
     if (effectivePrice <= 0) return [];
     if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, effectivePrice);
-    return [];
-  }, [sparklineData, tf, basePrice, price]);
+    return generateChartData(effectivePrice, change, tf, symbolKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sparklineData, tf, symbolKey, basePrice]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
@@ -575,7 +617,7 @@ const GALiveStandalone = () => {
             {activeIndicators.size > 0 && (
               <span className="text-[8px] font-mono text-gold/30">{activeIndicators.size} indicator{activeIndicators.size !== 1 ? 's' : ''}</span>
             )}
-            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'LIVE'} · {visibleCandles.length}/{liveCandles.length} bars</span>
+            <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
             {zoom.zoomLabel !== 'FIT' && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
                 🔍 {zoom.zoomLabel} · RESET

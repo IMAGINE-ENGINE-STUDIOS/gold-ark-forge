@@ -4,7 +4,6 @@
  * for symbol sync with the Swap terminal panel.
  */
 import { useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useChartZoom } from '@/hooks/useChartZoom';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Wifi, Search, X, CandlestickChart, LineChart, BarChart2, MoreHorizontal, Crosshair } from 'lucide-react';
@@ -16,9 +15,8 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { useHistoricalBars } from '@/hooks/useHistoricalBars';
-import { CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
+import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
   enrichChartData,
@@ -396,8 +394,6 @@ interface Props {
   symbolKey: string;
   category: string;
   label: string;
-  livePrice?: number;
-  liveChange?: number;
   onSymbolChange?: (sym: WatchlistSymbol) => void;
   headerLeftSlot?: ReactNode;
   headerRightSlot?: ReactNode;
@@ -417,7 +413,7 @@ interface TFConfig {
 }
 
 const tfConfigs: Record<Timeframe, TFConfig> = {
-  'RT': { points: 60, intervalMs: 1_000, candleMs: 1_000, volatility: 0.0002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+  'RT': { points: 60, intervalMs: 5_000, candleMs: 5_000, volatility: 0.0002, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
   '1H': { points: 12, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0004, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '4H': { points: 48, intervalMs: 5 * 60_000, candleMs: 5 * 60_000, volatility: 0.0005, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
   '1D': { points: 96, intervalMs: 15 * 60_000, candleMs: 15 * 60_000, volatility: 0.0008, labelFn: (d) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
@@ -431,7 +427,23 @@ const tfConfigs: Record<Timeframe, TFConfig> = {
   'ALL': { points: 180, intervalMs: 30 * 24 * 3_600_000, candleMs: 30 * 24 * 3_600_000, volatility: 0.035, labelFn: (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) },
 };
 
-const buildFromSparkline = (sparkline: number[], tf: Timeframe, livePrice: number): ChartDataPoint[] => {
+const seededRandom = (seed: number) => {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+};
+
+const hashSeed = (str: string): number => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+};
+
+const buildFromSparkline = (sparkline: number[], tf: Timeframe, _livePrice: number): ChartDataPoint[] => {
   const cfg = tfConfigs[tf];
   const totalPrices = sparkline.length;
   const step = Math.max(1, Math.floor(totalPrices / cfg.points));
@@ -449,26 +461,33 @@ const buildFromSparkline = (sparkline: number[], tf: Timeframe, livePrice: numbe
     const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
     data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(2)), open: parseFloat(open.toFixed(2)), close: parseFloat(close.toFixed(2)), high: parseFloat(high.toFixed(2)), low: parseFloat(low.toFixed(2)) });
   }
-  const live = Number(livePrice);
-  if (Number.isFinite(live) && live > 0) {
-    const decimals = live < 10 ? 4 : 2;
-    const roundedLive = parseFloat(live.toFixed(decimals));
-    const last = data[data.length - 1];
-    if (last) {
-      last.value = roundedLive;
-      last.close = roundedLive;
-      last.high = parseFloat(Math.max(Number(last.high) || roundedLive, roundedLive).toFixed(decimals));
-      last.low = parseFloat(Math.min(Number(last.low) || roundedLive, roundedLive).toFixed(decimals));
-    } else {
-      data.push({
-        time: cfg.labelFn(new Date()),
-        value: roundedLive,
-        open: roundedLive,
-        close: roundedLive,
-        high: roundedLive,
-        low: roundedLive,
-      });
-    }
+  return data;
+};
+
+const generateChartData = (price: number, change: number, tf: Timeframe, symbolKey: string): ChartDataPoint[] => {
+  const cfg = tfConfigs[tf];
+  const seed = hashSeed(`${symbolKey}:${tf}:${Math.floor(Date.now() / 3_600_000)}`);
+  const rand = seededRandom(seed);
+  const data: ChartDataPoint[] = [];
+  const now = Date.now();
+  let walkPrice = price / (1 + change / 100);
+  const drift = (price - walkPrice) / cfg.points;
+  for (let i = 0; i < cfg.points; i++) {
+    const r1 = rand() - 0.5;
+    const r2 = rand() - 0.5;
+    const r3 = rand();
+    const step = drift + r1 * walkPrice * cfg.volatility * 2;
+    walkPrice += step;
+    const spread = Math.abs(r2) * walkPrice * cfg.volatility * 1.5;
+    const direction = r1 > 0;
+    const open = walkPrice - (direction ? spread * 0.3 : -spread * 0.3);
+    const close = walkPrice;
+    const wickUp = r3 * walkPrice * cfg.volatility * 0.8;
+    const wickDown = (1 - r3) * walkPrice * cfg.volatility * 0.8;
+    const high = Math.max(open, close) + wickUp;
+    const low = Math.min(open, close) - wickDown;
+    const time = new Date(now - (cfg.points - i) * cfg.intervalMs);
+    data.push({ time: cfg.labelFn(time), value: parseFloat(close.toFixed(price < 10 ? 4 : 2)), open: parseFloat(open.toFixed(price < 10 ? 4 : 2)), close: parseFloat(close.toFixed(price < 10 ? 4 : 2)), high: parseFloat(high.toFixed(price < 10 ? 4 : 2)), low: parseFloat(low.toFixed(price < 10 ? 4 : 2)) });
   }
   return data;
 };
@@ -506,84 +525,50 @@ const OIL_SYMBOL_MAP: Record<string, string> = {
 const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: ChartDataPoint[], symbolKey: string) => {
   const candlesRef = useRef<ChartDataPoint[]>([]);
   const currentCandleStartRef = useRef<number>(0);
-  const lastAcceptedPriceRef = useRef<number>(0);
   const lastSymbolRef = useRef<string>('');
   const lastTfRef = useRef<Timeframe>('1D');
   const [candles, setCandles] = useState<ChartDataPoint[]>([]);
-  const [clock, setClock] = useState(0);
   const tickCountRef = useRef(0);
   const cfg = tfConfigs[tf];
 
   useEffect(() => {
-    const id = window.setInterval(() => setClock((v) => (v + 1) % 1_000_000), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
     const symbolChanged = symbolKey !== lastSymbolRef.current;
     const tfChanged = tf !== lastTfRef.current;
-    const dataArrived = historicalData.length > 1 && candlesRef.current.length < Math.min(10, historicalData.length);
-    const livePriceArrived = candlesRef.current.length === 0 && price > 0;
-    if (symbolChanged || tfChanged || dataArrived || livePriceArrived) {
+    const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
+    if (symbolChanged || tfChanged || dataArrived) {
       lastSymbolRef.current = symbolKey;
       lastTfRef.current = tf;
-      const decimals = price < 10 ? 4 : 2;
-      const liveSeed: ChartDataPoint[] = price > 0
-        ? [{ time: cfg.labelFn(new Date()), value: parseFloat(price.toFixed(decimals)), open: parseFloat(price.toFixed(decimals)), close: parseFloat(price.toFixed(decimals)), high: parseFloat(price.toFixed(decimals)), low: parseFloat(price.toFixed(decimals)) }]
-        : [];
-      candlesRef.current = historicalData.length > 0 ? [...historicalData] : liveSeed;
+      candlesRef.current = [...historicalData];
       currentCandleStartRef.current = Date.now();
-      lastAcceptedPriceRef.current = price > 0 ? parseFloat(price.toFixed(decimals)) : 0;
       tickCountRef.current = 0;
-      setCandles([...candlesRef.current]);
+      setCandles([...historicalData]);
     }
-  }, [symbolKey, tf, historicalData, price, cfg]);
+  }, [symbolKey, tf, historicalData]);
 
   useEffect(() => {
     if (price <= 0 || candlesRef.current.length === 0) return;
     const now = Date.now();
     const elapsed = now - currentCandleStartRef.current;
     const arr = candlesRef.current;
-    const decimals = price < 10 ? 4 : 2;
-    const roundedPrice = parseFloat(price.toFixed(decimals));
-    const minMove = Math.max(1 / Math.pow(10, decimals), Math.abs(roundedPrice) * 0.000001);
-    const priceChanged = Math.abs(roundedPrice - lastAcceptedPriceRef.current) >= minMove;
-    const last = arr[arr.length - 1];
-
     if (elapsed >= cfg.candleMs) {
-      const previousClose = Number.isFinite(Number(last?.close ?? last?.value))
-        ? Number(last?.close ?? last?.value)
-        : roundedPrice;
-      const newCandle: ChartDataPoint = {
-        time: cfg.labelFn(new Date()),
-        value: roundedPrice,
-        open: parseFloat(previousClose.toFixed(decimals)),
-        close: roundedPrice,
-        high: parseFloat(Math.max(previousClose, roundedPrice).toFixed(decimals)),
-        low: parseFloat(Math.min(previousClose, roundedPrice).toFixed(decimals)),
-      };
+      const newCandle: ChartDataPoint = { time: cfg.labelFn(new Date()), value: price, open: price, close: price, high: price, low: price };
       arr.push(newCandle);
-      // Retain a generous history buffer so users can slide left through
-      // deep history without losing the past as new candles roll in.
-      const maxPoints = tf === 'RT' ? 600 : Math.max(cfg.points * 6, 1500);
+      const maxPoints = tf === 'RT' ? 120 : cfg.points + 30;
       if (arr.length > maxPoints) arr.splice(0, arr.length - maxPoints);
       currentCandleStartRef.current = now;
-      lastAcceptedPriceRef.current = roundedPrice;
-      tickCountRef.current++;
-      setCandles([...arr]);
-      return;
+    } else {
+      const last = arr[arr.length - 1];
+      if (last) {
+        const decimals = price < 10 ? 4 : 2;
+        last.close = parseFloat(price.toFixed(decimals));
+        last.value = last.close;
+        last.high = parseFloat(Math.max(last.high, price).toFixed(decimals));
+        last.low = parseFloat(Math.min(last.low, price).toFixed(decimals));
+      }
     }
-
-    if (last && (priceChanged || last.value !== roundedPrice || last.close !== roundedPrice)) {
-      last.close = roundedPrice;
-      last.value = roundedPrice;
-      last.high = parseFloat(Math.max(Number(last.high) || roundedPrice, roundedPrice).toFixed(decimals));
-      last.low = parseFloat(Math.min(Number(last.low) || roundedPrice, roundedPrice).toFixed(decimals));
-      lastAcceptedPriceRef.current = roundedPrice;
-      tickCountRef.current++;
-      setCandles([...arr]);
-    }
-  }, [price, clock, cfg.candleMs, cfg.labelFn, tf]);
+    tickCountRef.current++;
+    setCandles([...arr]);
+  }, [price, cfg.candleMs, cfg.labelFn, tf]);
 
   return candles;
 };
@@ -592,36 +577,18 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
 const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const isLongActive = (longTimeframes as readonly string[]).includes(tf);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (ref.current?.contains(target)) return;
-      setOpen(false);
-    };
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', handler);
-    const reflow = () => {
-      const r = btnRef.current?.getBoundingClientRect();
-      if (r) setPos({ top: r.bottom + 4, left: r.right - 90 });
-    };
-    reflow();
-    window.addEventListener('resize', reflow);
-    window.addEventListener('scroll', reflow, true);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      window.removeEventListener('resize', reflow);
-      window.removeEventListener('scroll', reflow, true);
-    };
+    return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
   return (
     <div className="relative" ref={ref}>
       <button
-        ref={btnRef}
         onClick={() => setOpen(!open)}
         className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 border ${
           isLongActive ? 'bg-gold/15 text-gold border-gold/30' : 'text-marble/30 hover:text-marble/60 border-transparent'
@@ -630,12 +597,8 @@ const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefr
         {isLongActive ? tf : 'MORE'}
         <MoreHorizontal className="w-3 h-3" />
       </button>
-      {open && pos && createPortal(
-        <div
-          ref={ref}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]"
-        >
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
           {longTimeframes.map((t) => (
             <button
               key={t}
@@ -647,8 +610,7 @@ const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefr
               {t === 'ALL' ? 'ALL (Lifetime)' : t}
             </button>
           ))}
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
@@ -658,44 +620,17 @@ const LongTimeframeDropdown = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefr
 const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timeframe) => void }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', handler);
-    const reflow = () => {
-      const r = btnRef.current?.getBoundingClientRect();
-      if (!r) return;
-      // Open upward (menu above the button), aligned to the right edge
-      const menuW = 90;
-      // Approx height; refined after first paint
-      const menuH = menuRef.current?.offsetHeight ?? 260;
-      setPos({ top: r.top - menuH - 4, left: r.right - menuW });
-    };
-    reflow();
-    // Re-measure after the menu paints (so menuH is real)
-    const raf = requestAnimationFrame(reflow);
-    window.addEventListener('resize', reflow);
-    window.addEventListener('scroll', reflow, true);
-    return () => {
-      cancelAnimationFrame(raf);
-      document.removeEventListener('mousedown', handler);
-      window.removeEventListener('resize', reflow);
-      window.removeEventListener('scroll', reflow, true);
-    };
+    return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
   return (
     <div className="relative" ref={ref}>
       <button
-        ref={btnRef}
         onClick={() => setOpen(!open)}
         className={`px-2 py-0.5 text-[9px] font-mono tracking-wider rounded transition-all flex items-center gap-1 ${
           tf === 'RT' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-gold/15 text-gold border border-gold/30'
@@ -704,12 +639,8 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
         {tf}
         <MoreHorizontal className="w-3 h-3" />
       </button>
-      {open && pos && createPortal(
-        <div
-          ref={menuRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]"
-        >
+      {open && (
+        <div className="absolute right-0 bottom-full mb-1 z-[200] bg-navy-dark border border-gold/30 rounded-lg shadow-xl overflow-hidden min-w-[90px]">
           <div className="px-3 py-1 text-[8px] font-display tracking-wider text-marble/30 bg-navy-dark/80 border-b border-gold/10">SHORT</div>
           {shortTimeframes.map((t) => (
             <button
@@ -736,8 +667,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
               {t === 'ALL' ? 'ALL (Lifetime)' : t}
             </button>
           ))}
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
@@ -746,7 +676,7 @@ const MobileTimeframeMenu = ({ tf, setTf }: { tf: Timeframe; setTf: (t: Timefram
 // ═══════════════════════════════════════════════════════════
 // GOLD ARROW LIVE — Swap Terminal Chart
 // ═══════════════════════════════════════════════════════════
-const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymbolChange, headerLeftSlot, headerRightSlot }: Props) => {
+const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlot, headerRightSlot }: Props) => {
   const [tf, setTf] = useState<Timeframe>('RT');
   const [chartMode, setChartMode] = useState<ChartMode>('area');
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set());
@@ -766,11 +696,7 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
   const wsPrices = useWebSocketPrices([symbolKey]);
   const wsData = wsPrices[symbolKey];
 
-  // ── REAL DATA ONLY. No synthetic jitter, no fallback fake prices.
-  // Crypto → Binance WebSocket tick; Metals/Energy → respective real feeds.
-  // If no feed exists the chart shows a clear NO DATA state instead of lying.
   const { basePrice, baseChange } = useMemo(() => {
-    if (livePrice && livePrice > 0) return { basePrice: livePrice, baseChange: liveChange ?? 0 };
     if (wsData && wsData.price > 0) return { basePrice: wsData.price, baseChange: wsData.change24h };
     if (category === 'metals') {
       const key = METAL_MAP[symbolKey];
@@ -786,12 +712,14 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    return { basePrice: 0, baseChange: 0 };
-  }, [symbolKey, category, livePrice, liveChange, metalPrices, cryptoData, oilPrices, wsData]);
+    const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
+    return { basePrice: sp.p, baseChange: sp.c };
+  }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
 
-  const price = basePrice;
-  const change = baseChange;
+  const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
   const isWsLive = !!wsData && wsData.price > 0;
+  const price = isWsLive ? wsData.price : streamedPrice;
+  const change = isWsLive ? wsData.change24h : streamedChange;
 
   const sparklineData = useMemo(() => {
     if (category !== 'crypto' || !cryptoData) return null;
@@ -799,33 +727,18 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
     return coin?.sparkline_in_7d?.price ?? null;
   }, [category, cryptoData, symbolKey]);
 
-  // Real historical bars from Yahoo for non-crypto (metals, energy, FX,
-  // indices, equities). Provides deep history parity with crypto sparklines.
-  const { data: yahooBars } = useHistoricalBars(symbolKey, category !== 'crypto');
-
-  const hasEffectivePrice = basePrice > 0;
   const historicalData = useMemo(() => {
-    if (!hasEffectivePrice) return [];
-    if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, basePrice);
-    if (yahooBars?.closes?.length && yahooBars.closes.length > 10) {
-      return buildFromSparkline(yahooBars.closes, tf, basePrice);
-    }
-    return [];
-  }, [sparklineData, yahooBars, tf, hasEffectivePrice, basePrice]);
+    const effectivePrice = basePrice || price;
+    if (effectivePrice <= 0) return [];
+    if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, effectivePrice);
+    return generateChartData(effectivePrice, change, tf, symbolKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sparklineData, tf, symbolKey, basePrice]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
   // ═══ ZOOM THROUGH TIME ═══
-  // Default visible window = the timeframe's natural candle count so the
-  // chart looks the same as before. The full liveCandles buffer (much larger)
-  // becomes available as the user slides left into history.
-  const defaultVisible = Math.min(tfConfigs[tf].points, liveCandles.length || 1);
-  const zoom = useChartZoom({
-    totalPoints: liveCandles.length,
-    initialVisible: defaultVisible,
-    minVisible: 10,
-    maxVisible: Math.max(liveCandles.length, defaultVisible),
-  });
+  const zoom = useChartZoom({ totalPoints: liveCandles.length, minVisible: 10, maxVisible: liveCandles.length * 3 });
   const visibleCandles = useMemo(() => zoom.sliceData(liveCandles), [zoom.sliceData, liveCandles]);
   const enrichedData = useMemo(() => enrichChartData(visibleCandles, activeIndicators), [visibleCandles, activeIndicators]);
 
@@ -942,14 +855,10 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
 
   const headerStats = useMemo(() => {
     const rsiArr = computeRSIArray(chartValues);
-    const rawRsi = rsiArr[rsiArr.length - 1];
-    const rawSma20 = computeSMA(chartValues, 20).at(-1);
-    const rawEma20 = computeEMA(chartValues, 20).at(-1);
-    const rawAtr = computeATR(chartHighs, chartLows, chartValues).at(-1);
-    const rsi = Number.isFinite(rawRsi) ? rawRsi : 50;
-    const sma20 = Number.isFinite(rawSma20) ? rawSma20 : price;
-    const ema20 = Number.isFinite(rawEma20) ? rawEma20 : price;
-    const atr = Number.isFinite(rawAtr) ? rawAtr : 0;
+    const rsi = rsiArr[rsiArr.length - 1] ?? 50;
+    const sma20 = computeSMA(chartValues, 20).at(-1) ?? price;
+    const ema20 = computeEMA(chartValues, 20).at(-1) ?? price;
+    const atr = computeATR(chartHighs, chartLows, chartValues).at(-1) ?? 0;
     const macdData = computeMACD(chartValues);
     const macdVal = macdData.macd.at(-1) ?? 0;
     const macdSig = macdData.signal.at(-1) ?? 0;
@@ -1185,22 +1094,11 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
       </div>
 
       {/* Chart Area */}
-      <div
-        {...zoom.containerProps}
-        className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`}
-        style={{
-          cursor: activeTool ? 'crosshair' : zoom.isPanned ? 'grabbing' : 'grab',
-          flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined,
-          minHeight: 0,
-          touchAction: 'pan-y',
-          userSelect: 'none',
-        }}
-      >
+      <div {...zoom.containerProps} className={`px-1 py-1 ${hasActiveOscillators(activeIndicators) ? '' : 'flex-1'}`} style={{ cursor: activeTool ? 'crosshair' : 'default', flex: hasActiveOscillators(activeIndicators) ? '1 1 70%' : undefined, minHeight: 0, touchAction: 'pan-x' }}>
         {price === 0 || liveCandles.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3">
-            <Wifi className="w-10 h-10 text-marble/20" />
-            <span className="text-marble/40 text-xs font-display tracking-[0.2em]">NO LIVE DATA</span>
-            <span className="text-marble/25 text-[10px] font-mono">Real feed unavailable for this symbol</span>
+            <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            <span className="text-marble/30 text-xs font-display tracking-[0.2em]">LOADING MARKET DATA</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -1303,8 +1201,8 @@ const GALiveChart = ({ symbolKey, category, label, livePrice, liveChange, onSymb
               APEX G{apexStats.generation} · {apexStats.last5Accuracy} · {apexStats.corrections} fix{apexStats.corrections !== 1 ? 'es' : ''}
             </span>
           )}
-           <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'LIVE'} · {visibleCandles.length}/{liveCandles.length} bars</span>
-            {(zoom.zoomLabel !== 'FIT' || zoom.isPanned) && (
+           <span className="text-[8px] font-mono text-marble/15">{isWsLive ? 'WS' : 'SIM'} · {visibleCandles.length}/{liveCandles.length} bars</span>
+            {zoom.zoomLabel !== 'FIT' && (
               <button onClick={zoom.resetZoom} className="text-[8px] font-mono text-gold/40 hover:text-gold transition-colors px-1 py-0.5 rounded bg-gold/5 border border-gold/10">
                 🔍 {zoom.zoomLabel} · RESET
               </button>
