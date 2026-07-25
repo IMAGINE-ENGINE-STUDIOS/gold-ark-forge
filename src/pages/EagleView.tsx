@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Feather, Activity, Radio, ExternalLink, Layers, Store, Brain, Fuel, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Activity, ExternalLink, Brain, Gauge, Newspaper, CalendarDays, Flame, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import Header from '@/components/Header';
 import { SymbolRanker } from '@/components/trading/SymbolRanker';
 import { useLiveMarketData } from '@/hooks/useLiveMarketData';
@@ -103,62 +103,6 @@ export default function EagleView() {
   return (
     <div className="min-h-screen bg-navy-dark text-marble">
       <Header />
-
-      {/* ─── Command band ─────────────────────────────────────────── */}
-      <div className="border-b border-gold/20 bg-gradient-to-r from-navy-dark via-navy to-navy-dark">
-        <div className="container mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gold/20 blur-xl rounded-full" />
-              <Feather className="relative w-8 h-8 text-gold" strokeWidth={1.5} />
-            </div>
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl tracking-[0.18em] text-gold">
-                EAGLE&nbsp;VIEW
-              </h1>
-              <div className="text-[10px] tracking-[0.25em] text-gold/60 uppercase font-mono">
-                Precision Rank v2 · MTF · Monte-Carlo · AI-Augmented
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-wider">
-            <span className={`flex items-center gap-1.5 ${live.feedsReady ? 'text-emerald-400' : 'text-marble/40'}`}>
-              <Radio className={`w-3 h-3 ${live.feedsReady ? 'animate-pulse' : ''}`} />
-              {live.feedsReady ? 'Live feeds online' : 'Awaiting feeds'}
-            </span>
-            <span className="text-marble/40">·</span>
-            <span className="text-marble/60">Symbols: {ALL_SYMBOLS.length}</span>
-            <span className="text-marble/40">·</span>
-            <span className="text-gold-light">Tick #{tick.toString().padStart(5, '0')}</span>
-          </div>
-        </div>
-
-        {/* Cross-page sync bar */}
-        <div className="border-t border-gold/10 bg-navy-dark/60">
-          <div className="container mx-auto px-4 py-2 flex flex-wrap items-center gap-3 text-[10px] font-mono">
-            <span className="text-marble/40 uppercase tracking-wider">Synced with</span>
-            <Link to="/showroom" className="flex items-center gap-1 text-gold/70 hover:text-gold transition-colors">
-              <Store className="w-3 h-3" /> Showroom <ExternalLink className="w-2.5 h-2.5 opacity-50" />
-            </Link>
-            <span className="text-gold/20">|</span>
-            <Link to="/intelligence" className="flex items-center gap-1 text-gold/70 hover:text-gold transition-colors">
-              <Brain className="w-3 h-3" /> Intelligence <ExternalLink className="w-2.5 h-2.5 opacity-50" />
-            </Link>
-            <span className="text-gold/20">|</span>
-            <Link to="/oil-gas" className="flex items-center gap-1 text-gold/70 hover:text-gold transition-colors">
-              <Fuel className="w-3 h-3" /> Oil &amp; Gas <ExternalLink className="w-2.5 h-2.5 opacity-50" />
-            </Link>
-            <span className="text-gold/20">|</span>
-            <Link to="/trading-bridge" className="flex items-center gap-1 text-gold/70 hover:text-gold transition-colors">
-              <Layers className="w-3 h-3" /> Swap Terminal <ExternalLink className="w-2.5 h-2.5 opacity-50" />
-            </Link>
-            <span className="ml-auto text-marble/40 uppercase tracking-wider">
-              Same tick, one truth
-            </span>
-          </div>
-        </div>
-      </div>
 
       {/* ─── Directive Hero — Apple-clean, Gold Arrow palette ──── */}
       <DirectiveHero directive={directive} live={live} tick={tick} />
