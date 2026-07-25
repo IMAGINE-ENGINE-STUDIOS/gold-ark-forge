@@ -508,7 +508,12 @@ export default function Swap() {
 
         {/* Center: chart */}
         <main className="col-span-6 overflow-hidden rounded-xl border border-white/5 bg-black/40">
-          <TVChart key={active.tv} symbol={active.tv} />
+          <LiveTickChart
+            symbolKey={active.tv}
+            price={livePrice}
+            ts={tick?.ts}
+            label={`${active.label} · ${liveSource ?? "feed"}`}
+          />
         </main>
 
         {/* Right: ticker + order + orders */}
