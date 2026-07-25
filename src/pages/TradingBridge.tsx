@@ -134,7 +134,7 @@ const BOTTOM_TABS = [
   { key: 'genius', label: 'GENIUS', icon: Brain },
   { key: 'book', label: 'BOOK', icon: Briefcase },
   { key: 'bot', label: 'BOT', icon: Bot },
-  { key: 'automate', label: 'AUTOMATE', icon: CalendarDays },
+  { key: 'pipeline', label: 'PIPELINE', icon: CalendarDays },
   { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
   { key: 'market', label: 'MARKET', icon: Layers },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
@@ -1385,9 +1385,17 @@ const TradingBridge = () => {
                     equity={paper.account.equity}
                   />
                 )}
-                {bottomTab === 'automate' && (
+                {bottomTab === 'pipeline' && (
                   <div className="space-y-4">
-                    <SchedulePanel />
+                    <div className="flex items-center gap-2 mb-1">
+                      <CalendarDays className="w-4 h-4 text-gold" />
+                      <span className="font-display text-sm tracking-[0.15em] text-gold-light">AUTOMATION PIPELINE</span>
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">RULES · SCHEDULE · ALERTS</span>
+                    </div>
+                    <RuleBuilder />
+                    <div className="border-t border-gold/10 pt-4">
+                      <SchedulePanel />
+                    </div>
                     <div className="border-t border-gold/10 pt-4">
                       <PriceAlerts alertsHook={priceAlertsHook} />
                     </div>
@@ -1469,7 +1477,7 @@ const TradingBridge = () => {
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
           {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => setBottomTab('automate')} className="relative p-1 text-gold/60 hover:text-gold">
+            <button onClick={() => setBottomTab('pipeline')} className="relative p-1 text-gold/60 hover:text-gold">
               <Bell className="w-3.5 h-3.5" />
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
@@ -1711,9 +1719,17 @@ const TradingBridge = () => {
                       equity={paper.account.equity}
                     />
                   )}
-                  {bottomTab === 'automate' && (
+                  {bottomTab === 'pipeline' && (
                     <div className="space-y-4">
-                      <SchedulePanel />
+                      <div className="flex items-center gap-2 mb-1">
+                        <CalendarDays className="w-4 h-4 text-gold" />
+                        <span className="font-display text-sm tracking-[0.15em] text-gold-light">AUTOMATION PIPELINE</span>
+                        <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">RULES · SCHEDULE · ALERTS</span>
+                      </div>
+                      <RuleBuilder />
+                      <div className="border-t border-gold/10 pt-4">
+                        <SchedulePanel />
+                      </div>
                       <div className="border-t border-gold/10 pt-4">
                         <PriceAlerts alertsHook={priceAlertsHook} />
                       </div>
