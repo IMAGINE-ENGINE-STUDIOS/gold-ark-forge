@@ -34,6 +34,7 @@ import PersonaPage from "./pages/PersonaPage";
 import DeckEditor from "./pages/DeckEditor";
 import Dataroom from "./pages/Dataroom";
 import NotFound from "./pages/NotFound";
+import Swap from "./pages/Swap";
 
 const queryClient = new QueryClient();
 
