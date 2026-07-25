@@ -104,7 +104,10 @@ const YAHOO_SYMBOLS: (Sym & { yahoo: string })[] = [
   { label: "Chevron",   tv: "NYSE:CVX",    cat: "Stocks", yahoo: "CVX" },
 ];
 
-SYMBOLS.push(...YAHOO_SYMBOLS);
+// Merge Yahoo-tracked symbols, deduped by TradingView ticker.
+for (const y of YAHOO_SYMBOLS) {
+  if (!SYMBOLS.some((s) => s.tv === y.tv)) SYMBOLS.push(y);
+}
 
 const CAT_TO_ASSET: Record<Cat, AssetClass> = {
   Crypto: "crypto",
@@ -193,8 +196,16 @@ function LiveTickChart({
   const iw = Math.max(1, w - padL - padR);
   const ih = Math.max(1, h - padT - padB);
 
+  // When we don't yet have a full window of ticks, anchor the x-axis to the
+  // first tick so the line spans the visible area from the very first sample.
+  const firstTs = pts[0]?.t;
+  const elapsed = firstTs ? now - firstTs : 0;
   const tMax = now;
-  const tMin = now - windowMs;
+  const tMin =
+    firstTs && elapsed < windowMs
+      ? firstTs - Math.max(2_000, windowMs * 0.05)
+      : now - windowMs;
+  const spanMs = Math.max(1, tMax - tMin);
   const visible = pts.filter((x) => x.t >= tMin - 1000);
   const prices = visible.map((x) => x.p);
   const pMin = prices.length ? Math.min(...prices) : (price ?? 0);
@@ -203,7 +214,7 @@ function LiveTickChart({
   const yMin = pMin - span * 0.08;
   const yMax = pMax + span * 0.08;
 
-  const xOf = (t: number) => padL + ((t - tMin) / windowMs) * iw;
+  const xOf = (t: number) => padL + ((t - tMin) / spanMs) * iw;
   const yOf = (p: number) => padT + (1 - (p - yMin) / (yMax - yMin)) * ih;
 
   const path = visible.length
@@ -225,7 +236,7 @@ function LiveTickChart({
   const ySteps = 5;
   const yTicks = Array.from({ length: ySteps + 1 }, (_, i) => yMin + ((yMax - yMin) * i) / ySteps);
   const xSteps = 6;
-  const xTicks = Array.from({ length: xSteps + 1 }, (_, i) => tMin + (windowMs * i) / xSteps);
+  const xTicks = Array.from({ length: xSteps + 1 }, (_, i) => tMin + (spanMs * i) / xSteps);
   const fmtPrice = (v: number) =>
     v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 10 ? 5 : 2 });
   const fmtTime = (t: number) =>
