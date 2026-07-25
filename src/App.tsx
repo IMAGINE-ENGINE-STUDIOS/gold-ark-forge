@@ -98,6 +98,7 @@ const App = () => {
       </WalletProvider>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
