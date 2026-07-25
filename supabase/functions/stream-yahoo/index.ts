@@ -9,6 +9,33 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 const CACHE = new Map<string, { ts: number; data: unknown }>();
 const CACHE_MS = 1500;
 
+const HIST_CACHE = new Map<string, { ts: number; closes: number[]; highs: number[]; lows: number[] }>();
+const HIST_CACHE_MS = 60_000; // 1 min
+
+async function fetchHistory(symbol: string, range = '1mo', interval = '1h') {
+  const key = `${symbol}|${range}|${interval}`;
+  const now = Date.now();
+  const hit = HIST_CACHE.get(key);
+  if (hit && now - hit.ts < HIST_CACHE_MS) return hit;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+  const r = await fetch(url, {
+    headers: {
+      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'accept': 'application/json',
+    },
+  });
+  if (!r.ok) throw new Error(`yahoo hist ${symbol} ${r.status}`);
+  const j = await r.json();
+  const q = j?.chart?.result?.[0]?.indicators?.quote?.[0];
+  if (!q) throw new Error('no quote');
+  const closes = (q.close || []).filter((v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  const highs = (q.high || []).filter((v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  const lows = (q.low || []).filter((v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  const entry = { ts: now, closes, highs, lows };
+  HIST_CACHE.set(key, entry);
+  return entry;
+}
+
 /**
  * Fetch one symbol from Yahoo's open v8 chart endpoint.
  * The chart response includes `meta.regularMarketPrice`, `previousClose`,
@@ -70,6 +97,20 @@ Deno.serve(async (req) => {
     if (!symbols.length) {
       return new Response(JSON.stringify({ error: 'symbols[] required' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (body?.history) {
+      const range = typeof body.range === 'string' ? body.range : '1mo';
+      const interval = typeof body.interval === 'string' ? body.interval : '1h';
+      const bars: Record<string, { closes: number[]; highs: number[]; lows: number[] }> = {};
+      await Promise.all(symbols.map(async (s) => {
+        try {
+          const h = await fetchHistory(s, range, interval);
+          if (h.closes.length > 5) bars[s] = { closes: h.closes, highs: h.highs, lows: h.lows };
+        } catch { /* skip */ }
+      }));
+      return new Response(JSON.stringify({ bars, fetched_at: Date.now() }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

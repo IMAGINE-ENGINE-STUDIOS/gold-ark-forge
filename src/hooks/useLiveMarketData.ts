@@ -41,8 +41,8 @@ export function useLiveMarketData() {
       if (error) throw error;
       return (data ?? {}) as BackendMarketData;
     },
-    refetchInterval: 3000,
-    staleTime: 1500,
+    refetchInterval: 1500,
+    staleTime: 800,
     retry: 1,
   });
 
