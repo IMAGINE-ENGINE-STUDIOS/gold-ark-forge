@@ -1393,7 +1393,7 @@ const TradingBridge = () => {
                       <span className="font-display text-sm tracking-[0.15em] text-gold-light">AUTOMATION PIPELINE</span>
                       <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">WORKFLOW · RULES · SCHEDULE · ALERTS</span>
                     </div>
-                    <WorkflowCanvas />
+                    <WorkflowCanvas paper={paper} getPriceByTicker={resolvePriceForTicker} />
                     <RuleBuilder />
                     <div className="border-t border-gold/10 pt-4">
                       <SchedulePanel />
