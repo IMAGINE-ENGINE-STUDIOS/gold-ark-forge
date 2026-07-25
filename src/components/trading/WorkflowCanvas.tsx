@@ -591,17 +591,47 @@ function NodeConfigForm({
   );
 
   if (node.kind === 'symbol') {
+    const query = String(c.symbol ?? c.ticker ?? '').toLowerCase();
+    const matches = query
+      ? ALL_SYMBOLS.filter(s =>
+          s.label.toLowerCase().includes(query) ||
+          s.ticker.toLowerCase().includes(query) ||
+          s.key.toLowerCase().includes(query)
+        ).slice(0, 8)
+      : [];
+    const exact = ALL_SYMBOLS.find(s => s.ticker === c.ticker);
     return (
       <div className="space-y-3">
         {LiveBlock}
-        <F label="SYMBOL">
-          <Input value={c.symbol ?? ''} onChange={(e) => onChange({ symbol: e.target.value })} />
+        <F label="SEARCH SYMBOL">
+          <div className="relative">
+            <Input
+              value={c.symbol ?? ''}
+              placeholder="Type to search 700+ symbols…"
+              onChange={(e) => onChange({ symbol: e.target.value })}
+            />
+            {matches.length > 0 && (!exact || exact.label !== c.symbol) && (
+              <div className="absolute z-50 mt-1 left-0 right-0 max-h-48 overflow-y-auto rounded border border-gold/30 bg-black/95 shadow-lg">
+                {matches.map(s => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => onChange({ symbol: s.label, ticker: s.ticker, key: s.key, cat: s.cat })}
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1 text-left hover:bg-gold/10"
+                  >
+                    <span className="text-[10px] font-mono text-gold-light">{s.label}</span>
+                    <span className="text-[9px] font-mono text-gold/50">{s.ticker} · {s.cat}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </F>
         <F label="TICKER">
           <Input value={c.ticker ?? ''} onChange={(e) => onChange({ ticker: e.target.value })} />
         </F>
         <p className="text-[9px] font-mono text-gold/50">
-          This symbol becomes the context for the next action in the chain.
+          Selecting a symbol drives the LIVE indicator above and becomes the context for the next action in the chain.
         </p>
       </div>
     );
