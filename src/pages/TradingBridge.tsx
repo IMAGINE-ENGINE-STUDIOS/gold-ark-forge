@@ -715,6 +715,7 @@ const TradingBridge = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [feedPanelOpen, setFeedPanelOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSnap, setDrawerSnap] = useState<string | number | null>(0.5);
