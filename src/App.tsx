@@ -92,6 +92,7 @@ const App = () => {
             <Route path="/deck-editor" element={<DeckEditor />} />
             <Route path="/globe" element={<Globe />} />
             <Route path="/dataroom" element={<Dataroom />} />
+            <Route path="/swap" element={<Swap />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
