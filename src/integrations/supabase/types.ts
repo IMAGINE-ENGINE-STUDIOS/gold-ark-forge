@@ -675,6 +675,78 @@ export type Database = {
         }
         Relationships: []
       }
+      macro_releases: {
+        Row: {
+          fetched_at: string
+          id: string
+          observed_at: string
+          series_id: string
+          source: string
+          title: string
+          units: string | null
+          value: number | null
+        }
+        Insert: {
+          fetched_at?: string
+          id?: string
+          observed_at: string
+          series_id: string
+          source?: string
+          title: string
+          units?: string | null
+          value?: number | null
+        }
+        Update: {
+          fetched_at?: string
+          id?: string
+          observed_at?: string
+          series_id?: string
+          source?: string
+          title?: string
+          units?: string | null
+          value?: number | null
+        }
+        Relationships: []
+      }
+      market_ticks: {
+        Row: {
+          ask: number | null
+          asset_class: string
+          bid: number | null
+          change_24h: number | null
+          last: number
+          latency_ms: number | null
+          source: string
+          symbol: string
+          ts: string
+          volume_24h: number | null
+        }
+        Insert: {
+          ask?: number | null
+          asset_class: string
+          bid?: number | null
+          change_24h?: number | null
+          last: number
+          latency_ms?: number | null
+          source: string
+          symbol: string
+          ts?: string
+          volume_24h?: number | null
+        }
+        Update: {
+          ask?: number | null
+          asset_class?: string
+          bid?: number | null
+          change_24h?: number | null
+          last?: number
+          latency_ms?: number | null
+          source?: string
+          symbol?: string
+          ts?: string
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
       paper_portfolios: {
         Row: {
           cash: number
