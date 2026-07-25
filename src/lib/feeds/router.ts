@@ -108,9 +108,8 @@ export const FeedRouter = new FeedRouterImpl();
 export function classifySymbol(symbol: string): AssetClass {
   const s = symbol.toUpperCase();
   if (s.startsWith('XAU') || s.startsWith('XAG') || s.startsWith('XPT') || s.startsWith('XPD')) return 'metals';
-  if (s.includes('BTC') || s.includes('ETH') || s.endsWith('USDT') || s.endsWith('USD') && s.length <= 8) {
-    // crude: pure crypto tickers e.g. BTC/USDT
-    if (s.includes('/')) return 'crypto';
+  if (s.includes('/') && (s.endsWith('/USDT') || s.endsWith('/USD') || s.startsWith('BTC') || s.startsWith('ETH'))) {
+    return 'crypto';
   }
   if (s === 'WTI' || s === 'BRENT' || s === 'NG' || s === 'HH') return 'energy';
   if (/^[A-Z]{3}\/[A-Z]{3}$/.test(s)) return 'fx';
