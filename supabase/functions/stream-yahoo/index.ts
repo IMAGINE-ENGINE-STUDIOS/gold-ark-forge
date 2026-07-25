@@ -9,6 +9,39 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 const CACHE = new Map<string, { ts: number; data: unknown }>();
 const CACHE_MS = 1500;
 
+/**
+ * Fetch one symbol from Yahoo's open v8 chart endpoint.
+ * The chart response includes `meta.regularMarketPrice`, `previousClose`,
+ * `regularMarketVolume`, `bid`, `ask` — same fields the old /v7/quote gave
+ * us, but without the crumb/cookie auth barrier.
+ */
+async function fetchOne(symbol: string) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`;
+  const r = await fetch(url, {
+    headers: {
+      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'accept': 'application/json',
+    },
+  });
+  if (!r.ok) throw new Error(`yahoo ${symbol} ${r.status}`);
+  const j = await r.json();
+  const meta = j?.chart?.result?.[0]?.meta;
+  if (!meta) return null;
+  const price = Number(meta.regularMarketPrice ?? meta.previousClose ?? 0);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  const prev = Number(meta.chartPreviousClose ?? meta.previousClose ?? 0);
+  const change_pct = prev > 0 ? ((price - prev) / prev) * 100 : undefined;
+  return {
+    symbol,
+    price,
+    bid: meta.bid != null ? Number(meta.bid) : undefined,
+    ask: meta.ask != null ? Number(meta.ask) : undefined,
+    change_pct,
+    volume: meta.regularMarketVolume != null ? Number(meta.regularMarketVolume) : undefined,
+    currency: meta.currency,
+  };
+}
+
 async function fetchYahoo(symbols: string[]): Promise<unknown[]> {
   const now = Date.now();
   const need: string[] = [];
@@ -18,36 +51,14 @@ async function fetchYahoo(symbols: string[]): Promise<unknown[]> {
     if (hit && now - hit.ts < CACHE_MS) out.push(hit.data);
     else need.push(s);
   }
-  if (need.length) {
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(need.join(','))}`;
-    const r = await fetch(url, {
-      headers: {
-        'user-agent': 'Mozilla/5.0 GoldArrow/1.0',
-        'accept': 'application/json',
-      },
-    });
-    if (!r.ok) throw new Error(`yahoo ${r.status}: ${await r.text()}`);
-    const j = await r.json();
-    const rows = (j?.quoteResponse?.result ?? []) as Array<Record<string, unknown>>;
-    for (const row of rows) {
-      const price = Number(
-        row.regularMarketPrice ?? row.postMarketPrice ?? row.preMarketPrice ?? 0,
-      );
-      const quote = {
-        symbol: String(row.symbol),
-        price,
-        bid: row.bid != null ? Number(row.bid) : undefined,
-        ask: row.ask != null ? Number(row.ask) : undefined,
-        change_pct: row.regularMarketChangePercent != null
-          ? Number(row.regularMarketChangePercent) : undefined,
-        volume: row.regularMarketVolume != null
-          ? Number(row.regularMarketVolume) : undefined,
-        currency: row.currency,
-      };
-      CACHE.set(String(row.symbol), { ts: now, data: quote });
-      out.push(quote);
-    }
-  }
+  const results = await Promise.all(need.map(async (s) => {
+    try {
+      const q = await fetchOne(s);
+      if (q) CACHE.set(s, { ts: now, data: q });
+      return q;
+    } catch { return null; }
+  }));
+  for (const q of results) if (q) out.push(q);
   return out;
 }
 
