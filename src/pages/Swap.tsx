@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { bootstrapFeeds, useMarketFeed } from "@/hooks/useMarketFeed";
+import type { AssetClass } from "@/lib/feeds/types";
 
 /**
  * SWAP — a clean, TradingView-powered trading page.
@@ -104,6 +106,24 @@ const YAHOO_SYMBOLS: (Sym & { yahoo: string })[] = [
 
 SYMBOLS.push(...YAHOO_SYMBOLS);
 
+const CAT_TO_ASSET: Record<Cat, AssetClass> = {
+  Crypto: "crypto",
+  Metals: "metal",
+  Energy: "energy",
+  FX: "fx",
+  Index: "index",
+  Stocks: "stock",
+  ETF: "stock",
+  Futures: "energy",
+};
+
+// Map crypto TV symbols to Binance WS pairs for true sub-second ticks.
+function cryptoPairFromTV(tv: string): string | null {
+  const m = tv.match(/^BINANCE:([A-Z]+)(USDT|USD|BUSD)$/);
+  if (!m) return null;
+  return `${m[1]}/${m[2]}`;
+}
+
 const CATS: (Cat | "All")[] = ["All", "Crypto", "Metals", "Energy", "FX", "Index", "Stocks", "ETF", "Futures"];
 
 function TVChart({ symbol }: { symbol: string }) {
@@ -198,6 +218,31 @@ export default function Swap() {
     localStorage.setItem("swap.orders", JSON.stringify(orders.slice(0, 50)));
   }, [orders]);
 
+  // Bootstrap live feeds. TradingView relay (~1s) covers all symbols;
+  // Binance WS gives real sub-second ticks for crypto; metals hit gold-api.
+  useEffect(() => {
+    const cryptoPairs = Array.from(new Set(
+      SYMBOLS.map(s => cryptoPairFromTV(s.tv)).filter((x): x is string => !!x),
+    ));
+    bootstrapFeeds({
+      crypto: cryptoPairs,
+      cryptoUsd: [],
+      tradingView: SYMBOLS.map(s => ({
+        symbol: s.tv,
+        assetClass: CAT_TO_ASSET[s.cat],
+        tvSymbols: [s.tv],
+      })),
+    });
+  }, []);
+
+  // Prefer Binance WS pair for crypto, otherwise the TV-keyed feed.
+  const feedSymbol = cryptoPairFromTV(active.tv) ?? active.tv;
+  const tick = useMarketFeed(feedSymbol);
+  const livePrice = tick?.last;
+  const liveChange = tick?.change24h;
+  const liveAgeMs = tick ? Date.now() - tick.ts : undefined;
+  const liveSource = tick?.source;
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return SYMBOLS.filter(
@@ -225,10 +270,25 @@ export default function Swap() {
             GOLD ARROW · SWAP
           </Link>
           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-            LIVE · TradingView
+            {livePrice ? `LIVE · ${liveSource ?? "feed"}` : "CONNECTING…"}
           </span>
         </div>
-        <div className="text-xs text-neutral-400">{active.label} · {active.tv}</div>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-neutral-400">{active.label} · {active.tv}</span>
+          {livePrice !== undefined && (
+            <span className="tabular-nums font-semibold text-neutral-100">
+              {livePrice.toLocaleString(undefined, { maximumFractionDigits: livePrice < 10 ? 5 : 2 })}
+            </span>
+          )}
+          {liveChange !== undefined && Number.isFinite(liveChange) && (
+            <span className={`tabular-nums ${liveChange >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+              {liveChange >= 0 ? "+" : ""}{liveChange.toFixed(2)}%
+            </span>
+          )}
+          {liveAgeMs !== undefined && (
+            <span className="text-[10px] text-neutral-500">{liveAgeMs < 1500 ? "●" : "○"} {Math.max(0, Math.round(liveAgeMs))}ms</span>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-12 gap-3 p-3" style={{ height: "calc(100vh - 53px)" }}>
