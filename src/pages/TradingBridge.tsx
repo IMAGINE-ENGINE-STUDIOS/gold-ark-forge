@@ -85,6 +85,7 @@ import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
 import { bootstrapFeeds } from '@/hooks/useMarketFeed';
 import { BINANCE_STREAMS } from '@/hooks/useWebSocketPrices';
 import type { AssetClass } from '@/lib/feeds/types';
+import { canonicalFeedSymbol, tradingViewSymbolsFor } from '@/lib/feeds/tradingViewSymbols';
 
 // ─── Collapsible Section Component ───────────────────────
 function CollapsibleSection({ 
@@ -201,6 +202,8 @@ const yahooSymbolFor = (sym: { key: string; cat: string; ticker: string }) => {
 };
 
 const assetClassFor = (sym: { cat: string }): AssetClass => {
+  if (sym.cat === 'crypto') return 'crypto';
+  if (sym.cat === 'metals') return 'metals';
   if (sym.cat === 'energy') return 'energy';
   if (sym.cat === 'fx' || sym.cat === 'forex') return 'fx';
   if (sym.cat === 'bonds') return 'bond';
@@ -764,6 +767,16 @@ const TradingBridge = () => {
     if (activeSymbol.cat === 'crypto') {
       const base = cryptoBaseFor(activeSymbol);
       if (base) bootstrapFeeds({ crypto: [`${base}/USDT`], cryptoUsd: [`${base}/USD`] });
+    }
+    const tvSymbols = tradingViewSymbolsFor(activeSymbol);
+    if (tvSymbols.length) {
+      bootstrapFeeds({
+        tradingView: [{
+          symbol: canonicalFeedSymbol(activeSymbol),
+          assetClass: assetClassFor(activeSymbol),
+          tvSymbols,
+        }],
+      });
     }
     const yahoo = yahooSymbolFor(activeSymbol);
     if (!yahoo) return;

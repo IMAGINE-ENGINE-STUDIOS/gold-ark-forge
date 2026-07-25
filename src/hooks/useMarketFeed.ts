@@ -12,8 +12,10 @@ import { startBinance } from '@/lib/feeds/sources/binance';
 import { startCoinbase } from '@/lib/feeds/sources/coinbase';
 import { startMetals } from '@/lib/feeds/sources/metals';
 import { startYahoo } from '@/lib/feeds/sources/yahoo';
+import { startTradingView } from '@/lib/feeds/sources/tradingview';
 import { startRealtimeBridge } from '@/lib/feeds/sources/realtimeBridge';
 import type { AssetClass, FeedHealth, Tick } from '@/lib/feeds/types';
+import type { TradingViewTrackedSymbol } from '@/lib/feeds/tradingViewSymbols';
 
 let bootstrapped = false;
 
@@ -21,12 +23,14 @@ export function bootstrapFeeds(opts?: {
   crypto?: string[];
   cryptoUsd?: string[];
   yahoo?: Array<{ symbol: string; assetClass: AssetClass }>;
+  tradingView?: TradingViewTrackedSymbol[];
   skipMetals?: boolean;
 }) {
   if (bootstrapped) {
     if (opts?.crypto?.length) startBinance(opts.crypto);
     if (opts?.cryptoUsd?.length) startCoinbase(opts.cryptoUsd);
     if (opts?.yahoo?.length) startYahoo(opts.yahoo);
+    if (opts?.tradingView?.length) startTradingView(opts.tradingView);
     if (!opts?.skipMetals) FeedRouter.ensureSource('metals', startMetals);
     return;
   }
@@ -38,6 +42,7 @@ export function bootstrapFeeds(opts?: {
   FeedRouter.ensureSource('coinbase', () => startCoinbase(cbDefaults));
   if (!opts?.skipMetals) FeedRouter.ensureSource('metals', startMetals);
   if (opts?.yahoo?.length) FeedRouter.ensureSource('yahoo', () => startYahoo(opts.yahoo!));
+  if (opts?.tradingView?.length) FeedRouter.ensureSource('tradingview', () => startTradingView(opts.tradingView!));
   if (typeof window !== 'undefined') {
     // dev/debug access — read-only handle in the console: __feed.latest('BTC/USDT')
     (window as unknown as { __feed?: unknown }).__feed = FeedRouter;
