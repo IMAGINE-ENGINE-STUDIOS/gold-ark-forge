@@ -1,15 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Activity } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { WATCHLIST_CATEGORIES, CATEGORY_COLORS } from '@/data/tradingSymbols';
-import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
-import { useMetalPrices } from '@/hooks/useMetalPrices';
-import { useCryptoData } from '@/hooks/useCryptoData';
+import { bootstrapFeeds, useFeedHealth } from '@/hooks/useMarketFeed';
+import { useLiveMarketData } from '@/hooks/useLiveMarketData';
+import { buildTradingViewSymbols } from '@/lib/feeds/tradingViewSymbols';
 import LivePulse from './LivePulse';
-
-const ALL_CRYPTO_KEYS = WATCHLIST_CATEGORIES
-  .filter(c => c.label.startsWith('CRYPTO'))
-  .flatMap(c => c.items.map(i => i.key));
 
 const MAX_SPARK = 24;
 
@@ -102,51 +98,43 @@ const AssetCard = ({
 
 // ─── Main Component ──────────────────────────────────────
 const GAAllAssetPriceCards = () => {
-  const wsPrices = useWebSocketPrices(ALL_CRYPTO_KEYS);
-  const { data: metalPrices } = useMetalPrices();
-  const { data: cryptoData } = useCryptoData(30);
+  const live = useLiveMarketData();
+  const health = useFeedHealth(1000);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  // Build a crypto price lookup by key
-  const cryptoLookup = useMemo(() => {
-    const map: Record<string, { price: number; change: number }> = {};
-    if (cryptoData) {
-      const keyToId: Record<string, string> = {
-        bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana',
-        xrp: 'ripple', bnb: 'binancecoin', cardano: 'cardano',
-        avalanche: 'avalanche-2', polkadot: 'polkadot', chainlink: 'chainlink',
-        dogecoin: 'dogecoin', tron: 'tron',
-      };
-      cryptoData.forEach(coin => {
-        const key = Object.entries(keyToId).find(([_, id]) => id === coin.id)?.[0] ?? coin.symbol;
-        map[key] = { price: coin.current_price, change: coin.price_change_percentage_24h ?? 0 };
-      });
-    }
-    return map;
-  }, [cryptoData]);
+  const allSymbols = useMemo(() => WATCHLIST_CATEGORIES.flatMap((category) => category.items), []);
+
+  useEffect(() => {
+    bootstrapFeeds({ tradingView: buildTradingViewSymbols(allSymbols) });
+  }, [allSymbols]);
+
+  const sourceLine = useMemo(() => {
+    const liveSources = health.filter((h) => h.ok).map((h) => h.source);
+    return liveSources.length ? liveSources.join(' · ') : 'CONNECTING';
+  }, [health]);
 
   const resolvePrice = (key: string, cat: string): { price: number; change: number; wsLive: boolean } => {
-    // 1. WebSocket (crypto)
-    const ws = wsPrices[key];
-    if (ws && ws.price > 0) {
-      return { price: ws.price, change: ws.change24h, wsLive: true };
-    }
-    // 2. CoinGecko API (crypto)
-    if (cat === 'crypto' && cryptoLookup[key]) {
-      return { price: cryptoLookup[key].price, change: cryptoLookup[key].change, wsLive: false };
-    }
-    // 3. Metal price feeds (DB)
-    if (cat === 'metals' && metalPrices?.[key as 'gold' | 'silver' | 'platinum']) {
-      const m = metalPrices[key as 'gold' | 'silver' | 'platinum'];
-      return { price: m.price_usd, change: m.change_24h ?? 0, wsLive: false };
-    }
-    return { price: 0, change: 0, wsLive: false };
+    const sym = allSymbols.find((item) => item.key === key && item.cat === cat);
+    if (!sym) return { price: 0, change: 0, wsLive: false };
+    const price = live.resolvePrice(sym);
+    const change = live.resolveChange(sym);
+    return { price, change, wsLive: price > 0 };
   };
 
   const toggle = (label: string) => setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-gold/15 bg-navy-light/35 px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Activity className="w-4 h-4 text-emerald-400" />
+          <span className="font-display text-[10px] tracking-[0.24em] text-marble/70">TRADINGVIEW + DIRECT FEED ROUTER</span>
+        </div>
+        <div className="flex items-center gap-2 min-w-0">
+          <LivePulse connected={health.some((h) => h.ok)} label="LIVE" />
+          <span className="text-[9px] font-mono text-marble/35 truncate max-w-[70vw]">{sourceLine}</span>
+        </div>
+      </div>
       {WATCHLIST_CATEGORIES.map(category => {
         const isCollapsed = collapsed[category.label];
         const catColor = CATEGORY_COLORS[category.items[0]?.cat] ?? 'hsl(43,72%,50%)';

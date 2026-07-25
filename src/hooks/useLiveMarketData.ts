@@ -60,8 +60,9 @@ const latestRouterTick = (sym: SymbolLite) => {
 /**
  * Live-first market data hook shared across Eagle View, Swap/Showroom,
  * Intelligence and Oil & Gas widget surfaces. Prices resolve in real time
- * from the same upstream sources (CoinGecko sparklines, EIA metals, oil feeds)
- * used elsewhere in the app, so every table stays in lockstep.
+ * from the same upstream sources (TradingView scanner, direct exchange
+ * WebSockets, gold-api, Yahoo relay, oil feeds) used elsewhere in the app,
+ * so every table stays in lockstep.
  */
 export function useLiveMarketData() {
   const [feedVersion, setFeedVersion] = useState(0);
@@ -141,7 +142,8 @@ export function useLiveMarketData() {
       if (coin?.current_price) return coin.current_price;
     }
     if (sym.cat === 'energy') {
-      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
+      const feedTicker = ENERGY_FEED_SYMBOL[sym.key] ?? sym.ticker;
+      const feed = oilPricesData?.find(p => p.symbol === sym.ticker || p.symbol === feedTicker.replace('=F', ''));
       if (feed?.price) return feed.price;
     }
     return 0;
@@ -168,7 +170,8 @@ export function useLiveMarketData() {
       return coin?.price_change_percentage_24h ?? 0;
     }
     if (sym.cat === 'energy') {
-      const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
+      const feedTicker = ENERGY_FEED_SYMBOL[sym.key] ?? sym.ticker;
+      const feed = oilPricesData?.find(p => p.symbol === sym.ticker || p.symbol === feedTicker.replace('=F', ''));
       if (feed) return feed.change ?? 0;
     }
     return 0;
