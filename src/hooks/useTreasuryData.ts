@@ -4,7 +4,9 @@
  * Refreshed every 60s on the client because Treasury publishes daily.
  */
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { FeedRouter } from '@/lib/feeds/router';
 
 export interface AvgRate { security: string; rate: number; date: string }
 export interface DebtPoint { date: string; totalDebt: number }
@@ -25,7 +27,7 @@ export interface TreasuryData {
 }
 
 export const useTreasuryData = () => {
-  return useQuery<TreasuryData | null>({
+  const q = useQuery<TreasuryData | null>({
     queryKey: ['treasury-fiscaldata'],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('stream-treasury', { body: {} });
@@ -37,6 +39,22 @@ export const useTreasuryData = () => {
     staleTime: 30_000,
     retry: 1,
   });
+
+  // Register health with FeedRouter so the FeedStatusBadge lists "US Treasury".
+  useEffect(() => {
+    const tbill = q.data?.avg_interest_rates.rates.find(r => r.security === 'Treasury Bills')?.rate;
+    if (tbill != null) {
+      FeedRouter.publish({
+        symbol: 'US/TBILL',
+        price: tbill,
+        ts: Date.now(),
+        source: 'treasury',
+        latencyMs: 0,
+      });
+    }
+  }, [q.data]);
+
+  return q;
 };
 
 /** Convenience selector — the average yield on a given security type. */
