@@ -126,45 +126,210 @@ function cryptoPairFromTV(tv: string): string | null {
 
 const CATS: (Cat | "All")[] = ["All", "Crypto", "Metals", "Energy", "FX", "Index", "Stocks", "ETF", "Futures"];
 
-function TVChart({ symbol }: { symbol: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = "";
-    const div = document.createElement("div");
-    div.className = "tradingview-widget-container__widget";
-    div.style.height = "100%";
-    div.style.width = "100%";
-    containerRef.current.appendChild(div);
+/**
+ * LiveTickChart — proprietary time-series chart driven purely by the LIVE
+ * QUOTE ticker. Every incoming tick is plotted at its arrival timestamp so the
+ * curve grows in real time. No external chart library required.
+ */
+function LiveTickChart({
+  symbolKey,
+  price,
+  ts,
+  label,
+}: {
+  symbolKey: string;
+  price: number | undefined;
+  ts: number | undefined;
+  label: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 800, h: 420 });
+  const [pts, setPts] = useState<{ t: number; p: number }[]>([]);
+  const [now, setNow] = useState(Date.now());
+  const [windowMs, setWindowMs] = useState(5 * 60_000); // 5m rolling window
+  const lastRef = useRef<number | undefined>(undefined);
 
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.async = true;
-    script.type = "text/javascript";
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol,
-      interval: "1",
-      timezone: "Etc/UTC",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      backgroundColor: "rgba(10, 10, 12, 1)",
-      gridColor: "rgba(212, 175, 55, 0.06)",
-      allow_symbol_change: false,
-      hide_side_toolbar: false,
-      studies: ["STD;EMA", "STD;RSI"],
-      support_host: "https://www.tradingview.com",
+  // Reset points when the symbol changes.
+  useEffect(() => {
+    setPts([]);
+    lastRef.current = undefined;
+  }, [symbolKey]);
+
+  // Resize observer.
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setSize({ w: Math.max(200, r.width), h: Math.max(160, r.height) });
     });
-    containerRef.current.appendChild(script);
-  }, [symbol]);
+    ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Tick clock so the x-axis advances even without new prices.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+
+  // Append new price samples as they arrive.
+  useEffect(() => {
+    if (price === undefined || !Number.isFinite(price) || ts === undefined) return;
+    if (lastRef.current === ts) return;
+    lastRef.current = ts;
+    setPts((prev) => {
+      const cutoff = Date.now() - windowMs - 5_000;
+      const next = [...prev, { t: ts, p: price }].filter((x) => x.t >= cutoff);
+      // Cap for perf
+      return next.length > 4000 ? next.slice(next.length - 4000) : next;
+    });
+  }, [price, ts, windowMs]);
+
+  const { w, h } = size;
+  const padL = 52;
+  const padR = 12;
+  const padT = 12;
+  const padB = 24;
+  const iw = Math.max(1, w - padL - padR);
+  const ih = Math.max(1, h - padT - padB);
+
+  const tMax = now;
+  const tMin = now - windowMs;
+  const visible = pts.filter((x) => x.t >= tMin - 1000);
+  const prices = visible.map((x) => x.p);
+  const pMin = prices.length ? Math.min(...prices) : (price ?? 0);
+  const pMax = prices.length ? Math.max(...prices) : (price ?? 1);
+  const span = pMax - pMin || Math.max(1e-6, Math.abs(pMax) * 0.001);
+  const yMin = pMin - span * 0.08;
+  const yMax = pMax + span * 0.08;
+
+  const xOf = (t: number) => padL + ((t - tMin) / windowMs) * iw;
+  const yOf = (p: number) => padT + (1 - (p - yMin) / (yMax - yMin)) * ih;
+
+  const path = visible.length
+    ? visible.map((x, i) => `${i === 0 ? "M" : "L"}${xOf(x.t).toFixed(2)},${yOf(x.p).toFixed(2)}`).join(" ")
+    : "";
+  const area = visible.length
+    ? `${path} L${xOf(visible[visible.length - 1].t).toFixed(2)},${(padT + ih).toFixed(2)} L${xOf(visible[0].t).toFixed(2)},${(padT + ih).toFixed(2)} Z`
+    : "";
+
+  const first = visible[0]?.p;
+  const last = visible[visible.length - 1]?.p ?? price;
+  const delta = first !== undefined && last !== undefined ? last - first : 0;
+  const deltaPct = first ? (delta / first) * 100 : 0;
+  const up = delta >= 0;
+  const stroke = up ? "#34d399" : "#f87171";
+  const fill = up ? "rgba(52,211,153,0.14)" : "rgba(248,113,113,0.14)";
+
+  // Grid / ticks
+  const ySteps = 5;
+  const yTicks = Array.from({ length: ySteps + 1 }, (_, i) => yMin + ((yMax - yMin) * i) / ySteps);
+  const xSteps = 6;
+  const xTicks = Array.from({ length: xSteps + 1 }, (_, i) => tMin + (windowMs * i) / xSteps);
+  const fmtPrice = (v: number) =>
+    v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 10 ? 5 : 2 });
+  const fmtTime = (t: number) =>
+    new Date(t).toLocaleTimeString(undefined, { hour12: false, minute: "2-digit", second: "2-digit" });
+
+  const RANGES: { label: string; ms: number }[] = [
+    { label: "1M", ms: 60_000 },
+    { label: "5M", ms: 5 * 60_000 },
+    { label: "15M", ms: 15 * 60_000 },
+    { label: "1H", ms: 60 * 60_000 },
+  ];
 
   return (
-    <div
-      ref={containerRef}
-      className="tradingview-widget-container h-full w-full"
-      style={{ height: "100%", width: "100%" }}
-    />
+    <div ref={wrapRef} className="relative h-full w-full">
+      {/* Range picker */}
+      <div className="absolute right-3 top-3 z-10 flex gap-1 rounded-md border border-white/10 bg-black/50 p-1 backdrop-blur">
+        {RANGES.map((r) => (
+          <button
+            key={r.label}
+            onClick={() => setWindowMs(r.ms)}
+            className={`rounded px-2 py-0.5 text-[10px] font-medium tracking-wider ${
+              windowMs === r.ms ? "bg-[#d4af37]/20 text-[#d4af37]" : "text-neutral-400 hover:text-neutral-100"
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Header stats */}
+      <div className="absolute left-3 top-3 z-10 flex items-baseline gap-3">
+        <div className="text-[10px] tracking-widest text-neutral-500">{label}</div>
+        <div className="tabular-nums text-lg font-semibold text-neutral-100">
+          {last !== undefined ? fmtPrice(last) : "—"}
+        </div>
+        <div className={`tabular-nums text-xs font-medium ${up ? "text-emerald-300" : "text-rose-300"}`}>
+          {first !== undefined && last !== undefined
+            ? `${up ? "+" : ""}${delta.toFixed(Math.abs(delta) < 1 ? 4 : 2)} (${up ? "+" : ""}${deltaPct.toFixed(2)}%)`
+            : ""}
+        </div>
+      </div>
+
+      <svg width={w} height={h} className="block">
+        <defs>
+          <linearGradient id="ga-live-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Grid */}
+        {yTicks.map((v, i) => {
+          const y = yOf(v);
+          return (
+            <g key={`y${i}`}>
+              <line x1={padL} x2={w - padR} y1={y} y2={y} stroke="rgba(212,175,55,0.06)" />
+              <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#71717a">
+                {fmtPrice(v)}
+              </text>
+            </g>
+          );
+        })}
+        {xTicks.map((t, i) => {
+          const x = xOf(t);
+          return (
+            <g key={`x${i}`}>
+              <line x1={x} x2={x} y1={padT} y2={h - padB} stroke="rgba(255,255,255,0.03)" />
+              <text x={x} y={h - padB + 12} textAnchor="middle" fontSize="9" fill="#71717a">
+                {fmtTime(t)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Area + line */}
+        {area && <path d={area} fill="url(#ga-live-fill)" opacity={0.9} />}
+        {path && <path d={path} fill="none" stroke={stroke} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />}
+
+        {/* Current price marker */}
+        {last !== undefined && visible.length > 0 && (() => {
+          const cx = xOf(visible[visible.length - 1].t);
+          const cy = yOf(last);
+          return (
+            <g>
+              <line x1={padL} x2={w - padR} y1={cy} y2={cy} stroke={stroke} strokeDasharray="2 3" opacity={0.35} />
+              <circle cx={cx} cy={cy} r={4} fill={stroke}>
+                <animate attributeName="r" values="4;7;4" dur="1.4s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;0.4;1" dur="1.4s" repeatCount="indefinite" />
+              </circle>
+              <rect x={w - padR - 62} y={cy - 9} width={60} height={18} rx={3} fill={stroke} opacity={0.9} />
+              <text x={w - padR - 32} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="#0a0a0c">
+                {fmtPrice(last)}
+              </text>
+            </g>
+          );
+        })()}
+
+        {visible.length === 0 && (
+          <text x={w / 2} y={h / 2} textAnchor="middle" fontSize="11" fill="#52525b">
+            Waiting for live ticks…
+          </text>
+        )}
+      </svg>
+    </div>
   );
 }
 
@@ -343,7 +508,12 @@ export default function Swap() {
 
         {/* Center: chart */}
         <main className="col-span-6 overflow-hidden rounded-xl border border-white/5 bg-black/40">
-          <TVChart key={active.tv} symbol={active.tv} />
+          <LiveTickChart
+            symbolKey={active.tv}
+            price={livePrice}
+            ts={tick?.ts}
+            label={`${active.label} · ${liveSource ?? "feed"}`}
+          />
         </main>
 
         {/* Right: ticker + order + orders */}
