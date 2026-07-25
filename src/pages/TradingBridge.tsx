@@ -202,6 +202,8 @@ const yahooSymbolFor = (sym: { key: string; cat: string; ticker: string }) => {
 };
 
 const assetClassFor = (sym: { cat: string }): AssetClass => {
+  if (sym.cat === 'crypto') return 'crypto';
+  if (sym.cat === 'metals') return 'metals';
   if (sym.cat === 'energy') return 'energy';
   if (sym.cat === 'fx' || sym.cat === 'forex') return 'fx';
   if (sym.cat === 'bonds') return 'bond';
