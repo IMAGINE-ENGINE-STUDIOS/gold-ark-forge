@@ -17,6 +17,7 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
+import { useHistoricalBars } from '@/hooks/useHistoricalBars';
 import { CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
@@ -747,12 +748,19 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
     return coin?.sparkline_in_7d?.price ?? null;
   }, [category, cryptoData, symbolKey]);
 
+  // Real historical bars from Yahoo for non-crypto (metals, energy, FX,
+  // indices, equities). Provides deep history parity with crypto sparklines.
+  const { data: yahooBars } = useHistoricalBars(symbolKey, category !== 'crypto');
+
   const historicalData = useMemo(() => {
     const effectivePrice = basePrice || price;
     if (effectivePrice <= 0) return [];
     if (sparklineData && sparklineData.length > 10) return buildFromSparkline(sparklineData, tf, effectivePrice);
+    if (yahooBars?.closes?.length && yahooBars.closes.length > 10) {
+      return buildFromSparkline(yahooBars.closes, tf, effectivePrice);
+    }
     return [];
-  }, [sparklineData, tf, basePrice, price]);
+  }, [sparklineData, yahooBars, tf, basePrice, price]);
 
   const liveCandles = useLiveCandleEngine(price, tf, historicalData, symbolKey);
 
