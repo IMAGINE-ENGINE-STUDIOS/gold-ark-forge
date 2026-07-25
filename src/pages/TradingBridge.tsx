@@ -82,6 +82,8 @@ import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
 import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
+import { SymbolFeedStatusPanel } from '@/components/feeds/SymbolFeedStatusPanel';
+import { Radio } from 'lucide-react';
 import { bootstrapFeeds } from '@/hooks/useMarketFeed';
 import { BINANCE_STREAMS } from '@/hooks/useWebSocketPrices';
 import type { AssetClass } from '@/lib/feeds/types';
