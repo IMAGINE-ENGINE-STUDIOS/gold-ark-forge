@@ -13,6 +13,8 @@ const SOURCE_LABEL: Record<string, string> = {
   realtime: 'Cloud Bus',
   fred: 'FRED',
   treasury: 'US Treasury',
+  tradingview: 'TradingView',
+  'tradingview-delayed': 'TradingView (delayed)',
 };
 
 /**

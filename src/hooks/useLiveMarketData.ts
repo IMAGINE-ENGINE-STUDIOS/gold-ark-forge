@@ -230,11 +230,17 @@ export function useLiveMarketData() {
     }
   }, [cryptoDataAll, backendCryptoCandles]);
 
+  // Stable ref so the interval below doesn't get torn down on every rAF-driven
+  // resolvePrice recreation (that was thrashing the timer and hurting perf).
+  const resolvePriceRef = useRef(resolvePrice);
+  useEffect(() => { resolvePriceRef.current = resolvePrice; }, [resolvePrice]);
+
   useEffect(() => {
     const appendLiveTicks = () => {
       const now = Date.now();
+      const resolve = resolvePriceRef.current;
       for (const sym of ALL_SYMBOLS) {
-        const price = resolvePrice(sym);
+        const price = resolve(sym);
         if (price <= 0) continue;
         const h = candleHistoryRef.current[sym.ticker] || { timestamps: [], prices: [] };
         const lastTs = h.timestamps[h.timestamps.length - 1] || 0;
@@ -256,7 +262,7 @@ export function useLiveMarketData() {
     appendLiveTicks();
     const id = window.setInterval(appendLiveTicks, 1000);
     return () => window.clearInterval(id);
-  }, [resolvePrice]);
+  }, []);
 
   const getCandleData = useCallback((ticker: string) => {
     const sym = ALL_SYMBOLS.find(s => s.ticker === ticker);

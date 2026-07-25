@@ -82,6 +82,8 @@ import PositionMiniCard from '@/components/trading/PositionMiniCard';
 import { Download, HelpCircle, BarChart2 } from 'lucide-react';
 import TradeCommandDeck from '@/components/trading/TradeCommandDeck';
 import { FeedStatusBadge } from '@/components/feeds/FeedStatusBadge';
+import { SymbolFeedStatusPanel } from '@/components/feeds/SymbolFeedStatusPanel';
+import { Radio } from 'lucide-react';
 import { bootstrapFeeds } from '@/hooks/useMarketFeed';
 import { BINANCE_STREAMS } from '@/hooks/useWebSocketPrices';
 import type { AssetClass } from '@/lib/feeds/types';
@@ -713,6 +715,7 @@ const TradingBridge = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const [feedPanelOpen, setFeedPanelOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSnap, setDrawerSnap] = useState<string | number | null>(0.5);
@@ -1464,12 +1467,27 @@ const TradingBridge = () => {
               <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
             </button>
           )}
+          <FeedStatusBadge />
+          <button
+            onClick={() => setFeedPanelOpen(o => !o)}
+            title="Per-symbol live feed status"
+            className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-marble/50 hover:text-gold border border-gold/15 hover:border-gold/40 rounded px-2 py-0.5"
+          >
+            <Radio className="w-3 h-3" /> Feed
+          </button>
           <ConnectWalletButton />
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
+        {feedPanelOpen && (
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex justify-end" onClick={() => setFeedPanelOpen(false)}>
+            <div className="w-full max-w-md h-full p-3" onClick={(e) => e.stopPropagation()}>
+              <SymbolFeedStatusPanel onClose={() => setFeedPanelOpen(false)} className="h-full" />
+            </div>
+          </div>
+        )}
         {/* Watchlist Sidebar */}
         <div className={`${sidebarCollapsed ? 'w-12' : 'w-48'} transition-all duration-200 bg-navy-dark border-r border-gold/10 flex flex-col flex-shrink-0`}>
           <div className="flex items-center justify-between px-2 py-1.5 border-b border-gold/10 flex-shrink-0">
