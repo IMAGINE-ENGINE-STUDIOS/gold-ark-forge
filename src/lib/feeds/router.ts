@@ -11,6 +11,55 @@ import type { AssetClass, FeedHealth, Tick, TickListener } from './types';
 
 type SymbolListeners = Set<TickListener>;
 
+const SOURCE_PRIORITY: Record<string, number> = {
+  'binance-ws': 100,
+  'coinbase-ws': 96,
+  tradingview: 86,
+  'gold-api': 82,
+  yahoo: 68,
+  realtime: 64,
+  treasury: 58,
+  fred: 52,
+  'tradingview-delayed': 36,
+};
+
+function freshnessRank(tick: Tick, now = Date.now()): number {
+  const age = now - tick.ts;
+  if (age < 10_000) return 2;
+  if (age < 60_000) return 1;
+  return 0;
+}
+
+function sourcePriority(source: string): number {
+  return SOURCE_PRIORITY[source] ?? 50;
+}
+
+function chooseBestTick(ticks: Iterable<Tick>, now = Date.now()): Tick | undefined {
+  let best: Tick | undefined;
+  for (const tick of ticks) {
+    if (!Number.isFinite(tick.last) || tick.last <= 0) continue;
+    if (!best) {
+      best = tick;
+      continue;
+    }
+    const tickFreshness = freshnessRank(tick, now);
+    const bestFreshness = freshnessRank(best, now);
+    if (tickFreshness !== bestFreshness) {
+      if (tickFreshness > bestFreshness) best = tick;
+      continue;
+    }
+    const tickPriority = sourcePriority(tick.source);
+    const bestPriority = sourcePriority(best.source);
+    if (tickPriority !== bestPriority) {
+      if (tickPriority > bestPriority) best = tick;
+      continue;
+    }
+    if (tick.ts > best.ts) best = tick;
+  }
+  if (!best) return undefined;
+  return now - best.ts > 5000 ? { ...best, stale: true } : best;
+}
+
 class FeedRouterImpl {
   private latestBySymbol = new Map<string, Map<string, Tick>>(); // symbol -> source -> tick
   private listeners = new Map<string, SymbolListeners>();        // symbol -> listeners
@@ -39,19 +88,22 @@ class FeedRouterImpl {
     for (const fn of this.wildcards) fn(tick);
   }
 
-  /** Latest tick — best (lowest-latency, freshest) across sources. */
+  /** Latest tick — best available source, not merely the newest poll. */
   latest(symbol: string): Tick | undefined {
     const bySource = this.latestBySymbol.get(symbol);
     if (!bySource || bySource.size === 0) return undefined;
-    let best: Tick | undefined;
-    for (const t of bySource.values()) {
-      if (!best || t.ts > best.ts) best = t;
+    return chooseBestTick(bySource.values());
+  }
+
+  /** Best tick across multiple canonical spellings for the same instrument. */
+  latestOf(symbols: Iterable<string>): Tick | undefined {
+    const candidates: Tick[] = [];
+    for (const symbol of symbols) {
+      const bySource = this.latestBySymbol.get(symbol);
+      if (!bySource) continue;
+      candidates.push(...bySource.values());
     }
-    if (best) {
-      const stale = Date.now() - best.ts > 5000;
-      return stale ? { ...best, stale: true } : best;
-    }
-    return undefined;
+    return chooseBestTick(candidates);
   }
 
   /** NBBO across sources for a given symbol. */
