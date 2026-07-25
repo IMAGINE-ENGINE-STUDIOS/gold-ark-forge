@@ -546,7 +546,47 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 }
 
 // ─── Per-kind configuration form ─────────────────────────
-function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (patch: NodeConfig) => void }) {
+function LivePriceReadout({ ticker, getPriceByTicker }: { ticker: string | null; getPriceByTicker?: (t: string) => number }) {
+  const [price, setPrice] = useState<number>(() => (ticker && getPriceByTicker ? getPriceByTicker(ticker) : 0));
+  useEffect(() => {
+    if (!ticker || !getPriceByTicker) return;
+    setPrice(getPriceByTicker(ticker));
+    const id = setInterval(() => setPrice(getPriceByTicker(ticker)), 1000);
+    return () => clearInterval(id);
+  }, [ticker, getPriceByTicker]);
+  if (!ticker) {
+    return (
+      <div className="flex items-center justify-between rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
+        <span className="text-[9px] font-mono tracking-wider text-amber-400/80">NO SYMBOL CONTEXT</span>
+        <span className="text-[9px] font-mono text-amber-400/60">Add a SYMBOL earlier in chain</span>
+      </div>
+    );
+  }
+  const live = price > 0;
+  return (
+    <div className="flex items-center justify-between rounded border border-gold/30 bg-gold/5 px-2 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gold/40'}`} />
+        <span className="text-[9px] font-mono tracking-wider text-gold/70">LIVE · {ticker}</span>
+      </div>
+      <span className="text-[11px] font-mono font-semibold text-gold-light">
+        {live ? `$${price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 4 : 2 })}` : '—'}
+      </span>
+    </div>
+  );
+}
+
+function NodeConfigForm({
+  node,
+  onChange,
+  contextTicker,
+  getPriceByTicker,
+}: {
+  node: WorkflowNode;
+  onChange: (patch: NodeConfig) => void;
+  contextTicker?: string | null;
+  getPriceByTicker?: (t: string) => number;
+}) {
   const c = node.config ?? {};
   const num = (v: any) => (v === '' || v == null ? '' : Number(v));
   const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -555,10 +595,30 @@ function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (pat
       {children}
     </div>
   );
+  const tickerForLive = node.kind === 'symbol' ? (c.ticker ?? null) : (contextTicker ?? null);
+  const showLive = ['symbol','buy','sell','stop','trail','alertup','alertdown'].includes(node.kind);
+  const livePrice = tickerForLive && getPriceByTicker ? getPriceByTicker(tickerForLive) : 0;
+  const fillFromLive = (field: string) => {
+    if (livePrice > 0) onChange({ [field]: Number(livePrice.toFixed(livePrice < 10 ? 4 : 2)) });
+  };
+  const LiveBlock = showLive ? (
+    <LivePriceReadout ticker={tickerForLive} getPriceByTicker={getPriceByTicker} />
+  ) : null;
+  const UseLiveBtn = ({ field }: { field: string }) => (
+    <button
+      type="button"
+      disabled={!(livePrice > 0)}
+      onClick={() => fillFromLive(field)}
+      className="text-[8px] font-mono tracking-wider text-gold-light border border-gold/40 hover:bg-gold/10 disabled:opacity-30 px-1.5 py-0.5 rounded"
+    >
+      USE LIVE
+    </button>
+  );
 
   if (node.kind === 'symbol') {
     return (
       <div className="space-y-3">
+        {LiveBlock}
         <F label="SYMBOL">
           <Input value={c.symbol ?? ''} onChange={(e) => onChange({ symbol: e.target.value })} />
         </F>
@@ -575,6 +635,7 @@ function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (pat
   if (node.kind === 'buy' || node.kind === 'sell') {
     return (
       <div className="space-y-3">
+        {LiveBlock}
         <F label="SIZE (units)"><Input type="number" value={c.size ?? ''} onChange={(e) => onChange({ size: num(e.target.value) })} /></F>
         <F label="ORDER TYPE">
           <select value={c.orderType} onChange={(e) => onChange({ orderType: e.target.value })}
@@ -585,7 +646,18 @@ function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (pat
           </select>
         </F>
         {c.orderType !== 'market' && (
-          <F label="LIMIT / STOP PRICE"><Input type="number" value={c.limitPrice ?? ''} onChange={(e) => onChange({ limitPrice: num(e.target.value) })} /></F>
+          <F label="LIMIT / STOP PRICE">
+            <div className="flex gap-1">
+              <Input type="number" value={c.limitPrice ?? ''} onChange={(e) => onChange({ limitPrice: num(e.target.value) })} />
+              <UseLiveBtn field="limitPrice" />
+            </div>
+          </F>
+        )}
+        {c.orderType === 'market' && livePrice > 0 && (
+          <p className="text-[9px] font-mono text-gold/50">
+            Est. fill ≈ ${livePrice.toLocaleString('en-US', { maximumFractionDigits: livePrice < 10 ? 4 : 2 })}
+            {' · '}notional ≈ ${(livePrice * Number(c.size || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+          </p>
         )}
       </div>
     );
@@ -594,7 +666,13 @@ function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (pat
   if (node.kind === 'stop') {
     return (
       <div className="space-y-3">
-        <F label="STOP PRICE"><Input type="number" value={c.stopPrice ?? ''} onChange={(e) => onChange({ stopPrice: num(e.target.value) })} /></F>
+        {LiveBlock}
+        <F label="STOP PRICE">
+          <div className="flex gap-1">
+            <Input type="number" value={c.stopPrice ?? ''} onChange={(e) => onChange({ stopPrice: num(e.target.value) })} />
+            <UseLiveBtn field="stopPrice" />
+          </div>
+        </F>
         <F label="TRIGGER">
           <select value={c.trigger} onChange={(e) => onChange({ trigger: e.target.value })}
             className="w-full bg-black border border-gold/30 rounded px-2 py-1 text-xs text-gold-light">
@@ -610,10 +688,16 @@ function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (pat
   if (node.kind === 'trail') {
     return (
       <div className="space-y-3">
+        {LiveBlock}
         <F label={`TRAIL DISTANCE — ${c.trailPct}%`}>
           <Slider value={[c.trailPct ?? 1]} min={0.1} max={10} step={0.1}
             onValueChange={(v) => onChange({ trailPct: v[0] })} />
         </F>
+        {livePrice > 0 && (
+          <p className="text-[9px] font-mono text-gold/50">
+            Trail trigger ≈ ${(livePrice * (1 - (c.trailPct ?? 1) / 100)).toLocaleString('en-US', { maximumFractionDigits: livePrice < 10 ? 4 : 2 })}
+          </p>
+        )}
       </div>
     );
   }
@@ -621,8 +705,12 @@ function NodeConfigForm({ node, onChange }: { node: WorkflowNode; onChange: (pat
   if (node.kind === 'alertup' || node.kind === 'alertdown') {
     return (
       <div className="space-y-3">
+        {LiveBlock}
         <F label={node.kind === 'alertup' ? 'ALERT ABOVE' : 'ALERT BELOW'}>
-          <Input type="number" value={c.price ?? ''} onChange={(e) => onChange({ price: num(e.target.value) })} />
+          <div className="flex gap-1">
+            <Input type="number" value={c.price ?? ''} onChange={(e) => onChange({ price: num(e.target.value) })} />
+            <UseLiveBtn field="price" />
+          </div>
         </F>
         <F label="CHANNEL">
           <select value={c.channel} onChange={(e) => onChange({ channel: e.target.value })}
