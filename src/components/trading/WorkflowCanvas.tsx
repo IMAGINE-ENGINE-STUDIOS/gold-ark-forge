@@ -7,7 +7,7 @@ import {
 type NodeKind =
   | 'buy' | 'sell' | 'stop' | 'schedule' | 'alertup' | 'alertdown'
   | 'trail' | 'hedge' | 'dca' | 'grid' | 'scalp' | 'momentum'
-  | 'meanrev' | 'genius' | 'wave' | 'risk';
+  | 'meanrev' | 'genius' | 'wave' | 'risk' | 'timer';
 
 type GalleryItem = {
   kind: NodeKind;
@@ -28,7 +28,7 @@ const GALLERY: GalleryItem[] = [
   { kind: 'alertup',   label: 'ALERT UP',   group: 'ALERTS',     Icon: BellRing,      tint: 'emerald' },
   { kind: 'alertdown', label: 'ALERT DOWN', group: 'ALERTS',     Icon: BellOff,       tint: 'rose' },
   { kind: 'risk',      label: 'RISK GATE',  group: 'ALERTS',     Icon: Shield,        tint: 'orange' },
-  { kind: 'timer',     label: 'TIMER' as any, group: 'ALERTS' as any, Icon: Timer, tint: 'sky' } as any,
+  { kind: 'timer',     label: 'TIMER',      group: 'ALERTS',     Icon: Timer,         tint: 'sky' },
 
   { kind: 'dca',       label: 'DCA',        group: 'STRATEGIES', Icon: Activity,      tint: 'gold' },
   { kind: 'grid',      label: 'GRID',       group: 'STRATEGIES', Icon: Target,        tint: 'gold' },
