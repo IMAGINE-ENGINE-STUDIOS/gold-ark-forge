@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { WalletProvider } from "@/contexts/WalletContext";
+import { useEffect } from "react";
+import { bootstrapFeeds } from "@/hooks/useMarketFeed";
 import WalletSelectorDialog from "@/components/wallet/WalletSelectorDialog";
 import Index from "./pages/Index";
 import Marketplace from "./pages/Marketplace";
@@ -35,7 +37,23 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const App = () => {
+  useEffect(() => {
+    // Kick off the unified real-time feed layer (Binance + Coinbase WS,
+    // gold-api metals poll, Supabase Realtime bridge). Idempotent.
+    bootstrapFeeds({
+      yahoo: [
+        { symbol: 'SPY', assetClass: 'stocks' },
+        { symbol: '^GSPC', assetClass: 'index' },
+        { symbol: '^IXIC', assetClass: 'index' },
+        { symbol: '^VIX', assetClass: 'index' },
+        { symbol: 'DX-Y.NYB', assetClass: 'fx' },
+        { symbol: 'CL=F', assetClass: 'energy' },
+        { symbol: 'NG=F', assetClass: 'energy' },
+      ],
+    });
+  }, []);
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <WalletProvider>
