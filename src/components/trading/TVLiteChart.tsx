@@ -11,6 +11,7 @@
  * any other consumer keeps working without changes.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   createChart,
   CandlestickSeries,
@@ -28,6 +29,7 @@ import { CandlestickChart, LineChart as LineIcon, AreaChart, Activity } from 'lu
 import { useHistoricalBars } from '@/hooks/useHistoricalBars';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { FeedRouter } from '@/lib/feeds/router';
+import { supabase } from '@/integrations/supabase/client';
 import type { WatchlistSymbol } from '@/data/tradingSymbols';
 import SymbolLogo from './SymbolLogo';
 
@@ -64,6 +66,8 @@ const METAL_FEED: Record<string, string> = {
   gold: 'XAU/USD', silver: 'XAG/USD', platinum: 'XPT/USD', palladium: 'XPD/USD',
 };
 
+type SeedBars = { closes: number[]; highs?: number[]; lows?: number[] };
+
 function feedCandidates(symbolKey: string, category: string): string[] {
   const k = symbolKey.toLowerCase();
   if (category === 'crypto' || category === 'defi') {
@@ -75,18 +79,25 @@ function feedCandidates(symbolKey: string, category: string): string[] {
 }
 
 function latestTick(symbolKey: string, category: string): number | undefined {
-  for (const c of feedCandidates(symbolKey, category)) {
-    const t = FeedRouter.latest(c);
-    if (t && Number.isFinite(t.last) && t.last > 0) return t.last;
-  }
-  return undefined;
+  const t = FeedRouter.latestOf(feedCandidates(symbolKey, category));
+  return t && Number.isFinite(t.last) && t.last > 0 ? t.last : undefined;
+}
+
+function formatChartPrice(price: number): string {
+  if (!Number.isFinite(price)) return '—';
+  return price.toLocaleString('en-US', {
+    maximumFractionDigits: price < 10 ? 4 : 2,
+    minimumFractionDigits: price < 10 ? 2 : 0,
+  });
 }
 
 function subscribeTicks(symbolKey: string, category: string, fn: (price: number) => void): () => void {
   const unsubs: Array<() => void> = [];
-  for (const c of feedCandidates(symbolKey, category)) {
+  const candidates = feedCandidates(symbolKey, category);
+  for (const c of candidates) {
     unsubs.push(FeedRouter.subscribe(c, (tick) => {
-      if (Number.isFinite(tick.last) && tick.last > 0) fn(tick.last);
+      const best = FeedRouter.latestOf(candidates) ?? tick;
+      if (Number.isFinite(best.last) && best.last > 0) fn(best.last);
     }));
   }
   return () => { for (const u of unsubs) u(); };
@@ -121,23 +132,48 @@ export default function TVLiteChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick' | 'Line' | 'Area'> | null>(null);
   const currentBarRef = useRef<CandlestickData<UTCTimestamp> | null>(null);
+  const externalPriceRef = useRef<number | undefined>(livePrice);
+  const applyLivePriceRef = useRef<((price: number) => void) | null>(null);
   const [kind, setKind] = useState<ChartKind>('candles');
   const [tf, setTf] = useState<TF>('RT');
   const [lastPrice, setLastPrice] = useState<number | undefined>(livePrice);
 
   const { data: bars } = useHistoricalBars(symbolKey, category !== 'crypto');
   const { data: cryptoAll } = useCryptoData(50);
+  const { data: cryptoBars } = useQuery({
+    queryKey: ['tv-lite-crypto-bars', symbolKey],
+    enabled: category === 'crypto',
+    staleTime: 60_000,
+    refetchInterval: 300_000,
+    retry: 1,
+    queryFn: async (): Promise<SeedBars | null> => {
+      const { data, error } = await supabase.functions.invoke('fetch-binance-market', {
+        body: { keys: [symbolKey], includeKlines: true },
+      });
+      if (error) throw error;
+      const candle = data?.candles?.[symbolKey];
+      if (!candle?.closes?.length) return null;
+      return { closes: candle.closes, highs: candle.highs, lows: candle.lows };
+    },
+  });
+
+  useEffect(() => {
+    if (livePrice && Number.isFinite(livePrice) && livePrice > 0) {
+      externalPriceRef.current = livePrice;
+    }
+  }, [livePrice]);
 
   // Seed closes: Yahoo bars for non-crypto, CoinGecko sparklines for crypto.
   const seed = useMemo(() => {
     if (bars?.closes?.length) return { closes: bars.closes, highs: bars.highs, lows: bars.lows };
+    if (category === 'crypto' && cryptoBars?.closes?.length) return cryptoBars;
     if (category === 'crypto' && cryptoAll) {
       const coin = cryptoAll.find((c: any) => c.id === symbolKey || c.symbol?.toLowerCase() === symbolKey.toLowerCase());
       const sp = coin?.sparkline_in_7d?.price as number[] | undefined;
       if (sp?.length) return { closes: sp, highs: undefined, lows: undefined };
     }
     return null;
-  }, [bars, cryptoAll, category, symbolKey]);
+  }, [bars, cryptoBars, cryptoAll, category, symbolKey]);
 
   // Build chart once.
   useEffect(() => {
@@ -156,6 +192,10 @@ export default function TVLiteChart({
       rightPriceScale: { borderColor: 'hsla(45, 40%, 50%, 0.2)', scaleMargins: { top: 0.08, bottom: 0.08 } },
       timeScale: { borderColor: 'hsla(45, 40%, 50%, 0.2)', timeVisible: true, secondsVisible: true, rightOffset: 12, barSpacing: 6 },
       crosshair: { mode: CrosshairMode.Normal },
+      localization: {
+        locale: 'en-US',
+        priceFormatter: formatChartPrice,
+      },
       autoSize: true,
     });
     chartRef.current = chart;
@@ -181,7 +221,7 @@ export default function TVLiteChart({
       seriesRef.current = null;
     }
     const bucketMs = TF_META[tf].bucketMs;
-    const live = latestTick(symbolKey, category) ?? livePrice;
+    const live = latestTick(symbolKey, category) ?? externalPriceRef.current;
     const data = seed ? seedFromCloses(seed.closes, seed.highs, seed.lows, bucketMs, live) : [];
 
     if (kind === 'candles') {
@@ -209,7 +249,7 @@ export default function TVLiteChart({
 
     currentBarRef.current = data.length ? { ...data[data.length - 1] } : null;
     if (data.length) chart.timeScale().fitContent();
-  }, [kind, tf, symbolKey, category, seed, livePrice]);
+  }, [kind, tf, symbolKey, category, seed]);
 
   // Live-tick loop — update the current bar on every incoming tick from FeedRouter.
   useEffect(() => {
@@ -248,40 +288,27 @@ export default function TVLiteChart({
       });
     };
 
+    applyLivePriceRef.current = applyPrice;
+
     const unsub = subscribeTicks(symbolKey, category, applyPrice);
     // Seed initial from external livePrice as well.
-    if (livePrice) applyPrice(livePrice);
-    return () => { unsub(); if (raf) cancelAnimationFrame(raf); };
-  }, [symbolKey, category, tf, kind, livePrice]);
+    const initial = latestTick(symbolKey, category) ?? externalPriceRef.current;
+    if (initial) applyPrice(initial);
+    return () => {
+      applyLivePriceRef.current = null;
+      unsub();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [symbolKey, category, tf, kind]);
 
   // Also drive updates whenever the parent's livePrice prop changes — this
   // guarantees the chart ticks even for symbols routed only through the
   // parent's useLiveMarketData resolver (metals via gold-api, oil, etc.).
   useEffect(() => {
     if (!livePrice || !Number.isFinite(livePrice) || livePrice <= 0) return;
-    const s = seriesRef.current;
-    if (!s) return;
-    const bucketMs = TF_META[tf].bucketMs;
-    const cur = currentBarRef.current;
-    const nowBucket = (Math.floor(Date.now() / bucketMs) * bucketMs / 1000) as UTCTimestamp;
-    if (!cur || (cur.time as number) < (nowBucket as number)) {
-      const next: CandlestickData<UTCTimestamp> = {
-        time: nowBucket,
-        open: cur ? cur.close : livePrice,
-        high: livePrice, low: livePrice, close: livePrice,
-      };
-      currentBarRef.current = next;
-      if (kind === 'candles') (s as ISeriesApi<'Candlestick'>).update(next);
-      else (s as ISeriesApi<'Line'>).update({ time: next.time, value: livePrice });
-    } else {
-      cur.close = livePrice;
-      if (livePrice > cur.high) cur.high = livePrice;
-      if (livePrice < cur.low) cur.low = livePrice;
-      if (kind === 'candles') (s as ISeriesApi<'Candlestick'>).update(cur);
-      else (s as ISeriesApi<'Line'>).update({ time: cur.time, value: livePrice });
-    }
-    setLastPrice(livePrice);
-  }, [livePrice, tf, kind]);
+    externalPriceRef.current = livePrice;
+    applyLivePriceRef.current?.(livePrice);
+  }, [livePrice]);
 
   const displayPrice = lastPrice ?? livePrice;
   const changePos = (liveChange ?? 0) >= 0;
@@ -300,7 +327,7 @@ export default function TVLiteChart({
         </div>
         <div className="flex items-baseline gap-2 ml-2">
           <span className="text-lg font-mono tabular-nums text-white">
-            {displayPrice ? displayPrice.toLocaleString(undefined, { maximumFractionDigits: displayPrice < 10 ? 4 : 2 }) : '—'}
+            {displayPrice ? formatChartPrice(displayPrice) : '—'}
           </span>
           {liveChange !== undefined && (
             <span className={`text-[10px] font-mono tabular-nums ${changePos ? 'text-emerald-400' : 'text-red-400'}`}>
