@@ -225,8 +225,8 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
     });
     const imageryErrorRemovers: Array<() => void> = [];
     const attachImageryRetry = (layer: Cesium.ImageryLayer) => {
-      const provider = layer.imageryProvider;
-      const evt = provider.errorEvent;
+      const provider = layer?.imageryProvider;
+      const evt = provider?.errorEvent;
       if (!evt) return;
       const remover = evt.addEventListener((tileErr: Cesium.TileProviderError) => {
         const key = `${tileErr.x}:${tileErr.y}:${tileErr.level}`;
