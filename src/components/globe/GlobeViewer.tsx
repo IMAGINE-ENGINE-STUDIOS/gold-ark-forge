@@ -41,6 +41,7 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const spinRef = useRef<number | null>(null);
   const markerMapRef = useRef<Map<string, GlobeMarker>>(new Map());
+  const errorRef = useRef<HTMLDivElement>(null);
 
   const addMarkers = useCallback((viewer: Cesium.Viewer) => {
     ALL_MARKERS.forEach((m) => {
@@ -125,8 +126,9 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
 
     if (ION_TOKEN) Cesium.Ion.defaultAccessToken = ION_TOKEN;
 
-    const viewer = new Cesium.Viewer(containerRef.current, {
-      terrain: Cesium.Terrain.fromWorldTerrain(),
+    let viewer: Cesium.Viewer;
+    try {
+      viewer = new Cesium.Viewer(containerRef.current, {
       animation: false,
       timeline: false,
       baseLayerPicker: false,
@@ -138,10 +140,31 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
       infoBox: false,
       selectionIndicator: false,
       creditContainer: document.createElement('div'),
-    });
+      });
+    } catch (e) {
+      console.error('Cesium viewer init failed:', e);
+      if (errorRef.current) {
+        errorRef.current.style.display = 'flex';
+        errorRef.current.textContent = 'Globe failed to initialize. WebGL may be disabled in your browser.';
+      }
+      return;
+    }
+
+    // Attach world terrain asynchronously so a token/network failure doesn't block the viewer
+    (async () => {
+      try {
+        if (ION_TOKEN) {
+          const terrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(1);
+          viewer.terrainProvider = terrain;
+        }
+      } catch (e) {
+        console.warn('World terrain unavailable, using ellipsoid:', e);
+      }
+    })();
 
     // Load 3D buildings — Google Photorealistic first, OSM Buildings fallback
     (async () => {
+      if (!ION_TOKEN) return;
       try {
         const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207);
         viewer.scene.primitives.add(tileset);
@@ -209,7 +232,16 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
     };
   }, [addMarkers, onMarkerClick]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0" />
+      <div
+        ref={errorRef}
+        style={{ display: 'none' }}
+        className="absolute inset-0 items-center justify-center bg-navy text-gold text-sm font-display tracking-wider p-8 text-center z-10"
+      />
+    </>
+  );
 };
 
 export default GlobeViewer;
