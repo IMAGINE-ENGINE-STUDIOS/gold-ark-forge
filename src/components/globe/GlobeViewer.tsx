@@ -42,6 +42,40 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
   const spinRef = useRef<number | null>(null);
   const markerMapRef = useRef<Map<string, GlobeMarker>>(new Map());
   const errorRef = useRef<HTMLDivElement>(null);
+  const cancelledRef = useRef(false);
+
+  // Exponential backoff retry helper — recovers from transient network/WebGL hiccups.
+  const retryWithBackoff = useCallback(
+    async <T,>(
+      task: () => Promise<T>,
+      label: string,
+      maxAttempts = 5,
+      baseDelayMs = 800,
+    ): Promise<T | null> => {
+      let attempt = 0;
+      let lastErr: unknown;
+      while (attempt < maxAttempts) {
+        if (cancelledRef.current) return null;
+        try {
+          return await task();
+        } catch (e) {
+          lastErr = e;
+          attempt += 1;
+          if (attempt >= maxAttempts) break;
+          const jitter = Math.random() * 250;
+          const delay = Math.min(baseDelayMs * 2 ** (attempt - 1) + jitter, 15000);
+          console.warn(
+            `[Globe] ${label} attempt ${attempt}/${maxAttempts} failed, retrying in ${Math.round(delay)}ms`,
+            e,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+      console.warn(`[Globe] ${label} gave up after ${maxAttempts} attempts`, lastErr);
+      return null;
+    },
+    [],
+  );
 
   const addMarkers = useCallback((viewer: Cesium.Viewer) => {
     ALL_MARKERS.forEach((m) => {
@@ -152,31 +186,66 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
 
     // Attach world terrain asynchronously so a token/network failure doesn't block the viewer
     (async () => {
-      try {
-        if (ION_TOKEN) {
-          const terrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(1);
-          viewer.terrainProvider = terrain;
-        }
-      } catch (e) {
-        console.warn('World terrain unavailable, using ellipsoid:', e);
+      if (!ION_TOKEN) return;
+      const terrain = await retryWithBackoff(
+        () => Cesium.CesiumTerrainProvider.fromIonAssetId(1),
+        'world terrain',
+      );
+      if (terrain && !viewer.isDestroyed()) {
+        viewer.terrainProvider = terrain;
       }
     })();
 
     // Load 3D buildings — Google Photorealistic first, OSM Buildings fallback
     (async () => {
       if (!ION_TOKEN) return;
-      try {
-        const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207);
-        viewer.scene.primitives.add(tileset);
-      } catch {
-        try {
-          const osm = await Cesium.Cesium3DTileset.fromIonAssetId(96188);
-          viewer.scene.primitives.add(osm);
-        } catch (e) {
-          console.warn('3D buildings unavailable:', e);
-        }
+      const google = await retryWithBackoff(
+        () => Cesium.Cesium3DTileset.fromIonAssetId(2275207),
+        'google photorealistic tiles',
+        4,
+      );
+      if (google && !viewer.isDestroyed()) {
+        viewer.scene.primitives.add(google);
+        return;
+      }
+      const osm = await retryWithBackoff(
+        () => Cesium.Cesium3DTileset.fromIonAssetId(96188),
+        'osm buildings tiles',
+        4,
+      );
+      if (osm && !viewer.isDestroyed()) {
+        viewer.scene.primitives.add(osm);
       }
     })();
+
+    // Retry individual tile request failures with backoff (transient network hiccups)
+    const tileRetries = new Map<string, number>();
+    const tileFailedRemover = viewer.scene.globe.tileLoadProgressEvent.addEventListener(() => {
+      /* noop — subscription keeps engine responsive during retries */
+    });
+    const imageryErrorRemovers: Array<() => void> = [];
+    const attachImageryRetry = (layer: Cesium.ImageryLayer) => {
+      const provider = layer.imageryProvider;
+      const evt = provider.errorEvent;
+      if (!evt) return;
+      const remover = evt.addEventListener((tileErr: Cesium.TileProviderError) => {
+        const key = `${tileErr.x}:${tileErr.y}:${tileErr.level}`;
+        const n = (tileRetries.get(key) ?? 0) + 1;
+        tileRetries.set(key, n);
+        if (n <= 4) {
+          tileErr.retry = true;
+          tileErr.timesRetried = n;
+          const delay = Math.min(500 * 2 ** (n - 1), 8000);
+          console.warn(`[Globe] imagery tile ${key} retry ${n} in ${delay}ms`);
+          // Cesium honours tileErr.retry immediately; delay is informational
+        }
+      });
+      imageryErrorRemovers.push(remover);
+    };
+    for (let i = 0; i < viewer.imageryLayers.length; i++) {
+      attachImageryRetry(viewer.imageryLayers.get(i));
+    }
+    const layerAddRemover = viewer.imageryLayers.layerAdded.addEventListener(attachImageryRetry);
 
     // Dark atmosphere
     viewer.scene.skyAtmosphere.hueShift = -0.05;
@@ -225,12 +294,16 @@ const GlobeViewer = ({ onMarkerClick, visibleCategories, showHeatmap = false }: 
     });
 
     return () => {
+      cancelledRef.current = true;
       if (spinRef.current) clearInterval(spinRef.current);
+      tileFailedRemover();
+      layerAddRemover();
+      imageryErrorRemovers.forEach((r) => r());
       handler.destroy();
       viewer.destroy();
       viewerRef.current = null;
     };
-  }, [addMarkers, onMarkerClick]);
+  }, [addMarkers, onMarkerClick, retryWithBackoff]);
 
   return (
     <>
