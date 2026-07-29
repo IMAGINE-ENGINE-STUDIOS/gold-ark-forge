@@ -19,6 +19,7 @@ import {
   type EngineLogEntry, type EngineNode, type ValidationIssue,
 } from '@/lib/workflowEngine';
 import type { usePaperTrading } from '@/hooks/usePaperTrading';
+import { CurrencyAmountField } from '@/components/trading/CurrencyAmountField';
 import { LivePriceIndicator } from './LivePriceIndicator';
 
 export interface WorkflowCanvasProps {
@@ -73,7 +74,7 @@ const defaultConfigFor = (kind: NodeKind, label?: string): NodeConfig => {
   switch (kind) {
     case 'symbol':    return { symbol: label ?? 'XAU/USD', ticker: 'GLD' };
     case 'buy':
-    case 'sell':      return { size: 1, orderType: 'market', limitPrice: '' };
+    case 'sell':      return { amount: 1000, currency: 'USD', amountUsd: 1000, orderType: 'market', limitPrice: '' };
     case 'stop':      return { stopPrice: '', trigger: 'last' };
     case 'trail':     return { trailPct: 1.0 };
     case 'hedge':     return { ratio: 0.5, instrument: 'inverse' };
@@ -752,7 +753,16 @@ function NodeConfigForm({
     return (
       <div className="space-y-3">
         {LiveBlock}
-        <F label="SIZE (units)"><Input type="number" value={c.size ?? ''} onChange={(e) => onChange({ size: num(e.target.value) })} /></F>
+        <F label="AMOUNT">
+          <CurrencyAmountField
+            amount={c.amount ?? ''}
+            currency={c.currency ?? 'USD'}
+            livePrice={livePrice}
+            onAmountChange={(v) => onChange({ amount: v })}
+            onCurrencyChange={(code) => onChange({ currency: code })}
+            onUsdChange={(usd) => { if (usd !== c.amountUsd) onChange({ amountUsd: usd }); }}
+          />
+        </F>
         <F label="ORDER TYPE">
           <select value={c.orderType} onChange={(e) => onChange({ orderType: e.target.value })}
             className="w-full bg-black border border-gold/30 rounded px-2 py-1 text-xs text-gold-light">
@@ -772,7 +782,7 @@ function NodeConfigForm({
         {c.orderType === 'market' && livePrice > 0 && (
           <p className="text-[9px] font-mono text-gold/50">
             Est. fill ≈ ${livePrice.toLocaleString('en-US', { maximumFractionDigits: livePrice < 10 ? 4 : 2 })}
-            {' · '}notional ≈ ${(livePrice * Number(c.size || 0)).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+            {' · '}notional ≈ ${Number(c.amountUsd || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}
           </p>
         )}
       </div>
