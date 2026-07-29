@@ -551,6 +551,27 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 // module at src/components/trading/LivePriceIndicator.tsx so it can be
 // dropped into any widget across the app.
 
+// Hoisted so React keeps the same component identity between renders —
+// defining these inside NodeConfigForm remounted every input on each
+// keystroke, which stole focus and made fields feel "uneditable".
+const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="space-y-1">
+    <Label className="text-[10px] font-mono tracking-wider text-gold/70">{label}</Label>
+    {children}
+  </div>
+);
+
+const UseLiveBtn = ({ livePrice, onFill }: { livePrice: number; onFill: () => void }) => (
+  <button
+    type="button"
+    disabled={!(livePrice > 0)}
+    onClick={onFill}
+    className="text-[8px] font-mono tracking-wider text-gold-light border border-gold/40 hover:bg-gold/10 disabled:opacity-30 px-1.5 py-0.5 rounded shrink-0"
+  >
+    USE LIVE
+  </button>
+);
+
 function NodeConfigForm({
   node,
   onChange,
@@ -564,12 +585,6 @@ function NodeConfigForm({
 }) {
   const c = node.config ?? {};
   const num = (v: any) => (v === '' || v == null ? '' : Number(v));
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="space-y-1">
-      <Label className="text-[10px] font-mono tracking-wider text-gold/70">{label}</Label>
-      {children}
-    </div>
-  );
   const tickerForLive = node.kind === 'symbol' ? (c.ticker ?? null) : (contextTicker ?? null);
   const showLive = ['symbol','buy','sell','stop','trail','alertup','alertdown'].includes(node.kind);
   const livePrice = tickerForLive && getPriceByTicker ? getPriceByTicker(tickerForLive) : 0;
@@ -579,16 +594,6 @@ function NodeConfigForm({
   const LiveBlock = showLive ? (
     <LivePriceIndicator ticker={tickerForLive} getPriceByTicker={getPriceByTicker} />
   ) : null;
-  const UseLiveBtn = ({ field }: { field: string }) => (
-    <button
-      type="button"
-      disabled={!(livePrice > 0)}
-      onClick={() => fillFromLive(field)}
-      className="text-[8px] font-mono tracking-wider text-gold-light border border-gold/40 hover:bg-gold/10 disabled:opacity-30 px-1.5 py-0.5 rounded"
-    >
-      USE LIVE
-    </button>
-  );
 
   if (node.kind === 'symbol') {
     const query = String(c.symbol ?? c.ticker ?? '').toLowerCase();
@@ -654,7 +659,7 @@ function NodeConfigForm({
           <F label="LIMIT / STOP PRICE">
             <div className="flex gap-1">
               <Input type="number" value={c.limitPrice ?? ''} onChange={(e) => onChange({ limitPrice: num(e.target.value) })} />
-              <UseLiveBtn field="limitPrice" />
+              <UseLiveBtn livePrice={livePrice} onFill={() => fillFromLive('limitPrice')} />
             </div>
           </F>
         )}
@@ -675,7 +680,7 @@ function NodeConfigForm({
         <F label="STOP PRICE">
           <div className="flex gap-1">
             <Input type="number" value={c.stopPrice ?? ''} onChange={(e) => onChange({ stopPrice: num(e.target.value) })} />
-            <UseLiveBtn field="stopPrice" />
+            <UseLiveBtn livePrice={livePrice} onFill={() => fillFromLive('stopPrice')} />
           </div>
         </F>
         <F label="TRIGGER">
@@ -714,7 +719,7 @@ function NodeConfigForm({
         <F label={node.kind === 'alertup' ? 'ALERT ABOVE' : 'ALERT BELOW'}>
           <div className="flex gap-1">
             <Input type="number" value={c.price ?? ''} onChange={(e) => onChange({ price: num(e.target.value) })} />
-            <UseLiveBtn field="price" />
+            <UseLiveBtn livePrice={livePrice} onFill={() => fillFromLive('price')} />
           </div>
         </F>
         <F label="CHANNEL">
