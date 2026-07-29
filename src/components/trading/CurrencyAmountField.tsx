@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { useFxRates, currencyGlyph, currencyName } from '@/hooks/useFxRates';
 import { ChevronDown, Search } from 'lucide-react';
@@ -10,6 +10,8 @@ interface Props {
   onCurrencyChange: (code: string) => void;
   /** Optional live instrument price (quoted in USD) for unit estimation. */
   livePrice?: number;
+  /** Reports the USD-converted value whenever amount, currency or rate changes. */
+  onUsdChange?: (usd: number) => void;
 }
 
 const fmt = (v: number, code: string) =>
@@ -22,6 +24,7 @@ export function CurrencyAmountField({
   onAmountChange,
   onCurrencyChange,
   livePrice = 0,
+  onUsdChange,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -38,6 +41,11 @@ export function CurrencyAmountField({
   const amt = Number(amount || 0);
   const usdValue = rate && rate > 0 ? amt / rate : currency === 'USD' ? amt : 0;
   const units = livePrice > 0 && usdValue > 0 ? usdValue / livePrice : 0;
+
+  useEffect(() => {
+    onUsdChange?.(usdValue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usdValue]);
 
   return (
     <div className="space-y-1.5">
