@@ -64,9 +64,9 @@ export function validateWorkflow(nodes: EngineNode[]): ValidationIssue[] {
       out.push({ step: i + 1, nodeId: n.id, level: 'error', message: `${n.label} requires a SYMBOL earlier in the chain.` });
     }
     if ((n.kind === 'buy' || n.kind === 'sell')) {
-      const size = Number(n.config?.size);
-      if (!Number.isFinite(size) || size <= 0) {
-        out.push({ step: i + 1, nodeId: n.id, level: 'error', message: `${n.label} size must be > 0.` });
+      const usd = Number(n.config?.amountUsd ?? n.config?.amount);
+      if (!Number.isFinite(usd) || usd <= 0) {
+        out.push({ step: i + 1, nodeId: n.id, level: 'error', message: `${n.label} amount must be > 0.` });
       }
       if (n.config?.orderType && n.config.orderType !== 'market') {
         const lp = Number(n.config?.limitPrice);
@@ -142,13 +142,14 @@ export async function runWorkflow(
           if (!ctxTicker) throw new Error('No SYMBOL context');
           const price = hooks.getPriceByTicker(ctxTicker);
           if (!(price > 0)) throw new Error(`No live price for ${ctxTicker}`);
-          const qty = Number(n.config?.size ?? 0);
+          const notionalUsd = Number(n.config?.amountUsd ?? n.config?.amount ?? 0);
+          const qty = price > 0 ? notionalUsd / price : 0;
           const orderType = (n.config?.orderType ?? 'market') as 'market' | 'limit' | 'stop';
           const limitPrice = orderType === 'market' ? undefined : Number(n.config?.limitPrice);
           const order = hooks.submitOrder({
             symbol: ctxTicker, side: n.kind, qty, type: orderType, price, limitPrice, botSource: true,
           });
-          push({ step, kind: n.kind, status: 'ok', message: `${n.kind.toUpperCase()} ${qty} ${ctxLabel} @ ${order.price.toFixed(2)} (fee $${order.fees.toFixed(2)})` });
+          push({ step, kind: n.kind, status: 'ok', message: `${n.kind.toUpperCase()} ${qty.toFixed(6)} ${ctxLabel} ($${notionalUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${n.config?.currency ?? 'USD'}-adj) @ ${order.price.toFixed(2)} (fee $${order.fees.toFixed(2)})` });
           break;
         }
         case 'stop': {
