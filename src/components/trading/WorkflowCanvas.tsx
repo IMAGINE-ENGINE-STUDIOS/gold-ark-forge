@@ -553,6 +553,110 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 // module at src/components/trading/LivePriceIndicator.tsx so it can be
 // dropped into any widget across the app.
 
+const FREQUENCIES = [
+  { v: 'once', l: 'Once' },
+  { v: 'daily', l: 'Daily' },
+  { v: 'weekly', l: 'Weekly' },
+  { v: 'biweekly', l: 'Bi-weekly' },
+  { v: 'monthly', l: 'Monthly' },
+  { v: 'market-open', l: 'Market open' },
+  { v: 'market-close', l: 'Market close' },
+];
+
+const TIME_SLOTS = [
+  '00:00','04:00','08:00','09:30','10:00','12:00','14:00','16:00','18:00','20:00','22:00','23:30',
+];
+
+// Airbnb-style booking flow: pick a start date on the calendar, then a time,
+// then a cadence and optional end date.
+function ScheduleConfig({ c, onChange }: { c: NodeConfig; onChange: (patch: NodeConfig) => void }) {
+  const [stage, setStage] = React.useState<'start' | 'end'>('start');
+  const start = c.date ? new Date(c.date) : undefined;
+  const end = c.endDate ? new Date(c.endDate) : undefined;
+  const recurring = c.when && c.when !== 'once';
+  const selected = stage === 'start' ? start : end;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => setStage('start')}
+          className={`flex-1 rounded border px-2 py-1.5 text-left ${stage === 'start' ? 'border-gold/60 bg-gold/10' : 'border-gold/20 bg-black/40'}`}
+        >
+          <div className="text-[8px] font-mono tracking-widest text-gold/50">START</div>
+          <div className="text-[10px] font-mono text-gold-light">{start ? format(start, 'EEE, MMM d yyyy') : 'Add date'}</div>
+        </button>
+        <button
+          type="button"
+          disabled={!recurring}
+          onClick={() => setStage('end')}
+          className={`flex-1 rounded border px-2 py-1.5 text-left disabled:opacity-40 ${stage === 'end' ? 'border-gold/60 bg-gold/10' : 'border-gold/20 bg-black/40'}`}
+        >
+          <div className="text-[8px] font-mono tracking-widest text-gold/50">UNTIL</div>
+          <div className="text-[10px] font-mono text-gold-light">{end ? format(end, 'EEE, MMM d yyyy') : recurring ? 'No end date' : '—'}</div>
+        </button>
+      </div>
+
+      <div className="rounded border border-gold/20 bg-black/40 flex justify-center">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          disabled={stage === 'end' && start ? { before: start } : undefined}
+          onSelect={(d) => {
+            if (!d) return;
+            if (stage === 'start') {
+              onChange({ date: d.toISOString() });
+              if (recurring) setStage('end');
+            } else {
+              onChange({ endDate: d.toISOString() });
+            }
+          }}
+          className="p-2 pointer-events-auto"
+        />
+      </div>
+
+      {stage === 'end' && end && (
+        <button type="button" onClick={() => onChange({ endDate: '' })}
+          className="text-[9px] font-mono text-rose-400/80 hover:text-rose-300">Clear end date</button>
+      )}
+
+      <F label="TIME">
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-4 gap-1">
+            {TIME_SLOTS.map(t => (
+              <button key={t} type="button" onClick={() => onChange({ time: t })}
+                className={`text-[9px] font-mono py-1 rounded border ${c.time === t ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-gold/20 text-gold/60 hover:bg-gold/10'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <Input type="time" value={c.time ?? ''} onChange={(e) => onChange({ time: e.target.value })} />
+        </div>
+      </F>
+
+      <F label="REPEATS">
+        <div className="flex flex-wrap gap-1">
+          {FREQUENCIES.map(f => (
+            <button key={f.v} type="button"
+              onClick={() => { onChange({ when: f.v, ...(f.v === 'once' ? { endDate: '' } : {}) }); if (f.v === 'once') setStage('start'); }}
+              className={`text-[9px] font-mono px-2 py-1 rounded-full border ${c.when === f.v ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-gold/20 text-gold/60 hover:bg-gold/10'}`}>
+              {f.l}
+            </button>
+          ))}
+        </div>
+      </F>
+
+      <p className="text-[9px] font-mono text-gold/50">
+        {start
+          ? `Runs ${c.when === 'once' ? 'once on' : `${c.when} from`} ${format(start, 'MMM d, yyyy')} at ${c.time || '—'}${end ? ` until ${format(end, 'MMM d, yyyy')}` : ''}.`
+          : 'Pick a start date to activate this step.'}
+      </p>
+    </div>
+  );
+}
+
 // Hoisted so React keeps the same component identity between renders —
 // defining these inside NodeConfigForm remounted every input on each
 // keystroke, which stole focus and made fields feel "uneditable".
