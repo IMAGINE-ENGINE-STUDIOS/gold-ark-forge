@@ -11,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import {
   runWorkflow, validateWorkflow,
@@ -75,7 +77,7 @@ const defaultConfigFor = (kind: NodeKind, label?: string): NodeConfig => {
     case 'stop':      return { stopPrice: '', trigger: 'last' };
     case 'trail':     return { trailPct: 1.0 };
     case 'hedge':     return { ratio: 0.5, instrument: 'inverse' };
-    case 'schedule':  return { when: 'daily', time: '09:30' };
+    case 'schedule':  return { when: 'daily', time: '09:30', date: '', endDate: '' };
     case 'timer':     return { seconds: 60 };
     case 'alertup':   return { price: '', channel: 'app' };
     case 'alertdown': return { price: '', channel: 'app' };
@@ -736,19 +738,7 @@ function NodeConfigForm({
 
   if (node.kind === 'schedule') {
     return (
-      <div className="space-y-3">
-        <F label="FREQUENCY">
-          <select value={c.when} onChange={(e) => onChange({ when: e.target.value })}
-            className="w-full bg-black border border-gold/30 rounded px-2 py-1 text-xs text-gold-light">
-            <option value="once">Once</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="market-open">Market open</option>
-            <option value="market-close">Market close</option>
-          </select>
-        </F>
-        <F label="TIME"><Input type="time" value={c.time ?? ''} onChange={(e) => onChange({ time: e.target.value })} /></F>
-      </div>
+      <ScheduleConfig c={c} onChange={onChange} />
     );
   }
 
