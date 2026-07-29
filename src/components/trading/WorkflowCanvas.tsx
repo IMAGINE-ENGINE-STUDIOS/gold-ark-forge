@@ -11,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import {
   runWorkflow, validateWorkflow,
@@ -75,7 +77,7 @@ const defaultConfigFor = (kind: NodeKind, label?: string): NodeConfig => {
     case 'stop':      return { stopPrice: '', trigger: 'last' };
     case 'trail':     return { trailPct: 1.0 };
     case 'hedge':     return { ratio: 0.5, instrument: 'inverse' };
-    case 'schedule':  return { when: 'daily', time: '09:30' };
+    case 'schedule':  return { when: 'daily', time: '09:30', date: '', endDate: '' };
     case 'timer':     return { seconds: 60 };
     case 'alertup':   return { price: '', channel: 'app' };
     case 'alertdown': return { price: '', channel: 'app' };
@@ -551,6 +553,131 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 // module at src/components/trading/LivePriceIndicator.tsx so it can be
 // dropped into any widget across the app.
 
+const FREQUENCIES = [
+  { v: 'once', l: 'Once' },
+  { v: 'daily', l: 'Daily' },
+  { v: 'weekly', l: 'Weekly' },
+  { v: 'biweekly', l: 'Bi-weekly' },
+  { v: 'monthly', l: 'Monthly' },
+  { v: 'market-open', l: 'Market open' },
+  { v: 'market-close', l: 'Market close' },
+];
+
+const TIME_SLOTS = [
+  '00:00','04:00','08:00','09:30','10:00','12:00','14:00','16:00','18:00','20:00','22:00','23:30',
+];
+
+// Airbnb-style booking flow: pick a start date on the calendar, then a time,
+// then a cadence and optional end date.
+function ScheduleConfig({ c, onChange }: { c: NodeConfig; onChange: (patch: NodeConfig) => void }) {
+  const [stage, setStage] = React.useState<'start' | 'end'>('start');
+  const start = c.date ? new Date(c.date) : undefined;
+  const end = c.endDate ? new Date(c.endDate) : undefined;
+  const recurring = c.when && c.when !== 'once';
+  const selected = stage === 'start' ? start : end;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => setStage('start')}
+          className={`flex-1 rounded border px-2 py-1.5 text-left ${stage === 'start' ? 'border-gold/60 bg-gold/10' : 'border-gold/20 bg-black/40'}`}
+        >
+          <div className="text-[8px] font-mono tracking-widest text-gold/50">START</div>
+          <div className="text-[10px] font-mono text-gold-light">{start ? format(start, 'EEE, MMM d yyyy') : 'Add date'}</div>
+        </button>
+        <button
+          type="button"
+          disabled={!recurring}
+          onClick={() => setStage('end')}
+          className={`flex-1 rounded border px-2 py-1.5 text-left disabled:opacity-40 ${stage === 'end' ? 'border-gold/60 bg-gold/10' : 'border-gold/20 bg-black/40'}`}
+        >
+          <div className="text-[8px] font-mono tracking-widest text-gold/50">UNTIL</div>
+          <div className="text-[10px] font-mono text-gold-light">{end ? format(end, 'EEE, MMM d yyyy') : recurring ? 'No end date' : '—'}</div>
+        </button>
+      </div>
+
+      <div className="rounded border border-gold/20 bg-black/40 flex justify-center">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          disabled={stage === 'end' && start ? { before: start } : undefined}
+          onSelect={(d) => {
+            if (!d) return;
+            if (stage === 'start') {
+              onChange({ date: d.toISOString() });
+              if (recurring) setStage('end');
+            } else {
+              onChange({ endDate: d.toISOString() });
+            }
+          }}
+          className="p-2 pointer-events-auto"
+        />
+      </div>
+
+      {stage === 'end' && end && (
+        <button type="button" onClick={() => onChange({ endDate: '' })}
+          className="text-[9px] font-mono text-rose-400/80 hover:text-rose-300">Clear end date</button>
+      )}
+
+      <F label="TIME">
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-4 gap-1">
+            {TIME_SLOTS.map(t => (
+              <button key={t} type="button" onClick={() => onChange({ time: t })}
+                className={`text-[9px] font-mono py-1 rounded border ${c.time === t ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-gold/20 text-gold/60 hover:bg-gold/10'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <Input type="time" value={c.time ?? ''} onChange={(e) => onChange({ time: e.target.value })} />
+        </div>
+      </F>
+
+      <F label="REPEATS">
+        <div className="flex flex-wrap gap-1">
+          {FREQUENCIES.map(f => (
+            <button key={f.v} type="button"
+              onClick={() => { onChange({ when: f.v, ...(f.v === 'once' ? { endDate: '' } : {}) }); if (f.v === 'once') setStage('start'); }}
+              className={`text-[9px] font-mono px-2 py-1 rounded-full border ${c.when === f.v ? 'border-gold/60 bg-gold/15 text-gold-light' : 'border-gold/20 text-gold/60 hover:bg-gold/10'}`}>
+              {f.l}
+            </button>
+          ))}
+        </div>
+      </F>
+
+      <p className="text-[9px] font-mono text-gold/50">
+        {start
+          ? `Runs ${c.when === 'once' ? 'once on' : `${c.when} from`} ${format(start, 'MMM d, yyyy')} at ${c.time || '—'}${end ? ` until ${format(end, 'MMM d, yyyy')}` : ''}.`
+          : 'Pick a start date to activate this step.'}
+      </p>
+    </div>
+  );
+}
+
+// Hoisted so React keeps the same component identity between renders —
+// defining these inside NodeConfigForm remounted every input on each
+// keystroke, which stole focus and made fields feel "uneditable".
+const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="space-y-1">
+    <Label className="text-[10px] font-mono tracking-wider text-gold/70">{label}</Label>
+    {children}
+  </div>
+);
+
+const UseLiveBtn = ({ livePrice, onFill }: { livePrice: number; onFill: () => void }) => (
+  <button
+    type="button"
+    disabled={!(livePrice > 0)}
+    onClick={onFill}
+    className="text-[8px] font-mono tracking-wider text-gold-light border border-gold/40 hover:bg-gold/10 disabled:opacity-30 px-1.5 py-0.5 rounded shrink-0"
+  >
+    USE LIVE
+  </button>
+);
+
 function NodeConfigForm({
   node,
   onChange,
@@ -564,12 +691,6 @@ function NodeConfigForm({
 }) {
   const c = node.config ?? {};
   const num = (v: any) => (v === '' || v == null ? '' : Number(v));
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="space-y-1">
-      <Label className="text-[10px] font-mono tracking-wider text-gold/70">{label}</Label>
-      {children}
-    </div>
-  );
   const tickerForLive = node.kind === 'symbol' ? (c.ticker ?? null) : (contextTicker ?? null);
   const showLive = ['symbol','buy','sell','stop','trail','alertup','alertdown'].includes(node.kind);
   const livePrice = tickerForLive && getPriceByTicker ? getPriceByTicker(tickerForLive) : 0;
@@ -579,16 +700,6 @@ function NodeConfigForm({
   const LiveBlock = showLive ? (
     <LivePriceIndicator ticker={tickerForLive} getPriceByTicker={getPriceByTicker} />
   ) : null;
-  const UseLiveBtn = ({ field }: { field: string }) => (
-    <button
-      type="button"
-      disabled={!(livePrice > 0)}
-      onClick={() => fillFromLive(field)}
-      className="text-[8px] font-mono tracking-wider text-gold-light border border-gold/40 hover:bg-gold/10 disabled:opacity-30 px-1.5 py-0.5 rounded"
-    >
-      USE LIVE
-    </button>
-  );
 
   if (node.kind === 'symbol') {
     const query = String(c.symbol ?? c.ticker ?? '').toLowerCase();
@@ -654,7 +765,7 @@ function NodeConfigForm({
           <F label="LIMIT / STOP PRICE">
             <div className="flex gap-1">
               <Input type="number" value={c.limitPrice ?? ''} onChange={(e) => onChange({ limitPrice: num(e.target.value) })} />
-              <UseLiveBtn field="limitPrice" />
+              <UseLiveBtn livePrice={livePrice} onFill={() => fillFromLive('limitPrice')} />
             </div>
           </F>
         )}
@@ -675,7 +786,7 @@ function NodeConfigForm({
         <F label="STOP PRICE">
           <div className="flex gap-1">
             <Input type="number" value={c.stopPrice ?? ''} onChange={(e) => onChange({ stopPrice: num(e.target.value) })} />
-            <UseLiveBtn field="stopPrice" />
+            <UseLiveBtn livePrice={livePrice} onFill={() => fillFromLive('stopPrice')} />
           </div>
         </F>
         <F label="TRIGGER">
@@ -714,7 +825,7 @@ function NodeConfigForm({
         <F label={node.kind === 'alertup' ? 'ALERT ABOVE' : 'ALERT BELOW'}>
           <div className="flex gap-1">
             <Input type="number" value={c.price ?? ''} onChange={(e) => onChange({ price: num(e.target.value) })} />
-            <UseLiveBtn field="price" />
+            <UseLiveBtn livePrice={livePrice} onFill={() => fillFromLive('price')} />
           </div>
         </F>
         <F label="CHANNEL">
@@ -731,19 +842,7 @@ function NodeConfigForm({
 
   if (node.kind === 'schedule') {
     return (
-      <div className="space-y-3">
-        <F label="FREQUENCY">
-          <select value={c.when} onChange={(e) => onChange({ when: e.target.value })}
-            className="w-full bg-black border border-gold/30 rounded px-2 py-1 text-xs text-gold-light">
-            <option value="once">Once</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="market-open">Market open</option>
-            <option value="market-close">Market close</option>
-          </select>
-        </F>
-        <F label="TIME"><Input type="time" value={c.time ?? ''} onChange={(e) => onChange({ time: e.target.value })} /></F>
-      </div>
+      <ScheduleConfig c={c} onChange={onChange} />
     );
   }
 
