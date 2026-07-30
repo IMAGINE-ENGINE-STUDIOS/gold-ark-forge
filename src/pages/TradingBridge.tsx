@@ -60,6 +60,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
+import { useForexRates, type ForexRates } from '@/hooks/useForexRates';
 import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { usePaperTrading, type PaperPosition } from '@/hooks/usePaperTrading';
