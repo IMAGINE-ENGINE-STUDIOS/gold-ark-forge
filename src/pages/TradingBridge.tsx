@@ -610,6 +610,24 @@ function BuyPriceSection({ symbols, resolvePrice, onSetBuyPrice }: {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
+// Metals with a genuine spot feed in price_feeds. Everything else must NOT be aliased.
+const LIVE_METAL_KEYS = new Set(['gold', 'silver', 'platinum']);
+
+// Derive an FX pair rate (e.g. "EUR/JPY") from the Frankfurter base-rate maps.
+function resolveFxPair(ticker: string, data?: Record<string, ForexRates>): number {
+  if (!data) return 0;
+  const [base, quote] = ticker.toUpperCase().split('/');
+  if (!base || !quote) return 0;
+  const direct = data[base]?.rates?.[quote];
+  if (typeof direct === 'number' && direct > 0) return direct;
+  const inverse = data[quote]?.rates?.[base];
+  if (typeof inverse === 'number' && inverse > 0) return 1 / inverse;
+  // Triangulate through USD when both legs are quoted against USD.
+  const usd = data.USD?.rates;
+  if (usd?.[base] && usd?.[quote]) return usd[quote] / usd[base];
+  return 0;
+}
+
 const TradingBridge = () => {
   const { preferences, updatePrefs } = useUserPreferences();
   const [searchParams] = useSearchParams();
