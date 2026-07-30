@@ -663,8 +663,9 @@ const TradingBridge = () => {
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
   const { data: metalPricesData } = useMetalPrices();
-  const { data: cryptoDataAll } = useCryptoData(50);
+  const { data: cryptoDataAll } = useCryptoData(250);
   const { data: oilPricesData } = useOilGasPrices();
+  const { data: forexRatesData } = useForexRates();
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
   const { user } = useAuth();
@@ -684,8 +685,8 @@ const TradingBridge = () => {
   // Single source of truth for price resolution across ALL tabs
   const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
     if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
-      const key = metalMap[sym.key];
+      // Only these three have a real spot feed — never alias another metal to them.
+      const key = LIVE_METAL_KEYS.has(sym.key) ? sym.key : null;
       const price = key ? (metalPricesData?.[key]?.price_usd ?? 0) : 0;
       if (price > 0) return price;
     }
@@ -697,10 +698,14 @@ const TradingBridge = () => {
       const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
       if (feed?.price) return feed.price;
     }
+    if (sym.cat === 'forex') {
+      const fx = resolveFxPair(sym.ticker, forexRatesData);
+      if (fx > 0) return fx;
+    }
     // Fallback: use synthetic prices so bot can always trade
     const sp = SYNTHETIC_PRICES[sym.key];
     return sp?.p ?? 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData]);
+  }, [metalPricesData, cryptoDataAll, oilPricesData, forexRatesData]);
 
   // Resolve current price for active symbol
   const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
@@ -709,13 +714,12 @@ const TradingBridge = () => {
   const activeChange = useMemo(() => {
     const sym = activeSymbol;
     if (sym.cat === 'metals') {
-      const metalMap: Record<string, string> = { gold: 'gold', silver: 'silver', platinum: 'platinum', palladium: 'platinum', copper: 'gold' };
-      const key = metalMap[sym.key];
-      return key ? (metalPricesData?.[key]?.change_24h ?? 0) : 0;
+      const key = LIVE_METAL_KEYS.has(sym.key) ? sym.key : null;
+      if (key) return metalPricesData?.[key]?.change_24h ?? 0;
     }
     if (sym.cat === 'crypto') {
       const coin = cryptoDataAll?.find(c => c.id === sym.key || c.symbol === sym.key);
-      return coin?.price_change_percentage_24h ?? 0;
+      if (coin) return coin.price_change_percentage_24h ?? 0;
     }
     if (sym.cat === 'energy') {
       const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
