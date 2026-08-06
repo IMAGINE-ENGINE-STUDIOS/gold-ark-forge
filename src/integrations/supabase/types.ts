@@ -640,6 +640,7 @@ export type Database = {
           description: string | null
           file_path: string
           file_size: number | null
+          folder_path: string
           id: string
           mime_type: string | null
           title: string
@@ -653,6 +654,7 @@ export type Database = {
           description?: string | null
           file_path: string
           file_size?: number | null
+          folder_path?: string
           id?: string
           mime_type?: string | null
           title: string
@@ -666,12 +668,64 @@ export type Database = {
           description?: string | null
           file_path?: string
           file_size?: number | null
+          folder_path?: string
           id?: string
           mime_type?: string | null
           title?: string
           updated_at?: string
           uploaded_by?: string | null
           visibility?: string
+        }
+        Relationships: []
+      }
+      investor_activity: {
+        Row: {
+          action: string
+          actor: string | null
+          created_at: string
+          id: string
+          target: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          created_at?: string
+          id?: string
+          target: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          created_at?: string
+          id?: string
+          target?: string
+        }
+        Relationships: []
+      }
+      investor_folders: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          parent_path: string
+          path: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          parent_path?: string
+          path: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          parent_path?: string
+          path?: string
         }
         Relationships: []
       }
