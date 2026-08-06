@@ -24,6 +24,7 @@ import OldBots from "./pages/OldBots";
 import Login from "./pages/Login";
 import Deck from "./pages/Deck";
 import Globe from "./pages/Globe";
+import Investors from "./pages/Investors";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/deck" element={<Deck />} />
             <Route path="/globe" element={<Globe />} />
+            <Route path="/investors" element={<Investors />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
