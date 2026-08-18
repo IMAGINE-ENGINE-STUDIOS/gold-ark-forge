@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TrendingUp, TrendingDown, OctagonX, CalendarClock, BellRing, BellOff,
   Zap, Waves, Brain, Shield, Target, Activity, Repeat, Timer, Trash2, Plus,
-  Search, Tag, Settings2, Sparkles, Play, AlertTriangle, CheckCircle2, XCircle, Info,
+  Search, Tag, Settings2, Sparkles, Play, Square, AlertTriangle, CheckCircle2, XCircle, Info,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import SymbolLogo from '@/components/trading/SymbolLogo';
+import GeniusAssistant, { type GeniusAction } from '@/components/pipeline/GeniusAssistant';
 import {
   runWorkflow, validateWorkflow,
   type EngineLogEntry, type EngineNode, type ValidationIssue,
@@ -147,6 +148,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   }, [nodes]);
 
   const [running, setRunning] = useState(false);
+  const stopRef = useRef(false);
   const [execLog, setExecLog] = useState<EngineLogEntry[]>([]);
   const issues: ValidationIssue[] = useMemo(() => validateWorkflow(nodes as unknown as EngineNode[]), [nodes]);
   const errorCount = issues.filter(i => i.level === 'error').length;
@@ -165,6 +167,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
       return;
     }
     setRunning(true);
+    stopRef.current = false;
     try {
       await runWorkflow(
         nodes as unknown as EngineNode[],
@@ -175,6 +178,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
           },
           getPriceByTicker,
           account: paper.account,
+          shouldStop: () => stopRef.current,
         },
         (entry) => setExecLog(prev => [...prev, entry]),
       );
@@ -182,7 +186,14 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
       setExecLog(prev => [...prev, { ts: Date.now(), step: 0, kind: 'symbol', status: 'error', message: err?.message ?? String(err) }]);
     } finally {
       setRunning(false);
+      stopRef.current = false;
     }
+  };
+
+  const handleStop = () => {
+    if (!running) return;
+    stopRef.current = true;
+    setExecLog(prev => [...prev, { ts: Date.now(), step: 0, kind: 'symbol', status: 'skip', message: 'STOP requested — halting after current step.' }]);
   };
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -316,28 +327,75 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   const updateNodeConfig = (id: string, patch: NodeConfig) =>
     setNodes(prev => prev.map(n => n.id === id ? { ...n, config: { ...n.config, ...patch }, label: patch.symbol ?? n.label } : n));
 
+  /** Apply structured actions returned by the Genius copilot. */
+  const applyGeniusActions = (actions: GeniusAction[]) => {
+    let shouldRun = false;
+    for (const a of actions) {
+      switch (a.op) {
+        case 'clear':
+          setNodes([]);
+          break;
+        case 'replace_all':
+          setNodes((a.nodes ?? []).map(n =>
+            makeNode(n.kind as NodeKind, {
+              label: n.label,
+              config: { ...defaultConfigFor(n.kind as NodeKind, n.label), ...(n.config ?? {}) },
+            })));
+          break;
+        case 'add_node': {
+          if (!a.kind) break;
+          const node = makeNode(a.kind as NodeKind, {
+            label: a.label,
+            config: { ...defaultConfigFor(a.kind as NodeKind, a.label), ...(a.config ?? {}) },
+          });
+          setNodes(prev => {
+            const next = [...prev];
+            const at = typeof a.index === 'number' ? Math.max(0, Math.min(a.index, next.length)) : next.length;
+            next.splice(at, 0, node);
+            return next;
+          });
+          break;
+        }
+        case 'update_node':
+          setNodes(prev => prev.map((n, i) =>
+            i === a.index ? { ...n, label: (a.config?.symbol as string) ?? a.label ?? n.label, config: { ...n.config, ...(a.config ?? {}) } } : n));
+          break;
+        case 'remove_node':
+          setNodes(prev => prev.filter((_, i) => i !== a.index));
+          break;
+        case 'run':
+          shouldRun = true;
+          break;
+        case 'stop':
+          handleStop();
+          break;
+      }
+    }
+    if (shouldRun) setTimeout(() => { void handleRun(); }, 60);
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_330px]">
       {/* Gallery */}
-      <div className="border border-gold/20 rounded-md bg-black/40 p-2 space-y-3 max-h-[560px] overflow-y-auto">
+      <div className="alien-panel alien-scan relative max-h-[620px] space-y-3 overflow-y-auto p-2.5">
         <div className="flex items-center justify-between px-1">
           <span className="font-display text-[10px] tracking-[0.2em] text-gold-light">GALLERY</span>
-          <span className="text-[8px] font-mono text-gold/50">DRAG OR CLICK →</span>
+          <span className="alien-chip px-2 py-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">DRAG OR CLICK</span>
         </div>
 
         {/* Symbols group with search */}
-        <div>
+        <div className="relative z-10">
           <div className="flex items-center justify-between px-1 mb-1">
-            <span className="text-[9px] font-mono tracking-widest text-gold/60">ASSET UNIVERSE</span>
-            <span className="text-[8px] font-mono text-gold/40">{symbolMatches.length} / {ALL_SYMBOLS.length}</span>
+            <span className="font-display text-[9px] tracking-[0.2em] text-gold-light">ASSET UNIVERSE</span>
+            <span className="alien-chip px-1.5 py-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">{symbolMatches.length} / {ALL_SYMBOLS.length}</span>
           </div>
           <div className="relative mb-1.5">
-            <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gold/50" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
             <input
               value={symbolQuery}
               onChange={(e) => { setSymbolQuery(e.target.value); setSymbolLimit(40); }}
               placeholder="SEARCH ANY ASSET…"
-              className="w-full pl-6 pr-2 py-1 text-[9px] font-mono bg-black/60 border border-gold/20 rounded focus:border-gold/60 outline-none text-gold-light placeholder:text-gold/30"
+              className="w-full rounded-full border border-gold/25 bg-background/70 py-1.5 pl-7 pr-3 font-mono text-[9px] tracking-widest text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-gold/60"
             />
           </div>
           <div className="mb-1.5 flex flex-wrap gap-1">
@@ -345,22 +403,22 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
               <button
                 key={c}
                 onClick={() => { setSymbolCat(c); setSymbolLimit(40); }}
-                className={`rounded-full border border-gold/25 bg-gold/5 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.18em] transition-colors ${
-                  symbolCat === c ? 'text-gold-light border-gold/60' : 'text-muted-foreground hover:text-gold-light'
+                className={`alien-chip px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.18em] transition-colors ${
+                  symbolCat === c ? 'text-gold-light' : 'text-muted-foreground hover:text-gold-light'
                 }`}
               >
                 {c}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-1 max-h-[220px] overflow-y-auto pr-0.5">
+          <div className="grid max-h-[220px] grid-cols-2 gap-1.5 overflow-y-auto pr-0.5">
             {symbolResults.map(s => (
               <button
                 key={`${s.cat}-${s.key}-${s.ticker}`}
                 draggable
                 onDragStart={(e) => onGalleryDragStart(e, 'symbol', { label: s.label, ticker: s.ticker })}
                 onClick={() => addSymbolNode({ label: s.label, ticker: s.ticker })}
-                className="group relative overflow-hidden cursor-grab active:cursor-grabbing select-none rounded border border-gold/25 bg-gold/5 px-1.5 py-1 text-left transition hover:bg-gold/15"
+                className="alien-panel alien-lift group relative cursor-grab select-none overflow-hidden px-1.5 py-1 text-left active:cursor-grabbing"
                 title={`Drag or click ${s.label} (${s.ticker})`}
               >
                 <span className="flex min-w-0 items-center gap-1">
@@ -371,13 +429,13 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
               </button>
             ))}
             {symbolResults.length === 0 && (
-              <div className="col-span-2 text-[9px] font-mono text-gold/40 text-center py-2">No matches</div>
+              <div className="col-span-2 py-2 text-center font-mono text-[9px] tracking-widest text-muted-foreground">NO MATCHES</div>
             )}
           </div>
           {symbolLimit < symbolMatches.length && (
             <button
               onClick={() => setSymbolLimit(l => l + 40)}
-              className="mt-1.5 w-full rounded-full border border-gold/25 bg-gold/5 py-1 font-mono text-[8px] tracking-[0.2em] text-gold-light hover:text-gold"
+              className="alien-chip mt-1.5 w-full py-1 font-mono text-[8px] tracking-[0.2em] text-gold-light hover:text-gold"
             >
               LOAD {Math.min(40, symbolMatches.length - symbolLimit)} MORE
             </button>
@@ -385,8 +443,8 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
         </div>
 
         {groups.map(group => (
-          <div key={group}>
-            <div className="text-[9px] font-mono tracking-widest text-gold/60 mb-1 px-1">{group}</div>
+          <div key={group} className="relative z-10">
+            <div className="mb-1 px-1 font-display text-[9px] tracking-[0.2em] text-gold-light">{group}</div>
             <div className="grid grid-cols-2 gap-1.5">
               {GALLERY.filter(g => g.group === group).map(item => {
                 const t = tintClasses(item.tint);
@@ -397,11 +455,13 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
                     draggable
                     onDragStart={(e) => onGalleryDragStart(e, item.kind)}
                     onClick={() => addKindNode(item.kind)}
-                    className={`cursor-grab active:cursor-grabbing select-none flex w-full items-center gap-1.5 px-1.5 py-1.5 rounded border ${t.border} ${t.bg} hover:brightness-125 transition`}
+                    className={`alien-panel alien-lift flex w-full cursor-grab select-none items-center gap-1.5 px-1.5 py-1.5 active:cursor-grabbing ${t.bg}`}
                     title={`Drag or click ${item.label} to add it to the workflow`}
                   >
-                    <Icon className={`w-3 h-3 ${t.text}`} />
-                    <span className={`text-[9px] font-mono tracking-wider ${t.text}`}>{item.label}</span>
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${t.border} ${t.bg} backdrop-blur-sm`}>
+                      <Icon className={`h-3 w-3 ${t.text}`} />
+                    </span>
+                    <span className={`truncate font-mono text-[8px] tracking-[0.12em] ${t.text}`}>{item.label}</span>
                   </button>
                 );
               })}
@@ -411,18 +471,18 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
       </div>
 
       {/* Canvas */}
-      <div className="border border-gold/20 rounded-md bg-[radial-gradient(circle,rgba(212,175,55,0.08)_1px,transparent_1px)] [background-size:14px_14px] bg-black/60 min-h-[420px] p-3 relative">
-        <div className="flex items-center justify-between mb-2">
+      <div className="alien-panel alien-scan relative min-h-[420px] p-3">
+        <div className="relative z-10 mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-display text-[10px] tracking-[0.2em] text-gold-light">WORKFLOW CHART</span>
-            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">
+            <span className="alien-chip px-2 py-0.5 font-mono text-[8px] tracking-widest text-muted-foreground">
               {nodes.length} STEP{nodes.length === 1 ? '' : 'S'}
             </span>
           </div>
           {nodes.length > 0 && (
             <button
               onClick={clearAll}
-              className="text-[9px] font-mono tracking-wider text-rose-400 hover:text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-2 py-0.5 rounded"
+              className="alien-chip px-2 py-0.5 font-mono text-[9px] tracking-wider text-rose-400 hover:text-rose-300"
             >
               CLEAR ALL
             </button>
@@ -434,18 +494,18 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onCanvasDrop}
-          className={`rounded-md min-h-[360px] p-3 transition ${
+          className={`relative z-10 min-h-[360px] rounded-2xl bg-[radial-gradient(circle,hsl(var(--gold)/0.10)_1px,transparent_1px)] [background-size:16px_16px] p-3 transition ${
             dragOver ? 'border-2 border-dashed border-gold/60 bg-gold/5' : 'border border-dashed border-gold/20'
           }`}
         >
           {nodes.length === 0 ? (
-            <div className="h-[340px] flex flex-col items-center justify-center gap-2 text-center">
-              <Plus className="w-6 h-6 text-gold/40" />
-              <div className="text-[11px] font-mono tracking-wider text-gold/60">
-                DRAG ITEMS FROM THE GALLERY TO BUILD YOUR WORKFLOW
+            <div className="flex h-[340px] flex-col items-center justify-center gap-2 text-center">
+              <Plus className="h-6 w-6 text-gold/40" />
+              <div className="font-mono text-[11px] tracking-wider text-gold/60">
+                DRAG OR CLICK ITEMS FROM THE GALLERY TO BUILD YOUR WORKFLOW
               </div>
-              <div className="text-[9px] font-mono text-gold/40">
-                Chain actions, alerts and strategies into an automated pipeline
+              <div className="font-mono text-[9px] text-muted-foreground">
+                …or just ask GENIUS to build the pipeline for you
               </div>
             </div>
           ) : (
@@ -461,25 +521,28 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
                       onDragOver={(e) => onNodeDragOver(e, idx)}
                       onDragEnd={() => setDragIndex(null)}
                       onClick={() => setConfigNodeId(n.id)}
-                      className={`group relative cursor-pointer flex flex-col items-center justify-center w-[110px] h-[78px] rounded-md border ${t.border} ${t.bg} shadow-[0_0_12px_rgba(212,175,55,0.08)] animate-scale-in hover:brightness-125`}
+                      className={`alien-panel alien-lift group relative flex h-[86px] w-[104px] cursor-pointer animate-scale-in flex-col items-center justify-center overflow-hidden sm:w-[112px] ${t.bg}`}
                       title="Click to configure · drag to reorder"
                     >
                       <button
                         onClick={(e) => { e.stopPropagation(); removeNode(n.id); }}
-                        className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition bg-black border border-rose-500/60 rounded-full p-0.5"
+                        className="absolute -right-1.5 -top-1.5 rounded-full border border-rose-500/60 bg-background/90 p-0.5 opacity-0 backdrop-blur-sm transition group-hover:opacity-100"
                         title="Remove"
                       >
-                        <Trash2 className="w-2.5 h-2.5 text-rose-400" />
+                        <Trash2 className="h-2.5 w-2.5 text-rose-400" />
                       </button>
-                      <Settings2 className="absolute top-1 left-1 w-2.5 h-2.5 text-gold/30 group-hover:text-gold/70 transition" />
-                      <Icon className={`w-5 h-5 ${t.text} mb-1`} />
-                      <span className={`text-[9px] font-mono tracking-wider ${t.text}`}>{n.label}</span>
-                      <span className="text-[7px] font-mono text-gold/40 mt-0.5">
+                      <Settings2 className="absolute left-1 top-1 h-2.5 w-2.5 text-gold/30 transition group-hover:text-gold/70" />
+                      <span className={`mb-1 flex h-8 w-8 items-center justify-center rounded-xl border ${t.border} ${t.bg} backdrop-blur-md`}>
+                        <Icon className={`h-4 w-4 ${t.text}`} />
+                      </span>
+                      <span className={`max-w-full truncate px-1 font-mono text-[8px] tracking-[0.12em] ${t.text}`}>{n.label}</span>
+                      <span className="mt-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">
                         STEP {idx + 1}{n.config?.autoInjected ? ' · AUTO' : ''}
                       </span>
+                      <span className="pointer-events-none absolute -right-6 -top-6 h-12 w-12 rounded-full bg-gold/10 opacity-0 blur-xl transition-opacity group-hover:opacity-100" />
                     </div>
                     {idx < nodes.length - 1 && (
-                      <div className="flex items-center justify-center w-6 h-[78px]">
+                      <div className="flex h-[86px] w-6 items-center justify-center">
                         <svg width="24" height="12" viewBox="0 0 24 12" className="text-gold/50">
                           <line x1="0" y1="6" x2="18" y2="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" />
                           <polygon points="18,2 24,6 18,10" fill="currentColor" />
@@ -494,22 +557,29 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
         </div>
 
         {nodes.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="relative z-10 mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleRun}
                 disabled={running || errorCount > 0}
-                className="flex items-center gap-1 text-[9px] font-mono tracking-widest text-gold-light border border-gold/40 bg-gold/10 hover:bg-gold/20 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1 rounded"
+                className="alien-chip flex items-center gap-1 px-3 py-1.5 font-mono text-[9px] tracking-widest text-gold-light hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Play className="w-3 h-3" /> {running ? 'RUNNING…' : 'RUN WORKFLOW'}
+                <Play className="h-3 w-3" /> {running ? 'RUNNING…' : 'RUN WORKFLOW'}
+              </button>
+              <button
+                onClick={handleStop}
+                disabled={!running}
+                className="alien-chip flex items-center gap-1 px-3 py-1.5 font-mono text-[9px] tracking-widest text-rose-400 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Square className="h-3 w-3" /> STOP
               </button>
               <button
                 onClick={() => setExecLog([])}
-                className="text-[9px] font-mono tracking-widest text-gold/70 border border-gold/20 hover:border-gold/40 px-3 py-1 rounded"
+                className="alien-chip px-3 py-1.5 font-mono text-[9px] tracking-widest text-muted-foreground hover:text-gold-light"
               >
                 CLEAR LOG
               </button>
-              <span className="text-[8px] font-mono text-gold/50 ml-auto flex items-center gap-2">
+              <span className="ml-auto flex items-center gap-2 font-mono text-[8px] tracking-widest text-muted-foreground">
                 {errorCount > 0 ? (
                   <span className="flex items-center gap-1 text-rose-400">
                     <AlertTriangle className="w-3 h-3" /> {errorCount} ISSUE{errorCount === 1 ? '' : 'S'}
@@ -525,7 +595,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
             </div>
 
             {issues.length > 0 && (
-              <div className="border border-rose-500/20 bg-rose-500/5 rounded p-2 space-y-0.5 max-h-24 overflow-y-auto">
+              <div className="max-h-24 space-y-0.5 overflow-y-auto rounded-xl border border-rose-500/20 bg-rose-500/5 p-2 backdrop-blur-sm">
                 {issues.map((i, idx) => (
                   <div key={idx} className={`text-[9px] font-mono flex items-start gap-1 ${i.level === 'error' ? 'text-rose-300' : 'text-amber-300'}`}>
                     {i.level === 'error' ? <XCircle className="w-2.5 h-2.5 mt-0.5" /> : <AlertTriangle className="w-2.5 h-2.5 mt-0.5" />}
@@ -536,7 +606,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
             )}
 
             {execLog.length > 0 && (
-              <div className="border border-gold/20 bg-black/60 rounded p-2 max-h-40 overflow-y-auto space-y-0.5">
+              <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-xl border border-gold/20 bg-background/60 p-2 backdrop-blur-sm">
                 <div className="text-[9px] font-mono tracking-widest text-gold/60 mb-1">EXECUTION LOG</div>
                 {execLog.map((e, idx) => {
                   const color =
@@ -564,9 +634,21 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
         )}
       </div>
 
+      {/* Genius copilot */}
+      <div className="xl:h-full">
+        <GeniusAssistant
+          workflow={nodes.map(n => ({ kind: n.kind, label: n.label, config: n.config }))}
+          issues={issues}
+          log={execLog.map(e => ({ step: e.step, kind: e.kind, status: e.status, message: e.message }))}
+          account={paper ? { equity: paper.account.equity, totalPnl: paper.account.totalPnl } : null}
+          running={running}
+          onActions={applyGeniusActions}
+        />
+      </div>
+
       {/* Config dialog */}
       <Dialog open={!!configNode} onOpenChange={(o) => { if (!o) setConfigNodeId(null); }}>
-        <DialogContent className="max-w-md bg-black border-gold/40">
+        <DialogContent className="max-w-md border-gold/40 bg-background/90 backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle className="font-display tracking-[0.15em] text-gold-light flex items-center gap-2">
               {configNode && <configNode.Icon className="w-4 h-4 text-gold" />}
