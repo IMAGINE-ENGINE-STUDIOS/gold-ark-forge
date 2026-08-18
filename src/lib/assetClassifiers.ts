@@ -7,6 +7,7 @@ export interface AssetMetrics {
   ticker: string;
   label: string;
   cat: string;
+  symbolKey: string;
   last: number;
   change24h: number | null;
   /** Rolling live samples captured by the pipeline substrate (most recent last). */

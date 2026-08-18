@@ -63,7 +63,7 @@ export default function ClassifierBoard({ assets, onAddScreen, onAddAsset }: Cla
               onClick={() => onAddAsset(a.ticker, a.label)}
               className="alien-chip group flex items-center gap-2 p-2 text-left transition hover:ring-1 hover:ring-gold/50"
             >
-              <SymbolLogo symbol={a.label} ticker={a.ticker} cat={a.cat} className="h-6 w-6" />
+              <SymbolLogo symbolKey={a.symbolKey} category={a.cat} ticker={a.ticker} size={22} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-display text-[10px] tracking-[0.12em] text-foreground">{a.label}</span>
                 <span className="block font-mono text-[8px] tracking-wider text-muted-foreground">
