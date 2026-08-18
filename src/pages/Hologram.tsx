@@ -1,6 +1,11 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, Stars } from '@react-three/drei';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+/** R3F renders through its own reconciler root, so React context from the page
+ *  does not reach <Html> children — give the projection its own query client. */
+const holoQueryClient = new QueryClient();
+
 import { Link } from 'react-router-dom';
 import { ArrowLeftRight, Boxes, Sparkles } from 'lucide-react';
 import Header from '@/components/Header';
@@ -76,11 +81,13 @@ export default function Hologram() {
                   position={[0, 0.2, 0]}
                   className="select-none"
                 >
-                  <PipelineProvider seedTickers={['XAUUSD', 'BTCUSD']}>
-                    <div style={{ width: narrow ? 320 : 980 }}>
-                      <HoloSwap />
-                    </div>
-                  </PipelineProvider>
+                  <QueryClientProvider client={holoQueryClient}>
+                    <PipelineProvider seedTickers={['XAUUSD', 'BTCUSD']}>
+                      <div style={{ width: narrow ? 320 : 980 }}>
+                        <HoloSwap />
+                      </div>
+                    </PipelineProvider>
+                  </QueryClientProvider>
                 </Html>
               </HoloDrift>
             </Suspense>
