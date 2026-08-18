@@ -12,6 +12,7 @@ const Header = () => {
     { label: 'Marketplace', href: '/marketplace', icon: Store },
     { label: 'Markets', href: '/marketplace', icon: BarChart3 },
     { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
+    { label: 'Pipeline', href: '/pipeline', icon: Workflow },
     { label: 'Intelligence', href: '/intelligence', icon: Brain },
     { label: 'The Vault', href: '/vault', icon: Vault },
     { label: 'Verify', href: '/verify', icon: ShieldCheck },
