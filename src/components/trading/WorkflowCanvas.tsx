@@ -375,27 +375,27 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_330px]">
       {/* Gallery */}
-      <div className="border border-gold/20 rounded-md bg-black/40 p-2 space-y-3 max-h-[560px] overflow-y-auto">
+      <div className="alien-panel alien-scan relative max-h-[620px] space-y-3 overflow-y-auto p-2.5">
         <div className="flex items-center justify-between px-1">
           <span className="font-display text-[10px] tracking-[0.2em] text-gold-light">GALLERY</span>
-          <span className="text-[8px] font-mono text-gold/50">DRAG OR CLICK →</span>
+          <span className="alien-chip px-2 py-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">DRAG OR CLICK</span>
         </div>
 
         {/* Symbols group with search */}
-        <div>
+        <div className="relative z-10">
           <div className="flex items-center justify-between px-1 mb-1">
-            <span className="text-[9px] font-mono tracking-widest text-gold/60">ASSET UNIVERSE</span>
-            <span className="text-[8px] font-mono text-gold/40">{symbolMatches.length} / {ALL_SYMBOLS.length}</span>
+            <span className="font-display text-[9px] tracking-[0.2em] text-gold-light">ASSET UNIVERSE</span>
+            <span className="alien-chip px-1.5 py-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">{symbolMatches.length} / {ALL_SYMBOLS.length}</span>
           </div>
           <div className="relative mb-1.5">
-            <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gold/50" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
             <input
               value={symbolQuery}
               onChange={(e) => { setSymbolQuery(e.target.value); setSymbolLimit(40); }}
               placeholder="SEARCH ANY ASSET…"
-              className="w-full pl-6 pr-2 py-1 text-[9px] font-mono bg-black/60 border border-gold/20 rounded focus:border-gold/60 outline-none text-gold-light placeholder:text-gold/30"
+              className="w-full rounded-full border border-gold/25 bg-background/70 py-1.5 pl-7 pr-3 font-mono text-[9px] tracking-widest text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-gold/60"
             />
           </div>
           <div className="mb-1.5 flex flex-wrap gap-1">
@@ -403,15 +403,15 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
               <button
                 key={c}
                 onClick={() => { setSymbolCat(c); setSymbolLimit(40); }}
-                className={`rounded-full border border-gold/25 bg-gold/5 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.18em] transition-colors ${
-                  symbolCat === c ? 'text-gold-light border-gold/60' : 'text-muted-foreground hover:text-gold-light'
+                className={`alien-chip px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.18em] transition-colors ${
+                  symbolCat === c ? 'text-gold-light' : 'text-muted-foreground hover:text-gold-light'
                 }`}
               >
                 {c}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-1 max-h-[220px] overflow-y-auto pr-0.5">
+          <div className="grid max-h-[220px] grid-cols-2 gap-1.5 overflow-y-auto pr-0.5">
             {symbolResults.map(s => (
               <button
                 key={`${s.cat}-${s.key}-${s.ticker}`}
