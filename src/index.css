@@ -613,6 +613,14 @@
 
 /* ─── PIPELINE · ALIEN 3D SURFACE ───────────────────────── */
 .alien-field {
+  /* scoped dark substrate — the tool renders on its own night surface */
+  --background: 224 60% 5%;
+  --card: 224 48% 8%;
+  --foreground: 40 30% 92%;
+  --muted-foreground: 220 12% 62%;
+  --border: 43 40% 30%;
+  color-scheme: dark;
+  color: hsl(var(--foreground));
   background:
     radial-gradient(120% 80% at 12% -10%, hsl(var(--gold) / 0.14) 0%, transparent 55%),
     radial-gradient(100% 70% at 92% 8%, hsl(168 90% 45% / 0.12) 0%, transparent 60%),
