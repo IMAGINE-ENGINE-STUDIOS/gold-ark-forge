@@ -1,107 +1,46 @@
+# Real-Time Market Data Overhaul
 
+Today gold, silver, platinum come from `fetch-metal-prices`, which only writes hardcoded fallback numbers (2350 / 28.50 / 985) unless a `METALS_API_KEY` exists — it does not. Stocks, indices, bonds and most energy/exotic symbols come from the static `SYNTHETIC_PRICES` table in `src/data/tradingSymbols.ts`. Only crypto (Binance WebSocket + CoinGecko), FX (Frankfurter) and WTI/Brent (EIA) are genuinely live. That is why XAU/USD does not match investing.com.
 
-## Plan: Cesium Globe — Geospatial Energy & Asset Intelligence
+## Goal
 
-### Overview
-Create a new `/globe` page with a full-screen Cesium 3D Earth (realistic Bing Maps tiles via Cesium Ion) that plots all tradeable assets, chokepoints, producers, and energy infrastructure at their real-world coordinates. Clicking a pin opens a Gold Arrow-styled info panel with live price signals, description cards, risk indices, and news feeds — reusing existing OG and GA widgets.
+One market-data service that serves genuine live quotes for every asset class, with a strict no-synthetic-fallback policy: if a quote cannot be sourced, the UI shows "NO FEED" instead of a fake number.
 
-### Dependencies
-- `cesium` + `resium` (React wrapper for CesiumJS)
-- Cesium Ion access token stored as a runtime secret (`CESIUM_ION_TOKEN`) — will prompt you to enter it
+## Data sources (all free, no paid keys)
 
-### New Files
+| Class | Primary | Backup |
+|---|---|---|
+| Metals (XAU, XAG, XPT, XPD, HG copper) | Yahoo Finance quote/chart endpoints (`GC=F`, `SI=F`, `PL=F`, `PA=F`, `HG=F`, spot `XAUUSD=X`) | Stooq CSV (`xauusd`), then last DB tick |
+| Crypto | Binance WebSocket (existing) | CoinGecko markets, then last DB tick |
+| Forex | Yahoo `EURUSD=X` style pairs (real-time) | Frankfurter (existing, daily ECB) |
+| Stocks / ETFs | Yahoo quote by ticker | Stooq CSV |
+| Indices | Yahoo (`^GSPC`, `^NDX`, `^DJI`, `^VIX`, ...) | Stooq |
+| Bonds / yields | Yahoo (`^TNX`, `^TYX`, `^FVX`) | FRED via existing macro path |
+| Energy | EIA (existing) + Yahoo futures (`CL=F`, `BZ=F`, `NG=F`) | last DB tick |
 
-**1. `src/pages/Globe.tsx`** — Main page component
-- Full-viewport Cesium `Viewer` with no header/footer (immersive mode)
-- Floating Gold Arrow logo top-left, nav button to return home
-- Dark theme matching navy/gold palette (custom Cesium CSS overrides)
-- Camera starts with a slow globe spin, stops on interaction
+Yahoo endpoints are fetched **server-side from an edge function** (browser calls are CORS-blocked and rate-limited by IP).
 
-**2. `src/components/globe/GlobeViewer.tsx`** — Cesium viewer setup
-- Cesium Ion token loaded from env (`VITE_CESIUM_ION_TOKEN`)
-- Bing Maps Aerial imagery for realistic tiles
-- Cesium terrain for 3D elevation
-- Custom dark atmosphere/sky styling
-- Disable default Cesium UI (timeline, animation, credits minimal)
+## Backend work
 
-**3. `src/components/globe/GlobeMarkers.tsx`** — Entity layer
-- Plots all geolocated data as Cesium `Entity` billboards/points:
-  - **Chokepoints** (8 locations from `OGChokepoints.tsx` data — Hormuz, Suez, Malacca, Bab el-Mandeb, Cape, Panama, Turkish Straits, Danish Straits)
-  - **Top Producers** (10 countries with HQ coordinates — US, Saudi, Russia, Canada, Iraq, China, UAE, Brazil, Kuwait, Norway)
-  - **Venezuela** special marker with full indicator panel
-  - **Major exchanges / asset HQs** (COMEX NY, LME London, Binance global, CME Chicago, ICE Atlanta)
-- Color-coded pins by category (red=critical chokepoints, orange=elevated, green=low risk, blue=producers, gold=exchanges)
-- Risk-level pulsing animation on chokepoint markers
+1. New edge function `market-quotes` (public, `verify_jwt = false`):
+   - `POST { tickers: string[] }` → batched Yahoo quote fetch (chunks of ~40), normalized to `{ symbol, last, change24h, bid, ask, prevClose, ts, source }`.
+   - Per-provider fallback chain with timeouts; providers tried in the order above.
+   - Writes every successful quote into the existing `market_ticks` table (upsert on `symbol`), so the DB always holds the last known good tick and the whole app can share one cache.
+   - In-memory 5s cache inside the function to absorb burst traffic.
+   - Zod validation of the request body; ticker list capped at 200.
+2. Rewrite `fetch-metal-prices` to pull real spot from the same provider chain and drop the hardcoded fallback block. On total failure it returns an error and leaves `price_feeds` untouched (no stale-write of fake numbers).
+3. Optional scheduled refresh: a cron-triggered call every 60s that keeps `market_ticks` warm for the most-watched symbols so first paint is instant.
 
-**4. `src/components/globe/GlobeInfoPanel.tsx`** — Slide-in detail panel
-- Right-side panel (400px) that opens when a marker is clicked
-- Renders contextual content based on marker type:
-  - **Chokepoint**: Risk score gauge, throughput chart, vessel count, insurance premium, closure probability, military presence, key commodities, weekly throughput sparkline, incident notes — all data from existing `CHOKEPOINTS` array
-  - **Producer**: Country flag, production (mbpd), YoY change, bar chart, percentage of global supply
-  - **Venezuela**: Full 8-indicator dashboard (production, exports, revenue, refining, heavy crude price, Chevron JV, dark fleet, sanctions) — reuses data from `OGChokepoints.tsx`
-  - **Exchange/Asset HQ**: Live price card (reuses `OGPriceCards` data), sparkline, change %
-- Gold Arrow styling (navy background, gold accents, Greek key borders)
+## Frontend work
 
-**5. `src/components/globe/GlobeLegend.tsx`** — Floating legend overlay
-- Bottom-left legend showing marker color meanings
-- Category filter toggles (Chokepoints / Producers / Exchanges / Venezuela)
+4. New `src/hooks/useMarketQuotes.ts` — React Query hook that takes a list of tickers, calls `market-quotes`, refetches every 10s, and exposes `{ price, change, stale, source }` per symbol.
+5. New `src/lib/priceSource.ts` — single resolver replacing the scattered logic: Binance WS → `market-quotes` → `market_ticks` last known → `null`. Never `SYNTHETIC_PRICES`.
+6. Rewire `resolveSymbolPrice` in `src/pages/TradingBridge.tsx`, plus `GAAllAssetPriceCards`, `GALiveChart`, `GALiveStandalone`, `GAMarketHeatmap`, `Marketplace`, and `useGeniusTrader` to the shared resolver.
+7. Demote `SYNTHETIC_PRICES` to a display-only "reference last close" used for nothing that trades; any UI without a live quote renders a dimmed "NO FEED" state and the trading engine refuses to size an order on it.
+8. `LivePriceIndicator` gains a source badge (WS / LIVE / CACHED) and an age timestamp so it is obvious when a number is not fresh.
 
-**6. `src/components/globe/GlobeNewsTicker.tsx`** — Bottom news bar
-- Horizontal scrolling energy news ticker (reuses `OGNewsFeed` data)
-- Semi-transparent navy bar at bottom of globe
+## Verification
 
-**7. `src/data/globeLocations.ts`** — Centralized coordinate registry
-- All marker coordinates, metadata, and category assignments
-- Links to existing data hooks (`useOilGasPrices`, chokepoint data, production data)
-
-### Data Sources (all existing)
-- Chokepoints: `OGChokepoints.tsx` CHOKEPOINTS array (8 locations with lat/lng)
-- Venezuela: `OGChokepoints.tsx` VENEZUELA_INDICATORS array
-- Producers: `OGProductionMap.tsx` production data (will add lat/lng coordinates)
-- Live prices: `useOilGasPrices()` hook
-- News: `OGNewsFeed` component data
-
-### Route
-- Add `/globe` route in `App.tsx`
-- Add "Globe" nav link in `Header.tsx` with a `Globe` lucide icon
-
-### Technical Details
-
-```text
-┌─────────────────────────────────────────────────┐
-│  [GA Logo]  GOLD ARROW GLOBE    [Home] [Filter] │
-│                                                  │
-│         ┌──────────────────────┐                 │
-│         │                      │  ┌────────────┐ │
-│         │    CESIUM 3D EARTH   │  │ INFO PANEL │ │
-│         │                      │  │            │ │
-│         │  🔴 Hormuz           │  │ Risk: 68   │ │
-│         │  🟡 Suez             │  │ Flow: 20.5 │ │
-│         │  🔵 Saudi Arabia     │  │ Vessels:42 │ │
-│         │  ⭐ COMEX            │  │ [Charts]   │ │
-│         │                      │  │            │ │
-│         └──────────────────────┘  └────────────┘ │
-│  [Legend: ● Chokepoint ● Producer ● Exchange]    │
-│  ═══ ENERGY NEWS TICKER ════════════════════════ │
-└─────────────────────────────────────────────────┘
-```
-
-- Cesium Ion token: stored via `add_secret` tool, exposed as `VITE_CESIUM_ION_TOKEN` for client-side use (publishable key pattern)
-- Resium provides React components: `<Viewer>`, `<Entity>`, `<BillboardGraphics>`, `<PointGraphics>`
-- Camera fly-to animation when clicking markers
-- All data is client-side (no new edge functions needed)
-
-### Files Modified
-- `src/App.tsx` — add `/globe` route
-- `src/components/Header.tsx` — add Globe nav link
-- `package.json` — add `cesium`, `resium` dependencies
-
-### Files Created
-- `src/pages/Globe.tsx`
-- `src/components/globe/GlobeViewer.tsx`
-- `src/components/globe/GlobeMarkers.tsx`
-- `src/components/globe/GlobeInfoPanel.tsx`
-- `src/components/globe/GlobeLegend.tsx`
-- `src/components/globe/GlobeNewsTicker.tsx`
-- `src/data/globeLocations.ts`
-
+- Compare the rendered XAU/USD, BTC, EURUSD, SPX and TNX values against public references and confirm they match within normal spread.
+- Confirm `market_ticks` fills with rows carrying real `source` values.
+- Confirm a forced provider failure renders "NO FEED" and blocks order placement rather than showing a synthetic price.
