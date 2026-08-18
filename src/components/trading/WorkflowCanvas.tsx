@@ -326,6 +326,53 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   const updateNodeConfig = (id: string, patch: NodeConfig) =>
     setNodes(prev => prev.map(n => n.id === id ? { ...n, config: { ...n.config, ...patch }, label: patch.symbol ?? n.label } : n));
 
+  /** Apply structured actions returned by the Genius copilot. */
+  const applyGeniusActions = (actions: GeniusAction[]) => {
+    let shouldRun = false;
+    for (const a of actions) {
+      switch (a.op) {
+        case 'clear':
+          setNodes([]);
+          break;
+        case 'replace_all':
+          setNodes((a.nodes ?? []).map(n =>
+            makeNode(n.kind as NodeKind, {
+              label: n.label,
+              config: { ...defaultConfigFor(n.kind as NodeKind, n.label), ...(n.config ?? {}) },
+            })));
+          break;
+        case 'add_node': {
+          if (!a.kind) break;
+          const node = makeNode(a.kind as NodeKind, {
+            label: a.label,
+            config: { ...defaultConfigFor(a.kind as NodeKind, a.label), ...(a.config ?? {}) },
+          });
+          setNodes(prev => {
+            const next = [...prev];
+            const at = typeof a.index === 'number' ? Math.max(0, Math.min(a.index, next.length)) : next.length;
+            next.splice(at, 0, node);
+            return next;
+          });
+          break;
+        }
+        case 'update_node':
+          setNodes(prev => prev.map((n, i) =>
+            i === a.index ? { ...n, label: (a.config?.symbol as string) ?? a.label ?? n.label, config: { ...n.config, ...(a.config ?? {}) } } : n));
+          break;
+        case 'remove_node':
+          setNodes(prev => prev.filter((_, i) => i !== a.index));
+          break;
+        case 'run':
+          shouldRun = true;
+          break;
+        case 'stop':
+          handleStop();
+          break;
+      }
+    }
+    if (shouldRun) setTimeout(() => { void handleRun(); }, 60);
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3">
       {/* Gallery */}
