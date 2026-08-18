@@ -685,6 +685,14 @@ const TradingBridge = () => {
   const { data: cryptoDataAll } = useCryptoData(250);
   const { data: oilPricesData } = useOilGasPrices();
   const { data: forexRatesData } = useForexRates();
+  // Live quotes for the active symbol + everything currently held (real feeds only)
+  const quoteIds = useMemo(() => {
+    const ids = new Set<string>();
+    const activeId = quoteIdFor(activeSymbol);
+    if (activeId) ids.add(activeId);
+    return Array.from(ids);
+  }, [activeSymbol]);
+  const { quotes: liveQuotes } = useMarketQuotes(quoteIds, 10000);
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
   const { user } = useAuth();
@@ -703,6 +711,9 @@ const TradingBridge = () => {
   // ─── Unified Price Resolver ──────────────────────────
   // Single source of truth for price resolution across ALL tabs
   const resolveSymbolPrice = useCallback((sym: { key: string; cat: string; ticker: string }): number => {
+    // 0. Direct live quote from the unified market-data service
+    const qid = quoteIdFor(sym);
+    if (qid && liveQuotes[qid]?.last > 0) return liveQuotes[qid].last;
     if (sym.cat === 'metals') {
       // Only these three have a real spot feed — never alias another metal to them.
       const key = LIVE_METAL_KEYS.has(sym.key) ? sym.key : null;
@@ -724,7 +735,7 @@ const TradingBridge = () => {
     // Fallback: use synthetic prices so bot can always trade
     const sp = SYNTHETIC_PRICES[sym.key];
     return sp?.p ?? 0;
-  }, [metalPricesData, cryptoDataAll, oilPricesData, forexRatesData]);
+  }, [metalPricesData, cryptoDataAll, oilPricesData, forexRatesData, liveQuotes]);
 
   // Resolve current price for active symbol
   const activePrice = useMemo(() => resolveSymbolPrice(activeSymbol), [activeSymbol, resolveSymbolPrice]);
@@ -732,6 +743,9 @@ const TradingBridge = () => {
   // Resolve change % for active symbol
   const activeChange = useMemo(() => {
     const sym = activeSymbol;
+    const qid = quoteIdFor(sym);
+    const lq = qid ? liveQuotes[qid] : undefined;
+    if (lq && typeof lq.change24h === 'number') return lq.change24h;
     if (sym.cat === 'metals') {
       const key = LIVE_METAL_KEYS.has(sym.key) ? sym.key : null;
       if (key) return metalPricesData?.[key]?.change_24h ?? 0;
@@ -745,7 +759,7 @@ const TradingBridge = () => {
       if (feed) return feed.change;
     }
     return SYNTHETIC_PRICES[sym.key]?.c ?? 0;
-  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData]);
+  }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData, liveQuotes]);
 
   // Build a price map for all held paper positions and keep them updated
   const resolvePriceForTicker = useCallback((ticker: string): number => {
