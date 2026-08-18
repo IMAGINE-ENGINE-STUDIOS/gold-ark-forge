@@ -25,3 +25,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.market-quotes]
 verify_jwt = false
+[functions.pipeline-genius]
+verify_jwt = false
