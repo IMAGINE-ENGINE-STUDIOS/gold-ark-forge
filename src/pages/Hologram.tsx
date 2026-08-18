@@ -9,11 +9,11 @@ import { HoloDrift, HoloDust, HoloFloor, HoloRings } from '@/components/hologram
 import HoloSwap from '@/components/hologram/HoloSwap';
 
 const useHoloScale = () => {
-  const [scale, setScale] = useState(0.011);
+  const [scale, setScale] = useState({ s: 0.0095, narrow: false });
   useEffect(() => {
     const compute = () => {
       const w = window.innerWidth;
-      setScale(w < 700 ? 0.0055 : w < 1200 ? 0.0085 : 0.011);
+      setScale(w < 700 ? { s: 0.022, narrow: true } : w < 1200 ? { s: 0.008, narrow: false } : { s: 0.0095, narrow: false });
     };
     compute();
     window.addEventListener('resize', compute);
@@ -23,7 +23,7 @@ const useHoloScale = () => {
 };
 
 export default function Hologram() {
-  const scale = useHoloScale();
+  const { s: scale, narrow } = useHoloScale();
 
   return (
     <div className="min-h-screen bg-[#02080f]">
@@ -72,13 +72,12 @@ export default function Hologram() {
               <HoloDrift>
                 <Html
                   transform
-                  scale={scale * 100}
+                  scale={scale}
                   position={[0, 0.2, 0]}
-                  distanceFactor={undefined}
                   className="select-none"
                 >
                   <PipelineProvider seedTickers={['XAUUSD', 'BTCUSD']}>
-                    <div className="holo-projection">
+                    <div style={{ width: narrow ? 320 : 980 }}>
                       <HoloSwap />
                     </div>
                   </PipelineProvider>

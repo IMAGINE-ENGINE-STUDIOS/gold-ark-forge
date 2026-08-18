@@ -63,9 +63,9 @@ export default function HoloSwap() {
   const panel = 'rounded-xl border border-gold/25 bg-[#04121f]/80 p-3 shadow-[0_0_40px_rgba(212,175,55,0.12)] backdrop-blur-sm';
 
   return (
-    <div className="flex w-[980px] max-w-full flex-wrap gap-3 font-mono text-cyan-100">
+    <div className="flex w-full flex-wrap justify-center gap-3 font-mono text-cyan-100">
       {/* Asset column */}
-      <section className={`${panel} flex w-[280px] flex-col gap-2`}>
+      <section className={`${panel} flex w-[280px] max-w-full flex-col gap-2`}>
         <header className="flex items-center gap-2 text-[9px] tracking-[0.24em] text-gold-light">
           <Activity className="h-3 w-3" /> ASSET LATTICE
         </header>
@@ -86,7 +86,7 @@ export default function HoloSwap() {
       </section>
 
       {/* Swap core */}
-      <section className={`${panel} flex w-[340px] flex-col gap-3`}>
+      <section className={`${panel} flex w-[320px] max-w-full flex-col gap-3`}>
         <header className="flex items-center justify-between text-[9px] tracking-[0.24em] text-gold-light">
           <span>SWAP CORE</span>
           <span className="text-emerald-300">{liveCount}/{subscribedCount} FEEDS</span>
@@ -139,7 +139,7 @@ export default function HoloSwap() {
       </section>
 
       {/* Book */}
-      <section className={`${panel} flex w-[300px] flex-col gap-2`}>
+      <section className={`${panel} flex w-[300px] max-w-full flex-col gap-2`}>
         <header className="text-[9px] tracking-[0.24em] text-gold-light">HOLO BOOK</header>
         <div className="grid grid-cols-2 gap-2 text-[8px] tracking-widest text-cyan-200/70">
           <div className="rounded-md border border-cyan-300/15 px-2 py-1.5">
