@@ -418,7 +418,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
                 draggable
                 onDragStart={(e) => onGalleryDragStart(e, 'symbol', { label: s.label, ticker: s.ticker })}
                 onClick={() => addSymbolNode({ label: s.label, ticker: s.ticker })}
-                className="group relative overflow-hidden cursor-grab active:cursor-grabbing select-none rounded border border-gold/25 bg-gold/5 px-1.5 py-1 text-left transition hover:bg-gold/15"
+                className="alien-panel alien-lift group relative cursor-grab select-none overflow-hidden px-1.5 py-1 text-left active:cursor-grabbing"
                 title={`Drag or click ${s.label} (${s.ticker})`}
               >
                 <span className="flex min-w-0 items-center gap-1">
@@ -429,13 +429,13 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
               </button>
             ))}
             {symbolResults.length === 0 && (
-              <div className="col-span-2 text-[9px] font-mono text-gold/40 text-center py-2">No matches</div>
+              <div className="col-span-2 py-2 text-center font-mono text-[9px] tracking-widest text-muted-foreground">NO MATCHES</div>
             )}
           </div>
           {symbolLimit < symbolMatches.length && (
             <button
               onClick={() => setSymbolLimit(l => l + 40)}
-              className="mt-1.5 w-full rounded-full border border-gold/25 bg-gold/5 py-1 font-mono text-[8px] tracking-[0.2em] text-gold-light hover:text-gold"
+              className="alien-chip mt-1.5 w-full py-1 font-mono text-[8px] tracking-[0.2em] text-gold-light hover:text-gold"
             >
               LOAD {Math.min(40, symbolMatches.length - symbolLimit)} MORE
             </button>
@@ -443,8 +443,8 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
         </div>
 
         {groups.map(group => (
-          <div key={group}>
-            <div className="text-[9px] font-mono tracking-widest text-gold/60 mb-1 px-1">{group}</div>
+          <div key={group} className="relative z-10">
+            <div className="mb-1 px-1 font-display text-[9px] tracking-[0.2em] text-gold-light">{group}</div>
             <div className="grid grid-cols-2 gap-1.5">
               {GALLERY.filter(g => g.group === group).map(item => {
                 const t = tintClasses(item.tint);
@@ -455,11 +455,13 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
                     draggable
                     onDragStart={(e) => onGalleryDragStart(e, item.kind)}
                     onClick={() => addKindNode(item.kind)}
-                    className={`cursor-grab active:cursor-grabbing select-none flex w-full items-center gap-1.5 px-1.5 py-1.5 rounded border ${t.border} ${t.bg} hover:brightness-125 transition`}
+                    className={`alien-panel alien-lift flex w-full cursor-grab select-none items-center gap-1.5 px-1.5 py-1.5 active:cursor-grabbing ${t.bg}`}
                     title={`Drag or click ${item.label} to add it to the workflow`}
                   >
-                    <Icon className={`w-3 h-3 ${t.text}`} />
-                    <span className={`text-[9px] font-mono tracking-wider ${t.text}`}>{item.label}</span>
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${t.border} ${t.bg} backdrop-blur-sm`}>
+                      <Icon className={`h-3 w-3 ${t.text}`} />
+                    </span>
+                    <span className={`truncate font-mono text-[8px] tracking-[0.12em] ${t.text}`}>{item.label}</span>
                   </button>
                 );
               })}
@@ -469,7 +471,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
       </div>
 
       {/* Canvas */}
-      <div className="border border-gold/20 rounded-md bg-[radial-gradient(circle,rgba(212,175,55,0.08)_1px,transparent_1px)] [background-size:14px_14px] bg-black/60 min-h-[420px] p-3 relative">
+      <div className="alien-panel alien-scan relative min-h-[420px] p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="font-display text-[10px] tracking-[0.2em] text-gold-light">WORKFLOW CHART</span>
