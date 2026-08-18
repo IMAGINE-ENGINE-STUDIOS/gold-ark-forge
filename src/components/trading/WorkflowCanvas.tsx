@@ -186,6 +186,8 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [symbolQuery, setSymbolQuery] = useState('');
+  const [symbolCat, setSymbolCat] = useState<string>('all');
+  const [symbolLimit, setSymbolLimit] = useState(40);
   const [configNodeId, setConfigNodeId] = useState<string | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
