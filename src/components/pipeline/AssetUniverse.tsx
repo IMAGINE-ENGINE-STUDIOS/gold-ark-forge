@@ -14,6 +14,15 @@ const AssetTile = ({ sym, onPick, active }: { sym: WatchlistSymbol; onPick: (s: 
   const up = (change ?? 0) >= 0;
   return (
     <button
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-workflow-kind', 'symbol');
+        e.dataTransfer.setData(
+          'application/x-workflow-symbol',
+          JSON.stringify({ label: sym.label, ticker: sym.ticker }),
+        );
+        e.dataTransfer.effectAllowed = 'copy';
+      }}
       onClick={() => onPick(sym)}
       className={`alien-panel alien-lift alien-scan group relative overflow-hidden px-2.5 py-2 text-left ${
         active ? 'ring-1 ring-gold/60' : ''
