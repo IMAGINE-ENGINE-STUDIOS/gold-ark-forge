@@ -70,6 +70,10 @@ export function LivePriceIndicator({
     return () => clearInterval(id);
   }, [ticker, getPriceByTicker, intervalMs, onPrice]);
 
+  useEffect(() => {
+    if (price === 0 && servicePrice && servicePrice > 0 && onPrice) onPrice(servicePrice);
+  }, [price, servicePrice, onPrice]);
+
   if (!ticker) {
     return (
       <div className={`flex items-center justify-between rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 ${className}`}>
