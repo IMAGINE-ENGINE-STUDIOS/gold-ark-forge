@@ -158,6 +158,26 @@ export default function BlueprintCanvas({
 
   const selectedNode = nodes.find((n) => n.id === selected) ?? null;
 
+  useEffect(() => {
+    registerApi?.({
+      addAsset, addScreen, addAnalysis, addBlock, addKind,
+      updateNode: (index, patch) => setNodes((prev) => prev.map((n, i) => (i === index ? { ...n, config: { ...n.config, ...patch } } : n))),
+      removeNode: (index) => setNodes((prev) => prev.filter((_, i) => i !== index)),
+      clear: () => { setNodes([]); setLog([]); },
+      replaceAll: (list) => setNodes(list.map((n) => ({
+        id: uid(),
+        kind: n.kind,
+        label: n.label ?? KIND_META[n.kind]?.label ?? n.kind.toUpperCase(),
+        config: { ...defaultConfig(n.kind), ...(n.config ?? {}) },
+      }))),
+      run: () => { void run(); },
+      stop: () => { stopRef.current = true; },
+      select: (index) => setSelected(index === null ? null : nodes[index]?.id ?? null),
+      getState: () => ({ nodes, issues, log, running }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerApi, nodes, issues, log, running, blocks, classified]);
+
   const PaletteTab = ({ id, label }: { id: typeof tab; label: string }) => (
     <button
       onClick={() => setTab(id)}
