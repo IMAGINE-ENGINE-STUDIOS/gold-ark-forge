@@ -5,6 +5,8 @@ import { WATCHLIST_CATEGORIES, SYNTHETIC_PRICES, CATEGORY_COLORS } from '@/data/
 import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
+import { useMarketQuotes } from '@/hooks/useMarketQuotes';
+import { quoteIdFor } from '@/lib/priceSource';
 import LivePulse from './LivePulse';
 
 const ALL_CRYPTO_KEYS = WATCHLIST_CATEGORIES
@@ -15,10 +17,10 @@ const MAX_SPARK = 24;
 
 // ─── Single Asset Card with simulated stream ─────────────
 const AssetCard = ({
-  symbolKey, label, ticker, cat, basePrice, baseChange, isWsLive,
+  symbolKey, label, ticker, cat, basePrice, baseChange, isWsLive, feedTag,
 }: {
   symbolKey: string; label: string; ticker: string; cat: string;
-  basePrice: number; baseChange: number; isWsLive: boolean;
+  basePrice: number; baseChange: number; isWsLive: boolean; feedTag: string;
 }) => {
   const { price: livePrice } = useSimulatedStream(basePrice, baseChange, symbolKey);
   const [spark, setSpark] = useState<{ v: number }[]>([]);
@@ -72,7 +74,7 @@ const AssetCard = ({
             <span className="font-display text-[8px] sm:text-[9px] tracking-[0.15em] sm:tracking-[0.2em] text-marble/45 truncate">{label}</span>
           </div>
           <div className="flex-shrink-0">
-            <LivePulse connected={isWsLive || basePrice > 0} label={isWsLive ? 'WS' : ''} />
+            <LivePulse connected={isWsLive || basePrice > 0} label={isWsLive ? 'WS' : feedTag} />
           </div>
         </div>
 
@@ -80,17 +82,25 @@ const AssetCard = ({
         <span className="text-[7px] sm:text-[8px] font-mono text-marble/25">{ticker}</span>
 
         {/* Price */}
-        <div className="font-display text-base sm:text-lg text-marble font-semibold tracking-tight mt-0.5">
-          {cat === 'forex' ? '' : '$'}{formatP(livePrice)}
-        </div>
+        {basePrice > 0 ? (
+          <div className="font-display text-base sm:text-lg text-marble font-semibold tracking-tight mt-0.5">
+            {cat === 'forex' ? '' : '$'}{formatP(livePrice)}
+          </div>
+        ) : (
+          <div className="font-display text-[10px] sm:text-xs text-marble/30 font-semibold tracking-[0.2em] mt-1.5 mb-1">
+            NO FEED
+          </div>
+        )}
 
         {/* Change */}
+        {basePrice > 0 && (
         <div className={`flex items-center gap-1 text-[9px] sm:text-[10px] font-mono mt-0.5 ${
           isPos ? 'text-emerald-400' : isNeg ? 'text-red-400' : 'text-marble/30'
         }`}>
           {isPos ? <TrendingUp className="w-2.5 h-2.5" /> : isNeg ? <TrendingDown className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
           {isPos ? '+' : ''}{change.toFixed(2)}%
         </div>
+        )}
 
         {/* Sparkline */}
         {spark.length > 2 && (
@@ -120,6 +130,18 @@ const GAAllAssetPriceCards = () => {
   const { data: cryptoData } = useCryptoData(30);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
+  // Live quotes for every non-crypto instrument currently expanded
+  const quoteIds = useMemo(
+    () =>
+      WATCHLIST_CATEGORIES.filter(c => !collapsed[c.label])
+        .flatMap(c => c.items)
+        .filter(i => i.cat !== 'crypto')
+        .map(i => quoteIdFor(i))
+        .filter((q): q is string => !!q),
+    [collapsed],
+  );
+  const { quotes } = useMarketQuotes(quoteIds, 20000);
+
   // Build a crypto price lookup by key
   const cryptoLookup = useMemo(() => {
     const map: Record<string, { price: number; change: number }> = {};
@@ -138,25 +160,32 @@ const GAAllAssetPriceCards = () => {
     return map;
   }, [cryptoData]);
 
-  const resolvePrice = (key: string, cat: string): { price: number; change: number; wsLive: boolean } => {
+  const resolvePrice = (
+    item: { key: string; cat: string; ticker: string },
+  ): { price: number; change: number; wsLive: boolean; tag: string } => {
+    const { key, cat } = item;
     // 1. WebSocket (crypto)
     const ws = wsPrices[key];
     if (ws && ws.price > 0) {
-      return { price: ws.price, change: ws.change24h, wsLive: true };
+      return { price: ws.price, change: ws.change24h, wsLive: true, tag: 'WS' };
+    }
+    // 2. Unified live quote service (metals spot, equities, fx, futures, bonds)
+    const qid = quoteIdFor(item);
+    const q = qid ? quotes[qid] : undefined;
+    if (q && q.last > 0) {
+      return { price: q.last, change: q.change24h ?? 0, wsLive: false, tag: q.source === 'gold-api' ? 'SPOT' : 'LIVE' };
     }
     // 2. CoinGecko API (crypto)
     if (cat === 'crypto' && cryptoLookup[key]) {
-      return { price: cryptoLookup[key].price, change: cryptoLookup[key].change, wsLive: false };
+      return { price: cryptoLookup[key].price, change: cryptoLookup[key].change, wsLive: false, tag: 'CG' };
     }
     // 3. Metal price feeds (DB)
     if (cat === 'metals' && metalPrices?.[key as 'gold' | 'silver' | 'platinum']) {
       const m = metalPrices[key as 'gold' | 'silver' | 'platinum'];
-      return { price: m.price_usd, change: m.change_24h ?? 0, wsLive: false };
+      return { price: m.price_usd, change: m.change_24h ?? 0, wsLive: false, tag: 'DB' };
     }
-    // 4. Synthetic fallback
-    const syn = SYNTHETIC_PRICES[key];
-    if (syn) return { price: syn.p, change: syn.c, wsLive: false };
-    return { price: 0, change: 0, wsLive: false };
+    // 4. No real feed — never synthesize a price
+    return { price: 0, change: 0, wsLive: false, tag: '' };
   };
 
   const toggle = (label: string) => setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
@@ -187,7 +216,7 @@ const GAAllAssetPriceCards = () => {
             {!isCollapsed && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {category.items.map(item => {
-                  const { price, change, wsLive } = resolvePrice(item.key, item.cat);
+                  const { price, change, wsLive, tag } = resolvePrice(item);
                   return (
                     <AssetCard
                       key={item.key}
@@ -198,6 +227,7 @@ const GAAllAssetPriceCards = () => {
                       basePrice={price}
                       baseChange={change}
                       isWsLive={wsLive}
+                      feedTag={tag}
                     />
                   );
                 })}
