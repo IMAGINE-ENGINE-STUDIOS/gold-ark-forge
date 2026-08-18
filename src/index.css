@@ -610,3 +610,93 @@
     transform: translateY(0);
   }
 }
+
+/* ─── PIPELINE · ALIEN 3D SURFACE ───────────────────────── */
+.alien-field {
+  background:
+    radial-gradient(120% 80% at 12% -10%, hsl(var(--gold) / 0.14) 0%, transparent 55%),
+    radial-gradient(100% 70% at 92% 8%, hsl(168 90% 45% / 0.12) 0%, transparent 60%),
+    radial-gradient(140% 100% at 50% 120%, hsl(268 80% 60% / 0.12) 0%, transparent 60%),
+    hsl(var(--background));
+  position: relative;
+  isolation: isolate;
+}
+.alien-field::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(hsl(var(--gold) / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--gold) / 0.07) 1px, transparent 1px);
+  background-size: 46px 46px;
+  transform: perspective(680px) rotateX(58deg) scale(1.9);
+  transform-origin: 50% 100%;
+  mask-image: linear-gradient(to top, hsl(0 0% 0% / 0.9), transparent 62%);
+  animation: alien-drift 18s linear infinite;
+}
+@keyframes alien-drift {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 46px, 46px 0; }
+}
+
+.alien-panel {
+  position: relative;
+  border: 1px solid hsl(var(--gold) / 0.22);
+  border-radius: 18px;
+  background:
+    linear-gradient(160deg, hsl(var(--card) / 0.92) 0%, hsl(var(--background) / 0.96) 100%);
+  box-shadow:
+    0 1px 0 hsl(var(--gold) / 0.25) inset,
+    0 -18px 40px -30px hsl(168 90% 45% / 0.6) inset,
+    0 26px 60px -34px hsl(0 0% 0% / 0.9),
+    0 0 0 1px hsl(0 0% 100% / 0.02);
+  backdrop-filter: blur(10px);
+  transition: transform 260ms cubic-bezier(.22,.8,.28,1), box-shadow 260ms ease, border-color 260ms ease;
+  transform-style: preserve-3d;
+}
+.alien-panel:hover {
+  border-color: hsl(var(--gold) / 0.45);
+  box-shadow:
+    0 1px 0 hsl(var(--gold) / 0.4) inset,
+    0 -22px 48px -28px hsl(168 90% 45% / 0.8) inset,
+    0 34px 70px -32px hsl(0 0% 0% / 0.95);
+}
+.alien-lift:hover { transform: translateY(-3px) rotateX(3deg); }
+
+.alien-chip {
+  border: 1px solid hsl(var(--gold) / 0.28);
+  border-radius: 999px;
+  background: linear-gradient(180deg, hsl(var(--gold) / 0.14), hsl(var(--gold) / 0.03));
+  box-shadow: 0 1px 0 hsl(var(--gold) / 0.35) inset, 0 8px 18px -14px hsl(0 0% 0% / 0.9);
+}
+
+.alien-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(46px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+  animation: alien-float 14s ease-in-out infinite;
+}
+@keyframes alien-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(0, -26px, 0) scale(1.08); }
+}
+
+.alien-scan::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    hsl(0 0% 100% / 0.028) 0px,
+    hsl(0 0% 100% / 0.028) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
