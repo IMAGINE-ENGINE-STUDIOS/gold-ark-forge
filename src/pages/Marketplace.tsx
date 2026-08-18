@@ -505,8 +505,8 @@ const Marketplace = () => {
 
   const agricultureBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('agriculture'), [liveByKey]);
   const mineralsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('minerals'), [liveByKey]);
-  const reitsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('reits'), []);
-  const etfsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('etfs'), []);
+  const reitsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('reits'), [liveByKey]);
+  const etfsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('etfs'), [liveByKey]);
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({
