@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { ALL_SYMBOLS } from '@/data/tradingSymbols';
+import { quoteIdFor } from '@/lib/priceSource';
 
 export interface MarketQuote {
   id: string;
@@ -13,15 +15,23 @@ export interface MarketQuote {
 
 export type QuoteMap = Record<string, MarketQuote>;
 
-const MAX_SYMBOLS = 200;
+const MAX_SYMBOLS = 400;
+const BATCH = 100;
 
-const fetchQuotes = async (symbols: string[]): Promise<QuoteMap> => {
-  if (symbols.length === 0) return {};
+const fetchBatch = async (symbols: string[]): Promise<QuoteMap> => {
   const { data, error } = await supabase.functions.invoke('market-quotes', {
     body: { symbols },
   });
   if (error) throw error;
   return (data?.quotes ?? {}) as QuoteMap;
+};
+
+const fetchQuotes = async (symbols: string[]): Promise<QuoteMap> => {
+  if (symbols.length === 0) return {};
+  const chunks: string[][] = [];
+  for (let i = 0; i < symbols.length; i += BATCH) chunks.push(symbols.slice(i, i + BATCH));
+  const results = await Promise.all(chunks.map(fetchBatch));
+  return Object.assign({}, ...results) as QuoteMap;
 };
 
 /**
@@ -56,4 +66,27 @@ export const useMarketQuote = (symbol: string | null, intervalMs = 15000) => {
   const { quotes, isLoading } = useMarketQuotes([symbol], intervalMs);
   const q = symbol ? quotes[symbol] : undefined;
   return { quote: q ?? null, price: q?.last ?? null, change: q?.change24h ?? null, isLoading };
+};
+
+/** Live quotes keyed by our internal catalog key (no synthetic fallback). */
+export const useSymbolQuotes = (keys: string[], intervalMs = 30000) => {
+  const ids = useMemo(
+    () =>
+      keys.map((k) => {
+        const sym = ALL_SYMBOLS.find((s) => s.key === k);
+        return sym ? quoteIdFor(sym) : null;
+      }),
+    [keys],
+  );
+  const { quotes, isLoading } = useMarketQuotes(ids, intervalMs);
+  const byKey = useMemo(() => {
+    const map: Record<string, { p: number; c: number; source: string }> = {};
+    keys.forEach((k, i) => {
+      const id = ids[i];
+      const q = id ? quotes[id] : undefined;
+      if (q && q.last > 0) map[k] = { p: q.last, c: q.change24h ?? 0, source: q.source };
+    });
+    return map;
+  }, [keys, ids, quotes]);
+  return { byKey, isLoading };
 };
