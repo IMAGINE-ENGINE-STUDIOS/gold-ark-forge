@@ -147,6 +147,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   }, [nodes]);
 
   const [running, setRunning] = useState(false);
+  const stopRef = useRef(false);
   const [execLog, setExecLog] = useState<EngineLogEntry[]>([]);
   const issues: ValidationIssue[] = useMemo(() => validateWorkflow(nodes as unknown as EngineNode[]), [nodes]);
   const errorCount = issues.filter(i => i.level === 'error').length;
@@ -165,6 +166,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
       return;
     }
     setRunning(true);
+    stopRef.current = false;
     try {
       await runWorkflow(
         nodes as unknown as EngineNode[],
@@ -175,6 +177,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
           },
           getPriceByTicker,
           account: paper.account,
+          shouldStop: () => stopRef.current,
         },
         (entry) => setExecLog(prev => [...prev, entry]),
       );
@@ -182,7 +185,14 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
       setExecLog(prev => [...prev, { ts: Date.now(), step: 0, kind: 'symbol', status: 'error', message: err?.message ?? String(err) }]);
     } finally {
       setRunning(false);
+      stopRef.current = false;
     }
+  };
+
+  const handleStop = () => {
+    if (!running) return;
+    stopRef.current = true;
+    setExecLog(prev => [...prev, { ts: Date.now(), step: 0, kind: 'symbol', status: 'skip', message: 'STOP requested — halting after current step.' }]);
   };
   const [dragOver, setDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
