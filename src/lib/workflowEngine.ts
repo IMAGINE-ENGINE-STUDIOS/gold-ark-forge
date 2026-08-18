@@ -23,6 +23,8 @@ export interface EngineHooks {
   }) => { id: string; price: number; fees: number };
   getPriceByTicker: (ticker: string) => number;
   account: { equity: number; totalPnl: number; startingBalance: number };
+  /** Return true to abort the run before the next step executes. */
+  shouldStop?: () => boolean;
 }
 
 export interface EngineLogEntry {
@@ -111,6 +113,11 @@ export async function runWorkflow(
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     const step = i + 1;
+
+    if (hooks.shouldStop?.()) {
+      push({ step, kind: n.kind, status: 'skip', message: `Run stopped by operator before ${n.label}.` });
+      break;
+    }
 
     if (riskBreached) {
       push({ step, kind: n.kind, status: 'skip', message: `Skipped ${n.label} — risk gate active.` });
