@@ -26,6 +26,7 @@ import Deck from "./pages/Deck";
 import Globe from "./pages/Globe";
 import Investors from "./pages/Investors";
 import Pipeline from "./pages/Pipeline";
+import PipelineV2 from "./pages/PipelineV2";
 import Hologram from "./pages/Hologram";
 import NotFound from "./pages/NotFound";
 
@@ -62,6 +63,7 @@ const App = () => (
             <Route path="/globe" element={<Globe />} />
             <Route path="/investors" element={<Investors />} />
             <Route path="/pipeline" element={<Pipeline />} />
+            <Route path="/pipeline-v2" element={<PipelineV2 />} />
            <Route path="/hologram" element={<Hologram />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
