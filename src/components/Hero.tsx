@@ -21,7 +21,7 @@ const Hero = () => {
       {/* Content - Logo + CTA stacked near bottom */}
       <div className="absolute bottom-20 left-0 right-0 z-10 flex flex-col items-center gap-6">
         <Link
-          to="/marketplace"
+          to="/trading-bridge"
           className="inline-block px-14 py-6 bg-gradient-to-r from-gold-dark via-gold to-gold-dark text-navy font-display text-xl tracking-[0.2em] uppercase border-2 border-gold-shine hover:scale-105 transition-all shadow-2xl hover:shadow-gold/50"
           style={{
             boxShadow: '0 8px 32px rgba(184, 134, 11, 0.5), inset 0 1px 0 rgba(255, 215, 0, 0.4)'
