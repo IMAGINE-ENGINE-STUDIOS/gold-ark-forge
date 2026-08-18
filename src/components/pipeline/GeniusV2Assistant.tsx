@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Brain, Send, Loader2, Sparkles, Play, Square, Stethoscope, Code2, Radar } from 'lucide-react';
+import { Brain, Send, Loader2, Sparkles, Play, Square, Stethoscope, Code2, Radar, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export type GeniusV2Action = {
@@ -22,7 +22,7 @@ export type GeniusV2Action = {
 
 export interface GeniusV2AssistantProps {
   /** Full snapshot of everything on the page, rebuilt on each send. */
-  buildPageContext: () => Record<string, any>;
+  buildPageContext: (message?: string) => Record<string, any>;
   onActions: (actions: GeniusV2Action[]) => string[];
   running: boolean;
   nodeCount: number;
@@ -32,7 +32,9 @@ export interface GeniusV2AssistantProps {
 type Msg = { role: 'user' | 'assistant'; content: string };
 
 const QUICK = [
+  { label: 'SOLVE MY GOAL', icon: Target, prompt: 'I want to make 10% on my investment over the next week. Analyze the market and every indicator, then build the actual workflow that targets that result with honest probability and risk controls.' },
   { label: 'ANALYZE PAGE', icon: Radar, prompt: 'Read the whole workspace — live screens, blueprint graph, issues and last trace — and brief me on what it does and what is weak.' },
+  { label: 'MARKET READ', icon: Radar, prompt: 'Give me a full market read from the live intelligence: regime, breadth, every indicator on the top candidates, and where the edge is right now.' },
   { label: 'BUILD FOR ME', icon: Sparkles, prompt: 'Build the strongest blueprint you can from the live screens on this page, wiring screens, analysis and risk before any trade node. Explain the logic.' },
   { label: 'WRITE CODE BOX', icon: Code2, prompt: 'Write a custom code box that adds an edge my current analysis programs do not cover, save it and wire it into the blueprint.' },
   { label: 'DEBUG', icon: Stethoscope, prompt: 'Debug this workspace: fix every validation issue and every error in the last execution trace, then explain each fix.' },
@@ -42,7 +44,7 @@ const QUICK = [
 
 export default function GeniusV2Assistant({ buildPageContext, onActions, running, nodeCount, issueCount }: GeniusV2AssistantProps) {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'assistant', content: 'GENIUS V2 ONLINE. I can see every screen, node, code box, issue and trace on this page — ask me to build, rewire, write code, debug, run or stop anything.' },
+    { role: 'assistant', content: 'GENIUS V2 ONLINE. Tell me the RESULT you want — e.g. "make 10% on my investments in the next week" — and I will read the live market and every indicator, state the honest probability, and build the actual workflow that targets it. I can also rewire, write code, debug, run or stop anything on this page.' },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,16 +63,20 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('pipeline-v2-genius', {
-        body: { message, page: buildPageContext(), history },
+        body: { message, page: buildPageContext(message), history },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const reply: string = data?.reply ?? 'No response.';
+      const brief: string[] = [];
+      if (data?.objective) brief.push(`OBJECTIVE — ${data.objective}`);
+      if (data?.feasibility) brief.push(`FEASIBILITY — ${data.feasibility}`);
       const actions: GeniusV2Action[] = Array.isArray(data?.actions) ? data.actions : [];
       const notes = actions.length ? onActions(actions) : [];
+      const body = [brief.join('\n'), reply, notes.map((n) => `› ${n}`).join('\n')].filter(Boolean).join('\n\n');
       setMsgs((prev) => [
         ...prev,
-        { role: 'assistant', content: notes.length ? `${reply}\n\n${notes.map((n) => `› ${n}`).join('\n')}` : reply },
+        { role: 'assistant', content: body || reply },
       ]);
     } catch (e: any) {
       setMsgs((prev) => [...prev, { role: 'assistant', content: `LINK ERROR — ${e?.message ?? String(e)}` }]);
@@ -130,7 +136,7 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="ASK GENIUS TO BUILD, CODE, DEBUG OR RUN ANYTHING…"
+          placeholder="STATE YOUR TARGET RETURN & TIMEFRAME, OR ASK ANYTHING…"
           className="w-full rounded-full border border-gold/25 bg-background/70 px-3 py-1.5 font-mono text-[9px] tracking-widest text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-gold/60"
         />
         <button
