@@ -557,22 +557,29 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
         </div>
 
         {nodes.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="relative z-10 mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleRun}
                 disabled={running || errorCount > 0}
-                className="flex items-center gap-1 text-[9px] font-mono tracking-widest text-gold-light border border-gold/40 bg-gold/10 hover:bg-gold/20 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1 rounded"
+                className="alien-chip flex items-center gap-1 px-3 py-1.5 font-mono text-[9px] tracking-widest text-gold-light hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Play className="w-3 h-3" /> {running ? 'RUNNING…' : 'RUN WORKFLOW'}
+                <Play className="h-3 w-3" /> {running ? 'RUNNING…' : 'RUN WORKFLOW'}
+              </button>
+              <button
+                onClick={handleStop}
+                disabled={!running}
+                className="alien-chip flex items-center gap-1 px-3 py-1.5 font-mono text-[9px] tracking-widest text-rose-400 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Square className="h-3 w-3" /> STOP
               </button>
               <button
                 onClick={() => setExecLog([])}
-                className="text-[9px] font-mono tracking-widest text-gold/70 border border-gold/20 hover:border-gold/40 px-3 py-1 rounded"
+                className="alien-chip px-3 py-1.5 font-mono text-[9px] tracking-widest text-muted-foreground hover:text-gold-light"
               >
                 CLEAR LOG
               </button>
-              <span className="text-[8px] font-mono text-gold/50 ml-auto flex items-center gap-2">
+              <span className="ml-auto flex items-center gap-2 font-mono text-[8px] tracking-widest text-muted-foreground">
                 {errorCount > 0 ? (
                   <span className="flex items-center gap-1 text-rose-400">
                     <AlertTriangle className="w-3 h-3" /> {errorCount} ISSUE{errorCount === 1 ? '' : 'S'}
@@ -588,7 +595,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
             </div>
 
             {issues.length > 0 && (
-              <div className="border border-rose-500/20 bg-rose-500/5 rounded p-2 space-y-0.5 max-h-24 overflow-y-auto">
+              <div className="max-h-24 space-y-0.5 overflow-y-auto rounded-xl border border-rose-500/20 bg-rose-500/5 p-2 backdrop-blur-sm">
                 {issues.map((i, idx) => (
                   <div key={idx} className={`text-[9px] font-mono flex items-start gap-1 ${i.level === 'error' ? 'text-rose-300' : 'text-amber-300'}`}>
                     {i.level === 'error' ? <XCircle className="w-2.5 h-2.5 mt-0.5" /> : <AlertTriangle className="w-2.5 h-2.5 mt-0.5" />}
@@ -599,7 +606,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
             )}
 
             {execLog.length > 0 && (
-              <div className="border border-gold/20 bg-black/60 rounded p-2 max-h-40 overflow-y-auto space-y-0.5">
+              <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-xl border border-gold/20 bg-background/60 p-2 backdrop-blur-sm">
                 <div className="text-[9px] font-mono tracking-widest text-gold/60 mb-1">EXECUTION LOG</div>
                 {execLog.map((e, idx) => {
                   const color =
