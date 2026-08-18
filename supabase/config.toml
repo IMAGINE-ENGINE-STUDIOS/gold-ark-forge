@@ -29,3 +29,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.code-autopilot]
 verify_jwt = false
+[functions.pipeline-v2-genius]
+verify_jwt = false
