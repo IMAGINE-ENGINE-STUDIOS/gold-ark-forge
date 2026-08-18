@@ -636,7 +636,7 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 
       {/* Config dialog */}
       <Dialog open={!!configNode} onOpenChange={(o) => { if (!o) setConfigNodeId(null); }}>
-        <DialogContent className="max-w-md bg-black border-gold/40">
+        <DialogContent className="max-w-md border-gold/40 bg-background/90 backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle className="font-display tracking-[0.15em] text-gold-light flex items-center gap-2">
               {configNode && <configNode.Icon className="w-4 h-4 text-gold" />}
