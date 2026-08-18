@@ -42,6 +42,22 @@ const defaultConfig = (kind: BpKind): Record<string, any> => {
   }
 };
 
+export interface BlueprintApi {
+  addAsset: (t: string, l: string) => void;
+  addScreen: (c: ClassId) => void;
+  addAnalysis: (programId: string) => void;
+  addBlock: (b: CustomBlock) => void;
+  addKind: (k: BpKind, config?: Record<string, any>, label?: string) => void;
+  updateNode: (index: number, patch: Record<string, any>) => void;
+  removeNode: (index: number) => void;
+  clear: () => void;
+  replaceAll: (nodes: Array<{ kind: BpKind; label?: string; config?: Record<string, any> }>) => void;
+  run: () => void;
+  stop: () => void;
+  select: (index: number | null) => void;
+  getState: () => { nodes: BpNode[]; issues: ReturnType<typeof validateBlueprint>; log: BpLogEntry[]; running: boolean };
+}
+
 export interface BlueprintCanvasProps {
   classified: ClassifiedAsset[];
   blocks: CustomBlock[];
@@ -50,7 +66,7 @@ export interface BlueprintCanvasProps {
   account: { equity: number; totalPnl: number; startingBalance: number };
   submitOrder: BlueprintRunOrder;
   subscribe?: (t: string) => void;
-  registerApi?: (api: { addAsset: (t: string, l: string) => void; addScreen: (c: ClassId) => void; addBlock: (b: CustomBlock) => void }) => void;
+  registerApi?: (api: BlueprintApi) => void;
 }
 type BlueprintRunOrder = (p: {
   symbol: string; side: 'buy' | 'sell'; qty: number;
@@ -92,9 +108,8 @@ export default function BlueprintCanvas({
     push({ id: uid(), kind: 'analysis', label: p?.label ?? 'ANALYSIS', config: { programId, params: defaultParamsFor(programId) } });
   };
   const addBlock = (b: CustomBlock) => push({ id: uid(), kind: 'code', label: b.name, config: { blockId: b.id, params: {}, timeoutMs: 4000 } });
-  const addKind = (kind: BpKind) => push({ id: uid(), kind, label: KIND_META[kind].label, config: defaultConfig(kind) });
-
-  useEffect(() => { registerApi?.({ addAsset, addScreen, addBlock }); }, [registerApi]);
+  const addKind = (kind: BpKind, config?: Record<string, any>, label?: string) =>
+    push({ id: uid(), kind, label: label ?? KIND_META[kind].label, config: { ...defaultConfig(kind), ...(config ?? {}) } });
 
   const filteredSymbols = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -142,6 +157,29 @@ export default function BlueprintCanvas({
     setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, config: { ...n.config, ...patch } } : n)));
 
   const selectedNode = nodes.find((n) => n.id === selected) ?? null;
+
+  useEffect(() => {
+    registerApi?.({
+      addAsset, addScreen, addAnalysis, addBlock, addKind,
+      updateNode: (index, patch) => setNodes((prev) => prev.map((n, i) => (i === index ? { ...n, config: { ...n.config, ...patch } } : n))),
+      removeNode: (index) => setNodes((prev) => prev.filter((_, i) => i !== index)),
+      clear: () => { setNodes([]); setLog([]); },
+      replaceAll: (list) => setNodes(list.map((n) => {
+        if (n.config?.ticker) subscribe?.(String(n.config.ticker));
+        return {
+        id: uid(),
+        kind: n.kind,
+        label: n.label ?? KIND_META[n.kind]?.label ?? n.kind.toUpperCase(),
+        config: { ...defaultConfig(n.kind), ...(n.config ?? {}) },
+        };
+      })),
+      run: () => { void run(); },
+      stop: () => { stopRef.current = true; },
+      select: (index) => setSelected(index === null ? null : nodes[index]?.id ?? null),
+      getState: () => ({ nodes, issues, log, running }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerApi, nodes, issues, log, running, blocks, classified]);
 
   const PaletteTab = ({ id, label }: { id: typeof tab; label: string }) => (
     <button
