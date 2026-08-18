@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TrendingUp, TrendingDown, OctagonX, CalendarClock, BellRing, BellOff,
   Zap, Waves, Brain, Shield, Target, Activity, Repeat, Timer, Trash2, Plus,
-  Search, Tag, Settings2, Sparkles, Play, AlertTriangle, CheckCircle2, XCircle, Info,
+  Search, Tag, Settings2, Sparkles, Play, Square, AlertTriangle, CheckCircle2, XCircle, Info,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
