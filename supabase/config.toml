@@ -23,3 +23,5 @@ verify_jwt = false
 
 [functions.fetch-commodity-prices]
 verify_jwt = false
+[functions.market-quotes]
+verify_jwt = false
