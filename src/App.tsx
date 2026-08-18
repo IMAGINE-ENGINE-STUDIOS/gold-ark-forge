@@ -25,6 +25,7 @@ import Login from "./pages/Login";
 import Deck from "./pages/Deck";
 import Globe from "./pages/Globe";
 import Investors from "./pages/Investors";
+import Pipeline from "./pages/Pipeline";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/deck" element={<Deck />} />
             <Route path="/globe" element={<Globe />} />
             <Route path="/investors" element={<Investors />} />
+            <Route path="/pipeline" element={<Pipeline />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
