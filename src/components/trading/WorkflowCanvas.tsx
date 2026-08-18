@@ -225,6 +225,29 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
     e.dataTransfer.effectAllowed = 'copy';
   };
 
+  /** Click-to-add: same semantics as dropping the item on the canvas. */
+  const addSymbolNode = (sym: { label: string; ticker: string }) => {
+    setNodes(prev => [
+      ...prev,
+      makeNode('symbol', { label: sym.label, config: { symbol: sym.label, ticker: sym.ticker } }),
+    ]);
+  };
+
+  const addKindNode = (kind: NodeKind) => {
+    const newNode = makeNode(kind);
+    setNodes(prev => {
+      const prevNode = prev[prev.length - 1];
+      if (SYMBOL_CONSUMERS.has(kind) && (!prevNode || prevNode.kind !== 'symbol')) {
+        const injected = makeNode('symbol', {
+          label: 'XAU/USD',
+          config: { symbol: 'XAU/USD', ticker: 'GLD', autoInjected: true },
+        });
+        return [...prev, injected, newNode];
+      }
+      return [...prev, newNode];
+    });
+  };
+
   const onCanvasDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
