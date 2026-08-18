@@ -189,16 +189,22 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
   const [configNodeId, setConfigNodeId] = useState<string | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const symbolResults = useMemo(() => {
+  const symbolCats = useMemo(
+    () => ['all', ...Array.from(new Set(ALL_SYMBOLS.map(s => s.cat))).sort()],
+    [],
+  );
+
+  const symbolMatches = useMemo(() => {
     const q = symbolQuery.trim().toLowerCase();
-    const base = q
-      ? ALL_SYMBOLS.filter(s =>
-          s.label.toLowerCase().includes(q) ||
-          s.ticker.toLowerCase().includes(q) ||
-          s.key.toLowerCase().includes(q))
-      : ALL_SYMBOLS.slice(0, 60);
-    return base.slice(0, 60);
-  }, [symbolQuery]);
+    return ALL_SYMBOLS.filter(s =>
+      (symbolCat === 'all' || s.cat === symbolCat) &&
+      (!q ||
+        s.label.toLowerCase().includes(q) ||
+        s.ticker.toLowerCase().includes(q) ||
+        s.key.toLowerCase().includes(q)));
+  }, [symbolQuery, symbolCat]);
+
+  const symbolResults = symbolMatches.slice(0, symbolLimit);
 
   const makeNode = (kind: NodeKind, overrides?: Partial<WorkflowNode>): WorkflowNode => {
     const gi = GALLERY.find(g => g.kind === kind);
