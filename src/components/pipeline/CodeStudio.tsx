@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  loadBlocks, saveBlocks, runBlockCode, STARTER_CODE, type CustomBlock,
+  loadBlocks, saveBlocks, runBlockCode, normalizeBlockCode, STARTER_CODE, type CustomBlock,
 } from '@/lib/customBlocks';
 
 const uid = () => `blk_${Math.random().toString(36).slice(2, 9)}`;
@@ -69,7 +69,10 @@ export default function CodeStudio({ blocks, onBlocksChange, onAddToBlueprint, s
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setAiReply(data?.reply ?? '');
-      if (data?.code) setDraft((d) => ({ ...d, code: data.code, name: d.name === 'New Block' && data.name ? data.name : d.name }));
+      if (data?.code) {
+        const clean = normalizeBlockCode(data.code);
+        setDraft((d) => ({ ...d, code: clean, name: d.name === 'New Block' && data.name ? data.name : d.name }));
+      }
     } catch (e: any) {
       setAiReply(`Autopilot unavailable: ${e?.message ?? e}`);
     } finally { setAiBusy(false); }
