@@ -472,17 +472,17 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
 
       {/* Canvas */}
       <div className="alien-panel alien-scan relative min-h-[420px] p-3">
-        <div className="flex items-center justify-between mb-2">
+        <div className="relative z-10 mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-display text-[10px] tracking-[0.2em] text-gold-light">WORKFLOW CHART</span>
-            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">
+            <span className="alien-chip px-2 py-0.5 font-mono text-[8px] tracking-widest text-muted-foreground">
               {nodes.length} STEP{nodes.length === 1 ? '' : 'S'}
             </span>
           </div>
           {nodes.length > 0 && (
             <button
               onClick={clearAll}
-              className="text-[9px] font-mono tracking-wider text-rose-400 hover:text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-2 py-0.5 rounded"
+              className="alien-chip px-2 py-0.5 font-mono text-[9px] tracking-wider text-rose-400 hover:text-rose-300"
             >
               CLEAR ALL
             </button>
@@ -494,18 +494,18 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onCanvasDrop}
-          className={`rounded-md min-h-[360px] p-3 transition ${
+          className={`relative z-10 min-h-[360px] rounded-2xl bg-[radial-gradient(circle,hsl(var(--gold)/0.10)_1px,transparent_1px)] [background-size:16px_16px] p-3 transition ${
             dragOver ? 'border-2 border-dashed border-gold/60 bg-gold/5' : 'border border-dashed border-gold/20'
           }`}
         >
           {nodes.length === 0 ? (
-            <div className="h-[340px] flex flex-col items-center justify-center gap-2 text-center">
-              <Plus className="w-6 h-6 text-gold/40" />
-              <div className="text-[11px] font-mono tracking-wider text-gold/60">
-                DRAG ITEMS FROM THE GALLERY TO BUILD YOUR WORKFLOW
+            <div className="flex h-[340px] flex-col items-center justify-center gap-2 text-center">
+              <Plus className="h-6 w-6 text-gold/40" />
+              <div className="font-mono text-[11px] tracking-wider text-gold/60">
+                DRAG OR CLICK ITEMS FROM THE GALLERY TO BUILD YOUR WORKFLOW
               </div>
-              <div className="text-[9px] font-mono text-gold/40">
-                Chain actions, alerts and strategies into an automated pipeline
+              <div className="font-mono text-[9px] text-muted-foreground">
+                …or just ask GENIUS to build the pipeline for you
               </div>
             </div>
           ) : (
@@ -521,25 +521,28 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
                       onDragOver={(e) => onNodeDragOver(e, idx)}
                       onDragEnd={() => setDragIndex(null)}
                       onClick={() => setConfigNodeId(n.id)}
-                      className={`group relative cursor-pointer flex flex-col items-center justify-center w-[110px] h-[78px] rounded-md border ${t.border} ${t.bg} shadow-[0_0_12px_rgba(212,175,55,0.08)] animate-scale-in hover:brightness-125`}
+                      className={`alien-panel alien-lift group relative flex h-[86px] w-[104px] cursor-pointer animate-scale-in flex-col items-center justify-center overflow-hidden sm:w-[112px] ${t.bg}`}
                       title="Click to configure · drag to reorder"
                     >
                       <button
                         onClick={(e) => { e.stopPropagation(); removeNode(n.id); }}
-                        className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition bg-black border border-rose-500/60 rounded-full p-0.5"
+                        className="absolute -right-1.5 -top-1.5 rounded-full border border-rose-500/60 bg-background/90 p-0.5 opacity-0 backdrop-blur-sm transition group-hover:opacity-100"
                         title="Remove"
                       >
-                        <Trash2 className="w-2.5 h-2.5 text-rose-400" />
+                        <Trash2 className="h-2.5 w-2.5 text-rose-400" />
                       </button>
-                      <Settings2 className="absolute top-1 left-1 w-2.5 h-2.5 text-gold/30 group-hover:text-gold/70 transition" />
-                      <Icon className={`w-5 h-5 ${t.text} mb-1`} />
-                      <span className={`text-[9px] font-mono tracking-wider ${t.text}`}>{n.label}</span>
-                      <span className="text-[7px] font-mono text-gold/40 mt-0.5">
+                      <Settings2 className="absolute left-1 top-1 h-2.5 w-2.5 text-gold/30 transition group-hover:text-gold/70" />
+                      <span className={`mb-1 flex h-8 w-8 items-center justify-center rounded-xl border ${t.border} ${t.bg} backdrop-blur-md`}>
+                        <Icon className={`h-4 w-4 ${t.text}`} />
+                      </span>
+                      <span className={`max-w-full truncate px-1 font-mono text-[8px] tracking-[0.12em] ${t.text}`}>{n.label}</span>
+                      <span className="mt-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">
                         STEP {idx + 1}{n.config?.autoInjected ? ' · AUTO' : ''}
                       </span>
+                      <span className="pointer-events-none absolute -right-6 -top-6 h-12 w-12 rounded-full bg-gold/10 opacity-0 blur-xl transition-opacity group-hover:opacity-100" />
                     </div>
                     {idx < nodes.length - 1 && (
-                      <div className="flex items-center justify-center w-6 h-[78px]">
+                      <div className="flex h-[86px] w-6 items-center justify-center">
                         <svg width="24" height="12" viewBox="0 0 24 12" className="text-gold/50">
                           <line x1="0" y1="6" x2="18" y2="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" />
                           <polygon points="18,2 24,6 18,10" fill="currentColor" />
