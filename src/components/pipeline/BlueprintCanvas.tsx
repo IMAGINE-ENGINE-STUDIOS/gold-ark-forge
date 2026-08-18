@@ -164,12 +164,15 @@ export default function BlueprintCanvas({
       updateNode: (index, patch) => setNodes((prev) => prev.map((n, i) => (i === index ? { ...n, config: { ...n.config, ...patch } } : n))),
       removeNode: (index) => setNodes((prev) => prev.filter((_, i) => i !== index)),
       clear: () => { setNodes([]); setLog([]); },
-      replaceAll: (list) => setNodes(list.map((n) => ({
+      replaceAll: (list) => setNodes(list.map((n) => {
+        if (n.config?.ticker) subscribe?.(String(n.config.ticker));
+        return {
         id: uid(),
         kind: n.kind,
         label: n.label ?? KIND_META[n.kind]?.label ?? n.kind.toUpperCase(),
         config: { ...defaultConfig(n.kind), ...(n.config ?? {}) },
-      }))),
+        };
+      })),
       run: () => { void run(); },
       stop: () => { stopRef.current = true; },
       select: (index) => setSelected(index === null ? null : nodes[index]?.id ?? null),
