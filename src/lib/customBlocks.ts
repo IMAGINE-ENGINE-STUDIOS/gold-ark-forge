@@ -56,6 +56,29 @@ export interface BlockRunResult {
   logs: string[];
 }
 
+/**
+ * Normalise AI- or paste-sourced code down to a bare function body:
+ * strips markdown fences and an outer `async (input) => { ... }` / `function (...) { ... }` wrapper.
+ */
+export const normalizeBlockCode = (raw: string): string => {
+  let code = (raw ?? '').trim();
+  code = code.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+  const wrapper = /^(?:export\s+default\s+)?(?:async\s+)?(?:function\s*\w*\s*\([^)]*\)|\([^)]*\)\s*=>|\w+\s*=>)\s*\{/;
+  if (wrapper.test(code) && code.endsWith('}')) {
+    code = code.replace(wrapper, '').replace(/\}\s*;?\s*$/, '').trim();
+    code = code.replace(/^;\s*/, '');
+  }
+  return code;
+};
+
+interface _Unused {
+  ok: boolean;
+  output?: any;
+  error?: string;
+  ms: number;
+  logs: string[];
+}
+
 const WORKER_SHELL = `
 self.onmessage = async (e) => {
   const { code, input } = e.data;
