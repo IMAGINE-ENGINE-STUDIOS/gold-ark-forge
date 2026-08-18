@@ -157,8 +157,8 @@ export default function HoloSwap() {
             <div key={p.id} className="flex items-center justify-between rounded-md border border-cyan-300/15 px-2 py-1.5">
               <span className="text-[9px] tracking-widest text-cyan-100">{p.symbol}</span>
               <span className="text-[8px] text-cyan-200/60">{p.side.toUpperCase()} {p.qty.toFixed(4)}</span>
-              <span className={`text-[9px] ${(p.unrealizedPnl ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                {(p.unrealizedPnl ?? 0) >= 0 ? '+' : ''}{money(p.unrealizedPnl ?? 0)}
+              <span className={`text-[9px] ${(p.pnl ?? 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                {(p.pnl ?? 0) >= 0 ? '+' : ''}{money(p.pnl ?? 0)}
               </span>
             </div>
           ))}
