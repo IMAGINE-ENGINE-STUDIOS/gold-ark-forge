@@ -15,6 +15,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import SymbolLogo from '@/components/trading/SymbolLogo';
+import GeniusAssistant, { type GeniusAction } from '@/components/pipeline/GeniusAssistant';
 import {
   runWorkflow, validateWorkflow,
   type EngineLogEntry, type EngineNode, type ValidationIssue,
