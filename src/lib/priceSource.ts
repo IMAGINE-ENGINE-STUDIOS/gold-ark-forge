@@ -15,18 +15,37 @@ const METAL_QUOTE: Record<string, string> = {
   aluminum: 'ALI=F',
 };
 
-/** Energy contracts available on Yahoo futures. */
+/**
+ * Energy quote ids (all verified live on the Yahoo chart endpoint).
+ * Keys absent from this map have no public real-time feed and render "NO FEED".
+ */
 const ENERGY_QUOTE: Record<string, string> = {
-  oil: 'CL=F',
-  brent: 'BZ=F',
-  natgas: 'NG=F',
-  rbob: 'RB=F',
-  heating_oil: 'HO=F',
-  uranium: 'URA',
-  coal: 'BTU',
-  lng: 'LNG',
+  // Physical futures contracts
+  oil: 'CL=F',            // NYMEX WTI
+  brent: 'BZ=F',          // ICE Brent
+  natgas: 'NG=F',         // Henry Hub
+  rbob: 'RB=F',           // RBOB gasoline
+  heating_oil: 'HO=F',    // NY Harbor ULSD
+  diesel: 'HO=F',         // ULSD settles on the HO contract
+  coal: 'MTF=F',          // Coal (API2) Rotterdam futures
+  ttf_gas: 'TTF=F',       // Dutch TTF natural gas
+  lng: 'TTF=F',           // LNG spot proxied by TTF hub
+  // Carbon / clean energy benchmarks (exchange-traded funds)
   carbon_eu: 'KRBN',
+  carbon_us: 'KCCA',
   hydrogen: 'HDRO',
+  uranium: 'URA',
+  uranium_miners: 'URNM',
+  nuclear: 'NLR',
+  solar: 'TAN',
+  wind: 'FAN',
+  clean_energy: 'ICLN',
+  energy_sector: 'XLE',
+  oil_explorers: 'XOP',
+  oil_services: 'OIH',
+  oil_fund: 'USO',
+  natgas_fund: 'UNG',
+  // ethanol / lpg / jet_fuel: no free real-time public feed → NO FEED
 };
 
 /** CME/ICE agricultural contracts (ticker + "=F"). */

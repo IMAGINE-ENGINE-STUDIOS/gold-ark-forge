@@ -151,7 +151,7 @@ export const WATCHLIST_CATEGORIES: WatchlistCategory[] = [
     ],
   },
   /* ══════════════════════════════════════════════════════════
-     ENERGY COMMODITIES (15)
+     ENERGY COMMODITIES (28)
      ══════════════════════════════════════════════════════════ */
   {
     label: 'ENERGY COMMODITIES',
@@ -171,6 +171,17 @@ export const WATCHLIST_CATEGORIES: WatchlistCategory[] = [
       { key: 'carbon_us', label: 'US Carbon', ticker: 'CCA', cat: 'energy', sub: 'commodities' },
       { key: 'hydrogen', label: 'Green Hydrogen', ticker: 'H2', cat: 'energy', sub: 'commodities' },
       { key: 'lng', label: 'LNG Spot', ticker: 'LNG', cat: 'energy', sub: 'commodities' },
+      { key: 'ttf_gas', label: 'Dutch TTF Gas', ticker: 'TTF', cat: 'energy', sub: 'commodities' },
+      { key: 'uranium_miners', label: 'Uranium Miners', ticker: 'URNM', cat: 'energy', sub: 'commodities' },
+      { key: 'nuclear', label: 'Nuclear Energy', ticker: 'NLR', cat: 'energy', sub: 'commodities' },
+      { key: 'solar', label: 'Solar Energy', ticker: 'TAN', cat: 'energy', sub: 'commodities' },
+      { key: 'wind', label: 'Wind Energy', ticker: 'FAN', cat: 'energy', sub: 'commodities' },
+      { key: 'clean_energy', label: 'Clean Energy', ticker: 'ICLN', cat: 'energy', sub: 'commodities' },
+      { key: 'energy_sector', label: 'Energy Sector', ticker: 'XLE', cat: 'energy', sub: 'commodities' },
+      { key: 'oil_explorers', label: 'Oil E&P', ticker: 'XOP', cat: 'energy', sub: 'commodities' },
+      { key: 'oil_services', label: 'Oil Services', ticker: 'OIH', cat: 'energy', sub: 'commodities' },
+      { key: 'oil_fund', label: 'Crude Oil Fund', ticker: 'USO', cat: 'energy', sub: 'commodities' },
+      { key: 'natgas_fund', label: 'Nat Gas Fund', ticker: 'UNG', cat: 'energy', sub: 'commodities' },
     ],
   },
   /* ══════════════════════════════════════════════════════════
