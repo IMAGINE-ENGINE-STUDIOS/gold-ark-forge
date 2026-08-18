@@ -14,11 +14,11 @@ import { HoloDrift, HoloDust, HoloFloor, HoloRings } from '@/components/hologram
 import HoloSwap from '@/components/hologram/HoloSwap';
 
 const useHoloScale = () => {
-  const [scale, setScale] = useState({ s: 0.72, narrow: false });
+  const [scale, setScale] = useState({ s: 0.5, narrow: false });
   useEffect(() => {
     const compute = () => {
       const w = window.innerWidth;
-      setScale(w < 700 ? { s: 1.6, narrow: true } : w < 1200 ? { s: 0.6, narrow: false } : { s: 0.72, narrow: false });
+      setScale(w < 700 ? { s: 1.15, narrow: true } : w < 1200 ? { s: 0.42, narrow: false } : { s: 0.5, narrow: false });
     };
     compute();
     window.addEventListener('resize', compute);
