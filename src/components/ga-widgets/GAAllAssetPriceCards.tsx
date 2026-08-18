@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { WATCHLIST_CATEGORIES, SYNTHETIC_PRICES, CATEGORY_COLORS } from '@/data/tradingSymbols';
+import { WATCHLIST_CATEGORIES, CATEGORY_COLORS } from '@/data/tradingSymbols';
 import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
