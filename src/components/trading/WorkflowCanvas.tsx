@@ -634,6 +634,18 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
         )}
       </div>
 
+      {/* Genius copilot */}
+      <div className="xl:h-full">
+        <GeniusAssistant
+          workflow={nodes.map(n => ({ kind: n.kind, label: n.label, config: n.config }))}
+          issues={issues}
+          log={execLog.map(e => ({ step: e.step, kind: e.kind, status: e.status, message: e.message }))}
+          account={paper ? { equity: paper.account.equity, totalPnl: paper.account.totalPnl } : null}
+          running={running}
+          onActions={applyGeniusActions}
+        />
+      </div>
+
       {/* Config dialog */}
       <Dialog open={!!configNode} onOpenChange={(o) => { if (!o) setConfigNodeId(null); }}>
         <DialogContent className="max-w-md border-gold/40 bg-background/90 backdrop-blur-xl">
