@@ -71,14 +71,6 @@ export const normalizeBlockCode = (raw: string): string => {
   return code;
 };
 
-interface _Unused {
-  ok: boolean;
-  output?: any;
-  error?: string;
-  ms: number;
-  logs: string[];
-}
-
 const WORKER_SHELL = `
 self.onmessage = async (e) => {
   const { code, input } = e.data;
