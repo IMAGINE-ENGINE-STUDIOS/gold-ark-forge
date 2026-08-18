@@ -6,6 +6,7 @@ import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
 import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
 import GABullionHeatmap from '@/components/ga-widgets/GABullionHeatmap';
 import GAMetalProfile from '@/components/ga-widgets/GAMetalProfile';
+import { useSymbolQuotes } from '@/hooks/useMarketQuotes';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useWebSocketPrices } from '@/hooks/useWebSocketPrices';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
@@ -16,7 +17,6 @@ import MarketplaceSpotWidget from '@/components/marketplace/MarketplaceSpotWidge
 import {
   ALL_SYMBOLS,
   CATEGORY_COLORS,
-  SYNTHETIC_PRICES,
   TOTAL_INSTRUMENT_COUNT,
 } from '@/data/tradingSymbols';
 import {
@@ -418,6 +418,13 @@ const Marketplace = () => {
     }).filter(i => i.price > 0);
   }, [cryptoLookup, wsPrices]);
 
+  // Live quotes for every non-crypto instrument in the marketplace
+  const nonCryptoKeys = useMemo(
+    () => ALL_SYMBOLS.filter(sym => sym.cat !== 'crypto' && sym.cat !== 'metals').map(sym => sym.key),
+    [],
+  );
+  const { byKey: liveByKey } = useSymbolQuotes(nonCryptoKeys, 30000);
+
   const energyBoard = useMemo<BoardItem[]>(() => {
     const liveEnergy = (energy ?? [])
       .filter(item => ENERGY_TICKER_TO_KEY[item.symbol])
@@ -430,76 +437,76 @@ const Marketplace = () => {
 
     const liveKeys = new Set(liveEnergy.map(e => e.routeSymbol));
     const syntheticEnergy = ALL_SYMBOLS
-      .filter(s => s.cat === 'energy' && !liveKeys.has(s.key) && SYNTHETIC_PRICES[s.key])
+      .filter(s => s.cat === 'energy' && !liveKeys.has(s.key) && liveByKey[s.key])
       .map(s => ({
         id: s.key, name: s.label, ticker: `${s.ticker}/USD`,
-        category: 'energy' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
-        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        category: 'energy' as const, price: liveByKey[s.key].p, change: liveByKey[s.key].c,
+        source: 'Live', routeSymbol: s.key, live: true, isWsLive: false,
         accentColor: CATEGORY_COLORS.energy, subCategory: 'commodities',
       }));
 
     // O&G company stocks that belong under energy
     const ogCompanies = ALL_SYMBOLS
-      .filter(s => s.cat === 'stocks' && OG_COMPANY_KEYS.has(s.key) && SYNTHETIC_PRICES[s.key])
+      .filter(s => s.cat === 'stocks' && OG_COMPANY_KEYS.has(s.key) && liveByKey[s.key])
       .map(s => ({
         id: s.key, name: s.label, ticker: s.ticker,
-        category: 'energy' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
-        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        category: 'energy' as const, price: liveByKey[s.key].p, change: liveByKey[s.key].c,
+        source: 'Live', routeSymbol: s.key, live: true, isWsLive: false,
         accentColor: CATEGORY_COLORS.energy, subCategory: 'companies',
       }));
 
     return [...liveEnergy, ...syntheticEnergy, ...ogCompanies];
-  }, [energy]);
+  }, [energy, liveByKey]);
 
   const stocksBoard = useMemo<BoardItem[]>(() => {
     return ALL_SYMBOLS
-      .filter(s => s.cat === 'stocks' && !OG_COMPANY_KEYS.has(s.key) && SYNTHETIC_PRICES[s.key])
+      .filter(s => s.cat === 'stocks' && !OG_COMPANY_KEYS.has(s.key) && liveByKey[s.key])
       .map(s => ({
         id: s.key, name: s.label, ticker: s.ticker,
-        category: 'stocks' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
-        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        category: 'stocks' as const, price: liveByKey[s.key].p, change: liveByKey[s.key].c,
+        source: 'Live', routeSymbol: s.key, live: true, isWsLive: false,
         accentColor: CATEGORY_COLORS.stocks,
         subCategory: s.sub ?? 'indices',
       }));
-  }, []);
+  }, [liveByKey]);
 
   const forexBoard = useMemo<BoardItem[]>(() => {
     return ALL_SYMBOLS
-      .filter(s => s.cat === 'forex' && SYNTHETIC_PRICES[s.key])
+      .filter(s => s.cat === 'forex' && liveByKey[s.key])
       .map(s => ({
         id: s.key, name: s.label, ticker: s.ticker,
-        category: 'forex' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
-        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        category: 'forex' as const, price: liveByKey[s.key].p, change: liveByKey[s.key].c,
+        source: 'Live', routeSymbol: s.key, live: true, isWsLive: false,
         accentColor: CATEGORY_COLORS.forex, subCategory: s.sub ?? 'major',
       }));
-  }, []);
+  }, [liveByKey]);
 
   const bondsBoard = useMemo<BoardItem[]>(() => {
     return ALL_SYMBOLS
-      .filter(s => s.cat === 'bonds' && SYNTHETIC_PRICES[s.key])
+      .filter(s => s.cat === 'bonds' && liveByKey[s.key])
       .map(s => ({
         id: s.key, name: s.label, ticker: s.ticker,
-        category: 'bonds' as const, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
-        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        category: 'bonds' as const, price: liveByKey[s.key].p, change: liveByKey[s.key].c,
+        source: 'Live', routeSymbol: s.key, live: true, isWsLive: false,
         accentColor: CATEGORY_COLORS.bonds, subCategory: s.sub ?? 'all',
       }));
-  }, []);
+  }, [liveByKey]);
 
   const buildSyntheticBoard = (catKey: FeedCategory): BoardItem[] => {
     return ALL_SYMBOLS
-      .filter(s => s.cat === catKey && SYNTHETIC_PRICES[s.key])
+      .filter(s => s.cat === catKey && liveByKey[s.key])
       .map(s => ({
         id: s.key, name: s.label, ticker: s.ticker,
-        category: catKey, price: SYNTHETIC_PRICES[s.key].p, change: SYNTHETIC_PRICES[s.key].c,
-        source: 'Market', routeSymbol: s.key, live: false, isWsLive: false,
+        category: catKey, price: liveByKey[s.key].p, change: liveByKey[s.key].c,
+        source: 'Live', routeSymbol: s.key, live: true, isWsLive: false,
         accentColor: CATEGORY_COLORS[catKey] ?? CATEGORY_COLORS.stocks, subCategory: s.sub ?? 'all',
       }));
   };
 
-  const agricultureBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('agriculture'), []);
-  const mineralsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('minerals'), []);
-  const reitsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('reits'), []);
-  const etfsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('etfs'), []);
+  const agricultureBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('agriculture'), [liveByKey]);
+  const mineralsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('minerals'), [liveByKey]);
+  const reitsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('reits'), [liveByKey]);
+  const etfsBoard = useMemo<BoardItem[]>(() => buildSyntheticBoard('etfs'), [liveByKey]);
 
   /* ─── Combined + filtered by active category ─── */
   const allBoards: Record<MarketCategoryKey, BoardItem[]> = useMemo(() => ({

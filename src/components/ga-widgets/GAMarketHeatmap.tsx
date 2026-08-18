@@ -5,7 +5,25 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useForexRates } from '@/hooks/useForexRates';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
-import { SYNTHETIC_PRICES, WATCHLIST_CATEGORIES } from '@/data/tradingSymbols';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS } from '@/data/tradingSymbols';
+import { quoteIdFor } from '@/lib/priceSource';
+import { useMarketQuotes } from '@/hooks/useMarketQuotes';
+
+// Live quote lookup for a list of catalog keys — no synthetic fallback.
+function useKeyQuotes(keys: string[]) {
+  const ids = keys.map((k) => {
+    const sym = ALL_SYMBOLS.find((s) => s.key === k);
+    return sym ? quoteIdFor(sym) : null;
+  });
+  const { quotes } = useMarketQuotes(ids, 30000);
+  const byKey: Record<string, { p: number; c: number }> = {};
+  keys.forEach((k, i) => {
+    const id = ids[i];
+    const q = id ? quotes[id] : undefined;
+    if (q && q.last > 0) byKey[k] = { p: q.last, c: q.change24h ?? 0 };
+  });
+  return byKey;
+}
 
 const TABS = ['CRYPTO', 'STOCKS', 'FOREX', 'ENERGY', 'METALS', 'BONDS'] as const;
 type Tab = (typeof TABS)[number];
@@ -71,6 +89,8 @@ const stockSectors: Record<string, { label: string; color: string; keys: string[
 };
 
 function StocksHeatmap() {
+  const allKeys = Object.values(stockSectors).flatMap((s) => s.keys);
+  const priceByKey = useKeyQuotes(allKeys);
   return (
     <div className="space-y-3">
       {Object.values(stockSectors).map((sector) => (
@@ -78,7 +98,7 @@ function StocksHeatmap() {
           <div className="text-[8px] font-display tracking-[0.2em] text-marble/30 mb-1">{sector.label.toUpperCase()}</div>
           <div className="flex flex-wrap gap-1">
             {sector.keys.map((key) => {
-              const sp = SYNTHETIC_PRICES[key];
+              const sp = priceByKey[key];
               if (!sp) return null;
               const bgOpacity = Math.min(Math.abs(sp.c) / 3, 0.7);
               const bgColor = sp.c >= 0 ? `hsla(145, 70%, 45%, ${bgOpacity})` : `hsla(0, 70%, 50%, ${bgOpacity})`;
@@ -211,10 +231,11 @@ function BondsHeatmap() {
     lqd: 'IG Corp', hyg: 'HY Corp', bnd: 'Total Bond', agg: 'US Agg',
     mub: 'Muni', emb: 'EM Bond', govt: 'US Treasury', vcsh: 'Short Corp',
   };
+  const priceByKey = useKeyQuotes(bondKeys);
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
       {bondKeys.map(key => {
-        const sp = SYNTHETIC_PRICES[key];
+        const sp = priceByKey[key];
         if (!sp) return null;
         const yieldEst = (100 - sp.p) / 20;
         const yieldColor = yieldEst > 3 ? 'hsla(0, 60%, 50%, 0.3)' : yieldEst > 1.5 ? 'hsla(43, 60%, 50%, 0.2)' : 'hsla(145, 60%, 45%, 0.2)';

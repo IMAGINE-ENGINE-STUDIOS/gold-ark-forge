@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
-import { ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import { buildTechnicalSnapshot } from '@/lib/technicalSignals';
 import type { PaperPosition } from '@/hooks/usePaperTrading';
 

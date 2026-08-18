@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ALL_SYMBOLS } from '@/data/tradingSymbols';
+import { quoteIdFor } from '@/lib/priceSource';
+import { useMarketQuote } from '@/hooks/useMarketQuotes';
 
 /**
  * LivePriceIndicator — reusable live price readout.
@@ -6,8 +9,9 @@ import { useEffect, useState } from 'react';
  * gold-themed pill with a pulsing status dot.
  *
  * Priority for price source:
- *   1. `getPriceByTicker` prop (widget-scoped resolver)
- *   2. returns 0 (renders em-dash) when unavailable
+ *   1. `getPriceByTicker` prop (widget-scoped resolver, usually a WS feed)
+ *   2. the unified `market-quotes` service (Yahoo / gold-api / Coinbase)
+ *   3. "NO FEED" — never a synthetic number
  *
  * Drop into any widget:
  *   <LivePriceIndicator ticker={sym} />
@@ -47,6 +51,13 @@ export function LivePriceIndicator({
 }: LivePriceIndicatorProps) {
   const [price, setPrice] = useState<number>(() => (ticker ? resolve(ticker, getPriceByTicker) : 0));
 
+  const quoteId = useMemo(() => {
+    if (!ticker) return null;
+    const sym = ALL_SYMBOLS.find((s) => s.ticker === ticker || s.key === ticker);
+    return sym ? quoteIdFor(sym) : null;
+  }, [ticker]);
+  const { price: servicePrice } = useMarketQuote(quoteId, 10000);
+
   useEffect(() => {
     if (!ticker) return;
     const tick = () => {
@@ -59,6 +70,10 @@ export function LivePriceIndicator({
     return () => clearInterval(id);
   }, [ticker, getPriceByTicker, intervalMs, onPrice]);
 
+  useEffect(() => {
+    if (price === 0 && servicePrice && servicePrice > 0 && onPrice) onPrice(servicePrice);
+  }, [price, servicePrice, onPrice]);
+
   if (!ticker) {
     return (
       <div className={`flex items-center justify-between rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5 ${className}`}>
@@ -70,10 +85,12 @@ export function LivePriceIndicator({
     );
   }
 
-  const live = price > 0;
+  const effective = price > 0 ? price : servicePrice ?? 0;
+  const live = effective > 0;
+  const sourceTag = price > 0 ? 'LIVE' : servicePrice ? 'FEED' : 'NO FEED';
   const formatted = live
-    ? `$${price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 4 : 2 })}`
-    : '—';
+    ? `$${effective.toLocaleString('en-US', { maximumFractionDigits: effective < 10 ? 4 : 2 })}`
+    : 'NO FEED';
 
   if (compact) {
     return (
@@ -89,7 +106,7 @@ export function LivePriceIndicator({
       <div className="flex items-center gap-1.5">
         <span className={`h-1.5 w-1.5 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gold/40'}`} />
         {showLabel && (
-          <span className="text-[9px] font-mono tracking-wider text-gold/70">LIVE · {ticker}</span>
+          <span className="text-[9px] font-mono tracking-wider text-gold/70">{sourceTag} · {ticker}</span>
         )}
       </div>
       <span className="text-[11px] font-mono font-semibold text-gold-light">{formatted}</span>
