@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Search, Radar } from 'lucide-react';
 import { usePipeline, usePipelinePrice } from './PipelineProvider';
+import SymbolLogo from '@/components/trading/SymbolLogo';
 import type { WatchlistSymbol } from '@/data/tradingSymbols';
 
 const PAGE = 60;
@@ -29,7 +30,10 @@ const AssetTile = ({ sym, onPick, active }: { sym: WatchlistSymbol; onPick: (s: 
       }`}
     >
       <div className="relative z-10 flex items-center justify-between gap-2">
-        <span className="truncate font-display text-[10px] tracking-[0.12em] text-gold-light">{sym.label}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <SymbolLogo symbolKey={sym.key} category={sym.cat} ticker={sym.ticker} size={14} className="shrink-0" />
+          <span className="truncate font-display text-[10px] tracking-[0.12em] text-gold-light">{sym.label}</span>
+        </span>
         <span className="shrink-0 font-mono text-[7px] uppercase tracking-widest text-muted-foreground">{sym.cat}</span>
       </div>
       <div className="relative z-10 mt-1 flex items-end justify-between gap-2">
