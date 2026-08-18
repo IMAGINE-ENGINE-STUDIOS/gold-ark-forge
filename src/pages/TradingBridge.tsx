@@ -51,7 +51,7 @@ import WorkflowCanvas from '@/components/trading/WorkflowCanvas';
 import SchedulePanel from '@/components/trading/SchedulePanel';
 import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
-import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, SYNTHETIC_PRICES, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import { quoteIdFor } from '@/lib/priceSource';
 import { useMarketQuotes } from '@/hooks/useMarketQuotes';
 import SymbolLogo from '@/components/trading/SymbolLogo';
@@ -688,13 +688,21 @@ const TradingBridge = () => {
   const { data: oilPricesData } = useOilGasPrices();
   const { data: forexRatesData } = useForexRates();
   // Live quotes for the active symbol + everything currently held (real feeds only)
+  const paperEarly = usePaperTrading(useAuth().user?.id);
   const quoteIds = useMemo(() => {
     const ids = new Set<string>();
     const activeId = quoteIdFor(activeSymbol);
     if (activeId) ids.add(activeId);
+    paperEarly.positions.forEach((pos) => {
+      const sym = ALL_SYMBOLS.find((s) => s.ticker === pos.symbol);
+      const id = sym ? quoteIdFor(sym) : null;
+      if (id) ids.add(id);
+    });
     return Array.from(ids);
-  }, [activeSymbol]);
+  }, [activeSymbol, paperEarly.positions]);
   const { quotes: liveQuotes } = useMarketQuotes(quoteIds, 10000);
+  const liveQuotesRef = useRef(liveQuotes);
+  useEffect(() => { liveQuotesRef.current = liveQuotes; }, [liveQuotes]);
   const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
   const { user } = useAuth();
@@ -734,9 +742,8 @@ const TradingBridge = () => {
       const fx = resolveFxPair(sym.ticker, forexRatesData);
       if (fx > 0) return fx;
     }
-    // Fallback: use synthetic prices so bot can always trade
-    const sp = SYNTHETIC_PRICES[sym.key];
-    return sp?.p ?? 0;
+    // No real feed available — refuse to invent a price
+    return 0;
   }, [metalPricesData, cryptoDataAll, oilPricesData, forexRatesData, liveQuotes]);
 
   // Resolve current price for active symbol
@@ -760,7 +767,7 @@ const TradingBridge = () => {
       const feed = oilPricesData?.find(p => p.symbol === sym.ticker);
       if (feed) return feed.change;
     }
-    return SYNTHETIC_PRICES[sym.key]?.c ?? 0;
+    return 0;
   }, [activeSymbol, metalPricesData, cryptoDataAll, oilPricesData, liveQuotes]);
 
   // Build a price map for all held paper positions and keep them updated
@@ -987,8 +994,8 @@ const TradingBridge = () => {
     // Fallback: use change% as proxy
     const sym = ALL_SYMBOLS.find(s => s.ticker === _ticker);
     if (!sym) return 0;
-    const sp = SYNTHETIC_PRICES[sym.key];
-    const change = sp?.c ?? 0;
+    const qid = quoteIdFor(sym);
+    const change = qid ? (liveQuotesRef.current[qid]?.change24h ?? 0) : 0;
     return Math.max(-1, Math.min(1, change / 5));
   }, []);
 
