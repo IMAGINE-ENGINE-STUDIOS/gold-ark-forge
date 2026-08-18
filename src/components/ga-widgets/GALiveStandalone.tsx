@@ -15,6 +15,8 @@ import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWebSocketPrices, useSimulatedStream } from '@/hooks/useWebSocketPrices';
+import { quoteIdFor } from '@/lib/priceSource';
+import { useMarketQuote } from '@/hooks/useMarketQuotes';
 import { SYNTHETIC_PRICES, CATEGORY_COLORS, ALL_SYMBOLS, WATCHLIST_CATEGORIES, type WatchlistSymbol } from '@/data/tradingSymbols';
 import {
   IndicatorToggleBar,
@@ -266,6 +268,11 @@ const GALiveStandalone = () => {
   const { data: cryptoData } = useCryptoData(50);
   const { data: oilPrices } = useOilGasPrices();
   const wsPrices = useWebSocketPrices([symbolKey]);
+  const quoteId = useMemo(() => {
+    const sym = ALL_SYMBOLS.find((s) => s.key === symbolKey);
+    return sym ? quoteIdFor(sym) : null;
+  }, [symbolKey]);
+  const { quote: liveQuote } = useMarketQuote(quoteId, 10000);
   const wsData = wsPrices[symbolKey];
 
   const { basePrice, baseChange } = useMemo(() => {
@@ -284,9 +291,11 @@ const GALiveStandalone = () => {
       const feed = oilPrices?.find((p) => p.symbol === sym);
       return { basePrice: feed?.price ?? 0, baseChange: feed?.change ?? 0 };
     }
-    const sp = SYNTHETIC_PRICES[symbolKey] ?? { p: 100, c: 0 };
-    return { basePrice: sp.p, baseChange: sp.c };
-  }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData]);
+    if (liveQuote && liveQuote.last > 0) {
+      return { basePrice: liveQuote.last, baseChange: liveQuote.change24h ?? 0 };
+    }
+    return { basePrice: 0, baseChange: 0 };
+  }, [symbolKey, category, metalPrices, cryptoData, oilPrices, wsData, liveQuote]);
 
   const { price: streamedPrice, change: streamedChange } = useSimulatedStream(basePrice, baseChange, symbolKey);
   const isWsLive = !!wsData && wsData.price > 0;
