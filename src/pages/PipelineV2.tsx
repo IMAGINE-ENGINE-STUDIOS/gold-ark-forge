@@ -10,6 +10,7 @@ import GeniusV2Assistant, { type GeniusV2Action } from '@/components/pipeline/Ge
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { ASSET_CLASSES, classifyAssets, type ClassId } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
+import { buildMarketIntelligence } from '@/lib/objectiveEngine';
 import { loadBlocks, saveBlocks, normalizeBlockCode, type CustomBlock } from '@/lib/customBlocks';
 import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import type { BpKind } from '@/lib/blueprintEngine';
@@ -51,11 +52,19 @@ const Workspace = () => {
 
   const registerApi = useCallback((api: any) => { apiRef.current = api; }, []);
 
-  const buildPageContext = useCallback(() => {
+  const buildPageContext = useCallback((message?: string) => {
     const api = apiRef.current?.getState();
+    const intel = buildMarketIntelligence({
+      classified,
+      getSeries,
+      objectiveText: message,
+      sampleSeconds: 5,
+      limit: 12,
+    });
     return {
       route: '/pipeline-v2',
       account: paper.account,
+      marketIntelligence: intel,
       screens: ASSET_CLASSES.map((c) => ({
         id: c.id, label: c.label, blurb: c.blurb,
         top: [...classified]
@@ -71,7 +80,7 @@ const Workspace = () => {
       lastExecutionTrace: (api?.log ?? []).slice(-30),
       running: api?.running ?? false,
     };
-  }, [classified, paper.account]);
+  }, [classified, paper.account, getSeries]);
 
   const applyActions = useCallback((actions: GeniusV2Action[]) => {
     const api = apiRef.current;
