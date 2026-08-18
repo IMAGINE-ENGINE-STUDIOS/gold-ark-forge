@@ -316,46 +316,71 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
     setNodes(prev => prev.map(n => n.id === id ? { ...n, config: { ...n.config, ...patch }, label: patch.symbol ?? n.label } : n));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-3">
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3">
       {/* Gallery */}
       <div className="border border-gold/20 rounded-md bg-black/40 p-2 space-y-3 max-h-[560px] overflow-y-auto">
         <div className="flex items-center justify-between px-1">
           <span className="font-display text-[10px] tracking-[0.2em] text-gold-light">GALLERY</span>
-          <span className="text-[8px] font-mono text-gold/50">DRAG →</span>
+          <span className="text-[8px] font-mono text-gold/50">DRAG OR CLICK →</span>
         </div>
 
         {/* Symbols group with search */}
         <div>
           <div className="flex items-center justify-between px-1 mb-1">
-            <span className="text-[9px] font-mono tracking-widest text-gold/60">SYMBOLS</span>
-            <span className="text-[8px] font-mono text-gold/40">{ALL_SYMBOLS.length}</span>
+            <span className="text-[9px] font-mono tracking-widest text-gold/60">ASSET UNIVERSE</span>
+            <span className="text-[8px] font-mono text-gold/40">{symbolMatches.length} / {ALL_SYMBOLS.length}</span>
           </div>
           <div className="relative mb-1.5">
             <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gold/50" />
             <input
               value={symbolQuery}
-              onChange={(e) => setSymbolQuery(e.target.value)}
-              placeholder="Search XAU, BTC, AAPL…"
+              onChange={(e) => { setSymbolQuery(e.target.value); setSymbolLimit(40); }}
+              placeholder="SEARCH ANY ASSET…"
               className="w-full pl-6 pr-2 py-1 text-[9px] font-mono bg-black/60 border border-gold/20 rounded focus:border-gold/60 outline-none text-gold-light placeholder:text-gold/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-1 max-h-[160px] overflow-y-auto pr-0.5">
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {symbolCats.map(c => (
+              <button
+                key={c}
+                onClick={() => { setSymbolCat(c); setSymbolLimit(40); }}
+                className={`rounded-full border border-gold/25 bg-gold/5 px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-[0.18em] transition-colors ${
+                  symbolCat === c ? 'text-gold-light border-gold/60' : 'text-muted-foreground hover:text-gold-light'
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-1 max-h-[220px] overflow-y-auto pr-0.5">
             {symbolResults.map(s => (
-              <div
-                key={s.key}
+              <button
+                key={`${s.cat}-${s.key}-${s.ticker}`}
                 draggable
                 onDragStart={(e) => onGalleryDragStart(e, 'symbol', { label: s.label, ticker: s.ticker })}
-                className="cursor-grab active:cursor-grabbing select-none flex items-center gap-1 px-1.5 py-1 rounded border border-gold/30 bg-gold/5 hover:bg-gold/15 transition"
-                title={`Drag ${s.label} (${s.ticker})`}
+                onClick={() => addSymbolNode({ label: s.label, ticker: s.ticker })}
+                className="group relative overflow-hidden cursor-grab active:cursor-grabbing select-none rounded border border-gold/25 bg-gold/5 px-1.5 py-1 text-left transition hover:bg-gold/15"
+                title={`Drag or click ${s.label} (${s.ticker})`}
               >
-                <Tag className="w-2.5 h-2.5 text-gold" />
-                <span className="text-[8px] font-mono tracking-wider text-gold-light truncate">{s.label}</span>
-              </div>
+                <span className="flex min-w-0 items-center gap-1">
+                  <SymbolLogo symbolKey={s.key} category={s.cat} ticker={s.ticker} size={12} className="shrink-0" />
+                  <span className="truncate font-display text-[8px] tracking-[0.1em] text-gold-light">{s.label}</span>
+                </span>
+                <span className="mt-0.5 block font-mono text-[6px] uppercase tracking-widest text-muted-foreground">{s.cat}</span>
+              </button>
             ))}
             {symbolResults.length === 0 && (
               <div className="col-span-2 text-[9px] font-mono text-gold/40 text-center py-2">No matches</div>
             )}
           </div>
+          {symbolLimit < symbolMatches.length && (
+            <button
+              onClick={() => setSymbolLimit(l => l + 40)}
+              className="mt-1.5 w-full rounded-full border border-gold/25 bg-gold/5 py-1 font-mono text-[8px] tracking-[0.2em] text-gold-light hover:text-gold"
+            >
+              LOAD {Math.min(40, symbolMatches.length - symbolLimit)} MORE
+            </button>
+          )}
         </div>
 
         {groups.map(group => (
@@ -366,16 +391,17 @@ export default function WorkflowCanvas({ paper, getPriceByTicker }: WorkflowCanv
                 const t = tintClasses(item.tint);
                 const Icon = item.Icon;
                 return (
-                  <div
+                  <button
                     key={item.kind + item.label}
                     draggable
                     onDragStart={(e) => onGalleryDragStart(e, item.kind)}
-                    className={`cursor-grab active:cursor-grabbing select-none flex items-center gap-1.5 px-1.5 py-1.5 rounded border ${t.border} ${t.bg} hover:brightness-125 transition`}
-                    title={`Drag ${item.label} into the workflow`}
+                    onClick={() => addKindNode(item.kind)}
+                    className={`cursor-grab active:cursor-grabbing select-none flex w-full items-center gap-1.5 px-1.5 py-1.5 rounded border ${t.border} ${t.bg} hover:brightness-125 transition`}
+                    title={`Drag or click ${item.label} to add it to the workflow`}
                   >
                     <Icon className={`w-3 h-3 ${t.text}`} />
                     <span className={`text-[9px] font-mono tracking-wider ${t.text}`}>{item.label}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
