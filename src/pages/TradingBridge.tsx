@@ -688,25 +688,24 @@ const TradingBridge = () => {
   const { data: oilPricesData } = useOilGasPrices();
   const { data: forexRatesData } = useForexRates();
   // Live quotes for the active symbol + everything currently held (real feeds only)
-  const paperEarly = usePaperTrading(useAuth().user?.id);
+  const priceAlertsHook = usePriceAlerts();
+  const riskMonitor = useRiskMonitor();
+  const { user } = useAuth();
+  const paper = usePaperTrading(user?.id);
   const quoteIds = useMemo(() => {
     const ids = new Set<string>();
     const activeId = quoteIdFor(activeSymbol);
     if (activeId) ids.add(activeId);
-    paperEarly.positions.forEach((pos) => {
+    paper.positions.forEach((pos) => {
       const sym = ALL_SYMBOLS.find((s) => s.ticker === pos.symbol);
       const id = sym ? quoteIdFor(sym) : null;
       if (id) ids.add(id);
     });
     return Array.from(ids);
-  }, [activeSymbol, paperEarly.positions]);
+  }, [activeSymbol, paper.positions]);
   const { quotes: liveQuotes } = useMarketQuotes(quoteIds, 10000);
   const liveQuotesRef = useRef(liveQuotes);
   useEffect(() => { liveQuotesRef.current = liveQuotes; }, [liveQuotes]);
-  const priceAlertsHook = usePriceAlerts();
-  const riskMonitor = useRiskMonitor();
-  const { user } = useAuth();
-  const paper = usePaperTrading(user?.id);
 
   // Filter watchlist by search
   const filteredCategories = useMemo(() => {
