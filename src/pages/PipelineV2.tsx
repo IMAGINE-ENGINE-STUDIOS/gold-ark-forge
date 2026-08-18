@@ -9,7 +9,7 @@ import CodeStudio from '@/components/pipeline/CodeStudio';
 import GeniusV2Assistant, { type GeniusV2Action } from '@/components/pipeline/GeniusV2Assistant';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { ASSET_CLASSES, classifyAssets, type ClassId } from '@/lib/assetClassifiers';
-import { ANALYSIS_PROGRAMS, defaultParamsFor } from '@/lib/analysisPrograms';
+import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
 import { loadBlocks, saveBlocks, normalizeBlockCode, type CustomBlock } from '@/lib/customBlocks';
 import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import type { BpKind } from '@/lib/blueprintEngine';
@@ -78,6 +78,7 @@ const Workspace = () => {
     const notes: string[] = [];
     if (!api) return ['Blueprint canvas not ready.'];
     let created = [...blocksRef.current];
+    let blocksMutated = false;
     for (const a of actions) {
       try {
         switch (a.op) {
@@ -108,6 +109,7 @@ const Workspace = () => {
               ? { ...existing, code, description: a.description ?? existing.description, updatedAt: Date.now() }
               : { id: blockUid(), name, description: a.description ?? '', language: 'javascript', code, tint: 'cyan', createdAt: Date.now(), updatedAt: Date.now() };
             created = existing ? created.map((x) => (x.id === next.id ? next : x)) : [...created, next];
+            blocksMutated = true;
             notes.push(`code box "${name}" ${existing ? 'updated' : 'created'}`);
             break;
           }
@@ -132,7 +134,7 @@ const Workspace = () => {
         notes.push(`action ${a.op} failed: ${e?.message ?? e}`);
       }
     }
-    if (created !== blocksRef.current) { blocksRef.current = created; setBlocks(created); saveBlocks(created); }
+    if (blocksMutated) { blocksRef.current = created; setBlocks(created); saveBlocks(created); }
     return notes;
   }, []);
 
