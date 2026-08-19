@@ -188,7 +188,7 @@ export default function PipelineScene3D(props: SceneProps) {
   return (
     <Canvas
       dpr={[1, 1.8]}
-      camera={{ position: [-6, 6.5, 11], fov: 50 }}
+      camera={{ position: [-5, 6, 13], fov: 48 }}
       gl={{ antialias: true, alpha: true }}
       style={{ width: '100%', height: '100%' }}
     >
