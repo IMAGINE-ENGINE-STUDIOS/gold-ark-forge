@@ -465,6 +465,14 @@ const Workspace = () => {
           </div>
         )}
 
+        <AccountHud
+          account={paper.account}
+          positions={paper.positions}
+          budget={graph.risk.maxTotalInvestmentUsd}
+          lossLimitPct={graph.risk.maxDrawdownPct}
+          runStartEquity={runStartEquity}
+        />
+
         <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
           {/* left rail */}
           <aside className="order-2 flex h-[460px] flex-col rounded-xl border border-border/60 bg-card/40 p-2 backdrop-blur lg:order-1 lg:h-[640px]">
