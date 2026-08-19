@@ -191,6 +191,28 @@ const Workspace = () => {
     [events],
   );
 
+  /* per-lane live performance derived from the run trace */
+  const laneStats = useMemo<LaneStat[]>(() => graph.lanes.map((lane) => {
+    const evs = events.filter((e) => e.laneId === lane.id);
+    const done = new Set(evs.map((e) => e.stepId).filter(Boolean)).size;
+    const trades = evs.filter((e) => e.status === 'ok' && /^(Bought|Sold) \$/.test(e.message)).length;
+    const invested = evs.reduce((sum, e) => {
+      const m = e.message.match(/^Bought \$([\d,]+)/);
+      return m ? sum + Number(m[1].replace(/,/g, '')) : sum;
+    }, 0);
+    const errors = evs.filter((e) => e.status === 'error').length;
+    const status: LaneStat['status'] =
+      errors ? 'error'
+      : running && evs.length ? 'running'
+      : evs.length ? 'done'
+      : 'idle';
+    return {
+      laneId: lane.id, laneName: lane.name, steps: lane.steps.length,
+      done, trades, invested, errors, status,
+      last: evs.length ? evs[evs.length - 1].message : '',
+    };
+  }), [graph.lanes, events, running]);
+
   const reporterRef = useRef<((trace: string) => void) | null>(null);
   const registerReporter = useCallback((fn: (trace: string) => void) => { reporterRef.current = fn; }, []);
 
