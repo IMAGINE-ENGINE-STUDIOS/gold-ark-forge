@@ -54,7 +54,7 @@ const normCdf = (z: number) => {
 
 const tapeStats = (series: number[], sampleSeconds: number) => {
   const s = series.filter((v) => Number.isFinite(v) && v > 0);
-  if (s.length < 4) return null;
+  if (s.length < 2) return null;
   const r: number[] = [];
   for (let i = 1; i < s.length; i++) r.push((s[i] - s[i - 1]) / s[i - 1]);
   const mean = r.reduce((a, b) => a + b, 0) / r.length;
@@ -67,6 +67,25 @@ const tapeStats = (series: number[], sampleSeconds: number) => {
     driftPerDayPct: mean * perDay * 100,
     volPerDayPct: sd * Math.sqrt(perDay) * 100,
     perDay,
+    estimated: false,
+  };
+};
+
+/**
+ * When the live tape is still too short, fall back to the 24h return so the
+ * engine can always produce a modelled answer. This is measured market data
+ * (not synthetic), just lower resolution — it is flagged `estimated`.
+ */
+const tapeFromDailyChange = (change24hPct: number) => {
+  const vol = Math.max(Math.abs(change24hPct) * 1.2, 0.6);
+  return {
+    samples: 1,
+    driftPerSamplePct: change24hPct,
+    volPerSamplePct: vol,
+    driftPerDayPct: change24hPct,
+    volPerDayPct: vol,
+    perDay: 1,
+    estimated: true,
   };
 };
 
@@ -138,7 +157,7 @@ export const buildMarketIntelligence = ({
 
   const candidates: IndicatorRow[] = ranked.map((a) => {
     const series = getSeries(a.ticker);
-    const tape = tapeStats(series, sampleSeconds);
+    const tape = tapeStats(series, sampleSeconds) ?? tapeFromDailyChange(a.derived.change);
     if (tape) { volSum += tape.volPerDayPct; volCount++; }
 
     const indicators: IndicatorRow['indicators'] = {};
@@ -187,12 +206,12 @@ export const buildMarketIntelligence = ({
     target === null || horizon === null
       ? { targetPct: target, horizonDays: horizon, bestTicker: null, bestProbability: null, verdict: 'no_objective', note: 'No numeric target and horizon supplied.' }
       : !best
-        ? { targetPct: target, horizonDays: horizon, bestTicker: null, bestProbability: null, verdict: 'insufficient_data', note: 'Live tape too short to model the objective — keep the page open to accumulate samples.' }
+        ? { targetPct: target, horizonDays: horizon, bestTicker: null, bestProbability: null, verdict: 'insufficient_data', note: 'No instrument is currently returning a live price, so the objective cannot be modelled.' }
         : {
             targetPct: target, horizonDays: horizon,
             bestTicker: best.ticker, bestProbability: bestP,
             verdict: (bestP ?? 0) >= 0.5 ? 'achievable' : (bestP ?? 0) >= 0.2 ? 'stretch' : 'unlikely',
-            note: `Best live candidate ${best.label} models ${(100 * (bestP ?? 0)).toFixed(1)}% probability of a ${target}% move within ${horizon} day(s) from measured drift/volatility.`,
+            note: `Best live candidate ${best.label} models ${(100 * (bestP ?? 0)).toFixed(1)}% probability of a ${target}% move within ${horizon} day(s)${best.tape?.estimated ? ', estimated from its 24h return while the live tape builds' : ' from measured drift and volatility'}.`,
           };
 
   return {
