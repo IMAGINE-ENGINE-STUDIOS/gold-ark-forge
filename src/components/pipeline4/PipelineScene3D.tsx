@@ -118,7 +118,14 @@ function GraphScene(props: SceneProps) {
       <ambientLight intensity={0.6} />
       <pointLight position={[6, 8, 8]} intensity={90} color="#d4af37" />
       <pointLight position={[-8, 4, -6]} intensity={50} color="#38bdf8" />
-      <gridHelper args={[60, 60, '#d4af3733', '#ffffff10']} position={[6, -1.4, 0]} />
+      <gridHelper args={[80, 40, '#d4af3722', '#243044']} position={[8, -1.5, 0]} />
+      <fog attach="fog" args={['#05070d', 16, 46]} />
+
+      {!graph.lanes.some((l) => l.steps.length) && (
+        <Text position={[3, 0.6, 0]} fontSize={0.36} color="#d4af37" anchorX="center">
+          Add a step from the left, or ask Genius to build it
+        </Text>
+      )}
 
       {graph.lanes.map((lane, li) => {
         const z = laneZ(li);
@@ -171,7 +178,7 @@ function GraphScene(props: SceneProps) {
         minDistance={5}
         maxDistance={40}
         maxPolarAngle={Math.PI / 2.05}
-        target={[Math.max(2, 0), 0, 0]}
+        target={[3, 0, 0]}
       />
     </>
   );
