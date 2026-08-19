@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
                   },
                 },
               },
-              required: ["reply"],
+              required: ["reply", "choices"],
               additionalProperties: false,
             },
           },
