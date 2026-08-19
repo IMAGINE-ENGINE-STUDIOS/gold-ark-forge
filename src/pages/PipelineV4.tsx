@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users } from 'lucide-react';
+import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import PipelineScene3D from '@/components/pipeline4/PipelineScene3D';
 import BlockPalette from '@/components/pipeline4/BlockPalette';
 import StepInspector from '@/components/pipeline4/StepInspector';
 import GeniusPanel, { type GeniusAction, type GeniusMemory } from '@/components/pipeline4/GeniusPanel';
+import AccountHud from '@/components/pipeline4/AccountHud';
+import PositionsPanel from '@/components/pipeline4/PositionsPanel';
+import OrdersPanel from '@/components/pipeline4/OrdersPanel';
+import TradeDesk from '@/components/pipeline4/TradeDesk';
+import ScreensPanel from '@/components/pipeline4/ScreensPanel';
+import RunPerformance, { type LaneStat } from '@/components/pipeline4/RunPerformance';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { ASSET_CLASSES, classifyAssets } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID } from '@/lib/analysisPrograms';
@@ -30,6 +36,9 @@ const Workspace = () => {
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [panel, setPanel] = useState<'genius' | 'step' | 'report'>('genius');
+  const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
+  const [equityCurve, setEquityCurve] = useState<number[]>([]);
+  const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
   const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
   const stopRef = useRef(false);
   const graphRef = useRef(graph);
@@ -68,6 +77,37 @@ const Workspace = () => {
     }),
     [graph, blocks],
   );
+
+  /* ── live P&L: repaint open positions from the feed every second ── */
+  const positionsRef = useRef(paper.positions);
+  positionsRef.current = paper.positions;
+  const updatePricesRef = useRef(paper.updatePrices);
+  updatePricesRef.current = paper.updatePrices;
+  const priceRef = useRef(resolvePriceForTicker);
+  priceRef.current = resolvePriceForTicker;
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const map: Record<string, number> = {};
+      for (const p of positionsRef.current) {
+        const px = priceRef.current(p.symbol);
+        if (px > 0) map[p.symbol] = px;
+      }
+      if (Object.keys(map).length) updatePricesRef.current(map);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  /* ── equity curve sampling while a run is live ── */
+  const equityRef = useRef(paper.account.equity);
+  equityRef.current = paper.account.equity;
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => {
+      setEquityCurve((c) => [...c.slice(-179), equityRef.current]);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [running]);
   const blockingIssues = issues.filter((i) => i.level === 'error');
 
   const selectedLane = graph.lanes.find((l) => l.id === selectedLaneId) ?? graph.lanes[0] ?? null;
@@ -151,6 +191,28 @@ const Workspace = () => {
     [events],
   );
 
+  /* per-lane live performance derived from the run trace */
+  const laneStats = useMemo<LaneStat[]>(() => graph.lanes.map((lane) => {
+    const evs = events.filter((e) => e.laneId === lane.id);
+    const done = new Set(evs.map((e) => e.stepId).filter(Boolean)).size;
+    const trades = evs.filter((e) => e.status === 'ok' && /^(Bought|Sold) \$/.test(e.message)).length;
+    const invested = evs.reduce((sum, e) => {
+      const m = e.message.match(/^Bought \$([\d,]+)/);
+      return m ? sum + Number(m[1].replace(/,/g, '')) : sum;
+    }, 0);
+    const errors = evs.filter((e) => e.status === 'error').length;
+    const status: LaneStat['status'] =
+      errors ? 'error'
+      : running && evs.length ? 'running'
+      : evs.length ? 'done'
+      : 'idle';
+    return {
+      laneId: lane.id, laneName: lane.name, steps: lane.steps.length,
+      done, trades, invested, errors, status,
+      last: evs.length ? evs[evs.length - 1].message : '',
+    };
+  }), [graph.lanes, events, running]);
+
   const reporterRef = useRef<((trace: string) => void) | null>(null);
   const registerReporter = useCallback((fn: (trace: string) => void) => { reporterRef.current = fn; }, []);
 
@@ -160,6 +222,8 @@ const Workspace = () => {
     setEvents([]);
     setRunning(true);
     setPanel('report');
+    setRunStartEquity(paper.account.equity);
+    setEquityCurve([paper.account.equity]);
     const collected: any[] = [];
     try {
       await runGraph(
@@ -401,10 +465,76 @@ const Workspace = () => {
           </div>
         )}
 
+        <AccountHud
+          account={paper.account}
+          positions={paper.positions}
+          budget={graph.risk.maxTotalInvestmentUsd}
+          lossLimitPct={graph.risk.maxDrawdownPct}
+          runStartEquity={runStartEquity}
+        />
+
         <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
-          {/* palette */}
-          <aside className="order-2 h-[420px] rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur lg:order-1 lg:h-[640px]">
-            <BlockPalette onAdd={addBlock} laneName={selectedLane?.name ?? 'Lane 1'} />
+          {/* left rail */}
+          <aside className="order-2 flex h-[460px] flex-col rounded-xl border border-border/60 bg-card/40 p-2 backdrop-blur lg:order-1 lg:h-[640px]">
+            <div className="mb-2 grid grid-cols-5 gap-1">
+              {([
+                { id: 'blocks', label: 'Blocks', icon: Boxes },
+                { id: 'positions', label: 'Book', icon: Wallet },
+                { id: 'orders', label: 'Fills', icon: Receipt },
+                { id: 'trade', label: 'Trade', icon: CandlestickChart },
+                { id: 'screens', label: 'Screens', icon: LayoutGrid },
+              ] as const).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setRail(t.id)}
+                  title={t.label}
+                  className={`flex flex-col items-center gap-0.5 rounded-md border px-1 py-1 text-[11px] transition ${
+                    rail === t.id ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <t.icon className="h-3.5 w-3.5" />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1">
+              {rail === 'blocks' && <BlockPalette onAdd={addBlock} laneName={selectedLane?.name ?? 'Lane 1'} />}
+              {rail === 'positions' && (
+                <PositionsPanel
+                  positions={paper.positions}
+                  getPrice={resolvePriceForTicker}
+                  onClose={(id, px) => paper.closePosition(id, px)}
+                  onCloseAll={() => paper.positions.forEach((p) => {
+                    const px = resolvePriceForTicker(p.symbol) || p.currentPrice;
+                    if (px > 0) paper.closePosition(p.id, px);
+                  })}
+                />
+              )}
+              {rail === 'orders' && <OrdersPanel orders={paper.orders} />}
+              {rail === 'trade' && (
+                <TradeDesk
+                  getPrice={resolvePriceForTicker}
+                  cash={paper.account.cash}
+                  onSubmit={(p) => paper.submitOrder(p as any)}
+                  defaultTicker={selectedStep?.config?.ticker ?? null}
+                />
+              )}
+              {rail === 'screens' && (
+                <ScreensPanel
+                  assets={classified}
+                  onAddScreen={(classId, label) => {
+                    const laneId = selectedLane?.id ?? addLane();
+                    const id = addStep(laneId, 'screen', label, { classId, limit: 5, bindTop: true });
+                    setSelectedStepId(id); setPanel('step');
+                  }}
+                  onAddAsset={(ticker, label) => {
+                    const laneId = selectedLane?.id ?? addLane();
+                    const id = addStep(laneId, 'asset', label, { ticker, label });
+                    setSelectedStepId(id); setPanel('step');
+                  }}
+                />
+              )}
+            </div>
           </aside>
 
           {/* 3D stage */}
@@ -524,23 +654,14 @@ const Workspace = () => {
               )}
 
               {panel === 'report' && (
-                <div className="h-full space-y-1.5 overflow-y-auto pr-1">
-                  {!events.length && <p className="text-[13px] text-muted-foreground">No run yet. Press “Run all lanes”.</p>}
-                  {events.map((e, i) => (
-                    <div
-                      key={i}
-                      className={`rounded border px-2 py-1 text-[13px] leading-snug ${
-                        e.status === 'error' ? 'border-rose-500/40 text-rose-300'
-                        : e.status === 'ok' ? 'border-emerald-500/30 text-emerald-200'
-                        : e.status === 'skip' ? 'border-border/50 text-muted-foreground'
-                        : 'border-border/40 text-foreground/80'
-                      }`}
-                    >
-                      <span className="text-[12px] text-muted-foreground">{e.laneName} · {e.stepLabel} — </span>
-                      {e.message}
-                    </div>
-                  ))}
-                </div>
+                <RunPerformance
+                  events={events}
+                  lanes={laneStats}
+                  equityCurve={equityCurve}
+                  running={running}
+                  startEquity={runStartEquity}
+                  equity={paper.account.equity}
+                />
               )}
             </div>
           </aside>
