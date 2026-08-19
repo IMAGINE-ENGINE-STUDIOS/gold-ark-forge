@@ -54,7 +54,7 @@ const normCdf = (z: number) => {
 
 const tapeStats = (series: number[], sampleSeconds: number) => {
   const s = series.filter((v) => Number.isFinite(v) && v > 0);
-  if (s.length < 4) return null;
+  if (s.length < 2) return null;
   const r: number[] = [];
   for (let i = 1; i < s.length; i++) r.push((s[i] - s[i - 1]) / s[i - 1]);
   const mean = r.reduce((a, b) => a + b, 0) / r.length;
@@ -67,6 +67,25 @@ const tapeStats = (series: number[], sampleSeconds: number) => {
     driftPerDayPct: mean * perDay * 100,
     volPerDayPct: sd * Math.sqrt(perDay) * 100,
     perDay,
+    estimated: false,
+  };
+};
+
+/**
+ * When the live tape is still too short, fall back to the 24h return so the
+ * engine can always produce a modelled answer. This is measured market data
+ * (not synthetic), just lower resolution — it is flagged `estimated`.
+ */
+const tapeFromDailyChange = (change24hPct: number) => {
+  const vol = Math.max(Math.abs(change24hPct) * 1.2, 0.6);
+  return {
+    samples: 1,
+    driftPerSamplePct: change24hPct,
+    volPerSamplePct: vol,
+    driftPerDayPct: change24hPct,
+    volPerDayPct: vol,
+    perDay: 1,
+    estimated: true,
   };
 };
 
