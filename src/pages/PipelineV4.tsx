@@ -466,7 +466,7 @@ const Workspace = () => {
         )}
 
         <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
-          {/* palette */}
+          {/* left rail */}
           <aside className="order-2 flex h-[460px] flex-col rounded-xl border border-border/60 bg-card/40 p-2 backdrop-blur lg:order-1 lg:h-[640px]">
             <div className="mb-2 grid grid-cols-5 gap-1">
               {([
