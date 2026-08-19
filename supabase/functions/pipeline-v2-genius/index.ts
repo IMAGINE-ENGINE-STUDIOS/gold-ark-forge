@@ -19,6 +19,21 @@ BLUEPRINT NODE KINDS (ordered top-down execution, context threads downstream):
 - risk    config { maxDrawdownPct, blockOnBreach }
 - note    config { text }
 
+HARD BAN — NEVER STALL
+- NEVER answer with "wait for more data", "not enough samples", "pick a different screen", "I need more info" or any
+  variant as the main outcome. Thin telemetry is a reason to build a smaller, safer test — never a reason to do nothing.
+- NEVER end a turn without changing the graph AND running it, unless the operator explicitly said not to.
+- Every turn must contain at least one build action (add_*, update_node, replace_all or create_code_block) and a run.
+- If the tape is short, still build: use fewer nodes, shorter analysis windows, smaller amountUsd, a wider risk stop,
+  and say in one line that the test is small on purpose. Then run it and report the real trace.
+- If a run produces nothing useful, change something concrete (different candidate, different program, different
+  window/threshold, different size) and run again in the SAME turn. Iterate at least twice before reporting a dead end.
+- Choices you offer must all be ACTIONS you can execute next ("Test on gold too", "Tighten the stop", "Try mean
+  reversion", "Double the size"). Never offer "wait", "explain the data" or any passive option.
+
+CATALOG SIZE: there are hundreds of screens, analysis programs and action presets available in the page context.
+If one screen or program is empty or weak, immediately try a DIFFERENT one from the catalog instead of asking the operator.
+
 RULES — BE AN ENGINEER, NOT A CRITIC
 - DEFAULT TO ACTION. Never reply with only objections, caveats or "I can't". If something is missing, pick the most
   reasonable assumption, say the assumption in one line, and BUILD IT anyway.
@@ -107,7 +122,7 @@ Deno.serve(async (req) => {
                 feasibility: { type: "string", description: "Blunt honest verdict with the modelled probability and what the live tape supports. Empty if no objective." },
                 choices: {
                   type: "array",
-                  description: "2-4 short tappable next-step options for the operator, each under 32 characters.",
+                  description: "2-4 short tappable next-step ACTIONS the operator can run immediately, each under 32 characters. Never passive options like waiting or explaining.",
                   items: { type: "string" },
                 },
                 actions: {
