@@ -151,12 +151,16 @@ const Workspace = () => {
     [events],
   );
 
-  const run = useCallback(async () => {
+  const reporterRef = useRef<((trace: string) => void) | null>(null);
+  const registerReporter = useCallback((fn: (trace: string) => void) => { reporterRef.current = fn; }, []);
+
+  const run = useCallback(async (reportToGenius = false) => {
     if (running) return;
     stopRef.current = false;
     setEvents([]);
     setRunning(true);
     setPanel('report');
+    const collected: any[] = [];
     try {
       await runGraph(
         graphRef.current,
@@ -169,10 +173,16 @@ const Workspace = () => {
           submitOrder: paper.submitOrder as any,
           shouldStop: () => stopRef.current,
         },
-        (e) => setEvents((prev) => [...prev, e]),
+        (e) => { collected.push(e); setEvents((prev) => [...prev, e]); },
       );
     } finally {
       setRunning(false);
+      if (reportToGenius && reporterRef.current) {
+        const trace = collected.length
+          ? collected.slice(-40).map((e) => `[${e.status}] ${e.laneName} › ${e.stepLabel}: ${e.message ?? ''}`).join('\n')
+          : 'The run produced no steps at all.';
+        reporterRef.current(trace);
+      }
     }
   }, [running, resolvePriceForTicker, getSeries, classified, paper]);
 
@@ -285,7 +295,7 @@ const Workspace = () => {
         }
         case 'run':
           notes.push('running the strategy');
-          setTimeout(() => { void run(); }, 60);
+          setTimeout(() => { void run(true); }, 60);
           break;
         case 'stop':
           stopRef.current = true;
@@ -435,6 +445,7 @@ const Workspace = () => {
                 <GeniusPanel
                   buildContext={buildContext}
                   onActions={applyActions}
+                  registerReporter={registerReporter}
                   running={running}
                   laneCount={graph.lanes.length}
                   issueCount={blockingIssues.length}
