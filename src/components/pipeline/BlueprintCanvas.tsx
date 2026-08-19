@@ -255,8 +255,10 @@ export default function BlueprintCanvas({
           )}
 
           {tab === 'screens' && (
+            <>
+            {paletteSearch(`SEARCH ${ASSET_CLASSES.length} SCREENS`)}
             <div className="max-h-[440px] space-y-1 overflow-y-auto pr-1">
-              {ASSET_CLASSES.map((c) => (
+              {filteredClasses.map((c) => (
                 <button key={c.id} draggable
                   onDragStart={(e) => e.dataTransfer.setData('application/x-ga-class', c.id)}
                   onClick={() => addScreen(c.id)}
@@ -266,11 +268,14 @@ export default function BlueprintCanvas({
                 </button>
               ))}
             </div>
+            </>
           )}
 
           {tab === 'analysis' && (
+            <>
+            {paletteSearch(`SEARCH ${ANALYSIS_PROGRAMS.length} PROGRAMS`)}
             <div className="max-h-[440px] space-y-1 overflow-y-auto pr-1">
-              {ANALYSIS_PROGRAMS.map((p) => (
+              {filteredPrograms.map((p) => (
                 <button key={p.id} draggable
                   onDragStart={(e) => e.dataTransfer.setData('application/x-ga-program', p.id)}
                   onClick={() => addAnalysis(p.id)}
@@ -280,23 +285,53 @@ export default function BlueprintCanvas({
                 </button>
               ))}
             </div>
+            </>
           )}
 
           {tab === 'actions' && (
-            <div className="grid grid-cols-2 gap-1.5">
-              {(['buy', 'sell', 'alert', 'risk', 'branch', 'note'] as BpKind[]).map((k) => {
-                const meta = KIND_META[k];
-                return (
-                  <button key={k} draggable
-                    onDragStart={(e) => e.dataTransfer.setData('application/x-ga-kind', k)}
-                    onClick={() => addKind(k)}
-                    className={`flex items-center gap-1.5 rounded-md border px-2 py-2 ${classTint(meta.tint)} hover:ring-1 hover:ring-gold/40`}>
-                    <meta.Icon className="h-3.5 w-3.5" />
-                    <span className="font-display text-[9px] tracking-[0.18em]">{meta.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              {paletteSearch(`SEARCH ${ACTION_PRESETS.length} ACTIONS`)}
+              <div className="flex flex-wrap gap-1">
+                {(['ALL', ...PRESET_GROUPS] as const).map((g) => (
+                  <button key={g} onClick={() => setPresetGroup(g)}
+                    className={`alien-chip px-1.5 py-0.5 font-mono text-[7px] tracking-[0.16em] ${presetGroup === g ? 'text-gold-light ring-1 ring-gold/50' : 'text-muted-foreground'}`}>{g}</button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['buy', 'sell', 'alert', 'risk', 'branch', 'note'] as BpKind[]).map((k) => {
+                  const meta = KIND_META[k];
+                  return (
+                    <button key={k} draggable
+                      onDragStart={(e) => e.dataTransfer.setData('application/x-ga-kind', k)}
+                      onClick={() => addKind(k)}
+                      className={`flex items-center gap-1.5 rounded-md border px-2 py-2 ${classTint(meta.tint)} hover:ring-1 hover:ring-gold/40`}>
+                      <meta.Icon className="h-3.5 w-3.5" />
+                      <span className="font-display text-[9px] tracking-[0.18em]">{meta.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
+                {filteredPresets.map((a) => {
+                  const Icon = KIND_META[a.kind].Icon;
+                  return (
+                    <button key={a.id} draggable
+                      onDragStart={(e) => e.dataTransfer.setData('application/x-ga-preset', a.id)}
+                      onClick={() => addPreset(a.id)}
+                      className={`flex w-full items-start gap-1.5 rounded-md border px-2 py-1.5 text-left ${classTint(a.tint)} hover:ring-1 hover:ring-gold/40`}>
+                      <Icon className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block font-display text-[9px] tracking-[0.18em]">{a.label}</span>
+                        <span className="block font-mono text-[7px] leading-relaxed tracking-wider opacity-70">{a.blurb}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+                {filteredPresets.length === 0 && (
+                  <p className="font-mono text-[8px] tracking-wider text-muted-foreground">NO ACTION MATCHES THAT SEARCH.</p>
+                )}
+              </div>
+            </>
           )}
 
           {tab === 'blocks' && (
