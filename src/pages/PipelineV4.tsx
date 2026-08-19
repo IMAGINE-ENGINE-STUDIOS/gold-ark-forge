@@ -36,6 +36,9 @@ const Workspace = () => {
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [panel, setPanel] = useState<'genius' | 'step' | 'report'>('genius');
+  const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
+  const [equityCurve, setEquityCurve] = useState<number[]>([]);
+  const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
   const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
   const stopRef = useRef(false);
   const graphRef = useRef(graph);
