@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users } from 'lucide-react';
+import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import PipelineScene3D from '@/components/pipeline4/PipelineScene3D';
 import BlockPalette from '@/components/pipeline4/BlockPalette';
 import StepInspector from '@/components/pipeline4/StepInspector';
 import GeniusPanel, { type GeniusAction, type GeniusMemory } from '@/components/pipeline4/GeniusPanel';
+import AccountHud from '@/components/pipeline4/AccountHud';
+import PositionsPanel from '@/components/pipeline4/PositionsPanel';
+import OrdersPanel from '@/components/pipeline4/OrdersPanel';
+import TradeDesk from '@/components/pipeline4/TradeDesk';
+import ScreensPanel from '@/components/pipeline4/ScreensPanel';
+import RunPerformance, { type LaneStat } from '@/components/pipeline4/RunPerformance';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { ASSET_CLASSES, classifyAssets } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID } from '@/lib/analysisPrograms';
