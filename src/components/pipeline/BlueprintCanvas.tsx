@@ -134,7 +134,7 @@ export default function BlueprintCanvas({
     if (p) addKind(p.kind, p.config as Record<string, any>, p.label);
   };
 
-  const PaletteSearch = ({ placeholder }: { placeholder: string }) => (
+  const paletteSearch = (placeholder: string) => (
     <div className="alien-chip flex items-center gap-1.5 px-2 py-1.5">
       <Search className="h-3 w-3 text-muted-foreground" />
       <input value={paletteQuery} onChange={(e) => setPaletteQuery(e.target.value)} placeholder={placeholder}
@@ -148,6 +148,8 @@ export default function BlueprintCanvas({
     if (asset) { const { ticker, label } = JSON.parse(asset); addAsset(ticker, label); return; }
     const kind = e.dataTransfer.getData('application/x-ga-kind') as BpKind;
     if (kind) { addKind(kind); return; }
+    const preset = e.dataTransfer.getData('application/x-ga-preset');
+    if (preset) { addPreset(preset); return; }
     const prog = e.dataTransfer.getData('application/x-ga-program');
     if (prog) { addAnalysis(prog); return; }
     const cls = e.dataTransfer.getData('application/x-ga-class');
