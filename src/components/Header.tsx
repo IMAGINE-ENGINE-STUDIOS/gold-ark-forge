@@ -13,7 +13,7 @@ const Header = () => {
     { label: 'Markets', href: '/marketplace', icon: BarChart3 },
     { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
     { label: 'Pipeline', href: '/pipeline', icon: Workflow },
-    { label: 'Pipeline V2', href: '/pipeline-v2', icon: Workflow },
+    { label: 'Pipeline V3', href: '/pipeline-v3', icon: Workflow },
     { label: 'Holo Swap', href: '/hologram', icon: Sparkles },
     { label: 'Intelligence', href: '/intelligence', icon: Brain },
     { label: 'The Vault', href: '/vault', icon: Vault },
