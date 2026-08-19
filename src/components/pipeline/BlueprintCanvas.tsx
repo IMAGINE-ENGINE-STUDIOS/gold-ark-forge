@@ -297,7 +297,7 @@ export default function BlueprintCanvas({
       <section
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => handleDrop(e)}
-        className="alien-panel alien-scan relative min-h-[520px] overflow-hidden p-3"
+        className="alien-panel alien-scan relative min-h-[520px] overflow-x-hidden p-3"
       >
         <div className="relative z-10 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -306,8 +306,9 @@ export default function BlueprintCanvas({
             <span className="alien-chip px-2 py-1 font-mono text-[8px] tracking-[0.18em] text-muted-foreground">{nodes.length} NODES</span>
             <div className="ml-auto flex items-center gap-1.5">
               <button onClick={run} disabled={running || errors.length > 0}
+                title={errors.length > 0 ? errors[0].message : 'Compile and execute every node top-down'}
                 className="alien-chip flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.2em] text-emerald-400 disabled:opacity-40">
-                <Play className="h-3 w-3" /> COMPILE & RUN
+                <Play className="h-3 w-3" /> {running ? 'RUNNING…' : 'COMPILE & RUN'}
               </button>
               <button onClick={() => { stopRef.current = true; }} disabled={!running}
                 className="alien-chip flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.2em] text-rose-400 disabled:opacity-40">
@@ -321,8 +322,8 @@ export default function BlueprintCanvas({
           </div>
 
           {issues.length > 0 && (
-            <div className="space-y-1">
-              {issues.slice(0, 4).map((i, idx) => (
+            <div className="max-h-[140px] space-y-1 overflow-y-auto pr-1">
+              {issues.map((i, idx) => (
                 <p key={idx} className={`flex items-center gap-1.5 font-mono text-[8px] tracking-wider ${i.level === 'error' ? 'text-rose-400' : 'text-amber-400'}`}>
                   <AlertTriangle className="h-3 w-3" /> STEP {i.step}: {i.message}
                 </p>
