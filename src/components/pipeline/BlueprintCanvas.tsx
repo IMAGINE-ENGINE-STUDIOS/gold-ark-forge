@@ -8,6 +8,7 @@ import SymbolLogo from '@/components/trading/SymbolLogo';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { ASSET_CLASSES, classTint, type ClassId, type ClassifiedAsset } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID, defaultParamsFor } from '@/lib/analysisPrograms';
+import { ACTION_PRESETS, PRESET_BY_ID, PRESET_GROUPS } from '@/lib/actionPresets';
 import type { CustomBlock } from '@/lib/customBlocks';
 import {
   runBlueprint, validateBlueprint, type BpKind, type BpLogEntry, type BpNode,
@@ -84,6 +85,8 @@ export default function BlueprintCanvas({
 
   const [tab, setTab] = useState<'assets' | 'screens' | 'analysis' | 'actions' | 'blocks'>('assets');
   const [query, setQuery] = useState('');
+  const [paletteQuery, setPaletteQuery] = useState('');
+  const [presetGroup, setPresetGroup] = useState<'ALL' | (typeof PRESET_GROUPS)[number]>('ALL');
   const [visible, setVisible] = useState(24);
   const [selected, setSelected] = useState<string | null>(null);
   const [log, setLog] = useState<BpLogEntry[]>([]);
@@ -116,6 +119,28 @@ export default function BlueprintCanvas({
     const base = q ? ALL_SYMBOLS.filter((s) => s.label.toLowerCase().includes(q) || s.ticker.toLowerCase().includes(q) || s.cat.includes(q)) : ALL_SYMBOLS;
     return base.slice(0, visible);
   }, [query, visible]);
+
+  const pq = paletteQuery.trim().toLowerCase();
+  const match = (...fields: string[]) => !pq || fields.some((f) => f.toLowerCase().includes(pq));
+  const filteredClasses = useMemo(() => ASSET_CLASSES.filter((c) => match(c.label, c.blurb, c.id)), [pq]);
+  const filteredPrograms = useMemo(() => ANALYSIS_PROGRAMS.filter((p) => match(p.label, p.blurb, p.id)), [pq]);
+  const filteredPresets = useMemo(
+    () => ACTION_PRESETS.filter((a) => (presetGroup === 'ALL' || a.group === presetGroup) && match(a.label, a.blurb, a.id)),
+    [pq, presetGroup],
+  );
+
+  const addPreset = (id: string) => {
+    const p = PRESET_BY_ID.get(id);
+    if (p) addKind(p.kind, p.config as Record<string, any>, p.label);
+  };
+
+  const PaletteSearch = ({ placeholder }: { placeholder: string }) => (
+    <div className="alien-chip flex items-center gap-1.5 px-2 py-1.5">
+      <Search className="h-3 w-3 text-muted-foreground" />
+      <input value={paletteQuery} onChange={(e) => setPaletteQuery(e.target.value)} placeholder={placeholder}
+        className="w-full bg-transparent font-mono text-[9px] tracking-wider text-foreground outline-none" />
+    </div>
+  );
 
   const handleDrop = (e: React.DragEvent, index?: number) => {
     e.preventDefault();
