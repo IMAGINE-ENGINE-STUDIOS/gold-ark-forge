@@ -41,13 +41,15 @@ const QUICK = [
 ];
 
 export default function GeniusPanel({
-  buildContext, onActions, running, laneCount, issueCount,
+  buildContext, onActions, running, laneCount, issueCount, registerReporter,
 }: {
   buildContext: (memory: GeniusMemory) => Record<string, any>;
   onActions: (actions: GeniusAction[]) => string[];
   running: boolean;
   laneCount: number;
   issueCount: number;
+  /** Lets the page hand back the REAL trace once a run finishes. */
+  registerReporter?: (fn: (trace: string) => void) => void;
 }) {
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     try {
@@ -68,6 +70,7 @@ export default function GeniusPanel({
   const [busy, setBusy] = useState(false);
   const [choices, setChoices] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<(t: string) => void>(() => {});
 
   useEffect(() => {
     try { localStorage.setItem(CHAT_KEY, JSON.stringify(msgs.slice(-40))); } catch { /* ignore */ }
@@ -78,12 +81,12 @@ export default function GeniusPanel({
     try { localStorage.setItem(MEM_KEY, JSON.stringify(memory)); } catch { /* ignore */ }
   }, [memory]);
 
-  const send = async (text: string) => {
+  const send = async (text: string, hidden = false) => {
     const message = text.trim();
     if (!message || busy) return;
     setInput('');
     const history = msgs.slice(-14).map((m) => ({ role: m.role, content: m.content }));
-    setMsgs((prev) => [...prev, { role: 'user', content: message }]);
+    if (!hidden) setMsgs((prev) => [...prev, { role: 'user', content: message }]);
     setChoices([]);
     setBusy(true);
     try {
@@ -115,6 +118,17 @@ export default function GeniusPanel({
       setBusy(false);
     }
   };
+
+  sendRef.current = (trace: string) => {
+    void send(
+      `The run you asked for has now finished. This is the real trace from the paper account:\n${trace}\n\nReport exactly what happened in plain words. If anything failed or did nothing, fix it and run it again now.`,
+      true,
+    );
+  };
+
+  useEffect(() => {
+    registerReporter?.((trace: string) => sendRef.current(trace));
+  }, [registerReporter]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
