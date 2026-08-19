@@ -8,6 +8,7 @@ import SymbolLogo from '@/components/trading/SymbolLogo';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { ASSET_CLASSES, classTint, type ClassId, type ClassifiedAsset } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID, defaultParamsFor } from '@/lib/analysisPrograms';
+import { ACTION_PRESETS, PRESET_BY_ID, PRESET_GROUPS } from '@/lib/actionPresets';
 import type { CustomBlock } from '@/lib/customBlocks';
 import {
   runBlueprint, validateBlueprint, type BpKind, type BpLogEntry, type BpNode,
@@ -84,6 +85,8 @@ export default function BlueprintCanvas({
 
   const [tab, setTab] = useState<'assets' | 'screens' | 'analysis' | 'actions' | 'blocks'>('assets');
   const [query, setQuery] = useState('');
+  const [paletteQuery, setPaletteQuery] = useState('');
+  const [presetGroup, setPresetGroup] = useState<'ALL' | (typeof PRESET_GROUPS)[number]>('ALL');
   const [visible, setVisible] = useState(24);
   const [selected, setSelected] = useState<string | null>(null);
   const [log, setLog] = useState<BpLogEntry[]>([]);
@@ -117,12 +120,36 @@ export default function BlueprintCanvas({
     return base.slice(0, visible);
   }, [query, visible]);
 
+  const pq = paletteQuery.trim().toLowerCase();
+  const match = (...fields: string[]) => !pq || fields.some((f) => f.toLowerCase().includes(pq));
+  const filteredClasses = useMemo(() => ASSET_CLASSES.filter((c) => match(c.label, c.blurb, c.id)), [pq]);
+  const filteredPrograms = useMemo(() => ANALYSIS_PROGRAMS.filter((p) => match(p.label, p.blurb, p.id)), [pq]);
+  const filteredPresets = useMemo(
+    () => ACTION_PRESETS.filter((a) => (presetGroup === 'ALL' || a.group === presetGroup) && match(a.label, a.blurb, a.id)),
+    [pq, presetGroup],
+  );
+
+  const addPreset = (id: string) => {
+    const p = PRESET_BY_ID.get(id);
+    if (p) addKind(p.kind, p.config as Record<string, any>, p.label);
+  };
+
+  const paletteSearch = (placeholder: string) => (
+    <div className="alien-chip flex items-center gap-1.5 px-2 py-1.5">
+      <Search className="h-3 w-3 text-muted-foreground" />
+      <input value={paletteQuery} onChange={(e) => setPaletteQuery(e.target.value)} placeholder={placeholder}
+        className="w-full bg-transparent font-mono text-[9px] tracking-wider text-foreground outline-none" />
+    </div>
+  );
+
   const handleDrop = (e: React.DragEvent, index?: number) => {
     e.preventDefault();
     const asset = e.dataTransfer.getData('application/x-ga-asset');
     if (asset) { const { ticker, label } = JSON.parse(asset); addAsset(ticker, label); return; }
     const kind = e.dataTransfer.getData('application/x-ga-kind') as BpKind;
     if (kind) { addKind(kind); return; }
+    const preset = e.dataTransfer.getData('application/x-ga-preset');
+    if (preset) { addPreset(preset); return; }
     const prog = e.dataTransfer.getData('application/x-ga-program');
     if (prog) { addAnalysis(prog); return; }
     const cls = e.dataTransfer.getData('application/x-ga-class');
@@ -228,8 +255,10 @@ export default function BlueprintCanvas({
           )}
 
           {tab === 'screens' && (
+            <>
+            {paletteSearch(`SEARCH ${ASSET_CLASSES.length} SCREENS`)}
             <div className="max-h-[440px] space-y-1 overflow-y-auto pr-1">
-              {ASSET_CLASSES.map((c) => (
+              {filteredClasses.map((c) => (
                 <button key={c.id} draggable
                   onDragStart={(e) => e.dataTransfer.setData('application/x-ga-class', c.id)}
                   onClick={() => addScreen(c.id)}
@@ -239,11 +268,14 @@ export default function BlueprintCanvas({
                 </button>
               ))}
             </div>
+            </>
           )}
 
           {tab === 'analysis' && (
+            <>
+            {paletteSearch(`SEARCH ${ANALYSIS_PROGRAMS.length} PROGRAMS`)}
             <div className="max-h-[440px] space-y-1 overflow-y-auto pr-1">
-              {ANALYSIS_PROGRAMS.map((p) => (
+              {filteredPrograms.map((p) => (
                 <button key={p.id} draggable
                   onDragStart={(e) => e.dataTransfer.setData('application/x-ga-program', p.id)}
                   onClick={() => addAnalysis(p.id)}
@@ -253,23 +285,53 @@ export default function BlueprintCanvas({
                 </button>
               ))}
             </div>
+            </>
           )}
 
           {tab === 'actions' && (
-            <div className="grid grid-cols-2 gap-1.5">
-              {(['buy', 'sell', 'alert', 'risk', 'branch', 'note'] as BpKind[]).map((k) => {
-                const meta = KIND_META[k];
-                return (
-                  <button key={k} draggable
-                    onDragStart={(e) => e.dataTransfer.setData('application/x-ga-kind', k)}
-                    onClick={() => addKind(k)}
-                    className={`flex items-center gap-1.5 rounded-md border px-2 py-2 ${classTint(meta.tint)} hover:ring-1 hover:ring-gold/40`}>
-                    <meta.Icon className="h-3.5 w-3.5" />
-                    <span className="font-display text-[9px] tracking-[0.18em]">{meta.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              {paletteSearch(`SEARCH ${ACTION_PRESETS.length} ACTIONS`)}
+              <div className="flex flex-wrap gap-1">
+                {(['ALL', ...PRESET_GROUPS] as const).map((g) => (
+                  <button key={g} onClick={() => setPresetGroup(g)}
+                    className={`alien-chip px-1.5 py-0.5 font-mono text-[7px] tracking-[0.16em] ${presetGroup === g ? 'text-gold-light ring-1 ring-gold/50' : 'text-muted-foreground'}`}>{g}</button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['buy', 'sell', 'alert', 'risk', 'branch', 'note'] as BpKind[]).map((k) => {
+                  const meta = KIND_META[k];
+                  return (
+                    <button key={k} draggable
+                      onDragStart={(e) => e.dataTransfer.setData('application/x-ga-kind', k)}
+                      onClick={() => addKind(k)}
+                      className={`flex items-center gap-1.5 rounded-md border px-2 py-2 ${classTint(meta.tint)} hover:ring-1 hover:ring-gold/40`}>
+                      <meta.Icon className="h-3.5 w-3.5" />
+                      <span className="font-display text-[9px] tracking-[0.18em]">{meta.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
+                {filteredPresets.map((a) => {
+                  const Icon = KIND_META[a.kind].Icon;
+                  return (
+                    <button key={a.id} draggable
+                      onDragStart={(e) => e.dataTransfer.setData('application/x-ga-preset', a.id)}
+                      onClick={() => addPreset(a.id)}
+                      className={`flex w-full items-start gap-1.5 rounded-md border px-2 py-1.5 text-left ${classTint(a.tint)} hover:ring-1 hover:ring-gold/40`}>
+                      <Icon className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block font-display text-[9px] tracking-[0.18em]">{a.label}</span>
+                        <span className="block font-mono text-[7px] leading-relaxed tracking-wider opacity-70">{a.blurb}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+                {filteredPresets.length === 0 && (
+                  <p className="font-mono text-[8px] tracking-wider text-muted-foreground">NO ACTION MATCHES THAT SEARCH.</p>
+                )}
+              </div>
+            </>
           )}
 
           {tab === 'blocks' && (

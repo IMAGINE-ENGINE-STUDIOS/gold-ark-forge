@@ -42,7 +42,7 @@ const stdev = (s: number[]) => {
 const returns = (s: number[]) => s.slice(1).map((v, i) => (v - s[i]) / s[i]);
 const insufficient = (need: number): ProgramResult => ({ value: 0, verdict: 'insufficient', detail: `needs ≥ ${need} live samples` });
 
-export const ANALYSIS_PROGRAMS: AnalysisProgram[] = [
+const BASE_PROGRAMS: AnalysisProgram[] = [
   {
     id: 'rsi', label: 'RSI', blurb: 'Relative strength of the live sample window.', tint: 'violet', minPoints: 8,
     params: [{ key: 'period', label: 'Period', default: 14, min: 3, max: 60 }],
@@ -197,6 +197,437 @@ export const ANALYSIS_PROGRAMS: AnalysisProgram[] = [
     },
   },
 ];
+
+/* ─────────────────────────────────────────────────────────────
+   GENERATED PROGRAM FAMILIES
+   Parameterised variants of the core quant blocks so operators can
+   drop a precise study (RSI-9, EMA 8/34 cross, ROC-20, ATR-14 …)
+   straight into a blueprint instead of hand-tuning every time.
+   Every program still runs on LIVE samples only.
+   ───────────────────────────────────────────────────────────── */
+
+const mean = (s: number[]) => s.reduce((a, b) => a + b, 0) / (s.length || 1);
+const wnd = (s: number[], n: number) => s.slice(-Math.max(2, Math.round(n)));
+const verdictFrom = (v: number, up: number, dn: number): Verdict => (v > up ? 'bullish' : v < dn ? 'bearish' : 'neutral');
+const WINDOW = (def: number): ProgramParam => ({ key: 'window', label: 'Window', default: def, min: 3, max: 400 });
+
+const GENERATED: AnalysisProgram[] = [];
+const add = (
+  id: string, label: string, blurb: string, tint: string, minPoints: number,
+  params: ProgramParam[], run: AnalysisProgram['run'],
+) => { GENERATED.push({ id, label, blurb, tint, minPoints, params, run }); };
+
+// ── RSI variants ──
+[5, 7, 9, 14, 21, 28, 50].forEach((n) => add(
+  `rsi_${n}`, `RSI ${n}`, `Relative strength over a ${n}-sample live window.`, 'violet', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const r = returns(w);
+    const g = r.filter((v) => v > 0).reduce((a, b) => a + b, 0) / r.length;
+    const l = Math.abs(r.filter((v) => v < 0).reduce((a, b) => a + b, 0)) / r.length;
+    const rsi = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+    return { value: Number(rsi.toFixed(2)), verdict: rsi >= 70 ? 'bearish' : rsi <= 30 ? 'bullish' : 'neutral', detail: `RSI(${n}) = ${rsi.toFixed(1)}` };
+  },
+));
+
+// ── EMA crosses ──
+([[3, 8], [5, 13], [8, 21], [9, 26], [12, 26], [13, 34], [20, 50], [21, 55], [34, 89], [50, 200]] as const).forEach(([f, sl]) => add(
+  `emacross_${f}_${sl}`, `EMA ${f}/${sl}`, `Fast ${f} vs slow ${sl} EMA separation.`, 'sky', 6,
+  [{ key: 'fast', label: 'Fast', default: f, min: 2, max: 200 }, { key: 'slow', label: 'Slow', default: sl, min: 3, max: 400 }],
+  (s, p) => {
+    if (s.length < 4) return insufficient(4);
+    const spread = ((ema(s, p.fast ?? f) - ema(s, p.slow ?? sl)) / s[s.length - 1]) * 100;
+    return { value: Number(spread.toFixed(4)), verdict: verdictFrom(spread, 0.02, -0.02), detail: `EMA${f}−EMA${sl} = ${spread.toFixed(3)}%` };
+  },
+));
+
+// ── SMA crosses ──
+([[5, 20], [10, 30], [20, 60], [50, 150]] as const).forEach(([f, sl]) => add(
+  `smacross_${f}_${sl}`, `SMA ${f}/${sl}`, `Simple moving average crossover state.`, 'cyan', 6,
+  [{ key: 'fast', label: 'Fast', default: f, min: 2, max: 200 }, { key: 'slow', label: 'Slow', default: sl, min: 3, max: 400 }],
+  (s, p) => {
+    if (s.length < 4) return insufficient(4);
+    const spread = ((sma(s, Math.round(p.fast ?? f)) - sma(s, Math.round(p.slow ?? sl))) / s[s.length - 1]) * 100;
+    return { value: Number(spread.toFixed(4)), verdict: verdictFrom(spread, 0.02, -0.02), detail: `SMA${f}−SMA${sl} = ${spread.toFixed(3)}%` };
+  },
+));
+
+// ── Rate of change / momentum ──
+[3, 5, 8, 13, 21, 34, 55].forEach((n) => add(
+  `roc_${n}`, `ROC ${n}`, `Rate of change across ${n} live samples.`, 'emerald', 4, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, (p.window ?? n) + 1);
+    if (w.length < 2) return insufficient(2);
+    const roc = ((w[w.length - 1] - w[0]) / w[0]) * 100;
+    return { value: Number(roc.toFixed(4)), verdict: verdictFrom(roc, 0.05, -0.05), detail: `${roc.toFixed(3)}% over ${w.length - 1} samples` };
+  },
+));
+
+// ── Stochastic oscillator ──
+[7, 14, 21].forEach((n) => add(
+  `stoch_${n}`, `STOCHASTIC ${n}`, `Position in the ${n}-sample high/low range.`, 'fuchsia', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const hi = Math.max(...w); const lo = Math.min(...w);
+    const k = hi > lo ? ((w[w.length - 1] - lo) / (hi - lo)) * 100 : 50;
+    return { value: Number(k.toFixed(2)), verdict: k >= 80 ? 'bearish' : k <= 20 ? 'bullish' : 'neutral', detail: `%K = ${k.toFixed(1)}` };
+  },
+));
+
+// ── Williams %R ──
+[7, 14, 28].forEach((n) => add(
+  `willr_${n}`, `WILLIAMS %R ${n}`, `Inverted range position over ${n} samples.`, 'indigo', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const hi = Math.max(...w); const lo = Math.min(...w);
+    const r = hi > lo ? ((hi - w[w.length - 1]) / (hi - lo)) * -100 : -50;
+    return { value: Number(r.toFixed(2)), verdict: r <= -80 ? 'bullish' : r >= -20 ? 'bearish' : 'neutral', detail: `%R = ${r.toFixed(1)}` };
+  },
+));
+
+// ── CCI ──
+[14, 20, 40].forEach((n) => add(
+  `cci_${n}`, `CCI ${n}`, `Commodity channel deviation over ${n} samples.`, 'amber', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const m = mean(w);
+    const md = mean(w.map((v) => Math.abs(v - m)));
+    const cci = md > 0 ? (w[w.length - 1] - m) / (0.015 * md) : 0;
+    return { value: Number(cci.toFixed(1)), verdict: cci > 100 ? 'bearish' : cci < -100 ? 'bullish' : 'neutral', detail: `CCI = ${cci.toFixed(0)}` };
+  },
+));
+
+// ── ATR proxy / range studies ──
+[7, 14, 21, 50].forEach((n) => add(
+  `atr_${n}`, `ATR ${n}`, `Average true range proxy over ${n} samples.`, 'orange', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const tr = w.slice(1).map((v, i) => Math.abs(v - w[i]));
+    const atrPct = (mean(tr) / w[w.length - 1]) * 100;
+    return { value: Number(atrPct.toFixed(4)), verdict: 'neutral', detail: `ATR ≈ ${atrPct.toFixed(3)}% per sample` };
+  },
+));
+
+// ── Donchian breakout ──
+[10, 20, 55].forEach((n) => add(
+  `donchian_${n}`, `DONCHIAN ${n}`, `Breakout state of the ${n}-sample channel.`, 'emerald', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const hi = Math.max(...w.slice(0, -1)); const lo = Math.min(...w.slice(0, -1));
+    const l = w[w.length - 1];
+    const pos = hi > lo ? (l - lo) / (hi - lo) : 0.5;
+    return { value: Number(pos.toFixed(3)), verdict: l > hi ? 'bullish' : l < lo ? 'bearish' : 'neutral', detail: l > hi ? 'upper channel break' : l < lo ? 'lower channel break' : `inside channel (${(pos * 100).toFixed(0)}%)` };
+  },
+));
+
+// ── Keltner / Bollinger squeezes ──
+[10, 20, 40].forEach((n) => add(
+  `squeeze_${n}`, `SQUEEZE ${n}`, `Band compression vs the ${n}-sample baseline.`, 'teal', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 5) return insufficient(5);
+    const width = (stdev(w) / mean(w)) * 100;
+    const base = (stdev(s) / mean(s)) * 100;
+    const ratio = base > 0 ? width / base : 1;
+    return { value: Number(ratio.toFixed(3)), verdict: ratio < 0.6 ? 'bullish' : 'neutral', detail: ratio < 0.6 ? `compressed (${ratio.toFixed(2)}×) — expansion pending` : `normal width (${ratio.toFixed(2)}×)` };
+  },
+));
+
+// ── Volatility windows ──
+[10, 20, 50, 100].forEach((n) => add(
+  `vol_${n}`, `VOLATILITY ${n}`, `Realised dispersion over ${n} samples.`, 'amber', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const v = stdev(returns(w)) * 100;
+    return { value: Number(v.toFixed(4)), verdict: 'neutral', detail: `vol ${v.toFixed(3)}% / sample` };
+  },
+));
+
+// ── Z-score windows ──
+[10, 20, 50, 100, 200].forEach((n) => add(
+  `z_${n}`, `Z-SCORE ${n}`, `Stretch from the ${n}-sample mean.`, 'indigo', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const sd = stdev(w);
+    const z = sd > 0 ? (w[w.length - 1] - mean(w)) / sd : 0;
+    return { value: Number(z.toFixed(3)), verdict: z > 2 ? 'bearish' : z < -2 ? 'bullish' : 'neutral', detail: `z = ${z.toFixed(2)}` };
+  },
+));
+
+// ── Sharpe / Sortino / Calmar windows ──
+[20, 50, 100].forEach((n) => add(
+  `sharpe_${n}`, `SHARPE ${n}`, `Risk-adjusted drift on ${n} samples.`, 'gold', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const r = returns(w); const sd = stdev(r);
+    const v = sd > 0 ? mean(r) / sd : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.3, -0.3), detail: `sharpe ${v.toFixed(2)}` };
+  },
+));
+[20, 50, 100].forEach((n) => add(
+  `sortino_${n}`, `SORTINO ${n}`, `Downside-only risk-adjusted drift.`, 'gold', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const r = returns(w);
+    const down = r.filter((x) => x < 0);
+    const dd = down.length ? Math.sqrt(mean(down.map((x) => x * x))) : 0;
+    const v = dd > 0 ? mean(r) / dd : mean(r) > 0 ? 1 : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.3, -0.3), detail: `sortino ${v.toFixed(2)}` };
+  },
+));
+[30, 60].forEach((n) => add(
+  `calmar_${n}`, `CALMAR ${n}`, `Drift over max drawdown across ${n} samples.`, 'gold', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 6) return insufficient(6);
+    let peak = w[0]; let mdd = 0;
+    w.forEach((v) => { peak = Math.max(peak, v); mdd = Math.min(mdd, (v - peak) / peak); });
+    const drift = (w[w.length - 1] - w[0]) / w[0];
+    const v = mdd < 0 ? drift / Math.abs(mdd) : drift > 0 ? 3 : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.5, -0.5), detail: `calmar ${v.toFixed(2)} (mdd ${(mdd * 100).toFixed(2)}%)` };
+  },
+));
+
+// ── Tail risk ──
+[50, 100].forEach((n) => add(
+  `var95_${n}`, `VALUE AT RISK ${n}`, `95% one-sample loss estimate.`, 'red', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 8) return insufficient(8);
+    const r = returns(w).sort((a, b) => a - b);
+    const v = r[Math.floor(r.length * 0.05)] * 100;
+    return { value: Number(v.toFixed(4)), verdict: v < -1 ? 'bearish' : 'neutral', detail: `VaR95 ${v.toFixed(3)}%` };
+  },
+));
+[50, 100].forEach((n) => add(
+  `cvar95_${n}`, `CVAR ${n}`, `Expected shortfall beyond the 95% tail.`, 'red', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 8) return insufficient(8);
+    const r = returns(w).sort((a, b) => a - b);
+    const tail = r.slice(0, Math.max(1, Math.floor(r.length * 0.05)));
+    const v = mean(tail) * 100;
+    return { value: Number(v.toFixed(4)), verdict: v < -1.5 ? 'bearish' : 'neutral', detail: `CVaR95 ${v.toFixed(3)}%` };
+  },
+));
+
+// ── Distribution shape ──
+[30, 60].forEach((n) => add(
+  `skew_${n}`, `SKEW ${n}`, `Return asymmetry over ${n} samples.`, 'violet', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 6) return insufficient(6);
+    const r = returns(w); const m = mean(r); const sd = stdev(r);
+    const v = sd > 0 ? mean(r.map((x) => ((x - m) / sd) ** 3)) : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.5, -0.5), detail: `skew ${v.toFixed(2)}` };
+  },
+));
+[30, 60].forEach((n) => add(
+  `kurtosis_${n}`, `KURTOSIS ${n}`, `Fat-tail intensity over ${n} samples.`, 'violet', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 6) return insufficient(6);
+    const r = returns(w); const m = mean(r); const sd = stdev(r);
+    const v = sd > 0 ? mean(r.map((x) => ((x - m) / sd) ** 4)) - 3 : 0;
+    return { value: Number(v.toFixed(3)), verdict: 'neutral', detail: `excess kurtosis ${v.toFixed(2)}` };
+  },
+));
+
+// ── Structure & persistence ──
+[20, 50, 100].forEach((n) => add(
+  `hurst_${n}`, `HURST ${n}`, `Trend persistence vs mean reversion.`, 'teal', 10, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 8) return insufficient(8);
+    const r = returns(w); const m = mean(r);
+    const dev = r.map((_, i) => r.slice(0, i + 1).reduce((a, b) => a + (b - m), 0));
+    const R = Math.max(...dev) - Math.min(...dev);
+    const S = stdev(r);
+    const h = S > 0 && R > 0 ? Math.log(R / S) / Math.log(r.length) : 0.5;
+    return { value: Number(h.toFixed(3)), verdict: h > 0.55 ? 'bullish' : h < 0.45 ? 'bearish' : 'neutral', detail: h > 0.55 ? `persistent trend (H=${h.toFixed(2)})` : h < 0.45 ? `mean reverting (H=${h.toFixed(2)})` : `random walk (H=${h.toFixed(2)})` };
+  },
+));
+[10, 30].forEach((n) => add(
+  `autocorr_${n}`, `AUTOCORRELATION ${n}`, `Lag-1 return correlation over ${n} samples.`, 'indigo', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 6) return insufficient(6);
+    const r = returns(w); const m = mean(r);
+    const num = r.slice(1).reduce((a, v, i) => a + (v - m) * (r[i] - m), 0);
+    const den = r.reduce((a, v) => a + (v - m) ** 2, 0);
+    const v = den > 0 ? num / den : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.2, -0.2), detail: `ρ1 = ${v.toFixed(2)}` };
+  },
+));
+[20, 50].forEach((n) => add(
+  `efficiency_${n}`, `EFFICIENCY ${n}`, `Net move over path length — trend quality.`, 'emerald', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const net = w[w.length - 1] - w[0];
+    const path = w.slice(1).reduce((a, v, i) => a + Math.abs(v - w[i]), 0);
+    const eff = path > 0 ? net / path : 0;
+    return { value: Number(eff.toFixed(3)), verdict: verdictFrom(eff, 0.3, -0.3), detail: `efficiency ${eff.toFixed(2)}` };
+  },
+));
+[14, 30].forEach((n) => add(
+  `choppiness_${n}`, `CHOPPINESS ${n}`, `Range-bound intensity index.`, 'slate', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const path = w.slice(1).reduce((a, v, i) => a + Math.abs(v - w[i]), 0);
+    const range = Math.max(...w) - Math.min(...w);
+    const ci = range > 0 && path > 0 ? (100 * Math.log10(path / range)) / Math.log10(w.length) : 50;
+    return { value: Number(ci.toFixed(2)), verdict: 'neutral', detail: ci > 60 ? `choppy (${ci.toFixed(0)})` : `directional (${ci.toFixed(0)})` };
+  },
+));
+
+// ── Drawdown / recovery ──
+[20, 60, 120].forEach((n) => add(
+  `maxdd_${n}`, `MAX DRAWDOWN ${n}`, `Worst peak-to-trough over ${n} samples.`, 'rose', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    let peak = w[0]; let mdd = 0;
+    w.forEach((v) => { peak = Math.max(peak, v); mdd = Math.min(mdd, ((v - peak) / peak) * 100); });
+    return { value: Number(mdd.toFixed(3)), verdict: mdd < -5 ? 'bearish' : 'neutral', detail: `max drawdown ${mdd.toFixed(2)}%` };
+  },
+));
+[20, 60].forEach((n) => add(
+  `recovery_${n}`, `RECOVERY ${n}`, `Rebound from the ${n}-sample low.`, 'emerald', 6, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 4) return insufficient(4);
+    const lo = Math.min(...w);
+    const v = lo > 0 ? ((w[w.length - 1] - lo) / lo) * 100 : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.5, -0.5), detail: `${v.toFixed(2)}% off window low` };
+  },
+));
+
+// ── Streaks & tape ──
+[5, 10, 20].forEach((n) => add(
+  `streak_${n}`, `STREAK ${n}`, `Directional print balance over ${n} samples.`, 'sky', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const r = returns(w);
+    const up = r.filter((v) => v > 0).length;
+    const bal = (up / r.length) * 2 - 1;
+    return { value: Number(bal.toFixed(3)), verdict: verdictFrom(bal, 0.3, -0.3), detail: `${up}/${r.length} up prints` };
+  },
+));
+[10, 30].forEach((n) => add(
+  `imbalance_${n}`, `TAPE IMBALANCE ${n}`, `Weight of up moves vs down moves.`, 'cyan', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const r = returns(w);
+    const up = r.filter((v) => v > 0).reduce((a, b) => a + b, 0);
+    const dn = Math.abs(r.filter((v) => v < 0).reduce((a, b) => a + b, 0));
+    const v = up + dn > 0 ? (up - dn) / (up + dn) : 0;
+    return { value: Number(v.toFixed(3)), verdict: verdictFrom(v, 0.2, -0.2), detail: `imbalance ${(v * 100).toFixed(0)}%` };
+  },
+));
+
+// ── Range position / pivots ──
+[20, 50, 100].forEach((n) => add(
+  `rangepos_${n}`, `RANGE POSITION ${n}`, `Where price sits in the ${n}-sample range.`, 'gold', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const hi = Math.max(...w); const lo = Math.min(...w);
+    const pos = hi > lo ? (w[w.length - 1] - lo) / (hi - lo) : 0.5;
+    return { value: Number(pos.toFixed(3)), verdict: pos > 0.85 ? 'bearish' : pos < 0.15 ? 'bullish' : 'neutral', detail: `${(pos * 100).toFixed(0)}% of range` };
+  },
+));
+[20, 50].forEach((n) => add(
+  `pivot_${n}`, `PIVOT LEVELS ${n}`, `Classic pivot vs live price.`, 'amber', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const hi = Math.max(...w); const lo = Math.min(...w); const c = w[w.length - 1];
+    const pivot = (hi + lo + c) / 3;
+    const dist = ((c - pivot) / pivot) * 100;
+    return { value: Number(dist.toFixed(4)), verdict: verdictFrom(dist, 0.05, -0.05), detail: `${dist.toFixed(3)}% vs pivot ${pivot.toFixed(4)}` };
+  },
+));
+[20, 50].forEach((n) => add(
+  `vwapdrift_${n}`, `VWAP DRIFT ${n}`, `Distance from the sample-average price.`, 'teal', 5, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 3) return insufficient(3);
+    const avg = mean(w);
+    const d = ((w[w.length - 1] - avg) / avg) * 100;
+    return { value: Number(d.toFixed(4)), verdict: d > 0.3 ? 'bearish' : d < -0.3 ? 'bullish' : 'neutral', detail: `${d.toFixed(3)}% vs VWAP proxy` };
+  },
+));
+
+// ── TRIX / Ulcer / gap ──
+[9, 15].forEach((n) => add(
+  `trix_${n}`, `TRIX ${n}`, `Triple-smoothed momentum.`, 'violet', 8, [WINDOW(n)],
+  (s, p) => {
+    if (s.length < 6) return insufficient(6);
+    const k = Math.round(p.window ?? n);
+    const e1 = ema(s, k); const e2 = ema(s.map(() => e1), k);
+    const trix = ((e1 - e2) / (e2 || 1)) * 100 + ((s[s.length - 1] - e1) / e1) * 100;
+    return { value: Number(trix.toFixed(4)), verdict: verdictFrom(trix, 0.05, -0.05), detail: `TRIX ${trix.toFixed(3)}%` };
+  },
+));
+[14, 30].forEach((n) => add(
+  `ulcer_${n}`, `ULCER INDEX ${n}`, `Depth and duration of pain in the window.`, 'red', 8, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, p.window ?? n);
+    if (w.length < 5) return insufficient(5);
+    let peak = w[0];
+    const dd = w.map((v) => { peak = Math.max(peak, v); return (((v - peak) / peak) * 100) ** 2; });
+    const ui = Math.sqrt(mean(dd));
+    return { value: Number(ui.toFixed(3)), verdict: ui > 3 ? 'bearish' : 'neutral', detail: `ulcer ${ui.toFixed(2)}` };
+  },
+));
+[3, 5].forEach((n) => add(
+  `gap_${n}`, `GAP SCAN ${n}`, `Sudden dislocation across ${n} samples.`, 'orange', 4, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, (p.window ?? n) + 1);
+    if (w.length < 2) return insufficient(2);
+    const g = ((w[w.length - 1] - w[0]) / w[0]) * 100;
+    return { value: Number(g.toFixed(4)), verdict: Math.abs(g) > 0.5 ? (g > 0 ? 'bullish' : 'bearish') : 'neutral', detail: `${g.toFixed(3)}% dislocation` };
+  },
+));
+
+// ── Sizing helpers ──
+[0.25, 0.5, 1].forEach((f) => add(
+  `kelly_${String(f).replace('.', '')}`, `KELLY ${f === 1 ? 'FULL' : `${f * 100}%`}`, `Kelly exposure at ${f * 100}% fraction.`, 'gold', 6,
+  [{ key: 'fraction', label: 'Fraction', default: f, min: 0.1, max: 1, step: 0.05 }],
+  (s, p) => {
+    if (s.length < 4) return insufficient(4);
+    const r = returns(s); const v = stdev(r) ** 2;
+    const kelly = v > 0 ? (mean(r) / v) * (p.fraction ?? f) : 0;
+    const capped = Math.max(-1, Math.min(1, kelly));
+    return { value: Number(capped.toFixed(3)), verdict: verdictFrom(capped, 0, 0), detail: `exposure ${(capped * 100).toFixed(1)}% of budget` };
+  },
+));
+[1, 2, 3].forEach((r) => add(
+  `rr_${r}`, `R:R TARGET ${r}:1`, `Take-profit / stop distances at ${r}:1 on live volatility.`, 'emerald', 5,
+  [{ key: 'atrMult', label: 'ATR mult', default: 1, min: 0.25, max: 5, step: 0.25 }],
+  (s, p) => {
+    if (s.length < 3) return insufficient(3);
+    const tr = returns(s).map(Math.abs);
+    const atr = mean(tr) * 100 * (p.atrMult ?? 1);
+    return { value: Number((atr * r).toFixed(4)), verdict: 'neutral', detail: `stop ${atr.toFixed(3)}% · target ${(atr * r).toFixed(3)}%` };
+  },
+));
+
+export const ANALYSIS_PROGRAMS: AnalysisProgram[] = [...BASE_PROGRAMS, ...GENERATED];
 
 export const PROGRAM_BY_ID = new Map(ANALYSIS_PROGRAMS.map((p) => [p.id, p]));
 
