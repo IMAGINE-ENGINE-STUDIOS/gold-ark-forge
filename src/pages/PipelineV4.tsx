@@ -654,23 +654,14 @@ const Workspace = () => {
               )}
 
               {panel === 'report' && (
-                <div className="h-full space-y-1.5 overflow-y-auto pr-1">
-                  {!events.length && <p className="text-[13px] text-muted-foreground">No run yet. Press “Run all lanes”.</p>}
-                  {events.map((e, i) => (
-                    <div
-                      key={i}
-                      className={`rounded border px-2 py-1 text-[13px] leading-snug ${
-                        e.status === 'error' ? 'border-rose-500/40 text-rose-300'
-                        : e.status === 'ok' ? 'border-emerald-500/30 text-emerald-200'
-                        : e.status === 'skip' ? 'border-border/50 text-muted-foreground'
-                        : 'border-border/40 text-foreground/80'
-                      }`}
-                    >
-                      <span className="text-[12px] text-muted-foreground">{e.laneName} · {e.stepLabel} — </span>
-                      {e.message}
-                    </div>
-                  ))}
-                </div>
+                <RunPerformance
+                  events={events}
+                  lanes={laneStats}
+                  equityCurve={equityCurve}
+                  running={running}
+                  startEquity={runStartEquity}
+                  equity={paper.account.equity}
+                />
               )}
             </div>
           </aside>
