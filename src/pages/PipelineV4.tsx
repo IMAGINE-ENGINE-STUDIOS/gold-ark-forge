@@ -222,6 +222,8 @@ const Workspace = () => {
     setEvents([]);
     setRunning(true);
     setPanel('report');
+    setRunStartEquity(paper.account.equity);
+    setEquityCurve([paper.account.equity]);
     const collected: any[] = [];
     try {
       await runGraph(
