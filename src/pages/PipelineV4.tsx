@@ -81,30 +81,21 @@ const Workspace = () => {
   }, []);
 
   const addLane = useCallback((name?: string, consensus = false) => {
-    let id = '';
-    mutate((g) => {
-      const lane = makeLane(name ?? `Lane ${g.lanes.length + 1}`, g.lanes.length);
-      lane.consensus = consensus;
-      if (consensus) lane.agree = { mode: 'majority', expects: 'bullish' };
-      id = lane.id;
-      return { ...g, lanes: [...g.lanes, lane] };
-    });
-    setSelectedLaneId(id);
-    return id;
+    const lane = makeLane(name ?? `Lane ${graphRef.current.lanes.length + 1}`, graphRef.current.lanes.length);
+    lane.consensus = consensus;
+    if (consensus) lane.agree = { mode: 'majority', expects: 'bullish' };
+    mutate((g) => ({ ...g, lanes: [...g.lanes, lane] }));
+    setSelectedLaneId(lane.id);
+    return lane.id;
   }, [mutate]);
 
   const addStep = useCallback((laneId: string, kind: PipeStep['kind'], label: string, config: Record<string, any>) => {
-    let id = '';
-    mutate((g) => {
-      const lanes = g.lanes.map((l) => {
-        if (l.id !== laneId) return l;
-        const step = makeStep(kind, label, config);
-        id = step.id;
-        return { ...l, steps: [...l.steps, step] };
-      });
-      return { ...g, lanes };
-    });
-    return id;
+    const step = makeStep(kind, label, config);
+    mutate((g) => ({
+      ...g,
+      lanes: g.lanes.map((l) => (l.id === laneId ? { ...l, steps: [...l.steps, step] } : l)),
+    }));
+    return step.id;
   }, [mutate]);
 
   const addBlock = useCallback((b: BlockDef) => {
