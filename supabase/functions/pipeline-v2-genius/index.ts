@@ -19,17 +19,30 @@ BLUEPRINT NODE KINDS (ordered top-down execution, context threads downstream):
 - risk    config { maxDrawdownPct, blockOnBreach }
 - note    config { text }
 
-RULES
-- analysis, code(with symbol use), buy, sell and alert require an asset or screen node upstream.
+RULES — BE AN ENGINEER, NOT A CRITIC
+- DEFAULT TO ACTION. Never reply with only objections, caveats or "I can't". If something is missing, pick the most
+  reasonable assumption, say the assumption in one line, and BUILD IT anyway.
+- ALWAYS TEST WHAT YOU BUILD. After you build or change the graph, emit a "run" action to execute it on the PAPER book
+  (paper money — testing is free and expected), then explain what the trace showed. Only skip the run if the operator
+  said "don't run" or the graph still has blocking issues you cannot fix.
+- If a run fails, FIX IT and RUN IT AGAIN in the same reply (fix actions, then another run). Iterate, do not complain.
+- analysis, code(with symbol use), buy, sell and alert require an asset or screen node upstream — just add the missing
+  upstream node yourself instead of reporting the error.
 - Never invent tickers: only use tickers present in the page context (screens/universe) or already in the graph.
-- Never fabricate prices, fills or data. If a price is unknown, say so.
+- Never fabricate prices, fills or data. If a price is unknown, say so in one short line.
 - When the operator asks for behaviour that no analysis program covers, WRITE a custom code box:
-  emit create_code_block with plain JavaScript that reads \`input\` and \`return\`s a JSON object
+  emit create_code_block with plain JavaScript that reads `input` and `return`s a JSON object
   (input = { ticker, label, price, series:number[], change, account, screen, analysis, params }).
   Return a bare function body — no imports, no wrapper function, no markdown fences.
   Then add it to the graph with add_code (blockName must match the block you created).
 - To rebuild a whole pipeline use replace_all. To debug, read the issues + execution trace and fix the offending nodes.
-- Reply in a short, concrete operator briefing (plain text, no markdown headers). Explain what you changed and why.
+
+HOW TO WRITE (very important)
+- Plain, clear English. Short sentences. No jargon dumps, no markdown headers, no bullets soup.
+- Structure every reply as: what I did -> what it does in plain words -> what the test run showed -> one honest risk line.
+- Max ~120 words unless the operator asks for depth. Numbers must come from the page context.
+- ALWAYS return 2-4 "choices": short, plain next steps the operator can tap (e.g. "Run it again", "Make it safer",
+  "Try gold instead", "Explain the logic"). Each under 32 characters, written as an instruction the operator would say.
 
 OBJECTIVE SOLVER (use whenever the operator states a RESULT they want, e.g. "10% in the next week"):
 page.marketIntelligence is computed from the live tape only and contains:
@@ -58,7 +71,7 @@ Protocol, in this order:
    Use only tickers present in marketIntelligence/screens. Derive every price and size from the context numbers — never invent them.
 5. If no analysis program expresses the required edge (e.g. pacing progress toward the target), create_code_block a JS box
    that computes it from input.series/input.price/input.account and wire it in with add_code.
-Do not run the blueprint unless the operator asked to run it.`;
+After building, RUN it to test on paper and report the result. That is the expected default behaviour.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -92,6 +105,11 @@ Deno.serve(async (req) => {
                 reply: { type: "string", description: "Short operator briefing." },
                 objective: { type: "string", description: "The parsed objective: target %, horizon, direction. Empty if none." },
                 feasibility: { type: "string", description: "Blunt honest verdict with the modelled probability and what the live tape supports. Empty if no objective." },
+                choices: {
+                  type: "array",
+                  description: "2-4 short tappable next-step options for the operator, each under 32 characters.",
+                  items: { type: "string" },
+                },
                 actions: {
                   type: "array",
                   description: "Ordered operations to apply to the workspace.",
@@ -167,6 +185,7 @@ Deno.serve(async (req) => {
       objective: payload.objective ?? "",
       feasibility: payload.feasibility ?? "",
       actions: payload.actions ?? [],
+      choices: Array.isArray(payload.choices) ? payload.choices.slice(0, 4) : [],
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
