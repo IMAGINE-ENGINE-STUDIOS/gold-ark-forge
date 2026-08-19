@@ -35,16 +35,16 @@ const QUICK = [
   { label: 'SOLVE MY GOAL', icon: Target, prompt: 'I want to make 10% on my investment over the next week. Analyze the market and every indicator, then build the actual workflow that targets that result with honest probability and risk controls.' },
   { label: 'ANALYZE PAGE', icon: Radar, prompt: 'Read the whole workspace — live screens, blueprint graph, issues and last trace — and brief me on what it does and what is weak.' },
   { label: 'MARKET READ', icon: Radar, prompt: 'Give me a full market read from the live intelligence: regime, breadth, every indicator on the top candidates, and where the edge is right now.' },
-  { label: 'BUILD FOR ME', icon: Sparkles, prompt: 'Build the strongest blueprint you can from the live screens on this page, wiring screens, analysis and risk before any trade node. Explain the logic.' },
+  { label: 'BUILD FOR ME', icon: Sparkles, prompt: 'Build the strongest blueprint you can from the live screens, then test it on paper and tell me in plain words what it did.' },
   { label: 'WRITE CODE BOX', icon: Code2, prompt: 'Write a custom code box that adds an edge my current analysis programs do not cover, save it and wire it into the blueprint.' },
   { label: 'DEBUG', icon: Stethoscope, prompt: 'Debug this workspace: fix every validation issue and every error in the last execution trace, then explain each fix.' },
-  { label: 'RUN', icon: Play, prompt: 'Run the blueprint now if it compiles, otherwise tell me exactly what to fix first.' },
+  { label: 'RUN', icon: Play, prompt: 'Run the blueprint now and report the trace. If it fails, fix it and run it again.' },
   { label: 'STOP', icon: Square, prompt: 'Stop the running blueprint immediately.' },
 ];
 
 export default function GeniusV2Assistant({ buildPageContext, onActions, running, nodeCount, issueCount }: GeniusV2AssistantProps) {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'assistant', content: 'GENIUS V2 ONLINE. Tell me the RESULT you want — e.g. "make 10% on my investments in the next week" — and I will read the live market and every indicator, state the honest probability, and build the actual workflow that targets it. I can also rewire, write code, debug, run or stop anything on this page.' },
+    { role: 'assistant', content: 'Genius online. Tell me what you want to happen — for example "make 10% in a week" — and I will build the workflow, test it on the paper account, and tell you plainly what happened. I can also rewrite it, write custom code, debug it, run it or stop it.' },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
