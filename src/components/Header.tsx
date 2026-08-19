@@ -9,20 +9,10 @@ const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navItems = [
-    { label: 'Marketplace', href: '/marketplace', icon: Store },
-    { label: 'Markets', href: '/marketplace', icon: BarChart3 },
     { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
-    { label: 'Pipeline', href: '/pipeline', icon: Workflow },
     { label: 'Pipeline V4', href: '/pipeline-v4', icon: Workflow },
-    { label: 'Holo Swap', href: '/hologram', icon: Sparkles },
-    { label: 'Intelligence', href: '/intelligence', icon: Brain },
-    { label: 'The Vault', href: '/vault', icon: Vault },
-    { label: 'Verify', href: '/verify', icon: ShieldCheck },
     { label: 'About Us', href: '/about', icon: Info },
-    { label: 'Oil & Gas', href: '/oil-gas', icon: Fuel },
-    { label: 'Insights', href: '/certification', icon: Lightbulb },
     { label: 'Admin', href: '/admin', icon: Settings },
-    { label: 'Globe', href: '/globe', icon: Globe },
   ];
 
   return (
