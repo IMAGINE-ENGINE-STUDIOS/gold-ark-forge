@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Workflow, Cpu, Sparkles, ArrowLeft, Boxes } from 'lucide-react';
+import { Workflow, Cpu, Sparkles, ArrowLeft, Boxes, LayoutGrid, Bot, Code2, GitBranch } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import ClassifierBoard from '@/components/pipeline/ClassifierBoard';
@@ -18,7 +18,16 @@ import type { BpKind } from '@/lib/blueprintEngine';
 const SEED = REAL_FEED_SYMBOLS.slice(0, 40).map((s) => s.ticker);
 const blockUid = () => `blk_${Math.random().toString(36).slice(2, 9)}`;
 
+const TABS = [
+  { id: 'genius', label: 'Genius', icon: Bot },
+  { id: 'screens', label: 'Live Screens', icon: LayoutGrid },
+  { id: 'blueprint', label: 'Blueprint', icon: GitBranch },
+  { id: 'code', label: 'Code Studio', icon: Code2 },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
+
 const Workspace = () => {
+  const [tab, setTab] = useState<TabId>('genius');
   const { paper, resolvePriceForTicker, changeForTicker, subscribe, symbols } = usePipeline();
   const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
   const apiRef = useRef<BlueprintApi | null>(null);
@@ -62,7 +71,7 @@ const Workspace = () => {
       limit: 12,
     });
     return {
-      route: '/pipeline-v2',
+      route: '/pipeline-v3',
       account: paper.account,
       marketIntelligence: intel,
       screens: ASSET_CLASSES.map((c) => ({
@@ -149,87 +158,110 @@ const Workspace = () => {
 
   return (
     <>
-      <section className="relative z-10 mb-4">
-        <div className="alien-panel alien-scan relative overflow-hidden p-5 sm:p-7">
-          <span className="alien-orb -left-10 -top-16 h-56 w-56 bg-gold/30" />
-          <span className="alien-orb right-0 top-10 h-48 w-48 bg-cyan-400/20" style={{ animationDelay: '3s' }} />
-          <div className="relative z-10 flex flex-wrap items-center gap-3">
-            <Workflow className="h-5 w-5 text-gold-light" />
-            <h1 className="font-display text-xl tracking-[0.28em] text-gold-light sm:text-2xl">PIPELINE V2</h1>
-            <span className="alien-chip px-2.5 py-1 font-mono text-[8px] tracking-[0.2em] text-muted-foreground">BLUEPRINT DEVELOPMENT ENVIRONMENT</span>
-            <Link to="/pipeline" className="alien-chip ml-auto flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.2em] text-gold-light hover:text-gold">
-              <ArrowLeft className="h-3 w-3" /> V1
+      <section className="relative z-10 mb-5">
+        <div className="alien-panel relative overflow-hidden p-6 sm:p-8">
+          <span className="alien-orb -left-16 -top-24 h-64 w-64 bg-gold/20" />
+          <span className="alien-orb right-0 top-6 h-52 w-52 bg-cyan-400/10" style={{ animationDelay: '3s' }} />
+          <div className="relative z-10 flex flex-wrap items-start gap-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gold/25 bg-gold/10">
+              <Workflow className="h-5 w-5 text-gold-light" />
+            </div>
+            <div className="min-w-[240px] flex-1">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-semibold text-foreground sm:text-[30px]">Pipeline</h1>
+                <span className="rounded-lg border border-gold/30 bg-gold/10 px-2 py-0.5 text-[13px] font-medium text-gold-light">V3</span>
+              </div>
+              <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">
+                Build trading logic visually. Classify the live universe, wire analysis programs and your own code
+                into an executable graph, and let Genius design, test and debug it for you.
+              </p>
+            </div>
+            <Link to="/pipeline-v2" className="alien-chip flex items-center gap-2 px-3 text-[13px] text-muted-foreground hover:text-gold-light">
+              <ArrowLeft className="h-3.5 w-3.5" /> V2
             </Link>
           </div>
-          <p className="relative z-10 mt-3 max-w-3xl font-mono text-[10px] leading-relaxed tracking-wider text-muted-foreground">
-            CLASSIFY THE UNIVERSE INTO LIVE SCREENS — HOTTEST, BEST PERFORMING, BIGGEST OPPORTUNITY, CRITICAL RISK AND MORE.
-            WIRE ANALYSIS PROGRAMS AND YOUR OWN CODE BOXES INTO AN EXECUTABLE GRAPH. NO PROGRAMMING REQUIRED — BUT ANY CODE IS WELCOME.
-          </p>
-          <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2">
-            <span className="alien-chip flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.18em] text-gold-light"><Cpu className="h-3 w-3" /> ENGINE READY</span>
-            <span className="alien-chip flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.18em] text-emerald-400"><Boxes className="h-3 w-3" /> {classified.length} LIVE INSTRUMENTS</span>
-            <span className="alien-chip flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.18em] text-cyan-300"><Sparkles className="h-3 w-3" /> {blocks.length} CUSTOM BOXES</span>
+
+          <div className="relative z-10 mt-6 flex flex-wrap gap-2.5">
+            <span className="alien-chip flex items-center gap-2 px-3 text-[13px] text-gold-light"><Cpu className="h-3.5 w-3.5" /> Engine ready</span>
+            <span className="alien-chip flex items-center gap-2 px-3 text-[13px] text-emerald-400"><Boxes className="h-3.5 w-3.5" /> {classified.length} live instruments</span>
+            <span className="alien-chip flex items-center gap-2 px-3 text-[13px] text-cyan-300"><Sparkles className="h-3.5 w-3.5" /> {blocks.length} custom boxes</span>
+            <span className="alien-chip flex items-center gap-2 px-3 text-[13px] text-muted-foreground">{bpState.nodes.length} nodes · {bpState.issues.length} issues</span>
           </div>
         </div>
       </section>
 
-      <div className="relative z-10 mb-4">
-        <ClassifierBoard
-          assets={classified}
-          onAddScreen={(c) => apiRef.current?.addScreen(c)}
-          onAddAsset={(t, l) => apiRef.current?.addAsset(t, l)}
-        />
-      </div>
+      <nav className="sticky top-2 z-30 mb-5">
+        <div className="v3-rail flex flex-wrap items-center gap-1.5 p-1.5">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" className="v3-tab flex items-center gap-2" data-active={tab === t.id} onClick={() => setTab(t.id)}>
+              <t.icon className="h-3.5 w-3.5" /> {t.label}
+            </button>
+          ))}
+          <span className="ml-auto pr-2 text-[13px] text-muted-foreground">
+            {bpState.running ? <span className="text-emerald-400">Running…</span> : 'Idle'}
+          </span>
+        </div>
+      </nav>
 
-      <div className="relative z-10 mb-4">
-        <GeniusV2Assistant
-          buildPageContext={buildPageContext}
-          onActions={applyActions}
-          running={bpState.running}
-          nodeCount={bpState.nodes.length}
-          issueCount={bpState.issues.length}
-        />
-      </div>
+      <div className="relative z-10 space-y-5">
+        <div className={tab === 'screens' ? 'block' : 'hidden'}>
+          <ClassifierBoard
+            assets={classified}
+            onAddScreen={(c) => { apiRef.current?.addScreen(c); setTab('blueprint'); }}
+            onAddAsset={(t, l) => { apiRef.current?.addAsset(t, l); setTab('blueprint'); }}
+          />
+        </div>
 
-      <div className="relative z-10 mb-4">
-        <BlueprintCanvas
-          classified={classified}
-          blocks={blocks}
-          getPrice={resolvePriceForTicker}
-          getSeries={getSeries}
-          account={paper.account}
-          submitOrder={paper.submitOrder as any}
-          subscribe={subscribe}
-          registerApi={registerApi}
-        />
-      </div>
+        <div className={tab === 'genius' ? 'block' : 'hidden'}>
+          <GeniusV2Assistant
+            buildPageContext={buildPageContext}
+            onActions={applyActions}
+            running={bpState.running}
+            nodeCount={bpState.nodes.length}
+            issueCount={bpState.issues.length}
+          />
+        </div>
 
-      <div className="relative z-10">
-        <CodeStudio
-          blocks={blocks}
-          onBlocksChange={setBlocks}
-          onAddToBlueprint={(b) => apiRef.current?.addBlock(b)}
-          sampleInput={() => {
-            const lead = classified[0];
-            return {
-              ticker: lead?.ticker ?? 'GLD', label: lead?.label ?? 'XAU/USD',
-              price: lead?.last ?? 0, series: lead ? getSeries(lead.ticker) : [],
-              change: lead?.derived.change ?? 0, account: paper.account,
-              screen: classified.slice(0, 5).map((a) => ({ ticker: a.ticker, label: a.label, score: a.scores.hottest })),
-              analysis: null, params: {},
-            };
-          }}
-        />
+        <div className={tab === 'blueprint' ? 'block' : 'hidden'}>
+          <BlueprintCanvas
+            classified={classified}
+            blocks={blocks}
+            getPrice={resolvePriceForTicker}
+            getSeries={getSeries}
+            account={paper.account}
+            submitOrder={paper.submitOrder as any}
+            subscribe={subscribe}
+            registerApi={registerApi}
+          />
+        </div>
+
+        <div className={tab === 'code' ? 'block' : 'hidden'}>
+          <CodeStudio
+            blocks={blocks}
+            onBlocksChange={setBlocks}
+            onAddToBlueprint={(b) => { apiRef.current?.addBlock(b); setTab('blueprint'); }}
+            sampleInput={() => {
+              const lead = classified[0];
+              return {
+                ticker: lead?.ticker ?? 'GLD', label: lead?.label ?? 'XAU/USD',
+                price: lead?.last ?? 0, series: lead ? getSeries(lead.ticker) : [],
+                change: lead?.derived.change ?? 0, account: paper.account,
+                screen: classified.slice(0, 5).map((a) => ({ ticker: a.ticker, label: a.label, score: a.scores.hottest })),
+                analysis: null, params: {},
+              };
+            }}
+          />
+        </div>
       </div>
     </>
   );
 };
 
-export default function PipelineV2() {
+export default function PipelineV3() {
   return (
-    <div className="alien-field min-h-screen">
+    <div className="pipeline-v3 alien-field min-h-screen">
       <Header />
-      <main className="relative z-10 mx-auto max-w-[1700px] px-3 pb-16 pt-4 sm:px-6">
+      <main className="relative z-10 mx-auto max-w-[1600px] px-4 pb-20 pt-5 sm:px-8">
         <PipelineProvider seedTickers={SEED}>
           <Workspace />
         </PipelineProvider>
