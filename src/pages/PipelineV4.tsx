@@ -467,8 +467,66 @@ const Workspace = () => {
 
         <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
           {/* palette */}
-          <aside className="order-2 h-[420px] rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur lg:order-1 lg:h-[640px]">
-            <BlockPalette onAdd={addBlock} laneName={selectedLane?.name ?? 'Lane 1'} />
+          <aside className="order-2 flex h-[460px] flex-col rounded-xl border border-border/60 bg-card/40 p-2 backdrop-blur lg:order-1 lg:h-[640px]">
+            <div className="mb-2 grid grid-cols-5 gap-1">
+              {([
+                { id: 'blocks', label: 'Blocks', icon: Boxes },
+                { id: 'positions', label: 'Book', icon: Wallet },
+                { id: 'orders', label: 'Fills', icon: Receipt },
+                { id: 'trade', label: 'Trade', icon: CandlestickChart },
+                { id: 'screens', label: 'Screens', icon: LayoutGrid },
+              ] as const).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setRail(t.id)}
+                  title={t.label}
+                  className={`flex flex-col items-center gap-0.5 rounded-md border px-1 py-1 text-[11px] transition ${
+                    rail === t.id ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <t.icon className="h-3.5 w-3.5" />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1">
+              {rail === 'blocks' && <BlockPalette onAdd={addBlock} laneName={selectedLane?.name ?? 'Lane 1'} />}
+              {rail === 'positions' && (
+                <PositionsPanel
+                  positions={paper.positions}
+                  getPrice={resolvePriceForTicker}
+                  onClose={(id, px) => paper.closePosition(id, px)}
+                  onCloseAll={() => paper.positions.forEach((p) => {
+                    const px = resolvePriceForTicker(p.symbol) || p.currentPrice;
+                    if (px > 0) paper.closePosition(p.id, px);
+                  })}
+                />
+              )}
+              {rail === 'orders' && <OrdersPanel orders={paper.orders} />}
+              {rail === 'trade' && (
+                <TradeDesk
+                  getPrice={resolvePriceForTicker}
+                  cash={paper.account.cash}
+                  onSubmit={(p) => paper.submitOrder(p as any)}
+                  defaultTicker={selectedStep?.config?.ticker ?? null}
+                />
+              )}
+              {rail === 'screens' && (
+                <ScreensPanel
+                  assets={classified}
+                  onAddScreen={(classId, label) => {
+                    const laneId = selectedLane?.id ?? addLane();
+                    const id = addStep(laneId, 'screen', label, { classId, limit: 5, bindTop: true });
+                    setSelectedStepId(id); setPanel('step');
+                  }}
+                  onAddAsset={(ticker, label) => {
+                    const laneId = selectedLane?.id ?? addLane();
+                    const id = addStep(laneId, 'asset', label, { ticker, label });
+                    setSelectedStepId(id); setPanel('step');
+                  }}
+                />
+              )}
+            </div>
           </aside>
 
           {/* 3D stage */}
