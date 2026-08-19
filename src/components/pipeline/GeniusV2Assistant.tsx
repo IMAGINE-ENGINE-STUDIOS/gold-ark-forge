@@ -35,19 +35,20 @@ const QUICK = [
   { label: 'SOLVE MY GOAL', icon: Target, prompt: 'I want to make 10% on my investment over the next week. Analyze the market and every indicator, then build the actual workflow that targets that result with honest probability and risk controls.' },
   { label: 'ANALYZE PAGE', icon: Radar, prompt: 'Read the whole workspace — live screens, blueprint graph, issues and last trace — and brief me on what it does and what is weak.' },
   { label: 'MARKET READ', icon: Radar, prompt: 'Give me a full market read from the live intelligence: regime, breadth, every indicator on the top candidates, and where the edge is right now.' },
-  { label: 'BUILD FOR ME', icon: Sparkles, prompt: 'Build the strongest blueprint you can from the live screens on this page, wiring screens, analysis and risk before any trade node. Explain the logic.' },
+  { label: 'BUILD FOR ME', icon: Sparkles, prompt: 'Build the strongest blueprint you can from the live screens, then test it on paper and tell me in plain words what it did.' },
   { label: 'WRITE CODE BOX', icon: Code2, prompt: 'Write a custom code box that adds an edge my current analysis programs do not cover, save it and wire it into the blueprint.' },
   { label: 'DEBUG', icon: Stethoscope, prompt: 'Debug this workspace: fix every validation issue and every error in the last execution trace, then explain each fix.' },
-  { label: 'RUN', icon: Play, prompt: 'Run the blueprint now if it compiles, otherwise tell me exactly what to fix first.' },
+  { label: 'RUN', icon: Play, prompt: 'Run the blueprint now and report the trace. If it fails, fix it and run it again.' },
   { label: 'STOP', icon: Square, prompt: 'Stop the running blueprint immediately.' },
 ];
 
 export default function GeniusV2Assistant({ buildPageContext, onActions, running, nodeCount, issueCount }: GeniusV2AssistantProps) {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'assistant', content: 'GENIUS V2 ONLINE. Tell me the RESULT you want — e.g. "make 10% on my investments in the next week" — and I will read the live market and every indicator, state the honest probability, and build the actual workflow that targets it. I can also rewire, write code, debug, run or stop anything on this page.' },
+    { role: 'assistant', content: 'Genius online. Tell me what you want to happen — for example "make 10% in a week" — and I will build the workflow, test it on the paper account, and tell you plainly what happened. I can also rewrite it, write custom code, debug it, run it or stop it.' },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [choices, setChoices] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
     setInput('');
     const history = msgs.slice(-8).map((m) => ({ role: m.role, content: m.content }));
     setMsgs((prev) => [...prev, { role: 'user', content: message }]);
+    setChoices([]);
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('pipeline-v2-genius', {
@@ -72,6 +74,7 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
       if (data?.objective) brief.push(`OBJECTIVE — ${data.objective}`);
       if (data?.feasibility) brief.push(`FEASIBILITY — ${data.feasibility}`);
       const actions: GeniusV2Action[] = Array.isArray(data?.actions) ? data.actions : [];
+      setChoices(Array.isArray(data?.choices) ? data.choices.slice(0, 4) : []);
       const notes = actions.length ? onActions(actions) : [];
       const body = [brief.join('\n'), reply, notes.map((n) => `› ${n}`).join('\n')].filter(Boolean).join('\n\n');
       setMsgs((prev) => [
@@ -89,12 +92,12 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
     <div className="alien-panel alien-scan relative flex h-full min-h-[420px] flex-col overflow-hidden p-2.5">
       <header className="relative z-10 mb-2 flex flex-wrap items-center gap-1.5">
         <Brain className="h-3.5 w-3.5 text-gold-light" />
-        <span className="font-display text-[10px] tracking-[0.22em] text-gold-light">GENIUS V2 ENGINEER</span>
-        <span className="alien-chip px-2 py-0.5 font-mono text-[7px] tracking-widest text-muted-foreground">{nodeCount} NODES</span>
-        <span className={`alien-chip px-2 py-0.5 font-mono text-[7px] tracking-widest ${issueCount ? 'text-amber-400' : 'text-emerald-400'}`}>
+        <span className="font-display text-[13px] tracking-[0.22em] text-gold-light">GENIUS V2 ENGINEER</span>
+        <span className="alien-chip px-2 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground">{nodeCount} NODES</span>
+        <span className={`alien-chip px-2 py-0.5 font-mono text-[9px] tracking-widest ${issueCount ? 'text-amber-400' : 'text-emerald-400'}`}>
           {issueCount ? `${issueCount} ISSUES` : 'CLEAN'}
         </span>
-        <span className={`alien-chip ml-auto px-2 py-0.5 font-mono text-[7px] tracking-widest ${running ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+        <span className={`alien-chip ml-auto px-2 py-0.5 font-mono text-[9px] tracking-widest ${running ? 'text-emerald-400' : 'text-muted-foreground'}`}>
           {running ? 'RUNNING' : 'STANDBY'}
         </span>
       </header>
@@ -105,9 +108,9 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
             key={q.label}
             onClick={() => send(q.prompt)}
             disabled={busy}
-            className="alien-chip flex items-center gap-1 px-2 py-1 font-mono text-[7px] tracking-[0.16em] text-gold-light transition hover:text-gold disabled:opacity-40"
+            className="alien-chip flex items-center gap-1 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-gold-light transition hover:text-gold disabled:opacity-40"
           >
-            <q.icon className="h-2.5 w-2.5" /> {q.label}
+            <q.icon className="h-3 w-3" /> {q.label}
           </button>
         ))}
       </div>
@@ -116,7 +119,7 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
         {msgs.map((m, i) => (
           <div
             key={i}
-            className={`whitespace-pre-wrap rounded-lg border px-2 py-1.5 font-mono text-[9px] leading-relaxed ${
+            className={`whitespace-pre-wrap rounded-lg border px-2 py-1.5 font-mono text-[12px] leading-relaxed ${
               m.role === 'user'
                 ? 'ml-6 border-gold/30 bg-gold/10 text-gold-light'
                 : 'mr-2 border-border/40 bg-background/50 text-foreground/85 backdrop-blur-sm'
@@ -126,18 +129,32 @@ export default function GeniusV2Assistant({ buildPageContext, onActions, running
           </div>
         ))}
         {busy && (
-          <div className="flex items-center gap-1.5 font-mono text-[9px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 font-mono text-[12px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin text-gold" /> GENIUS ENGINEERING…
           </div>
         )}
       </div>
+
+      {choices.length > 0 && !busy && (
+        <div className="relative z-10 mt-2 flex flex-wrap gap-1">
+          {choices.map((c) => (
+            <button
+              key={c}
+              onClick={() => send(c)}
+              className="alien-chip px-2 py-1 font-mono text-[10px] tracking-[0.12em] text-gold-light transition hover:text-gold"
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="relative z-10 mt-2 flex items-center gap-1.5">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="STATE YOUR TARGET RETURN & TIMEFRAME, OR ASK ANYTHING…"
-          className="w-full rounded-full border border-gold/25 bg-background/70 px-3 py-1.5 font-mono text-[9px] tracking-widest text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-gold/60"
+          className="w-full rounded-full border border-gold/25 bg-background/70 px-3 py-1.5 font-mono text-[11px] tracking-widest text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-gold/60"
         />
         <button
           type="submit"
