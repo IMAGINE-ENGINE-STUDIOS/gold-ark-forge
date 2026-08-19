@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, LogIn, LogOut, Store, BarChart3, ArrowLeftRight, Brain, Vault, ShieldCheck, Info, Fuel, Lightbulb, Settings, Globe, Workflow, Sparkles } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, ArrowLeftRight, Info, Settings, Workflow } from 'lucide-react';
 import ConnectWalletButton from '@/components/wallet/ConnectWalletButton';
 import { useAuth } from '@/hooks/useAuth';
 import goldArrowLogo from '@/assets/gold-arrow-logo.png';
