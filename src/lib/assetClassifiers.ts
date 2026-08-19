@@ -48,12 +48,8 @@ export const deriveMetrics = (m: AssetMetrics): DerivedMetrics => {
   };
 };
 
-export type ClassId =
-  | 'hottest' | 'best' | 'worst' | 'opportunity' | 'critical_risk'
-  | 'volatility_storm' | 'calm' | 'breakout' | 'breakdown'
-  | 'oversold' | 'overbought' | 'trend_up' | 'trend_down'
-  | 'momentum_surge' | 'mean_revert' | 'stability_anchor'
-  | 'accumulation' | 'distribution';
+/** Screen identifier — the catalog below is the source of truth. */
+export type ClassId = string;
 
 export interface ClassDefinition {
   id: ClassId;
@@ -66,7 +62,7 @@ export interface ClassDefinition {
 
 const clamp01 = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0);
 
-export const ASSET_CLASSES: ClassDefinition[] = [
+const CORE_CLASSES: ClassDefinition[] = [
   { id: 'hottest', label: 'HOTTEST', blurb: 'Largest live move combined with elevated activity.', tint: 'orange',
     score: (d) => clamp01((Math.abs(d.change) / 6) * 0.7 + (d.volatility / 4) * 0.3) },
   { id: 'best', label: 'BEST PERFORMING', blurb: 'Strongest positive 24h return.', tint: 'emerald',
@@ -104,6 +100,52 @@ export const ASSET_CLASSES: ClassDefinition[] = [
   { id: 'distribution', label: 'DISTRIBUTION', blurb: 'Quiet stalling at the highs — supply overhead.', tint: 'orange',
     score: (d) => clamp01(1 - d.volatility / 2.5) * clamp01(d.rangePos) },
 ];
+
+/* ── Extended screen catalog ── */
+const EXTRA: ClassDefinition[] = [
+  { id: 'squeeze', label: 'COILED SPRING', blurb: 'Volatility compressed against a flat tape — expansion pending.', tint: 'teal', score: (d) => clamp01(1 - d.volatility / 1.5) * clamp01(1 - Math.abs(d.momentum) / 2) },
+  { id: 'expansion', label: 'RANGE EXPANSION', blurb: 'Volatility opening up with directional drift.', tint: 'amber', score: (d) => clamp01(d.volatility / 4) * clamp01(Math.abs(d.momentum) / 2) },
+  { id: 'gap_up', label: 'GAP UP', blurb: 'Sharp positive dislocation on the live tape.', tint: 'emerald', score: (d) => clamp01(d.change / 3) * clamp01(d.rangePos) },
+  { id: 'gap_down', label: 'GAP DOWN', blurb: 'Sharp negative dislocation on the live tape.', tint: 'rose', score: (d) => clamp01(-d.change / 3) * clamp01(1 - d.rangePos) },
+  { id: 'reversal_up', label: 'REVERSAL UP', blurb: 'Down on the day but reclaiming the range.', tint: 'cyan', score: (d) => clamp01(-d.change / 4) * clamp01(d.rangePos) },
+  { id: 'reversal_down', label: 'REVERSAL DOWN', blurb: 'Up on the day but rolling off the highs.', tint: 'fuchsia', score: (d) => clamp01(d.change / 4) * clamp01(1 - d.rangePos) },
+  { id: 'grind_up', label: 'GRIND UP', blurb: 'Slow persistent lift with low dispersion.', tint: 'emerald', score: (d) => clamp01(d.momentum / 2) * clamp01(1 - d.volatility / 3) },
+  { id: 'grind_down', label: 'GRIND DOWN', blurb: 'Slow persistent bleed with low dispersion.', tint: 'rose', score: (d) => clamp01(-d.momentum / 2) * clamp01(1 - d.volatility / 3) },
+  { id: 'capitulation', label: 'CAPITULATION', blurb: 'Violent flush into the range low.', tint: 'red', score: (d) => clamp01(-d.change / 5) * clamp01(d.volatility / 4) * clamp01(1 - d.rangePos) },
+  { id: 'euphoria', label: 'EUPHORIA', blurb: 'Vertical chase into the range high.', tint: 'orange', score: (d) => clamp01(d.change / 5) * clamp01(d.volatility / 4) * clamp01(d.rangePos) },
+  { id: 'liquidity_grade', label: 'EXECUTION GRADE', blurb: 'Tight tick behaviour — cheapest to execute.', tint: 'sky', score: (d) => clamp01(1 - d.volatility / 1.2) * (d.samples > 3 ? 1 : 0.5) },
+  { id: 'scalp_ready', label: 'SCALP READY', blurb: 'Mid-range chop with enough tick range to scalp.', tint: 'cyan', score: (d) => clamp01(1 - Math.abs(d.rangePos - 0.5) * 2) * clamp01(d.volatility / 2.5) },
+  { id: 'grid_ready', label: 'GRID READY', blurb: 'Bounded oscillation suited to grid programs.', tint: 'teal', score: (d) => clamp01(1 - Math.abs(d.momentum) / 2) * clamp01(d.volatility / 2) },
+  { id: 'swing_ready', label: 'SWING READY', blurb: 'Clean multi-sample drift with tolerable risk.', tint: 'emerald', score: (d) => clamp01(Math.abs(d.momentum) / 2.5) * clamp01(1 - d.volatility / 4) },
+  { id: 'carry_grade', label: 'CARRY GRADE', blurb: 'Boring, stable and cheap to hold.', tint: 'slate', score: (d) => clamp01(1 - Math.abs(d.change) / 1) * clamp01(1 - d.volatility / 1.5) },
+  { id: 'hedge_candidate', label: 'HEDGE CANDIDATE', blurb: 'Moving against the crowd — portfolio offset.', tint: 'indigo', score: (d) => clamp01(-d.change / 3) * clamp01(1 - d.volatility / 4) },
+  { id: 'high_beta', label: 'HIGH BETA', blurb: 'Amplified response to market swings.', tint: 'violet', score: (d) => clamp01(d.volatility / 3) * clamp01(Math.abs(d.change) / 3) },
+  { id: 'low_beta', label: 'LOW BETA', blurb: 'Muted response to market swings.', tint: 'slate', score: (d) => clamp01(1 - d.volatility / 2) * clamp01(1 - Math.abs(d.change) / 2) },
+  { id: 'stretched_high', label: 'STRETCHED HIGH', blurb: 'Pinned at range top after a big run.', tint: 'fuchsia', score: (d) => clamp01(d.rangePos) * clamp01(d.momentum / 2) },
+  { id: 'stretched_low', label: 'STRETCHED LOW', blurb: 'Pinned at range bottom after a big flush.', tint: 'cyan', score: (d) => clamp01(1 - d.rangePos) * clamp01(-d.momentum / 2) },
+  { id: 'recovering', label: 'RECOVERING', blurb: 'Lifting out of a drawdown.', tint: 'emerald', score: (d) => clamp01(-d.drawdown / 6) * clamp01(d.momentum / 2) },
+  { id: 'deteriorating', label: 'DETERIORATING', blurb: 'Fresh lows with worsening drift.', tint: 'rose', score: (d) => clamp01(-d.drawdown / 6) * clamp01(-d.momentum / 2) },
+  { id: 'quiet_drift_up', label: 'QUIET DRIFT UP', blurb: 'Low-noise positive tape — trend-follow base.', tint: 'emerald', score: (d) => clamp01(d.momentum / 1.5) * clamp01(1 - d.volatility / 2) },
+  { id: 'quiet_drift_down', label: 'QUIET DRIFT DOWN', blurb: 'Low-noise negative tape — short base.', tint: 'rose', score: (d) => clamp01(-d.momentum / 1.5) * clamp01(1 - d.volatility / 2) },
+  { id: 'whipsaw', label: 'WHIPSAW', blurb: 'High dispersion with no net progress — avoid trend logic.', tint: 'amber', score: (d) => clamp01(d.volatility / 3) * clamp01(1 - Math.abs(d.momentum) / 1.5) },
+  { id: 'tight_range', label: 'TIGHT RANGE', blurb: 'Narrow band — breakout watchlist.', tint: 'sky', score: (d) => clamp01(1 - d.volatility / 1) },
+  { id: 'new_highs', label: 'NEW HIGHS', blurb: 'Printing at the top of the live window.', tint: 'emerald', score: (d) => clamp01((d.rangePos - 0.9) * 10) },
+  { id: 'new_lows', label: 'NEW LOWS', blurb: 'Printing at the bottom of the live window.', tint: 'rose', score: (d) => clamp01((0.1 - d.rangePos) * 10) },
+  { id: 'risk_off', label: 'RISK OFF', blurb: 'Falling with expanding dispersion — defensive posture.', tint: 'red', score: (d) => clamp01(-d.change / 4) * clamp01(d.volatility / 3) },
+  { id: 'risk_on', label: 'RISK ON', blurb: 'Rising with healthy participation.', tint: 'emerald', score: (d) => clamp01(d.change / 4) * clamp01(d.volatility / 4) },
+  { id: 'blowoff_risk', label: 'BLOW-OFF RISK', blurb: 'Parabolic extension — trail stops tight.', tint: 'orange', score: (d) => clamp01(d.momentum / 3) * clamp01(d.volatility / 3) * clamp01(d.rangePos) },
+  { id: 'falling_knife', label: 'FALLING KNIFE', blurb: 'Accelerating decline — do not average down.', tint: 'red', score: (d) => clamp01(-d.momentum / 3) * clamp01(d.volatility / 3) * clamp01(1 - d.rangePos) },
+  { id: 'base_building', label: 'BASE BUILDING', blurb: 'Volatility collapsing after a decline.', tint: 'teal', score: (d) => clamp01(-d.drawdown / 8) * clamp01(1 - d.volatility / 2) },
+  { id: 'topping', label: 'TOPPING', blurb: 'Momentum fading at the highs.', tint: 'orange', score: (d) => clamp01(d.rangePos) * clamp01(1 - Math.abs(d.momentum) / 1.5) * clamp01(d.change / 3) },
+  { id: 'bottoming', label: 'BOTTOMING', blurb: 'Selling pressure fading at the lows.', tint: 'cyan', score: (d) => clamp01(1 - d.rangePos) * clamp01(1 - Math.abs(d.momentum) / 1.5) * clamp01(-d.change / 3) },
+  { id: 'fresh_signal', label: 'FRESH TELEMETRY', blurb: 'Deepest live sample history — most trustworthy stats.', tint: 'gold', score: (d) => clamp01(d.samples / 40) },
+  { id: 'thin_data', label: 'THIN TELEMETRY', blurb: 'Few live samples — treat every signal as provisional.', tint: 'slate', score: (d) => clamp01(1 - d.samples / 12) },
+  { id: 'big_movers', label: 'BIG MOVERS', blurb: 'Absolute move leaders regardless of direction.', tint: 'orange', score: (d) => clamp01(Math.abs(d.change) / 4) },
+  { id: 'flat_tape', label: 'FLAT TAPE', blurb: 'Barely moving — no edge for directional programs.', tint: 'slate', score: (d) => clamp01(1 - Math.abs(d.change) / 0.8) * clamp01(1 - Math.abs(d.momentum) / 1) },
+  { id: 'asymmetric', label: 'ASYMMETRIC SETUP', blurb: 'Deep drawdown with rebuilding drift — best reward/risk.', tint: 'gold', score: (d) => clamp01(-d.drawdown / 10) * clamp01(d.momentum / 1.5) * clamp01(1 - d.volatility / 4) },
+];
+
+export const ASSET_CLASSES: ClassDefinition[] = [...CORE_CLASSES, ...EXTRA];
 
 export const CLASS_BY_ID = new Map(ASSET_CLASSES.map((c) => [c.id, c]));
 
