@@ -1,4 +1,4 @@
-import SymbolLogo from '@/components/trading/SymbolLogo';
+import TickerLogo from './TickerLogo';
 import { XCircle } from 'lucide-react';
 import type { PaperPosition } from '@/hooks/usePaperTrading';
 
@@ -39,7 +39,7 @@ export default function PositionsPanel({
           return (
             <li key={p.id} className="rounded-lg border border-border/50 bg-background/40 p-2">
               <div className="flex items-center gap-2">
-                <SymbolLogo symbol={p.symbol} size={18} />
+                <TickerLogo ticker={p.symbol} size={18} />
                 <button onClick={() => onFocus?.(p.symbol)} className="truncate text-[13px] font-medium text-foreground hover:text-primary">
                   {p.symbol}
                 </button>

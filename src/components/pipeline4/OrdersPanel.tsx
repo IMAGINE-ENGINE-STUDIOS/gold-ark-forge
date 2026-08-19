@@ -1,4 +1,4 @@
-import SymbolLogo from '@/components/trading/SymbolLogo';
+import TickerLogo from './TickerLogo';
 import type { PaperOrder } from '@/hooks/usePaperTrading';
 
 export default function OrdersPanel({ orders }: { orders: PaperOrder[] }) {
@@ -11,7 +11,7 @@ export default function OrdersPanel({ orders }: { orders: PaperOrder[] }) {
       {list.map((o) => (
         <li key={o.id} className="rounded-lg border border-border/50 bg-background/40 p-2">
           <div className="flex items-center gap-2">
-            <SymbolLogo symbol={o.symbol} size={16} />
+            <TickerLogo ticker={o.symbol} size={16} />
             <span className="truncate text-[13px] text-foreground">{o.symbol}</span>
             <span className={`rounded px-1.5 py-0.5 text-[11px] ${o.side === 'buy' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
               {o.side.toUpperCase()}
