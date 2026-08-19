@@ -77,6 +77,37 @@ const Workspace = () => {
     }),
     [graph, blocks],
   );
+
+  /* ── live P&L: repaint open positions from the feed every second ── */
+  const positionsRef = useRef(paper.positions);
+  positionsRef.current = paper.positions;
+  const updatePricesRef = useRef(paper.updatePrices);
+  updatePricesRef.current = paper.updatePrices;
+  const priceRef = useRef(resolvePriceForTicker);
+  priceRef.current = resolvePriceForTicker;
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const map: Record<string, number> = {};
+      for (const p of positionsRef.current) {
+        const px = priceRef.current(p.symbol);
+        if (px > 0) map[p.symbol] = px;
+      }
+      if (Object.keys(map).length) updatePricesRef.current(map);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  /* ── equity curve sampling while a run is live ── */
+  const equityRef = useRef(paper.account.equity);
+  equityRef.current = paper.account.equity;
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => {
+      setEquityCurve((c) => [...c.slice(-179), equityRef.current]);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [running]);
   const blockingIssues = issues.filter((i) => i.level === 'error');
 
   const selectedLane = graph.lanes.find((l) => l.id === selectedLaneId) ?? graph.lanes[0] ?? null;
