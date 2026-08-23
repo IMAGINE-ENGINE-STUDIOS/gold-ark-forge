@@ -204,6 +204,12 @@ export function validateGraph(
         case 'branch':
           if (!s.config?.expects) add('warn', 'This condition step has no expected signal, so it always passes.', s.id);
           break;
+        case 'agent':
+          if (!String(s.config?.taskPrompt ?? '').trim()) {
+            add('warn', 'This agent has no task prompt yet — tell it what to judge.', s.id);
+          }
+          break;
+
         default:
           break;
       }
