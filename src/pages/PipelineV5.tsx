@@ -10,11 +10,12 @@
 // built in either version opens in the other.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Trash2, Layers, SlidersHorizontal, ScrollText } from 'lucide-react';
+import { Play, Square, Trash2, Layers, SlidersHorizontal, ScrollText, Code2 } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import TetrisConsole from '@/components/pipeline5/TetrisConsole';
 import BlockPalette from '@/components/pipeline4/BlockPalette';
+import CodeStudio from '@/components/pipeline/CodeStudio';
 import StepInspector from '@/components/pipeline4/StepInspector';
 import AccountHud from '@/components/pipeline4/AccountHud';
 import RunReport from '@/components/pipeline4/RunReport';
@@ -42,12 +43,12 @@ const Console = () => {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
-  const [panel, setPanel] = useState<'step' | 'report'>('step');
+  const [panel, setPanel] = useState<'step' | 'report' | 'dev'>('step');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
   const [runSummary, setRunSummary] = useState<string | null>(null);
   const [runResult, setRunResult] = useState<RunResult | null>(null);
-  const [blocks] = useState<CustomBlock[]>(() => loadBlocks());
+  const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
 
   const stopRef = useRef(false);
   const graphRef = useRef(graph);
@@ -420,7 +421,7 @@ const Console = () => {
 
           <aside className="flex h-[640px] flex-col rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur">
             <div className="mb-2 flex gap-1">
-              {([['step', 'Block', SlidersHorizontal], ['report', 'Report', ScrollText]] as const).map(([id, label, Icon]) => (
+              {([['step', 'Block', SlidersHorizontal], ['report', 'Report', ScrollText], ['dev', 'Dev', Code2]] as const).map(([id, label, Icon]) => (
                 <button
                   key={id}
                   onClick={() => setPanel(id)}
@@ -433,7 +434,7 @@ const Console = () => {
               ))}
             </div>
 
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-auto">
               {panel === 'step' ? (
                 selectedStep ? (
                   <StepInspector
@@ -460,11 +461,31 @@ const Console = () => {
                     </div>
                   </div>
                 )
-              ) : (
+              ) : panel === 'report' ? (
                 <RunReport events={events} result={runResult} running={running} equityCurve={equityCurve} startEquity={runStartEquity} />
+              ) : (
+                /* Dev environment: write, test and ship custom code blocks straight
+                   into the well without leaving the console. */
+                <CodeStudio
+                  blocks={blocks}
+                  onBlocksChange={setBlocks}
+                  onAddToBlueprint={(b) => {
+                    const laneId = selectedLane?.id ?? addLane();
+                    const id = addStep(laneId, 'code', b.name, { blockId: b.id });
+                    setSelectedStepId(id);
+                    setPanel('step');
+                  }}
+                  sampleInput={() => ({
+                    ticker: selectedTicker ?? 'XAUUSD',
+                    price: selectedPrice,
+                    series: [],
+                    account: { equity: paper?.account?.equity ?? 0 },
+                  })}
+                />
               )}
             </div>
           </aside>
+
         </div>
       </main>
     </div>
