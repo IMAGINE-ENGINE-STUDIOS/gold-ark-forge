@@ -20,7 +20,7 @@ import { loadBlocks, saveBlocks, normalizeBlockCode, type CustomBlock } from '@/
 import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
-  emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps,
+  convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
   validateGraph, type PipeGraph, type PipeStep,
 } from '@/lib/pipelineGraph';
 import { runGraph, type RunEvent } from '@/lib/parallelEngine';
