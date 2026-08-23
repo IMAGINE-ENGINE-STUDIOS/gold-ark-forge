@@ -39,7 +39,9 @@ const Workspace = () => {
   const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
+  const [runSummary, setRunSummary] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
+
   const stopRef = useRef(false);
   const graphRef = useRef(graph);
   graphRef.current = graph;
@@ -222,8 +224,10 @@ const Workspace = () => {
     setEvents([]);
     setRunning(true);
     setPanel('report');
-    setRunStartEquity(paper.account.equity);
-    setEquityCurve([paper.account.equity]);
+    setRunSummary(null);
+    const startEquity = paper.account.equity;
+    setRunStartEquity(startEquity);
+    setEquityCurve([startEquity]);
     const collected: any[] = [];
     try {
       await runGraph(
@@ -237,10 +241,25 @@ const Workspace = () => {
           submitOrder: paper.submitOrder as any,
           shouldStop: () => stopRef.current,
         },
-        (e) => { collected.push(e); setEvents((prev) => [...prev, e]); },
+        (e) => {
+          collected.push(e);
+          setEvents((prev) => [...prev, e]);
+          if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
+        },
       );
     } finally {
       setRunning(false);
+      const trades = collected.filter((e) => e.status === 'ok' && /^(Bought|Sold) \$/.test(e.message ?? '')).length;
+      const errors = collected.filter((e) => e.status === 'error').length;
+      const skips = collected.filter((e) => e.status === 'skip').length;
+      const delta = equityRef.current - startEquity;
+      setRunSummary(
+        !collected.length
+          ? 'The run finished without executing a single step — add blocks to a lane first.'
+          : `Run finished · ${collected.length} steps across ${graphRef.current.lanes.length} lanes · ${trades} paper trade${trades === 1 ? '' : 's'}` +
+            ` · ${skips} step${skips === 1 ? '' : 's'} skipped by a condition · ${errors} error${errors === 1 ? '' : 's'}` +
+            ` · paper equity ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)}. Full step-by-step trace is in the Report panel on the right.`,
+      );
       if (reportToGenius && reporterRef.current) {
         const trace = collected.length
           ? collected.slice(-40).map((e) => `[${e.status}] ${e.laneName} › ${e.stepLabel}: ${e.message ?? ''}`).join('\n')
@@ -249,6 +268,17 @@ const Workspace = () => {
       }
     }
   }, [running, resolvePriceForTicker, getSeries, classified, paper]);
+
+  const erasePipeline = useCallback(() => {
+    if (!window.confirm('Erase the whole pipeline? Every lane and step is deleted. This cannot be undone.')) return;
+    const fresh = { ...emptyGraph(), lanes: [makeLane('Lane 1', 0)] };
+    setGraph(fresh);
+    setSelectedLaneId(fresh.lanes[0].id);
+    setSelectedStepId(null);
+    setEvents([]);
+    setRunSummary(null);
+  }, []);
+
 
   /* ─────────────── Genius bridge ─────────────── */
 
@@ -307,11 +337,58 @@ const Workspace = () => {
           }
           break;
         }
+        case 'add_lanes': {
+          // append new lanes WITHOUT touching anything already on the canvas
+          const lanes = (a.lanes ?? []).map((l, i) => {
+            const lane = makeLane(l.name || `Lane ${graphRef.current.lanes.length + i + 1}`, graphRef.current.lanes.length + i);
+            lane.consensus = !!l.consensus;
+            if (l.agree) lane.agree = l.agree;
+            lane.steps = (l.steps ?? []).map((s) => {
+              const def = BLOCK_BY_ID.get(s.kind);
+              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
+            });
+            return lane;
+          });
+          if (lanes.length) {
+            mutate((g) => ({ ...g, lanes: [...g.lanes, ...lanes] }));
+            setSelectedLaneId(lanes[0].id);
+            notes.push(`added ${lanes.length} new lane${lanes.length === 1 ? '' : 's'} alongside the existing ones`);
+          }
+          break;
+        }
+        case 'replace_lane': {
+          // rewrite one lane only, leaving every other lane untouched
+          const target = graphRef.current.lanes[a.laneIndex ?? -1];
+          const spec = a.lanes?.[0];
+          if (target && spec) {
+            const steps = (spec.steps ?? []).map((s) => {
+              const def = BLOCK_BY_ID.get(s.kind);
+              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
+            });
+            mutate((g) => ({
+              ...g,
+              lanes: g.lanes.map((l) => (l.id === target.id
+                ? { ...l, name: spec.name || l.name, consensus: spec.consensus ?? l.consensus, agree: spec.agree ?? l.agree, steps }
+                : l)),
+            }));
+            notes.push(`rebuilt ${spec.name || target.name}`);
+          }
+          break;
+        }
+        case 'rename_lane': {
+          const target = graphRef.current.lanes[a.laneIndex ?? -1];
+          if (target && a.laneName) {
+            mutate((g) => ({ ...g, lanes: g.lanes.map((l) => (l.id === target.id ? { ...l, name: a.laneName! } : l)) }));
+            notes.push(`renamed ${target.name} to ${a.laneName}`);
+          }
+          break;
+        }
         case 'add_lane': {
           addLane(a.laneName, !!a.consensus);
           notes.push(`added lane ${a.laneName ?? ''}`.trim());
           break;
         }
+
         case 'add_step': {
           const lanes = graphRef.current.lanes;
           const lane = lanes[a.laneIndex ?? 0] ?? lanes[0];
@@ -436,23 +513,15 @@ const Workspace = () => {
             <Users className="h-3.5 w-3.5" /> Consensus lane
           </button>
 
-          {running ? (
-            <button
-              onClick={() => { stopRef.current = true; }}
-              className="flex items-center gap-1.5 rounded-md border border-destructive/60 bg-destructive/10 px-3 py-1.5 text-[13px] font-medium text-destructive"
-            >
-              <Square className="h-3.5 w-3.5" /> Stop
-            </button>
-          ) : (
-            <button
-              onClick={() => void run()}
-              disabled={!!blockingIssues.length || !totalSteps(graph)}
-              className="flex items-center gap-1.5 rounded-md border border-primary/60 bg-primary/15 px-3 py-1.5 text-[13px] font-medium text-primary disabled:opacity-40"
-              title={blockingIssues.length ? blockingIssues[0].message : 'Run every lane at once on the paper account'}
-            >
-              <Play className="h-3.5 w-3.5" /> Run all lanes
-            </button>
-          )}
+          <button
+            onClick={erasePipeline}
+            disabled={running}
+            className="flex items-center gap-1.5 rounded-md border border-destructive/50 px-2.5 py-1.5 text-[13px] text-destructive hover:bg-destructive/10 disabled:opacity-40"
+            title="Delete every lane and step and start from a blank pipeline"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Erase pipeline
+          </button>
+
         </section>
 
         {!!issues.length && (
@@ -538,7 +607,7 @@ const Workspace = () => {
           </aside>
 
           {/* 3D stage */}
-          <section className="order-1 h-[420px] overflow-hidden rounded-xl border border-border/60 bg-[#05070d] lg:order-2 lg:h-[640px]">
+          <section className="order-1 relative h-[420px] overflow-hidden rounded-xl border border-border/60 bg-[#05070d] lg:order-2 lg:h-[640px]">
             <PipelineScene3D
               graph={graph}
               selectedStepId={selectedStepId}
@@ -548,7 +617,71 @@ const Workspace = () => {
               onSelectStep={(laneId, stepId) => { setSelectedLaneId(laneId); setSelectedStepId(stepId); setPanel('step'); }}
               onSelectLane={(laneId) => { setSelectedLaneId(laneId); setSelectedStepId(null); }}
             />
+
+            {/* live run banner */}
+            {running && (
+              <div className="pointer-events-none absolute left-1/2 top-3 w-[min(92%,560px)] -translate-x-1/2 rounded-lg border border-primary/50 bg-background/85 px-3 py-2 text-center backdrop-blur">
+                <p className="text-[13px] font-medium text-primary">
+                  Running all {graph.lanes.length} lanes at once on the paper account
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  {events.length} step{events.length === 1 ? '' : 's'} executed so far · the camera follows the step being run · live trace in Report
+                </p>
+              </div>
+            )}
+
+            {/* what just happened */}
+            {!running && runSummary && (
+              <div className="absolute left-1/2 top-3 w-[min(92%,620px)] -translate-x-1/2 rounded-lg border border-primary/40 bg-background/90 px-3 py-2 backdrop-blur">
+                <div className="flex items-start gap-2">
+                  <p className="text-[13px] leading-snug text-foreground">{runSummary}</p>
+                  <button
+                    onClick={() => setRunSummary(null)}
+                    className="ml-auto shrink-0 rounded border border-border/60 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                  >
+                    Close
+                  </button>
+                </div>
+                <button
+                  onClick={() => setPanel('report')}
+                  className="mt-1 text-[12px] text-primary underline underline-offset-2"
+                >
+                  Open the full report
+                </button>
+              </div>
+            )}
+
+            {/* primary control, right where the strategy is */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
+              {running ? (
+                <button
+                  onClick={() => { stopRef.current = true; }}
+                  className="flex items-center gap-2 rounded-full border border-destructive/60 bg-destructive/20 px-6 py-3 text-[15px] font-semibold text-destructive shadow-lg backdrop-blur"
+                >
+                  <Square className="h-4 w-4" /> Stop the run
+                </button>
+              ) : (
+                <button
+                  onClick={() => void run()}
+                  disabled={!!blockingIssues.length || !totalSteps(graph)}
+                  className="flex items-center gap-2 rounded-full border border-primary/70 bg-primary/25 px-7 py-3 text-[15px] font-semibold text-primary shadow-[0_0_28px_hsl(var(--primary)/0.35)] backdrop-blur transition hover:bg-primary/35 disabled:opacity-40"
+                  title={blockingIssues.length ? blockingIssues[0].message : 'Run every lane at once on the paper account'}
+                >
+                  <Play className="h-4 w-4" /> Play strategy
+                </button>
+              )}
+              <p className="mt-1.5 text-[12px] text-muted-foreground">
+                {blockingIssues.length
+                  ? blockingIssues[0].message
+                  : !totalSteps(graph)
+                    ? 'Add a block to a lane first'
+                    : running
+                      ? 'Steps light up as they execute'
+                      : `Plays all ${graph.lanes.length} lanes at once on paper money — orders, results and a step-by-step trace appear in Report`}
+              </p>
+            </div>
           </section>
+
 
           {/* right rail */}
           <aside className="order-3 flex h-[540px] flex-col rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur lg:h-[640px]">

@@ -1,5 +1,5 @@
-import { Suspense, useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, OrbitControls, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { KIND_COLOR, describeStep } from '@/lib/pipelineBlocks';
@@ -17,6 +17,35 @@ interface SceneProps {
   onSelectLane: (laneId: string) => void;
   selectedLaneId: string | null;
 }
+
+/** Smoothly glides the camera so the clicked block sits in the middle of the view. */
+function CameraFocus({ target }: { target: [number, number, number] | null }) {
+  const { camera, controls } = useThree() as any;
+  const desired = useRef(new THREE.Vector3(3, 0, 0));
+  const offset = useRef(new THREE.Vector3(-5.5, 4.2, 8.5));
+
+  useEffect(() => {
+    if (!target) return;
+    desired.current.set(target[0], target[1], target[2]);
+    // keep whatever viewing angle the operator has chosen, just re-centre on the block
+    if (controls?.target && camera) {
+      offset.current.copy(camera.position).sub(controls.target);
+      const len = offset.current.length();
+      if (len < 5 || len > 16) offset.current.setLength(9);
+    }
+  }, [target, camera, controls]);
+
+  useFrame(() => {
+    if (!controls?.target || !target) return;
+    controls.target.lerp(desired.current, 0.09);
+    const wanted = desired.current.clone().add(offset.current);
+    camera.position.lerp(wanted, 0.09);
+    controls.update();
+  });
+
+  return null;
+}
+
 
 function StepCard({
   step, position, color, selected, active, errored, onClick,
@@ -113,6 +142,23 @@ function GraphScene(props: SceneProps) {
   const errored = useMemo(() => new Set(errorStepIds), [errorStepIds]);
   const laneZ = (i: number) => (i - (graph.lanes.length - 1) / 2) * LANE_GAP;
 
+  // where the camera should centre: the clicked block, else the selected lane's start
+  const focus = useMemo<[number, number, number] | null>(() => {
+    for (let li = 0; li < graph.lanes.length; li++) {
+      const lane = graph.lanes[li];
+      const si = lane.steps.findIndex((s) => s.id === selectedStepId);
+      if (si >= 0) return [si * STEP_GAP, 0, (li - (graph.lanes.length - 1) / 2) * LANE_GAP];
+    }
+    const li = graph.lanes.findIndex((l) => l.id === selectedLaneId);
+    if (li >= 0) {
+      const mid = Math.max(graph.lanes[li].steps.length - 1, 0) / 2;
+      return [mid * STEP_GAP, 0, (li - (graph.lanes.length - 1) / 2) * LANE_GAP];
+    }
+    return null;
+  }, [graph.lanes, selectedStepId, selectedLaneId]);
+
+
+
   return (
     <>
       <ambientLight intensity={0.6} />
@@ -180,6 +226,8 @@ function GraphScene(props: SceneProps) {
         maxPolarAngle={Math.PI / 2.05}
         target={[3, 0, 0]}
       />
+      <CameraFocus target={focus} />
+
     </>
   );
 }
