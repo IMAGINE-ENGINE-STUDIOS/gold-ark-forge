@@ -513,23 +513,15 @@ const Workspace = () => {
             <Users className="h-3.5 w-3.5" /> Consensus lane
           </button>
 
-          {running ? (
-            <button
-              onClick={() => { stopRef.current = true; }}
-              className="flex items-center gap-1.5 rounded-md border border-destructive/60 bg-destructive/10 px-3 py-1.5 text-[13px] font-medium text-destructive"
-            >
-              <Square className="h-3.5 w-3.5" /> Stop
-            </button>
-          ) : (
-            <button
-              onClick={() => void run()}
-              disabled={!!blockingIssues.length || !totalSteps(graph)}
-              className="flex items-center gap-1.5 rounded-md border border-primary/60 bg-primary/15 px-3 py-1.5 text-[13px] font-medium text-primary disabled:opacity-40"
-              title={blockingIssues.length ? blockingIssues[0].message : 'Run every lane at once on the paper account'}
-            >
-              <Play className="h-3.5 w-3.5" /> Run all lanes
-            </button>
-          )}
+          <button
+            onClick={erasePipeline}
+            disabled={running}
+            className="flex items-center gap-1.5 rounded-md border border-destructive/50 px-2.5 py-1.5 text-[13px] text-destructive hover:bg-destructive/10 disabled:opacity-40"
+            title="Delete every lane and step and start from a blank pipeline"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Erase pipeline
+          </button>
+
         </section>
 
         {!!issues.length && (
