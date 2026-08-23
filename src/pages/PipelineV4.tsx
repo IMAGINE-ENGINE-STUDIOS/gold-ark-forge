@@ -224,8 +224,10 @@ const Workspace = () => {
     setEvents([]);
     setRunning(true);
     setPanel('report');
-    setRunStartEquity(paper.account.equity);
-    setEquityCurve([paper.account.equity]);
+    setRunSummary(null);
+    const startEquity = paper.account.equity;
+    setRunStartEquity(startEquity);
+    setEquityCurve([startEquity]);
     const collected: any[] = [];
     try {
       await runGraph(
@@ -239,10 +241,25 @@ const Workspace = () => {
           submitOrder: paper.submitOrder as any,
           shouldStop: () => stopRef.current,
         },
-        (e) => { collected.push(e); setEvents((prev) => [...prev, e]); },
+        (e) => {
+          collected.push(e);
+          setEvents((prev) => [...prev, e]);
+          if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
+        },
       );
     } finally {
       setRunning(false);
+      const trades = collected.filter((e) => e.status === 'ok' && /^(Bought|Sold) \$/.test(e.message ?? '')).length;
+      const errors = collected.filter((e) => e.status === 'error').length;
+      const skips = collected.filter((e) => e.status === 'skip').length;
+      const delta = equityRef.current - startEquity;
+      setRunSummary(
+        !collected.length
+          ? 'The run finished without executing a single step — add blocks to a lane first.'
+          : `Run finished · ${collected.length} steps across ${graphRef.current.lanes.length} lanes · ${trades} paper trade${trades === 1 ? '' : 's'}` +
+            ` · ${skips} step${skips === 1 ? '' : 's'} skipped by a condition · ${errors} error${errors === 1 ? '' : 's'}` +
+            ` · paper equity ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)}. Full step-by-step trace is in the Report panel on the right.`,
+      );
       if (reportToGenius && reporterRef.current) {
         const trace = collected.length
           ? collected.slice(-40).map((e) => `[${e.status}] ${e.laneName} › ${e.stepLabel}: ${e.message ?? ''}`).join('\n')
@@ -251,6 +268,17 @@ const Workspace = () => {
       }
     }
   }, [running, resolvePriceForTicker, getSeries, classified, paper]);
+
+  const erasePipeline = useCallback(() => {
+    if (!window.confirm('Erase the whole pipeline? Every lane and step is deleted. This cannot be undone.')) return;
+    const fresh = { ...emptyGraph(), lanes: [makeLane('Lane 1', 0)] };
+    setGraph(fresh);
+    setSelectedLaneId(fresh.lanes[0].id);
+    setSelectedStepId(null);
+    setEvents([]);
+    setRunSummary(null);
+  }, []);
+
 
   /* ─────────────── Genius bridge ─────────────── */
 
