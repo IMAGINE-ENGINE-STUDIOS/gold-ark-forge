@@ -189,7 +189,7 @@ const Workspace = () => {
       ...g,
       lanes: g.lanes.map((l) => ({
         ...l,
-        steps: l.steps.map((s) => (s.id === stepId ? convertStep(s, block) : s)),
+        steps: l.steps.map((s) => (s.id === stepId ? convertStep(s, { kind: block.kind, label: block.name, config: block.config }) : s)),
       })),
     }));
   }, [mutate]);
