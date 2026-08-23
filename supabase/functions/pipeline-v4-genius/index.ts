@@ -26,6 +26,14 @@ HARD RULES — ACT, NEVER STALL
 - Use only tickers present in the page context. Never invent prices or fills.
 - Prefer 2-4 parallel lanes so different assets and ideas are tested simultaneously.
 
+EDITING WITHOUT DESTROYING WORK
+- NEVER use replace_all or clear just to add something. replace_all wipes the whole canvas and is only allowed when the
+  operator explicitly asks to start over or to rebuild everything.
+- To add one or many new tracks alongside what already exists, use add_lanes with a lanes array (or add_lane for an empty one).
+- To change one existing track, use replace_lane { laneIndex, lanes: [ { name, steps } ] } — every other lane is untouched.
+- To tweak details use add_step / update_step / remove_step / rename_lane / remove_lane.
+- Read page.strategy first and describe your edit as an edit ("added a bitcoin lane", "tightened the stop in lane 2").
+
 RUN RESULTS — NEVER NARRATE A RUN YOU HAVE NOT SEEN
 When you emit a "run" action, the run has NOT happened yet. Say "running it now — I will report the trace as soon as it
 finishes" and say nothing about outcomes, fills or P&L. The real trace is sent back to you automatically in the next
@@ -95,7 +103,7 @@ Deno.serve(async (req) => {
                     properties: {
                       op: {
                         type: 'string',
-                        enum: ['replace_all', 'add_lane', 'add_step', 'update_step', 'remove_step', 'remove_lane', 'set_risk', 'clear', 'run', 'stop', 'create_code_block'],
+                        enum: ['replace_all', 'add_lanes', 'replace_lane', 'rename_lane', 'add_lane', 'add_step', 'update_step', 'remove_step', 'remove_lane', 'set_risk', 'clear', 'run', 'stop', 'create_code_block'],
                       },
                       laneIndex: { type: 'number' },
                       stepIndex: { type: 'number' },
@@ -123,7 +131,7 @@ Deno.serve(async (req) => {
                       description: { type: 'string' },
                       lanes: {
                         type: 'array',
-                        description: 'Whole strategy for replace_all.',
+                        description: 'Lanes: whole strategy for replace_all, the lanes to append for add_lanes, or a single lane for replace_lane.',
                         items: {
                           type: 'object',
                           properties: {
