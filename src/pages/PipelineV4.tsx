@@ -607,7 +607,7 @@ const Workspace = () => {
           </aside>
 
           {/* 3D stage */}
-          <section className="order-1 h-[420px] overflow-hidden rounded-xl border border-border/60 bg-[#05070d] lg:order-2 lg:h-[640px]">
+          <section className="order-1 relative h-[420px] overflow-hidden rounded-xl border border-border/60 bg-[#05070d] lg:order-2 lg:h-[640px]">
             <PipelineScene3D
               graph={graph}
               selectedStepId={selectedStepId}
@@ -617,7 +617,71 @@ const Workspace = () => {
               onSelectStep={(laneId, stepId) => { setSelectedLaneId(laneId); setSelectedStepId(stepId); setPanel('step'); }}
               onSelectLane={(laneId) => { setSelectedLaneId(laneId); setSelectedStepId(null); }}
             />
+
+            {/* live run banner */}
+            {running && (
+              <div className="pointer-events-none absolute left-1/2 top-3 w-[min(92%,560px)] -translate-x-1/2 rounded-lg border border-primary/50 bg-background/85 px-3 py-2 text-center backdrop-blur">
+                <p className="text-[13px] font-medium text-primary">
+                  Running all {graph.lanes.length} lanes at once on the paper account
+                </p>
+                <p className="text-[12px] text-muted-foreground">
+                  {events.length} step{events.length === 1 ? '' : 's'} executed so far · the camera follows the step being run · live trace in Report
+                </p>
+              </div>
+            )}
+
+            {/* what just happened */}
+            {!running && runSummary && (
+              <div className="absolute left-1/2 top-3 w-[min(92%,620px)] -translate-x-1/2 rounded-lg border border-primary/40 bg-background/90 px-3 py-2 backdrop-blur">
+                <div className="flex items-start gap-2">
+                  <p className="text-[13px] leading-snug text-foreground">{runSummary}</p>
+                  <button
+                    onClick={() => setRunSummary(null)}
+                    className="ml-auto shrink-0 rounded border border-border/60 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                  >
+                    Close
+                  </button>
+                </div>
+                <button
+                  onClick={() => setPanel('report')}
+                  className="mt-1 text-[12px] text-primary underline underline-offset-2"
+                >
+                  Open the full report
+                </button>
+              </div>
+            )}
+
+            {/* primary control, right where the strategy is */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
+              {running ? (
+                <button
+                  onClick={() => { stopRef.current = true; }}
+                  className="flex items-center gap-2 rounded-full border border-destructive/60 bg-destructive/20 px-6 py-3 text-[15px] font-semibold text-destructive shadow-lg backdrop-blur"
+                >
+                  <Square className="h-4 w-4" /> Stop the run
+                </button>
+              ) : (
+                <button
+                  onClick={() => void run()}
+                  disabled={!!blockingIssues.length || !totalSteps(graph)}
+                  className="flex items-center gap-2 rounded-full border border-primary/70 bg-primary/25 px-7 py-3 text-[15px] font-semibold text-primary shadow-[0_0_28px_hsl(var(--primary)/0.35)] backdrop-blur transition hover:bg-primary/35 disabled:opacity-40"
+                  title={blockingIssues.length ? blockingIssues[0].message : 'Run every lane at once on the paper account'}
+                >
+                  <Play className="h-4 w-4" /> Play strategy
+                </button>
+              )}
+              <p className="mt-1.5 text-[12px] text-muted-foreground">
+                {blockingIssues.length
+                  ? blockingIssues[0].message
+                  : !totalSteps(graph)
+                    ? 'Add a block to a lane first'
+                    : running
+                      ? 'Steps light up as they execute'
+                      : `Plays all ${graph.lanes.length} lanes at once on paper money — orders, results and a step-by-step trace appear in Report`}
+              </p>
+            </div>
           </section>
+
 
           {/* right rail */}
           <aside className="order-3 flex h-[540px] flex-col rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur lg:h-[640px]">
