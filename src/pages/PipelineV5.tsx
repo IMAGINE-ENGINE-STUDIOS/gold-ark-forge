@@ -10,11 +10,12 @@
 // built in either version opens in the other.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Trash2, Layers, SlidersHorizontal, ScrollText } from 'lucide-react';
+import { Play, Square, Trash2, Layers, SlidersHorizontal, ScrollText, Code2 } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import TetrisConsole from '@/components/pipeline5/TetrisConsole';
 import BlockPalette from '@/components/pipeline4/BlockPalette';
+import CodeStudio from '@/components/pipeline/CodeStudio';
 import StepInspector from '@/components/pipeline4/StepInspector';
 import AccountHud from '@/components/pipeline4/AccountHud';
 import RunReport from '@/components/pipeline4/RunReport';
@@ -42,12 +43,12 @@ const Console = () => {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
-  const [panel, setPanel] = useState<'step' | 'report'>('step');
+  const [panel, setPanel] = useState<'step' | 'report' | 'dev'>('step');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
   const [runSummary, setRunSummary] = useState<string | null>(null);
   const [runResult, setRunResult] = useState<RunResult | null>(null);
-  const [blocks] = useState<CustomBlock[]>(() => loadBlocks());
+  const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
 
   const stopRef = useRef(false);
   const graphRef = useRef(graph);
@@ -478,7 +479,7 @@ const Console = () => {
                     ticker: selectedTicker ?? 'XAUUSD',
                     price: selectedPrice,
                     series: [],
-                    account: { equity: paper?.equity ?? 0 },
+                    account: { equity: paper?.account?.equity ?? 0 },
                   })}
                 />
               )}
