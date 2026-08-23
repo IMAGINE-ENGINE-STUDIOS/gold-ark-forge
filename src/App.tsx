@@ -69,6 +69,7 @@ const App = () => (
             <Route path="/pipeline-v2" element={<PipelineV2 />} />
             <Route path="/pipeline-v3" element={<PipelineV3 />} />
             <Route path="/pipeline-v4" element={<PipelineV4 />} />
+            <Route path="/pipeline-v5" element={<PipelineV5 />} />
            <Route path="/hologram" element={<Hologram />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
