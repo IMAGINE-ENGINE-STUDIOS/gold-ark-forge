@@ -9,12 +9,13 @@
 // The component is fully controlled: it never holds graph state, it only calls
 // back into PipelineV4's controllers. See docs/pipeline-v4/ARCHITECTURE.md.
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Trash2, ArrowLeft, ArrowRight, Copy, EyeOff, Eye } from 'lucide-react';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { ASSET_CLASSES } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
 import { BLOCKS, BLOCK_GROUPS } from '@/lib/pipelineBlocks';
+import LivePriceIndicator from '@/components/trading/LivePriceIndicator';
 import type { CustomBlock } from '@/lib/customBlocks';
 import type { PipeStep, PipeLane } from '@/lib/pipelineGraph';
 
