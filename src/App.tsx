@@ -29,6 +29,7 @@ import Pipeline from "./pages/Pipeline";
 import PipelineV2 from "./pages/PipelineV2";
 import PipelineV3 from "./pages/PipelineV3";
 import PipelineV4 from "./pages/PipelineV4";
+import PipelineV5 from "./pages/PipelineV5";
 import Hologram from "./pages/Hologram";
 import NotFound from "./pages/NotFound";
 
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/pipeline-v2" element={<PipelineV2 />} />
             <Route path="/pipeline-v3" element={<PipelineV3 />} />
             <Route path="/pipeline-v4" element={<PipelineV4 />} />
+            <Route path="/pipeline-v5" element={<PipelineV5 />} />
            <Route path="/hologram" element={<Hologram />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
