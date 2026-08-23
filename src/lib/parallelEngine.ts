@@ -147,8 +147,8 @@ export interface RunHooks {
     symbol: string; side: 'buy' | 'sell'; qty: number;
     type: 'market' | 'limit' | 'stop'; price: number; limitPrice?: number; botSource?: boolean;
   }) => { id: string; price: number; fees: number };
-  /** Close a position previously opened by this run. */
-  closePosition?: (positionId: string, price: number) => void;
+  /** Close exposure this run opened — implemented as a market sell on the paper account. */
+  closePosition?: (p: { ticker: string; qty: number; price: number }) => void;
   runAgent?: (req: AgentRequest) => Promise<AgentReply>;
   shouldStop?: () => boolean;
 }
@@ -262,7 +262,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
       for (const t of shared.trades.filter((tr) => tr.open && dissenting.has(tr.laneId))) {
         const px = hooks.getPrice(t.ticker);
         if (px > 0) {
-          hooks.closePosition(t.id, px);
+          hooks.closePosition({ ticker: t.ticker, qty: t.qty, price: px });
           closeTrade(t, px, 'consensus veto');
           push(null, 'ok', `Consensus veto closed ${t.label} from ${t.laneName} at ${px.toFixed(4)} (${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}).`,
             { decision: 'flatten position', reason });
@@ -601,7 +601,7 @@ function manageExits(
     if (!reason && t.maxHoldMs && now() - t.entryAt >= t.maxHoldMs) reason = 'time limit reached';
     if (!reason) continue;
 
-    hooks.closePosition?.(t.id, px);
+    try { hooks.closePosition?.({ ticker: t.ticker, qty: t.qty, price: px }); } catch { /* position already gone */ }
     closeTrade(t, px, reason);
     const held = Math.round((t.exitAt! - t.entryAt) / 1000);
     emit({
