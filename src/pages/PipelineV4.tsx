@@ -337,11 +337,58 @@ const Workspace = () => {
           }
           break;
         }
+        case 'add_lanes': {
+          // append new lanes WITHOUT touching anything already on the canvas
+          const lanes = (a.lanes ?? []).map((l, i) => {
+            const lane = makeLane(l.name || `Lane ${graphRef.current.lanes.length + i + 1}`, graphRef.current.lanes.length + i);
+            lane.consensus = !!l.consensus;
+            if (l.agree) lane.agree = l.agree;
+            lane.steps = (l.steps ?? []).map((s) => {
+              const def = BLOCK_BY_ID.get(s.kind);
+              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
+            });
+            return lane;
+          });
+          if (lanes.length) {
+            mutate((g) => ({ ...g, lanes: [...g.lanes, ...lanes] }));
+            setSelectedLaneId(lanes[0].id);
+            notes.push(`added ${lanes.length} new lane${lanes.length === 1 ? '' : 's'} alongside the existing ones`);
+          }
+          break;
+        }
+        case 'replace_lane': {
+          // rewrite one lane only, leaving every other lane untouched
+          const target = graphRef.current.lanes[a.laneIndex ?? -1];
+          const spec = a.lanes?.[0];
+          if (target && spec) {
+            const steps = (spec.steps ?? []).map((s) => {
+              const def = BLOCK_BY_ID.get(s.kind);
+              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
+            });
+            mutate((g) => ({
+              ...g,
+              lanes: g.lanes.map((l) => (l.id === target.id
+                ? { ...l, name: spec.name || l.name, consensus: spec.consensus ?? l.consensus, agree: spec.agree ?? l.agree, steps }
+                : l)),
+            }));
+            notes.push(`rebuilt ${spec.name || target.name}`);
+          }
+          break;
+        }
+        case 'rename_lane': {
+          const target = graphRef.current.lanes[a.laneIndex ?? -1];
+          if (target && a.laneName) {
+            mutate((g) => ({ ...g, lanes: g.lanes.map((l) => (l.id === target.id ? { ...l, name: a.laneName! } : l)) }));
+            notes.push(`renamed ${target.name} to ${a.laneName}`);
+          }
+          break;
+        }
         case 'add_lane': {
           addLane(a.laneName, !!a.consensus);
           notes.push(`added lane ${a.laneName ?? ''}`.trim());
           break;
         }
+
         case 'add_step': {
           const lanes = graphRef.current.lanes;
           const lane = lanes[a.laneIndex ?? 0] ?? lanes[0];
