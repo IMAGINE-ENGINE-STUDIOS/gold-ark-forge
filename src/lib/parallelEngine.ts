@@ -115,6 +115,10 @@ async function runLane(
     if (hooks.shouldStop?.()) { push(step, 'skip', 'Stopped by the operator.'); outcome.halted = true; break; }
     if (shared.stoppedByRisk) { push(step, 'skip', 'Strategy risk limit hit — lane halted.'); outcome.halted = true; break; }
     if (outcome.halted) { push(step, 'skip', 'Skipped because this lane already stopped.'); continue; }
+    // Muted steps stay in the graph but do nothing at runtime.
+    if (step.enabled === false) { push(step, 'skip', `${step.label} is muted.`); continue; }
+    if (step.note) push(step, 'info', `Note — ${step.note}`);
+
 
     try {
       switch (step.kind) {
