@@ -39,7 +39,9 @@ const Workspace = () => {
   const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
+  const [runSummary, setRunSummary] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
+
   const stopRef = useRef(false);
   const graphRef = useRef(graph);
   graphRef.current = graph;
