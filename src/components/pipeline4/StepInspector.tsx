@@ -34,11 +34,16 @@ const iconBtn =
   'rounded border border-border/60 p-1 text-muted-foreground transition hover:text-foreground hover:border-primary/50';
 
 export default function StepInspector({
-  step, price, blocks, lanes, currentLaneId,
+  step, price, ticker, getPrice, blocks, lanes, currentLaneId,
   onChange, onDelete, onMove, onChangeKind, onPatch, onDuplicate, onMoveToLane,
 }: {
   step: PipeStep;
+  /** Initial/fallback price. The live pill supersedes it once the feed ticks. */
   price: number;
+  /** Asset this step operates on (resolved from earlier steps in the lane). */
+  ticker?: string | null;
+  /** Widget-scoped resolver used by the shared LivePriceIndicator. */
+  getPrice?: (t: string) => number;
   blocks: CustomBlock[];
   /** All lanes, used by the "move to lane" control. */
   lanes?: PipeLane[];
@@ -57,6 +62,22 @@ export default function StepInspector({
   const cfg = step.config ?? {};
   const set = (patch: Record<string, any>, label?: string) => onChange({ ...cfg, ...patch }, label);
   const enabled = step.enabled !== false;
+
+  // Live quote streamed by the shared Gold Arrow LivePriceIndicator widget.
+  const [livePrice, setLivePrice] = useState(0);
+  const handlePrice = useCallback((p: number) => setLivePrice(p), []);
+  const effectiveTicker = ticker ?? cfg.ticker ?? null;
+  const px = livePrice > 0 ? livePrice : price;
+  const LivePill = (
+    <LivePriceIndicator
+      ticker={effectiveTicker}
+      getPriceByTicker={getPrice}
+      onPrice={handlePrice}
+      emptyText="NO ASSET IN THIS LANE YET"
+      className="mt-1"
+    />
+  );
+
 
   const assetResults = useMemo(() => {
     const q = assetQuery.trim().toLowerCase();
