@@ -420,7 +420,7 @@ const Console = () => {
 
           <aside className="flex h-[640px] flex-col rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur">
             <div className="mb-2 flex gap-1">
-              {([['step', 'Block', SlidersHorizontal], ['report', 'Report', ScrollText]] as const).map(([id, label, Icon]) => (
+              {([['step', 'Block', SlidersHorizontal], ['report', 'Report', ScrollText], ['dev', 'Dev', Code2]] as const).map(([id, label, Icon]) => (
                 <button
                   key={id}
                   onClick={() => setPanel(id)}
@@ -433,7 +433,7 @@ const Console = () => {
               ))}
             </div>
 
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-auto">
               {panel === 'step' ? (
                 selectedStep ? (
                   <StepInspector
@@ -460,11 +460,31 @@ const Console = () => {
                     </div>
                   </div>
                 )
-              ) : (
+              ) : panel === 'report' ? (
                 <RunReport events={events} result={runResult} running={running} equityCurve={equityCurve} startEquity={runStartEquity} />
+              ) : (
+                /* Dev environment: write, test and ship custom code blocks straight
+                   into the well without leaving the console. */
+                <CodeStudio
+                  blocks={blocks}
+                  onBlocksChange={setBlocks}
+                  onAddToBlueprint={(b) => {
+                    const laneId = selectedLane?.id ?? addLane();
+                    const id = addStep(laneId, 'code', b.name, { blockId: b.id });
+                    setSelectedStepId(id);
+                    setPanel('step');
+                  }}
+                  sampleInput={() => ({
+                    ticker: selectedTicker ?? 'XAUUSD',
+                    price: selectedPrice,
+                    series: [],
+                    account: { equity: paper?.equity ?? 0 },
+                  })}
+                />
               )}
             </div>
           </aside>
+
         </div>
       </main>
     </div>
