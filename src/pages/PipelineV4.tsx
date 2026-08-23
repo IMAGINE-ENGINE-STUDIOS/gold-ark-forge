@@ -899,15 +899,27 @@ const Workspace = () => {
               )}
 
               {panel === 'report' && (
-                <RunPerformance
-                  events={events}
-                  lanes={laneStats}
-                  equityCurve={equityCurve}
-                  running={running}
-                  startEquity={runStartEquity}
-                  equity={paper.account.equity}
-                />
+                <div className="space-y-3">
+                  <RunPerformance
+                    events={events}
+                    lanes={laneStats}
+                    equityCurve={equityCurve}
+                    running={running}
+                    startEquity={runStartEquity}
+                    equity={paper.account.equity}
+                  />
+                  <div className="rounded-lg border border-white/10 bg-black/30">
+                    <RunReport
+                      events={events}
+                      result={runResult}
+                      running={running}
+                      equityCurve={equityCurve}
+                      startEquity={runStartEquity}
+                    />
+                  </div>
+                </div>
               )}
+
             </div>
           </aside>
         </div>
