@@ -29,6 +29,7 @@ import Pipeline from "./pages/Pipeline";
 import PipelineV2 from "./pages/PipelineV2";
 import PipelineV3 from "./pages/PipelineV3";
 import PipelineV4 from "./pages/PipelineV4";
+import PipelineV5 from "./pages/PipelineV5";
 import Hologram from "./pages/Hologram";
 import NotFound from "./pages/NotFound";
 
