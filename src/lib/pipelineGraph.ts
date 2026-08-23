@@ -27,7 +27,11 @@ export interface PipeStep {
 }
 
 /** Config keys that survive when an operator swaps one action for another. */
-const PORTABLE_KEYS = ['ticker', 'label', 'amountUsd', 'price', 'programId', 'classId', 'limit'];
+const PORTABLE_KEYS = [
+  'ticker', 'label', 'amountUsd', 'price', 'programId', 'classId', 'limit',
+  'takeProfitPct', 'stopLossPct', 'maxHoldMin', 'maxEntries', 'cooldownMin',
+  'agentName', 'systemPrompt', 'taskPrompt', 'model', 'temperature', 'minConfidence',
+];
 
 /**
  * Swap a step's action in place, keeping its identity (id, note, enabled) and
