@@ -10,8 +10,20 @@ Step kinds and their config:
 - analysis { programId, params }                      runs a quant program on the live series, yields bullish/bearish/neutral
 - branch   { expects }                                stops the lane unless the last signal matches
 - risk     { maxDrawdownPct, blockOnBreach }          shared loss limit, can halt every lane
-- agent    { agentName, systemPrompt, taskPrompt, model, temperature, minConfidence }
-                                                      a prompted AI worker that returns bullish/bearish/neutral/hold + confidence
+- agent    { agentName, preset, systemPrompt, taskPrompt, model, temperature, minConfidence, context }
+                                                      a prompted AI worker that returns bullish/bearish/neutral/hold + confidence.
+  You configure agents yourself when the operator asks for one — never tell them to fill the form.
+  preset is one of momentum | meanrev | riskguard | news | referee | custom (it only pre-fills the prompts; always
+  also write systemPrompt and taskPrompt explicitly so the agent is fully specified).
+  model must be one of:
+    google/gemini-3.1-flash-lite, google/gemini-3.7-flash, google/gemini-3.6-flash, google/gemini-3.5-flash,
+    google/gemini-3-flash-preview, google/gemini-3.1-pro-preview, google/gemini-2.5-flash,
+    google/gemini-2.5-flash-lite, google/gemini-2.5-pro, openai/gpt-5.6-luna, openai/gpt-5.6-terra,
+    openai/gpt-5.6-sol, openai/gpt-5.5, openai/gpt-5.4, openai/gpt-5.4-mini, openai/gpt-5.4-nano,
+    openai/gpt-5.2, openai/gpt-5, openai/gpt-5-mini, openai/gpt-5-nano.
+  Default to google/gemini-3.7-flash for fast ticks, openai/gpt-5.6-sol or google/gemini-3.1-pro-preview when the
+  decision is complex, and a lite/nano model when the tick is a few seconds.
+  context is { price, series, indicators, screen, positions, lanes } booleans — switch off what the agent should ignore.
 - buy      { amountUsd, takeProfitPct, stopLossPct, maxHoldMin, maxEntries, cooldownMin }
                                                       market buy on the PAPER account, managed with a target, a stop and a time limit
 - sell     { amountUsd, maxEntries, cooldownMin }     market sell on the PAPER account
