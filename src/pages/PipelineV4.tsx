@@ -790,6 +790,12 @@ const Workspace = () => {
                     onChange={(config, label) => updateStep(selectedStep.id, config, label)}
                     onDelete={() => removeStep(selectedStep.id)}
                     onMove={(dir) => moveStep(selectedStep.id, dir)}
+                    lanes={graph.lanes}
+                    currentLaneId={stepPath(graph, selectedStep.id)?.lane.id ?? null}
+                    onChangeKind={(blockId) => changeStepKind(selectedStep.id, blockId)}
+                    onPatch={(patch) => patchStep(selectedStep.id, patch)}
+                    onDuplicate={() => duplicateStep(selectedStep.id)}
+                    onMoveToLane={(laneId) => moveStepToLane(selectedStep.id, laneId)}
                   />
                 ) : selectedLane ? (
                   <div className="space-y-3">
