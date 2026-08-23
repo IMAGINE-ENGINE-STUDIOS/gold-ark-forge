@@ -862,6 +862,8 @@ const Workspace = () => {
                   <StepInspector
                     step={selectedStep}
                     price={selectedPrice}
+                    ticker={selectedTicker}
+                    getPrice={resolvePriceForTicker}
                     blocks={blocks}
                     onChange={(config, label) => updateStep(selectedStep.id, config, label)}
                     onDelete={() => removeStep(selectedStep.id)}
