@@ -565,15 +565,21 @@ const Workspace = () => {
 
   /* ─────────────── render ─────────────── */
 
-  const selectedPrice = useMemo(() => {
-    if (!selected) return 0;
+  /** Asset the selected step operates on — walk back through its lane. */
+  const selectedTicker = useMemo(() => {
+    if (!selected) return null;
     const upto = selected.lane.steps.slice(0, selected.index + 1);
     for (let i = upto.length - 1; i >= 0; i--) {
       const t = upto[i].config?.ticker;
-      if (t) return resolvePriceForTicker(t);
+      if (t) return t as string;
     }
-    return 0;
-  }, [selected, resolvePriceForTicker]);
+    return null;
+  }, [selected]);
+
+  const selectedPrice = useMemo(
+    () => (selectedTicker ? resolvePriceForTicker(selectedTicker) : 0),
+    [selectedTicker, resolvePriceForTicker],
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -862,6 +868,8 @@ const Workspace = () => {
                   <StepInspector
                     step={selectedStep}
                     price={selectedPrice}
+                    ticker={selectedTicker}
+                    getPrice={resolvePriceForTicker}
                     blocks={blocks}
                     onChange={(config, label) => updateStep(selectedStep.id, config, label)}
                     onDelete={() => removeStep(selectedStep.id)}

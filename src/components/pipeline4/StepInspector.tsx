@@ -9,12 +9,13 @@
 // The component is fully controlled: it never holds graph state, it only calls
 // back into PipelineV4's controllers. See docs/pipeline-v4/ARCHITECTURE.md.
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Trash2, ArrowLeft, ArrowRight, Copy, EyeOff, Eye } from 'lucide-react';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { ASSET_CLASSES } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
 import { BLOCKS, BLOCK_GROUPS } from '@/lib/pipelineBlocks';
+import LivePriceIndicator from '@/components/trading/LivePriceIndicator';
 import type { CustomBlock } from '@/lib/customBlocks';
 import type { PipeStep, PipeLane } from '@/lib/pipelineGraph';
 
@@ -33,11 +34,16 @@ const iconBtn =
   'rounded border border-border/60 p-1 text-muted-foreground transition hover:text-foreground hover:border-primary/50';
 
 export default function StepInspector({
-  step, price, blocks, lanes, currentLaneId,
+  step, price, ticker, getPrice, blocks, lanes, currentLaneId,
   onChange, onDelete, onMove, onChangeKind, onPatch, onDuplicate, onMoveToLane,
 }: {
   step: PipeStep;
+  /** Initial/fallback price. The live pill supersedes it once the feed ticks. */
   price: number;
+  /** Asset this step operates on (resolved from earlier steps in the lane). */
+  ticker?: string | null;
+  /** Widget-scoped resolver used by the shared LivePriceIndicator. */
+  getPrice?: (t: string) => number;
   blocks: CustomBlock[];
   /** All lanes, used by the "move to lane" control. */
   lanes?: PipeLane[];
@@ -56,6 +62,22 @@ export default function StepInspector({
   const cfg = step.config ?? {};
   const set = (patch: Record<string, any>, label?: string) => onChange({ ...cfg, ...patch }, label);
   const enabled = step.enabled !== false;
+
+  // Live quote streamed by the shared Gold Arrow LivePriceIndicator widget.
+  const [livePrice, setLivePrice] = useState(0);
+  const handlePrice = useCallback((p: number) => setLivePrice(p), []);
+  const effectiveTicker = ticker ?? cfg.ticker ?? null;
+  const px = livePrice > 0 ? livePrice : price;
+  const LivePill = (
+    <LivePriceIndicator
+      ticker={effectiveTicker}
+      getPriceByTicker={getPrice}
+      onPrice={handlePrice}
+      emptyText="NO ASSET IN THIS LANE YET"
+      className="mt-1"
+    />
+  );
+
 
   const assetResults = useMemo(() => {
     const q = assetQuery.trim().toLowerCase();
@@ -160,11 +182,7 @@ export default function StepInspector({
                 </button>
               ))}
             </div>
-            {cfg.ticker && (
-              <p className="text-[12px] text-muted-foreground">
-                Live price: {price > 0 ? price.toLocaleString(undefined, { maximumFractionDigits: 4 }) : 'waiting for the feed'}
-              </p>
-            )}
+            {cfg.ticker && LivePill}
           </>
         )}
 
@@ -236,7 +254,8 @@ export default function StepInspector({
 
         {(step.kind === 'buy' || step.kind === 'sell') && (
           <>
-            <Field label="Investment amount (USD)" hint={price > 0 ? `At the live price this is about ${(Number(cfg.amountUsd ?? 0) / price).toFixed(6)} units.` : 'Waiting on a live price for this asset.'}>
+            {LivePill}
+            <Field label="Investment amount (USD)" hint={px > 0 ? `At the live price this is about ${(Number(cfg.amountUsd ?? 0) / px).toFixed(6)} units.` : 'Waiting on a live price for this asset.'}>
               <input type="number" min={0} step={50} value={cfg.amountUsd ?? 0} onChange={(e) => set({ amountUsd: Number(e.target.value) })} className={inputCls} />
             </Field>
             <div className="flex flex-wrap gap-1">
@@ -332,9 +351,10 @@ export default function StepInspector({
             <Field label="Price level">
               <input type="number" value={cfg.price ?? 0} onChange={(e) => set({ price: Number(e.target.value) })} className={inputCls} />
             </Field>
-            {price > 0 && (
-              <button onClick={() => set({ price: Number(price.toFixed(4)) })} className="rounded-full border border-primary/50 px-2 py-0.5 text-[12px] text-primary">
-                Use live price {price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+            {LivePill}
+            {px > 0 && (
+              <button onClick={() => set({ price: Number(px.toFixed(4)) })} className="rounded-full border border-primary/50 px-2 py-0.5 text-[12px] text-primary">
+                Use live price {px.toLocaleString(undefined, { maximumFractionDigits: 4 })}
               </button>
             )}
           </>
