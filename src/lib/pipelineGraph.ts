@@ -52,10 +52,28 @@ export interface PipeLane {
   /** Tailwind colour fragment used by both the 3D scene and the flat view. */
   tint: string;
   steps: PipeStep[];
-  /** Consensus lane: runs after every parallel lane has finished. */
+  /** Consensus lane: runs after every parallel lane on each tick and rules over them. */
   consensus?: boolean;
-  /** Consensus rule — how many lanes must agree before the lane continues. */
-  agree?: { mode: 'all' | 'any' | 'majority' | 'count'; count?: number; expects?: string };
+  /** Consensus rule — how many lanes must agree before trading is allowed to continue. */
+  agree?: {
+    mode: 'all' | 'any' | 'majority' | 'count';
+    count?: number;
+    expects?: string;
+    /** Ignore lane signals below this confidence (0-1). */
+    minConfidence?: number;
+    /** Close positions opened by lanes that disagree with the consensus. */
+    veto?: boolean;
+  };
+}
+
+/** How long a run stays live and how often it re-evaluates on real prices. */
+export interface SessionSettings {
+  /** Total wall-clock length of the run, in minutes. */
+  durationMin: number;
+  /** Seconds between re-evaluations of every lane. */
+  tickSec: number;
+  /** Close every position the run opened when the session ends or is stopped. */
+  flattenOnStop: boolean;
 }
 
 export interface PipeGraph {
@@ -63,11 +81,14 @@ export interface PipeGraph {
   name: string;
   /** Applies across every lane at once. */
   risk: { maxDrawdownPct: number; maxTotalInvestmentUsd: number };
+  session: SessionSettings;
   lanes: PipeLane[];
   updatedAt: number;
 }
 
 export const LANE_TINTS = ['gold', 'emerald', 'sky', 'violet', 'amber', 'rose', 'cyan', 'indigo'] as const;
+
+export const DEFAULT_SESSION: SessionSettings = { durationMin: 15, tickSec: 10, flattenOnStop: true };
 
 export const uid = (p = 's') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -75,9 +96,11 @@ export const emptyGraph = (): PipeGraph => ({
   id: uid('g'),
   name: 'Untitled strategy',
   risk: { maxDrawdownPct: 10, maxTotalInvestmentUsd: 25000 },
+  session: { ...DEFAULT_SESSION },
   lanes: [],
   updatedAt: Date.now(),
 });
+
 
 export const makeLane = (name: string, index = 0): PipeLane => ({
   id: uid('lane'),
