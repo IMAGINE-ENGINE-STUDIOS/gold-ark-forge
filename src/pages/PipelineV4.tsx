@@ -885,23 +885,76 @@ const Workspace = () => {
                         className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary/60"
                       />
                     </label>
-                    {selectedLane.consensus && (
-                      <label className="block space-y-1">
-                        <span className="block text-[13px] font-medium text-foreground">Continue when</span>
-                        <select
-                          value={selectedLane.agree?.mode ?? 'majority'}
-                          onChange={(e) => mutate((g) => ({
-                            ...g,
-                            lanes: g.lanes.map((l) => (l.id === selectedLane.id ? { ...l, agree: { ...(l.agree ?? {}), mode: e.target.value as any, expects: l.agree?.expects ?? 'bullish' } } : l)),
-                          }))}
-                          className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
-                        >
-                          <option value="all">Every lane agrees</option>
-                          <option value="majority">Most lanes agree</option>
-                          <option value="any">Any lane agrees</option>
-                        </select>
-                      </label>
-                    )}
+                    {selectedLane.consensus && (() => {
+                      const setAgree = (patch: Record<string, any>) => mutate((g) => ({
+                        ...g,
+                        lanes: g.lanes.map((l) => (l.id === selectedLane.id
+                          ? { ...l, agree: { mode: 'majority' as const, expects: 'bullish', ...(l.agree ?? {}), ...patch } }
+                          : l)),
+                      }));
+                      const agree = selectedLane.agree ?? { mode: 'majority' as const };
+                      return (
+                        <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                          <p className="text-[12px] text-muted-foreground">
+                            This lane rules over the others: on every tick it reads their signals and decides whether
+                            the strategy may open new positions.
+                          </p>
+                          <label className="block space-y-1">
+                            <span className="block text-[13px] font-medium text-foreground">Allow trading when</span>
+                            <select
+                              value={agree.mode ?? 'majority'}
+                              onChange={(e) => setAgree({ mode: e.target.value })}
+                              className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                            >
+                              <option value="all">Every lane agrees</option>
+                              <option value="majority">Most lanes agree</option>
+                              <option value="any">Any lane agrees</option>
+                              <option value="count">A set number of lanes agree</option>
+                            </select>
+                          </label>
+                          {agree.mode === 'count' && (
+                            <label className="block space-y-1">
+                              <span className="block text-[13px] font-medium text-foreground">How many lanes</span>
+                              <input
+                                type="number" min={1} max={12} value={agree.count ?? 2}
+                                onChange={(e) => setAgree({ count: Number(e.target.value) })}
+                                className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                              />
+                            </label>
+                          )}
+                          <label className="block space-y-1">
+                            <span className="block text-[13px] font-medium text-foreground">The signal they must show</span>
+                            <select
+                              value={agree.expects ?? 'bullish'}
+                              onChange={(e) => setAgree({ expects: e.target.value })}
+                              className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                            >
+                              <option value="bullish">Buy signal</option>
+                              <option value="bearish">Sell signal</option>
+                              <option value="neutral">Neutral</option>
+                            </select>
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="block text-[13px] font-medium text-foreground">Ignore lanes below this confidence (%)</span>
+                            <input
+                              type="number" min={0} max={100} step={5}
+                              value={Math.round(Number(agree.minConfidence ?? 0) * 100)}
+                              onChange={(e) => setAgree({ minConfidence: Number(e.target.value) / 100 })}
+                              className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                            />
+                          </label>
+                          <label className="flex items-center gap-2 text-[13px] text-foreground">
+                            <input
+                              type="checkbox"
+                              checked={agree.veto !== false}
+                              onChange={(e) => setAgree({ veto: e.target.checked })}
+                            />
+                            Close positions from lanes that disagree
+                          </label>
+                        </div>
+                      );
+                    })()}
+
                     <ul className="space-y-1">
                       {selectedLane.steps.map((s) => (
                         <li key={s.id}>
