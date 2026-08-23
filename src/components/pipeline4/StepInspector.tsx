@@ -182,11 +182,7 @@ export default function StepInspector({
                 </button>
               ))}
             </div>
-            {cfg.ticker && (
-              <p className="text-[12px] text-muted-foreground">
-                Live price: {price > 0 ? price.toLocaleString(undefined, { maximumFractionDigits: 4 }) : 'waiting for the feed'}
-              </p>
-            )}
+            {cfg.ticker && LivePill}
           </>
         )}
 
