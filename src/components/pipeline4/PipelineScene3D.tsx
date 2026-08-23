@@ -142,6 +142,23 @@ function GraphScene(props: SceneProps) {
   const errored = useMemo(() => new Set(errorStepIds), [errorStepIds]);
   const laneZ = (i: number) => (i - (graph.lanes.length - 1) / 2) * LANE_GAP;
 
+  // where the camera should centre: the clicked block, else the selected lane's start
+  const focus = useMemo<[number, number, number] | null>(() => {
+    for (let li = 0; li < graph.lanes.length; li++) {
+      const lane = graph.lanes[li];
+      const si = lane.steps.findIndex((s) => s.id === selectedStepId);
+      if (si >= 0) return [si * STEP_GAP, 0, (li - (graph.lanes.length - 1) / 2) * LANE_GAP];
+    }
+    const li = graph.lanes.findIndex((l) => l.id === selectedLaneId);
+    if (li >= 0) {
+      const mid = Math.max(graph.lanes[li].steps.length - 1, 0) / 2;
+      return [mid * STEP_GAP, 0, (li - (graph.lanes.length - 1) / 2) * LANE_GAP];
+    }
+    return null;
+  }, [graph.lanes, selectedStepId, selectedLaneId]);
+
+
+
   return (
     <>
       <ambientLight intensity={0.6} />
