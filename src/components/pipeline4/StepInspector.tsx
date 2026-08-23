@@ -141,7 +141,7 @@ export default function StepInspector({
 
         <div className="h-px bg-border/50" />
 
-
+        {step.kind === 'asset' && (
           <>
             <Field label="Which asset should this lane trade?">
               <input value={assetQuery} onChange={(e) => setAssetQuery(e.target.value)} placeholder="Search gold, BTC, AAPL…" className={inputCls} />
