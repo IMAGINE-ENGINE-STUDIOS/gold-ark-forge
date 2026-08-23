@@ -16,6 +16,9 @@ import { ASSET_CLASSES } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
 import { BLOCKS, BLOCK_GROUPS } from '@/lib/pipelineBlocks';
 import LivePriceIndicator from '@/components/trading/LivePriceIndicator';
+import {
+  AI_MODELS, MODEL_VENDORS, DEFAULT_AGENT_MODEL, modelLabel, SPEED_PRESETS, AGENT_PRESETS, PRESET_BY_ID,
+} from '@/lib/aiModels';
 import type { CustomBlock } from '@/lib/customBlocks';
 import type { PipeStep, PipeLane } from '@/lib/pipelineGraph';
 
