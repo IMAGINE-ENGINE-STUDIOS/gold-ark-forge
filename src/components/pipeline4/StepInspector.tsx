@@ -258,7 +258,8 @@ export default function StepInspector({
 
         {(step.kind === 'buy' || step.kind === 'sell') && (
           <>
-            <Field label="Investment amount (USD)" hint={price > 0 ? `At the live price this is about ${(Number(cfg.amountUsd ?? 0) / price).toFixed(6)} units.` : 'Waiting on a live price for this asset.'}>
+            {LivePill}
+            <Field label="Investment amount (USD)" hint={px > 0 ? `At the live price this is about ${(Number(cfg.amountUsd ?? 0) / px).toFixed(6)} units.` : 'Waiting on a live price for this asset.'}>
               <input type="number" min={0} step={50} value={cfg.amountUsd ?? 0} onChange={(e) => set({ amountUsd: Number(e.target.value) })} className={inputCls} />
             </Field>
             <div className="flex flex-wrap gap-1">
