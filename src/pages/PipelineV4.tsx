@@ -606,6 +606,36 @@ const Workspace = () => {
             />
           </label>
 
+          {/* live session settings — a run is a timed session, not an instant pass */}
+          <label className="text-[12px] text-muted-foreground" title="How long the strategy stays live, holding positions on real prices.">
+            Run for (min)
+            <input
+              type="number" min={1} max={480}
+              value={graph.session?.durationMin ?? 15}
+              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, durationMin: Number(e.target.value) } }))}
+              className="ml-2 w-16 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
+            />
+          </label>
+          <label className="text-[12px] text-muted-foreground" title="How often every lane re-reads live prices and re-decides.">
+            Check every (s)
+            <input
+              type="number" min={2} max={600}
+              value={graph.session?.tickSec ?? 10}
+              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, tickSec: Number(e.target.value) } }))}
+              className="ml-2 w-16 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground" title="Close every position the session opened when it ends.">
+            <input
+              type="checkbox"
+              checked={graph.session?.flattenOnStop !== false}
+              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, flattenOnStop: e.target.checked } }))}
+            />
+            Close all at end
+          </label>
+
+
+
           <button
             onClick={() => addLane()}
             className="flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] text-foreground hover:border-primary/60"
