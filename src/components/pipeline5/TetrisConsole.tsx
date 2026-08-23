@@ -119,7 +119,7 @@ function Piece({
         </span>
         <span className="truncate text-[12px] font-medium text-foreground">{step.label}</span>
       </div>
-      <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{describeStep(step as any)}</div>
+      <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{describeStep(step.kind, step.config)}</div>
 
       <div className="absolute right-1 top-1 hidden gap-0.5 group-hover:flex">
         <button onClick={(e) => { e.stopPropagation(); onUp(); }} className="rounded bg-background/70 p-0.5 text-muted-foreground hover:text-foreground" title="Move up the stack">
