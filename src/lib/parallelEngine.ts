@@ -253,7 +253,13 @@ async function runLane(
     } catch (err: any) {
       outcome.errors += 1;
       push(step, 'error', `${step.label} failed: ${err?.message ?? err}`);
+      // Operators can mark a step as non-fatal; otherwise the lane stops here.
+      if (step.continueOnError !== true) {
+        outcome.halted = true;
+        push(step, 'skip', 'Lane stopped after the failure above.');
+      }
     }
+
   }
 
   return outcome;
