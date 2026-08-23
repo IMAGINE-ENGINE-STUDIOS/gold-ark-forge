@@ -12,7 +12,10 @@ import OrdersPanel from '@/components/pipeline4/OrdersPanel';
 import TradeDesk from '@/components/pipeline4/TradeDesk';
 import ScreensPanel from '@/components/pipeline4/ScreensPanel';
 import RunPerformance, { type LaneStat } from '@/components/pipeline4/RunPerformance';
+import RunReport from '@/components/pipeline4/RunReport';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
+import { useMarketHistory } from '@/hooks/useMarketHistory';
+import { supabase } from '@/integrations/supabase/client';
 import { ASSET_CLASSES, classifyAssets } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID } from '@/lib/analysisPrograms';
 import { buildMarketIntelligence } from '@/lib/objectiveEngine';
@@ -23,7 +26,7 @@ import {
   convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
   validateGraph, type PipeGraph, type PipeStep,
 } from '@/lib/pipelineGraph';
-import { runGraph, type RunEvent } from '@/lib/parallelEngine';
+import { runGraph, type AgentReply, type RunEvent, type RunResult } from '@/lib/parallelEngine';
 
 const SEED = REAL_FEED_SYMBOLS.slice(0, 40).map((s) => s.ticker);
 const blockUid = () => `blk_${Math.random().toString(36).slice(2, 9)}`;
@@ -40,6 +43,7 @@ const Workspace = () => {
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
   const [runSummary, setRunSummary] = useState<string | null>(null);
+  const [runResult, setRunResult] = useState<RunResult | null>(null);
   const [blocks, setBlocks] = useState<CustomBlock[]>(() => loadBlocks());
 
   const stopRef = useRef(false);
@@ -56,6 +60,12 @@ const Workspace = () => {
       setSelectedLaneId(graph.lanes[0].id);
     }
   }, [graph.lanes, selectedLaneId]);
+
+  /** The session runs for minutes, so every backend call reads the freshest paper state. */
+  const paperRef = useRef(paper);
+  paperRef.current = paper;
+
+  const { prime: primeHistory, getHistory } = useMarketHistory();
 
   const tracked = useMemo(() => Array.from(new Set(SEED)), []);
   const { getSeries, version } = useLiveSeries(tracked, resolvePriceForTicker, { intervalMs: 5000 });
@@ -284,6 +294,19 @@ const Workspace = () => {
   const reporterRef = useRef<((trace: string) => void) | null>(null);
   const registerReporter = useCallback((fn: (trace: string) => void) => { reporterRef.current = fn; }, []);
 
+  /** Ask the backend agent runtime for a verdict on one agent step. */
+  const runAgent = useCallback(async (req: {
+    systemPrompt: string; taskPrompt: string; model: string; temperature: number; context: Record<string, any>;
+  }): Promise<AgentReply> => {
+    const { data, error } = await supabase.functions.invoke('pipeline-agent', { body: req });
+    if (error) throw new Error(error.message ?? 'agent call failed');
+    return {
+      verdict: (data?.verdict ?? 'hold') as AgentReply['verdict'],
+      confidence: Number(data?.confidence ?? 0),
+      reason: String(data?.reason ?? 'no reason given'),
+    };
+  }, []);
+
   const run = useCallback(async (reportToGenius = false) => {
     if (running) return;
     stopRef.current = false;
@@ -291,20 +314,34 @@ const Workspace = () => {
     setRunning(true);
     setPanel('report');
     setRunSummary(null);
-    const startEquity = paper.account.equity;
+    setRunResult(null);
+    const startEquity = paperRef.current.account.equity;
     setRunStartEquity(startEquity);
     setEquityCurve([startEquity]);
-    const collected: any[] = [];
+
+    // Seed every lane with REAL historical closes so indicators are meaningful
+    // from the first tick instead of waiting for live prints to accumulate.
+    const tickers = Array.from(new Set(
+      graphRef.current.lanes.flatMap((l) => l.steps.map((st) => st.config?.ticker).filter(Boolean) as string[]),
+    ));
+    if (tickers.length) await primeHistory(tickers, { interval: '1m', points: 300 });
+
+    const collected: RunEvent[] = [];
+    let result: RunResult | null = null;
     try {
-      await runGraph(
+      result = await runGraph(
         graphRef.current,
         {
           getPrice: resolvePriceForTicker,
           getSeries,
+          getHistory,
           classified,
           blocks: blocksRef.current,
-          account: paper.account,
-          submitOrder: paper.submitOrder as any,
+          getAccount: () => paperRef.current.account,
+          submitOrder: (o) => paperRef.current.submitOrder(o) as any,
+          closePosition: ({ ticker, qty, price }) =>
+            paperRef.current.submitOrder({ symbol: ticker, side: 'sell', qty, type: 'market', price, botSource: true }),
+          runAgent,
           shouldStop: () => stopRef.current,
         },
         (e) => {
@@ -313,27 +350,30 @@ const Workspace = () => {
           if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
         },
       );
+      setRunResult(result);
     } finally {
       setRunning(false);
-      const trades = collected.filter((e) => e.status === 'ok' && /^(Bought|Sold) \$/.test(e.message ?? '')).length;
       const errors = collected.filter((e) => e.status === 'error').length;
-      const skips = collected.filter((e) => e.status === 'skip').length;
       const delta = equityRef.current - startEquity;
+      const trades = result?.trades ?? [];
+      const closed = trades.filter((t) => !t.open);
       setRunSummary(
         !collected.length
-          ? 'The run finished without executing a single step — add blocks to a lane first.'
-          : `Run finished · ${collected.length} steps across ${graphRef.current.lanes.length} lanes · ${trades} paper trade${trades === 1 ? '' : 's'}` +
-            ` · ${skips} step${skips === 1 ? '' : 's'} skipped by a condition · ${errors} error${errors === 1 ? '' : 's'}` +
-            ` · paper equity ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)}. Full step-by-step trace is in the Report panel on the right.`,
+          ? 'The session finished without executing a single step — add blocks to a lane first.'
+          : `Session finished · ${result?.ticks ?? 0} ticks over ${Math.round(((result?.finishedAt ?? 0) - (result?.startedAt ?? 0)) / 1000)}s` +
+            ` · ${trades.length} position${trades.length === 1 ? '' : 's'} opened, ${closed.length} closed` +
+            ` · ${closed.reduce((s2, t) => s2 + t.pnl, 0) >= 0 ? '+' : ''}$${closed.reduce((s2, t) => s2 + t.pnl, 0).toFixed(2)} realised` +
+            ` · ${errors} error${errors === 1 ? '' : 's'} · paper equity ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)}.` +
+            ' The Report panel explains every decision in plain English.',
       );
       if (reportToGenius && reporterRef.current) {
         const trace = collected.length
-          ? collected.slice(-40).map((e) => `[${e.status}] ${e.laneName} › ${e.stepLabel}: ${e.message ?? ''}`).join('\n')
-          : 'The run produced no steps at all.';
+          ? collected.slice(-50).map((e) => `[${e.status}] t${e.tick} ${e.laneName} \u203a ${e.stepLabel}: ${e.message ?? ''}`).join('\n')
+          : 'The session produced no steps at all.';
         reporterRef.current(trace);
       }
     }
-  }, [running, resolvePriceForTicker, getSeries, classified, paper]);
+  }, [running, resolvePriceForTicker, getSeries, getHistory, primeHistory, classified, runAgent]);
 
   const erasePipeline = useCallback(() => {
     if (!window.confirm('Erase the whole pipeline? Every lane and step is deleted. This cannot be undone.')) return;
@@ -488,6 +528,12 @@ const Workspace = () => {
             notes.push('updated the risk limits');
           }
           break;
+        case 'set_session':
+          if (a.session) {
+            setGraph((g) => ({ ...g, session: { ...g.session, ...a.session }, updatedAt: Date.now() }));
+            notes.push('adjusted how long the session runs');
+          }
+          break;
         case 'create_code_block': {
           if (a.code && a.blockName) {
             const block: CustomBlock = {
@@ -565,6 +611,36 @@ const Workspace = () => {
               className="ml-2 w-20 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
             />
           </label>
+
+          {/* live session settings — a run is a timed session, not an instant pass */}
+          <label className="text-[12px] text-muted-foreground" title="How long the strategy stays live, holding positions on real prices.">
+            Run for (min)
+            <input
+              type="number" min={1} max={480}
+              value={graph.session?.durationMin ?? 15}
+              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, durationMin: Number(e.target.value) } }))}
+              className="ml-2 w-16 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
+            />
+          </label>
+          <label className="text-[12px] text-muted-foreground" title="How often every lane re-reads live prices and re-decides.">
+            Check every (s)
+            <input
+              type="number" min={2} max={600}
+              value={graph.session?.tickSec ?? 10}
+              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, tickSec: Number(e.target.value) } }))}
+              className="ml-2 w-16 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground" title="Close every position the session opened when it ends.">
+            <input
+              type="checkbox"
+              checked={graph.session?.flattenOnStop !== false}
+              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, flattenOnStop: e.target.checked } }))}
+            />
+            Close all at end
+          </label>
+
+
 
           <button
             onClick={() => addLane()}
@@ -815,23 +891,76 @@ const Workspace = () => {
                         className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary/60"
                       />
                     </label>
-                    {selectedLane.consensus && (
-                      <label className="block space-y-1">
-                        <span className="block text-[13px] font-medium text-foreground">Continue when</span>
-                        <select
-                          value={selectedLane.agree?.mode ?? 'majority'}
-                          onChange={(e) => mutate((g) => ({
-                            ...g,
-                            lanes: g.lanes.map((l) => (l.id === selectedLane.id ? { ...l, agree: { ...(l.agree ?? {}), mode: e.target.value as any, expects: l.agree?.expects ?? 'bullish' } } : l)),
-                          }))}
-                          className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
-                        >
-                          <option value="all">Every lane agrees</option>
-                          <option value="majority">Most lanes agree</option>
-                          <option value="any">Any lane agrees</option>
-                        </select>
-                      </label>
-                    )}
+                    {selectedLane.consensus && (() => {
+                      const setAgree = (patch: Record<string, any>) => mutate((g) => ({
+                        ...g,
+                        lanes: g.lanes.map((l) => (l.id === selectedLane.id
+                          ? { ...l, agree: { mode: 'majority' as const, expects: 'bullish', ...(l.agree ?? {}), ...patch } }
+                          : l)),
+                      }));
+                      const agree = selectedLane.agree ?? { mode: 'majority' as const };
+                      return (
+                        <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                          <p className="text-[12px] text-muted-foreground">
+                            This lane rules over the others: on every tick it reads their signals and decides whether
+                            the strategy may open new positions.
+                          </p>
+                          <label className="block space-y-1">
+                            <span className="block text-[13px] font-medium text-foreground">Allow trading when</span>
+                            <select
+                              value={agree.mode ?? 'majority'}
+                              onChange={(e) => setAgree({ mode: e.target.value })}
+                              className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                            >
+                              <option value="all">Every lane agrees</option>
+                              <option value="majority">Most lanes agree</option>
+                              <option value="any">Any lane agrees</option>
+                              <option value="count">A set number of lanes agree</option>
+                            </select>
+                          </label>
+                          {agree.mode === 'count' && (
+                            <label className="block space-y-1">
+                              <span className="block text-[13px] font-medium text-foreground">How many lanes</span>
+                              <input
+                                type="number" min={1} max={12} value={agree.count ?? 2}
+                                onChange={(e) => setAgree({ count: Number(e.target.value) })}
+                                className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                              />
+                            </label>
+                          )}
+                          <label className="block space-y-1">
+                            <span className="block text-[13px] font-medium text-foreground">The signal they must show</span>
+                            <select
+                              value={agree.expects ?? 'bullish'}
+                              onChange={(e) => setAgree({ expects: e.target.value })}
+                              className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                            >
+                              <option value="bullish">Buy signal</option>
+                              <option value="bearish">Sell signal</option>
+                              <option value="neutral">Neutral</option>
+                            </select>
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="block text-[13px] font-medium text-foreground">Ignore lanes below this confidence (%)</span>
+                            <input
+                              type="number" min={0} max={100} step={5}
+                              value={Math.round(Number(agree.minConfidence ?? 0) * 100)}
+                              onChange={(e) => setAgree({ minConfidence: Number(e.target.value) / 100 })}
+                              className="w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none"
+                            />
+                          </label>
+                          <label className="flex items-center gap-2 text-[13px] text-foreground">
+                            <input
+                              type="checkbox"
+                              checked={agree.veto !== false}
+                              onChange={(e) => setAgree({ veto: e.target.checked })}
+                            />
+                            Close positions from lanes that disagree
+                          </label>
+                        </div>
+                      );
+                    })()}
+
                     <ul className="space-y-1">
                       {selectedLane.steps.map((s) => (
                         <li key={s.id}>
@@ -859,15 +988,27 @@ const Workspace = () => {
               )}
 
               {panel === 'report' && (
-                <RunPerformance
-                  events={events}
-                  lanes={laneStats}
-                  equityCurve={equityCurve}
-                  running={running}
-                  startEquity={runStartEquity}
-                  equity={paper.account.equity}
-                />
+                <div className="space-y-3">
+                  <RunPerformance
+                    events={events}
+                    lanes={laneStats}
+                    equityCurve={equityCurve}
+                    running={running}
+                    startEquity={runStartEquity}
+                    equity={paper.account.equity}
+                  />
+                  <div className="rounded-lg border border-white/10 bg-black/30">
+                    <RunReport
+                      events={events}
+                      result={runResult}
+                      running={running}
+                      equityCurve={equityCurve}
+                      startEquity={runStartEquity}
+                    />
+                  </div>
+                </div>
               )}
+
             </div>
           </aside>
         </div>

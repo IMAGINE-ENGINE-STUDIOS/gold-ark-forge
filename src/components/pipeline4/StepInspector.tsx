@@ -246,6 +246,78 @@ export default function StepInspector({
                 </button>
               ))}
             </div>
+
+            {step.kind === 'buy' && (
+              <>
+                <Field label="Take profit (%)" hint="The engine closes the position on a live tick once this gain is reached. 0 turns it off.">
+                  <input type="number" min={0} step={0.1} value={cfg.takeProfitPct ?? 0} onChange={(e) => set({ takeProfitPct: Number(e.target.value) })} className={inputCls} />
+                </Field>
+                <Field label="Stop loss (%)" hint="The position is closed on a live tick once this loss is reached. 0 turns it off.">
+                  <input type="number" min={0} step={0.1} value={cfg.stopLossPct ?? 0} onChange={(e) => set({ stopLossPct: Number(e.target.value) })} className={inputCls} />
+                </Field>
+                <Field label="Close after (minutes)" hint="A time limit so money is never parked in a trade that goes nowhere. 0 turns it off.">
+                  <input type="number" min={0} step={1} value={cfg.maxHoldMin ?? 0} onChange={(e) => set({ maxHoldMin: Number(e.target.value) })} className={inputCls} />
+                </Field>
+              </>
+            )}
+            <Field label="Maximum orders per session" hint="Stops this step re-trading on every single tick.">
+              <input type="number" min={1} max={50} value={cfg.maxEntries ?? 1} onChange={(e) => set({ maxEntries: Number(e.target.value) })} className={inputCls} />
+            </Field>
+            <Field label="Wait between orders (minutes)">
+              <input type="number" min={0} step={1} value={cfg.cooldownMin ?? 0} onChange={(e) => set({ cooldownMin: Number(e.target.value) })} className={inputCls} />
+            </Field>
+          </>
+        )}
+
+        {step.kind === 'agent' && (
+          <>
+            <Field label="Agent name" hint="Shown in the report so you know which agent said what.">
+              <input value={cfg.agentName ?? ''} onChange={(e) => set({ agentName: e.target.value }, e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="How the agent should behave" hint="Its standing character and rules.">
+              <textarea rows={3} value={cfg.systemPrompt ?? ''} onChange={(e) => set({ systemPrompt: e.target.value })} className={inputCls} />
+            </Field>
+            <Field label="What you want it to decide" hint="The task it performs on every tick. It answers buy, sell, neutral or hold with a confidence.">
+              <textarea rows={4} value={cfg.taskPrompt ?? ''} onChange={(e) => set({ taskPrompt: e.target.value })} className={inputCls} />
+            </Field>
+            <Field label="Model">
+              <select value={cfg.model ?? 'google/gemini-2.5-flash'} onChange={(e) => set({ model: e.target.value })} className={inputCls}>
+                <option value="google/gemini-2.5-flash">Fast (Gemini 2.5 Flash)</option>
+                <option value="google/gemini-2.5-flash-lite">Cheapest (Gemini 2.5 Flash Lite)</option>
+                <option value="google/gemini-2.5-pro">Most capable (Gemini 2.5 Pro)</option>
+              </select>
+            </Field>
+            <Field label={`Creativity — ${Number(cfg.temperature ?? 0.3).toFixed(1)}`} hint="Lower is more consistent, higher explores more ideas.">
+              <input type="range" min={0} max={1} step={0.1} value={cfg.temperature ?? 0.3} onChange={(e) => set({ temperature: Number(e.target.value) })} className="w-full" />
+            </Field>
+            <Field label="Ignore verdicts below this confidence (%)">
+              <input
+                type="number" min={0} max={100} step={5}
+                value={Math.round(Number(cfg.minConfidence ?? 0.55) * 100)}
+                onChange={(e) => set({ minConfidence: Number(e.target.value) / 100 })}
+                className={inputCls}
+              />
+            </Field>
+            <div className="space-y-1">
+              <div className="text-[12px] uppercase tracking-wider text-muted-foreground">What the agent may read</div>
+              {([
+                ['price', 'The live price'],
+                ['series', 'Recent real closes'],
+                ['indicators', 'The last analysis result in this lane'],
+                ['screen', 'Any market-condition matches'],
+                ['positions', 'Open positions and the account'],
+                ['lanes', 'What every other lane concluded'],
+              ] as const).map(([k, labelText]) => (
+                <label key={k} className="flex items-center gap-2 text-[13px] text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={(cfg.context ?? {})[k] !== false}
+                    onChange={(e) => set({ context: { ...(cfg.context ?? {}), [k]: e.target.checked } })}
+                  />
+                  {labelText}
+                </label>
+              ))}
+            </div>
           </>
         )}
 

@@ -9,7 +9,9 @@
 
 import type { BpKind, BpNode } from './blueprintEngine';
 
-export type StepKind = BpKind;
+/** Every action a step can perform. `agent` is a configurable AI worker. */
+export type StepKind = BpKind | 'agent';
+
 
 export interface PipeStep {
   id: string;
@@ -25,7 +27,11 @@ export interface PipeStep {
 }
 
 /** Config keys that survive when an operator swaps one action for another. */
-const PORTABLE_KEYS = ['ticker', 'label', 'amountUsd', 'price', 'programId', 'classId', 'limit'];
+const PORTABLE_KEYS = [
+  'ticker', 'label', 'amountUsd', 'price', 'programId', 'classId', 'limit',
+  'takeProfitPct', 'stopLossPct', 'maxHoldMin', 'maxEntries', 'cooldownMin',
+  'agentName', 'systemPrompt', 'taskPrompt', 'model', 'temperature', 'minConfidence',
+];
 
 /**
  * Swap a step's action in place, keeping its identity (id, note, enabled) and
@@ -50,10 +56,28 @@ export interface PipeLane {
   /** Tailwind colour fragment used by both the 3D scene and the flat view. */
   tint: string;
   steps: PipeStep[];
-  /** Consensus lane: runs after every parallel lane has finished. */
+  /** Consensus lane: runs after every parallel lane on each tick and rules over them. */
   consensus?: boolean;
-  /** Consensus rule — how many lanes must agree before the lane continues. */
-  agree?: { mode: 'all' | 'any' | 'majority' | 'count'; count?: number; expects?: string };
+  /** Consensus rule — how many lanes must agree before trading is allowed to continue. */
+  agree?: {
+    mode: 'all' | 'any' | 'majority' | 'count';
+    count?: number;
+    expects?: string;
+    /** Ignore lane signals below this confidence (0-1). */
+    minConfidence?: number;
+    /** Close positions opened by lanes that disagree with the consensus. */
+    veto?: boolean;
+  };
+}
+
+/** How long a run stays live and how often it re-evaluates on real prices. */
+export interface SessionSettings {
+  /** Total wall-clock length of the run, in minutes. */
+  durationMin: number;
+  /** Seconds between re-evaluations of every lane. */
+  tickSec: number;
+  /** Close every position the run opened when the session ends or is stopped. */
+  flattenOnStop: boolean;
 }
 
 export interface PipeGraph {
@@ -61,11 +85,14 @@ export interface PipeGraph {
   name: string;
   /** Applies across every lane at once. */
   risk: { maxDrawdownPct: number; maxTotalInvestmentUsd: number };
+  session: SessionSettings;
   lanes: PipeLane[];
   updatedAt: number;
 }
 
 export const LANE_TINTS = ['gold', 'emerald', 'sky', 'violet', 'amber', 'rose', 'cyan', 'indigo'] as const;
+
+export const DEFAULT_SESSION: SessionSettings = { durationMin: 15, tickSec: 10, flattenOnStop: true };
 
 export const uid = (p = 's') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -73,9 +100,11 @@ export const emptyGraph = (): PipeGraph => ({
   id: uid('g'),
   name: 'Untitled strategy',
   risk: { maxDrawdownPct: 10, maxTotalInvestmentUsd: 25000 },
+  session: { ...DEFAULT_SESSION },
   lanes: [],
   updatedAt: Date.now(),
 });
+
 
 export const makeLane = (name: string, index = 0): PipeLane => ({
   id: uid('lane'),
@@ -179,6 +208,12 @@ export function validateGraph(
         case 'branch':
           if (!s.config?.expects) add('warn', 'This condition step has no expected signal, so it always passes.', s.id);
           break;
+        case 'agent':
+          if (!String(s.config?.taskPrompt ?? '').trim()) {
+            add('warn', 'This agent has no task prompt yet — tell it what to judge.', s.id);
+          }
+          break;
+
         default:
           break;
       }
@@ -218,8 +253,15 @@ export const loadGraph = (): PipeGraph => {
     if (raw) {
       const parsed = JSON.parse(raw) as PipeGraph;
       if (parsed && Array.isArray(parsed.lanes)) {
-        return { ...emptyGraph(), ...parsed, risk: { ...emptyGraph().risk, ...(parsed.risk ?? {}) } };
+        const base = emptyGraph();
+        return {
+          ...base,
+          ...parsed,
+          risk: { ...base.risk, ...(parsed.risk ?? {}) },
+          session: { ...base.session, ...(parsed.session ?? {}) },
+        };
       }
+
     }
     const legacy = localStorage.getItem(LEGACY_KEY);
     if (legacy) {

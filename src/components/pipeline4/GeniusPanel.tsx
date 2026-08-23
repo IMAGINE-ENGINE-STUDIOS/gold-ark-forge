@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface GeniusAction {
   op: 'replace_all' | 'add_lane' | 'add_lanes' | 'replace_lane' | 'rename_lane' | 'add_step' | 'update_step'
-    | 'remove_step' | 'remove_lane' | 'set_risk' | 'clear' | 'run' | 'stop' | 'create_code_block';
+    | 'remove_step' | 'remove_lane' | 'set_risk' | 'set_session' | 'clear' | 'run' | 'stop' | 'create_code_block';
 
   laneIndex?: number;
   stepIndex?: number;
@@ -15,6 +15,8 @@ export interface GeniusAction {
   label?: string;
   config?: Record<string, any>;
   risk?: { maxDrawdownPct?: number; maxTotalInvestmentUsd?: number };
+  /** Live-session shape: how long the run stays live and how often it re-decides. */
+  session?: { durationMin?: number; tickSec?: number; flattenOnStop?: boolean };
   blockName?: string;
   code?: string;
   description?: string;

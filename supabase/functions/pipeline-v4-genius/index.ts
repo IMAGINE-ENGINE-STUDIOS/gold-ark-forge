@@ -10,12 +10,22 @@ Step kinds and their config:
 - analysis { programId, params }                      runs a quant program on the live series, yields bullish/bearish/neutral
 - branch   { expects }                                stops the lane unless the last signal matches
 - risk     { maxDrawdownPct, blockOnBreach }          shared loss limit, can halt every lane
-- buy/sell { amountUsd }                              market order on the PAPER account
+- agent    { agentName, systemPrompt, taskPrompt, model, temperature, minConfidence }
+                                                      a prompted AI worker that returns bullish/bearish/neutral/hold + confidence
+- buy      { amountUsd, takeProfitPct, stopLossPct, maxHoldMin, maxEntries, cooldownMin }
+                                                      market buy on the PAPER account, managed with a target, a stop and a time limit
+- sell     { amountUsd, maxEntries, cooldownMin }     market sell on the PAPER account
 - alert    { direction, price }
 - code     { blockId | blockName, params }            operator's saved custom code
 - note     { text }
 A lane may be marked consensus:true with agree { mode: all|any|majority|count, count, expects } — it runs AFTER the
-parallel lanes and only continues when enough lanes produced the expected signal. Use a consensus lane whenever the
+parallel lanes on EVERY tick and RULES over them: it gates whether any lane may open new positions, and with veto:true it
+closes positions held by lanes that disagree. agree also takes minConfidence (0-1) and veto (boolean).
+
+A RUN IS A LIVE SESSION, not an instant pass. graph.session { durationMin, tickSec, flattenOnStop } decides how long the
+strategy stays live and how often every lane re-decides on real prices. Positions stay open between ticks and are closed
+by their takeProfitPct, stopLossPct or maxHoldMin. Always give buy steps a target and a stop, and give the session enough
+duration (usually 15-60 minutes) for the trade thesis to actually play out — a 1-tick run cannot make money. Use a consensus lane whenever the
 operator wants confirmation across several assets before committing money.
 
 HARD RULES — ACT, NEVER STALL
@@ -103,7 +113,7 @@ Deno.serve(async (req) => {
                     properties: {
                       op: {
                         type: 'string',
-                        enum: ['replace_all', 'add_lanes', 'replace_lane', 'rename_lane', 'add_lane', 'add_step', 'update_step', 'remove_step', 'remove_lane', 'set_risk', 'clear', 'run', 'stop', 'create_code_block'],
+                        enum: ['replace_all', 'add_lanes', 'replace_lane', 'rename_lane', 'add_lane', 'add_step', 'update_step', 'remove_step', 'remove_lane', 'set_risk', 'set_session', 'clear', 'run', 'stop', 'create_code_block'],
                       },
                       laneIndex: { type: 'number' },
                       stepIndex: { type: 'number' },
@@ -115,6 +125,8 @@ Deno.serve(async (req) => {
                           mode: { type: 'string', enum: ['all', 'any', 'majority', 'count'] },
                           count: { type: 'number' },
                           expects: { type: 'string' },
+                          minConfidence: { type: 'number' },
+                          veto: { type: 'boolean' },
                         },
                         additionalProperties: false,
                       },
@@ -124,6 +136,15 @@ Deno.serve(async (req) => {
                       risk: {
                         type: 'object',
                         properties: { maxDrawdownPct: { type: 'number' }, maxTotalInvestmentUsd: { type: 'number' } },
+                        additionalProperties: false,
+                      },
+                      session: {
+                        type: 'object',
+                        properties: {
+                          durationMin: { type: 'number' },
+                          tickSec: { type: 'number' },
+                          flattenOnStop: { type: 'boolean' },
+                        },
                         additionalProperties: false,
                       },
                       blockName: { type: 'string' },
@@ -143,6 +164,8 @@ Deno.serve(async (req) => {
                                 mode: { type: 'string', enum: ['all', 'any', 'majority', 'count'] },
                                 count: { type: 'number' },
                                 expects: { type: 'string' },
+                                minConfidence: { type: 'number' },
+                                veto: { type: 'boolean' },
                               },
                               additionalProperties: false,
                             },
