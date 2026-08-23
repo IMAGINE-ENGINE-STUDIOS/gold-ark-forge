@@ -354,9 +354,10 @@ export default function StepInspector({
             <Field label="Price level">
               <input type="number" value={cfg.price ?? 0} onChange={(e) => set({ price: Number(e.target.value) })} className={inputCls} />
             </Field>
-            {price > 0 && (
-              <button onClick={() => set({ price: Number(price.toFixed(4)) })} className="rounded-full border border-primary/50 px-2 py-0.5 text-[12px] text-primary">
-                Use live price {price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+            {LivePill}
+            {px > 0 && (
+              <button onClick={() => set({ price: Number(px.toFixed(4)) })} className="rounded-full border border-primary/50 px-2 py-0.5 text-[12px] text-primary">
+                Use live price {px.toLocaleString(undefined, { maximumFractionDigits: 4 })}
               </button>
             )}
           </>
