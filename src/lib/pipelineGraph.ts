@@ -16,7 +16,33 @@ export interface PipeStep {
   kind: StepKind;
   label: string;
   config: Record<string, any>;
+  /** Operators can mute a step without deleting it. Defaults to enabled. */
+  enabled?: boolean;
+  /** Free-text operator note shown in the inspector and the run report. */
+  note?: string;
+  /** When true a failure in this step does not halt the lane. */
+  continueOnError?: boolean;
 }
+
+/** Config keys that survive when an operator swaps one action for another. */
+const PORTABLE_KEYS = ['ticker', 'label', 'amountUsd', 'price', 'programId', 'classId', 'limit'];
+
+/**
+ * Swap a step's action in place, keeping its identity (id, note, enabled) and
+ * any config values that still make sense for the new action.
+ */
+export const convertStep = (
+  step: PipeStep,
+  next: { kind: StepKind; label: string; config?: Record<string, any> },
+): PipeStep => {
+  const carried: Record<string, any> = {};
+  const template = next.config ?? {};
+  PORTABLE_KEYS.forEach((k) => {
+    if (k in template && step.config?.[k] !== undefined && step.config[k] !== '') carried[k] = step.config[k];
+  });
+  return { ...step, kind: next.kind, label: next.label, config: { ...template, ...carried } };
+};
+
 
 export interface PipeLane {
   id: string;
@@ -127,6 +153,7 @@ export function validateGraph(
 
     let hasContext = false;
     lane.steps.forEach((s) => {
+      if (s.enabled === false) return; // muted steps are not validated
       switch (s.kind) {
         case 'asset':
           hasContext = !!s.config?.ticker;

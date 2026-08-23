@@ -1,10 +1,22 @@
+// StepInspector — the single control surface for one step of a lane.
+//
+// Every mutation an operator can perform on a step lives here:
+//   · change which ACTION the step performs (without losing its slot)
+//   · rename it, mute it, duplicate it, reorder it, move it to another lane
+//   · attach an operator note and choose what happens when the step fails
+//   · configure the action-specific parameters (asset, analysis, amount, …)
+//
+// The component is fully controlled: it never holds graph state, it only calls
+// back into PipelineV4's controllers. See docs/pipeline-v4/ARCHITECTURE.md.
+
 import { useMemo, useState } from 'react';
-import { Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Trash2, ArrowLeft, ArrowRight, Copy, EyeOff, Eye } from 'lucide-react';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { ASSET_CLASSES } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
+import { BLOCKS, BLOCK_GROUPS } from '@/lib/pipelineBlocks';
 import type { CustomBlock } from '@/lib/customBlocks';
-import type { PipeStep } from '@/lib/pipelineGraph';
+import type { PipeStep, PipeLane } from '@/lib/pipelineGraph';
 
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
   <label className="block space-y-1">
@@ -17,19 +29,33 @@ const Field = ({ label, hint, children }: { label: string; hint?: string; childr
 const inputCls =
   'w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary/60';
 
+const iconBtn =
+  'rounded border border-border/60 p-1 text-muted-foreground transition hover:text-foreground hover:border-primary/50';
+
 export default function StepInspector({
-  step, price, blocks, onChange, onDelete, onMove,
+  step, price, blocks, lanes, currentLaneId,
+  onChange, onDelete, onMove, onChangeKind, onPatch, onDuplicate, onMoveToLane,
 }: {
   step: PipeStep;
   price: number;
   blocks: CustomBlock[];
+  /** All lanes, used by the "move to lane" control. */
+  lanes?: PipeLane[];
+  currentLaneId?: string | null;
   onChange: (config: Record<string, any>, label?: string) => void;
   onDelete: () => void;
   onMove: (dir: -1 | 1) => void;
+  /** Swap the action this step performs (blockId from pipelineBlocks). */
+  onChangeKind?: (blockId: string) => void;
+  /** Patch non-config fields: label, note, enabled, continueOnError. */
+  onPatch?: (patch: Partial<PipeStep>) => void;
+  onDuplicate?: () => void;
+  onMoveToLane?: (laneId: string) => void;
 }) {
   const [assetQuery, setAssetQuery] = useState('');
   const cfg = step.config ?? {};
   const set = (patch: Record<string, any>, label?: string) => onChange({ ...cfg, ...patch }, label);
+  const enabled = step.enabled !== false;
 
   const assetResults = useMemo(() => {
     const q = assetQuery.trim().toLowerCase();
@@ -39,17 +65,33 @@ export default function StepInspector({
     ).slice(0, 40);
   }, [assetQuery]);
 
+  /** Best-effort match of the current step back to a block definition. */
+  const currentBlockId = useMemo(() => {
+    const sameKind = BLOCKS.filter((b) => b.kind === step.kind);
+    if (sameKind.length <= 1) return sameKind[0]?.id ?? '';
+    const byDirection = sameKind.find((b) => b.config?.direction === cfg.direction);
+    return (byDirection ?? sameKind[0]).id;
+  }, [step.kind, cfg.direction]);
+
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-foreground">{step.label}</div>
-          <div className="text-[12px] text-muted-foreground">Configure this step</div>
+          <div className="text-[12px] text-muted-foreground">
+            {enabled ? 'Configure this step' : 'Muted — it will be skipped when the strategy runs'}
+          </div>
         </div>
-        <button onClick={() => onMove(-1)} className="rounded border border-border/60 p-1 text-muted-foreground hover:text-foreground" title="Move earlier">
+        <button onClick={() => onPatch?.({ enabled: !enabled })} className={iconBtn} title={enabled ? 'Mute step' : 'Enable step'}>
+          {enabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </button>
+        <button onClick={onDuplicate} className={iconBtn} title="Duplicate step">
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={() => onMove(-1)} className={iconBtn} title="Move earlier">
           <ArrowLeft className="h-3.5 w-3.5" />
         </button>
-        <button onClick={() => onMove(1)} className="rounded border border-border/60 p-1 text-muted-foreground hover:text-foreground" title="Move later">
+        <button onClick={() => onMove(1)} className={iconBtn} title="Move later">
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
         <button onClick={onDelete} className="rounded border border-destructive/50 p-1 text-destructive hover:bg-destructive/10" title="Remove step">
@@ -58,6 +100,47 @@ export default function StepInspector({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
+        {/* ── Action switcher: change what this step does, in place ── */}
+        <Field label="Action" hint="Change what this step does. Compatible settings are carried across.">
+          <select
+            value={currentBlockId}
+            onChange={(e) => onChangeKind?.(e.target.value)}
+            className={inputCls}
+            disabled={!onChangeKind}
+          >
+            {BLOCK_GROUPS.map((group) => (
+              <optgroup key={group} label={group}>
+                {BLOCKS.filter((b) => b.group === group).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Step name">
+          <input
+            value={step.label}
+            onChange={(e) => onPatch?.({ label: e.target.value })}
+            className={inputCls}
+            placeholder="Name this step"
+          />
+        </Field>
+
+        {lanes && lanes.length > 1 && (
+          <Field label="Lane">
+            <select
+              value={currentLaneId ?? ''}
+              onChange={(e) => onMoveToLane?.(e.target.value)}
+              className={inputCls}
+            >
+              {lanes.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </Field>
+        )}
+
+        <div className="h-px bg-border/50" />
+
         {step.kind === 'asset' && (
           <>
             <Field label="Which asset should this lane trade?">
@@ -199,7 +282,37 @@ export default function StepInspector({
             <textarea value={cfg.text ?? ''} onChange={(e) => set({ text: e.target.value })} rows={4} className={inputCls} />
           </Field>
         )}
+
+        {/* ── Advanced controls shared by every action ── */}
+        <div className="h-px bg-border/50" />
+        <details className="rounded-md border border-border/50 p-2">
+          <summary className="cursor-pointer text-[13px] font-medium text-foreground">Advanced</summary>
+          <div className="mt-2 space-y-2">
+            <Field label="Operator note" hint="Shown in the run report next to this step.">
+              <textarea
+                value={step.note ?? ''}
+                onChange={(e) => onPatch?.({ note: e.target.value })}
+                rows={2}
+                placeholder="Why this step exists"
+                className={inputCls}
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-[13px] text-foreground">
+              <input
+                type="checkbox"
+                checked={step.continueOnError === true}
+                onChange={(e) => onPatch?.({ continueOnError: e.target.checked })}
+              />
+              Keep the lane running if this step fails
+            </label>
+            <label className="flex items-center gap-2 text-[13px] text-foreground">
+              <input type="checkbox" checked={enabled} onChange={(e) => onPatch?.({ enabled: e.target.checked })} />
+              Step is active
+            </label>
+          </div>
+        </details>
       </div>
+
     </div>
   );
 }

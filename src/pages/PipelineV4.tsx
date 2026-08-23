@@ -20,7 +20,7 @@ import { loadBlocks, saveBlocks, normalizeBlockCode, type CustomBlock } from '@/
 import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
-  emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps,
+  convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
   validateGraph, type PipeGraph, type PipeStep,
 } from '@/lib/pipelineGraph';
 import { runGraph, type RunEvent } from '@/lib/parallelEngine';
@@ -177,10 +177,76 @@ const Workspace = () => {
     }));
   }, [mutate]);
 
+  /* ── step-level controllers ──
+     These are the primitives the inspector, Genius and keyboard shortcuts all
+     share, so every path mutates the graph the same way. */
+
+  /** Swap the action a step performs while keeping its slot in the lane. */
+  const changeStepKind = useCallback((stepId: string, blockId: string) => {
+    const block = BLOCK_BY_ID.get(blockId);
+    if (!block) return;
+    mutate((g) => ({
+      ...g,
+      lanes: g.lanes.map((l) => ({
+        ...l,
+        steps: l.steps.map((s) => (s.id === stepId ? convertStep(s, { kind: block.kind, label: block.name, config: block.config }) : s)),
+      })),
+    }));
+  }, [mutate]);
+
+  /** Patch non-config fields (name, note, enabled, error policy). */
+  const patchStep = useCallback((stepId: string, patch: Partial<PipeStep>) => {
+    mutate((g) => ({
+      ...g,
+      lanes: g.lanes.map((l) => ({
+        ...l,
+        steps: l.steps.map((s) => (s.id === stepId ? { ...s, ...patch } : s)),
+      })),
+    }));
+  }, [mutate]);
+
+  /** Copy a step directly after itself. */
+  const duplicateStep = useCallback((stepId: string) => {
+    let newId: string | null = null;
+    mutate((g) => ({
+      ...g,
+      lanes: g.lanes.map((l) => {
+        const i = l.steps.findIndex((s) => s.id === stepId);
+        if (i < 0) return l;
+        const copy = { ...l.steps[i], id: uid('step'), config: { ...l.steps[i].config } };
+        newId = copy.id;
+        const steps = [...l.steps];
+        steps.splice(i + 1, 0, copy);
+        return { ...l, steps };
+      }),
+    }));
+    if (newId) setSelectedStepId(newId);
+  }, [mutate]);
+
+  /** Move a step into another lane, appended at the end. */
+  const moveStepToLane = useCallback((stepId: string, laneId: string) => {
+    mutate((g) => {
+      let moved: PipeStep | null = null;
+      const stripped = g.lanes.map((l) => {
+        const found = l.steps.find((s) => s.id === stepId);
+        if (!found) return l;
+        moved = found;
+        return { ...l, steps: l.steps.filter((s) => s.id !== stepId) };
+      });
+      if (!moved) return g;
+      return {
+        ...g,
+        lanes: stripped.map((l) => (l.id === laneId ? { ...l, steps: [...l.steps, moved as PipeStep] } : l)),
+      };
+    });
+    setSelectedLaneId(laneId);
+  }, [mutate]);
+
   const removeLane = useCallback((laneId: string) => {
     mutate((g) => ({ ...g, lanes: g.lanes.filter((l) => l.id !== laneId) }));
     setSelectedLaneId(null);
   }, [mutate]);
+
 
   /* ─────────────── execution ─────────────── */
 
@@ -724,6 +790,12 @@ const Workspace = () => {
                     onChange={(config, label) => updateStep(selectedStep.id, config, label)}
                     onDelete={() => removeStep(selectedStep.id)}
                     onMove={(dir) => moveStep(selectedStep.id, dir)}
+                    lanes={graph.lanes}
+                    currentLaneId={stepPath(graph, selectedStep.id)?.lane.id ?? null}
+                    onChangeKind={(blockId) => changeStepKind(selectedStep.id, blockId)}
+                    onPatch={(patch) => patchStep(selectedStep.id, patch)}
+                    onDuplicate={() => duplicateStep(selectedStep.id)}
+                    onMoveToLane={(laneId) => moveStepToLane(selectedStep.id, laneId)}
                   />
                 ) : selectedLane ? (
                   <div className="space-y-3">
