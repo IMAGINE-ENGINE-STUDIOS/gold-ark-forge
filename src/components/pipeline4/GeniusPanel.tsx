@@ -3,8 +3,9 @@ import { Brain, Send, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GeniusAction {
-  op: 'replace_all' | 'add_lane' | 'add_step' | 'update_step' | 'remove_step' | 'remove_lane'
-    | 'set_risk' | 'clear' | 'run' | 'stop' | 'create_code_block';
+  op: 'replace_all' | 'add_lane' | 'add_lanes' | 'replace_lane' | 'rename_lane' | 'add_step' | 'update_step'
+    | 'remove_step' | 'remove_lane' | 'set_risk' | 'clear' | 'run' | 'stop' | 'create_code_block';
+
   laneIndex?: number;
   stepIndex?: number;
   laneName?: string;
