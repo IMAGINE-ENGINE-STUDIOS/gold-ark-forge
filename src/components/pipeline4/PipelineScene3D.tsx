@@ -226,6 +226,8 @@ function GraphScene(props: SceneProps) {
         maxPolarAngle={Math.PI / 2.05}
         target={[3, 0, 0]}
       />
+      <CameraFocus target={focus} />
+
     </>
   );
 }
