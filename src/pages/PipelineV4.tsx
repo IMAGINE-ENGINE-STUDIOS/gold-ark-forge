@@ -528,6 +528,12 @@ const Workspace = () => {
             notes.push('updated the risk limits');
           }
           break;
+        case 'set_session':
+          if (a.session) {
+            setGraph((g) => ({ ...g, session: { ...g.session, ...a.session }, updatedAt: Date.now() }));
+            notes.push('adjusted how long the session runs');
+          }
+          break;
         case 'create_code_block': {
           if (a.code && a.blockName) {
             const block: CustomBlock = {
