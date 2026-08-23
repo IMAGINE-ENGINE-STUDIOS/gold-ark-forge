@@ -36,7 +36,7 @@ import { runGraph, type AgentReply, type RunEvent, type RunResult } from '@/lib/
 const SEED = REAL_FEED_SYMBOLS.slice(0, 40).map((s) => s.ticker);
 
 const Console = () => {
-  const { paper, resolvePriceForTicker, changeForTicker, symbols } = usePipeline();
+  const { paper, resolvePriceForTicker, changeForTicker, symbols, subscribe, unsubscribe } = usePipeline();
 
   const [graph, setGraph] = useState<PipeGraph>(() => loadGraph());
   const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null);
@@ -64,8 +64,38 @@ const Console = () => {
 
   /* ── live market context ── */
   const { prime: primeHistory, getHistory } = useMarketHistory();
-  const tracked = useMemo(() => Array.from(new Set(SEED)), []);
+
+  /* Every ticker referenced anywhere in the well must be subscribed to the live
+     quote feed — otherwise steps evaluate against a price of 0 and every trade
+     is rejected with "no live price". */
+  const graphTickers = useMemo(
+    () => Array.from(new Set(
+      graph.lanes.flatMap((l) => l.steps.map((s) => s.config?.ticker).filter(Boolean) as string[]),
+    )),
+    [graph],
+  );
+  const graphTickerKey = graphTickers.join(',');
+  useEffect(() => {
+    const list = graphTickerKey ? graphTickerKey.split(',') : [];
+    list.forEach(subscribe);
+    return () => list.forEach(unsubscribe);
+  }, [graphTickerKey, subscribe, unsubscribe]);
+
+  const tracked = useMemo(
+    () => Array.from(new Set([...SEED, ...(graphTickerKey ? graphTickerKey.split(',') : [])])),
+    [graphTickerKey],
+  );
   const { getSeries, version } = useLiveSeries(tracked, resolvePriceForTicker, { intervalMs: 5000 });
+
+  /* Live quote first; if the feed has not ticked yet fall back to the LAST REAL
+     historical close for that ticker (never a synthetic value). */
+  const priceForTicker = useCallback((ticker: string): number => {
+    const live = resolvePriceForTicker(ticker);
+    if (live > 0) return live;
+    const hist = getHistory(ticker);
+    const last = hist.length ? hist[hist.length - 1] : 0;
+    return last > 0 ? last : 0;
+  }, [resolvePriceForTicker, getHistory]);
 
   const classified = useMemo(() => {
     const seeded = new Set(tracked);
@@ -93,8 +123,8 @@ const Console = () => {
   positionsRef.current = paper.positions;
   const updatePricesRef = useRef(paper.updatePrices);
   updatePricesRef.current = paper.updatePrices;
-  const priceRef = useRef(resolvePriceForTicker);
-  priceRef.current = resolvePriceForTicker;
+  const priceRef = useRef(priceForTicker);
+  priceRef.current = priceForTicker;
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -131,8 +161,8 @@ const Console = () => {
     return null;
   }, [selected]);
   const selectedPrice = useMemo(
-    () => (selectedTicker ? resolvePriceForTicker(selectedTicker) : 0),
-    [selectedTicker, resolvePriceForTicker],
+    () => (selectedTicker ? priceForTicker(selectedTicker) : 0),
+    [selectedTicker, priceForTicker],
   );
 
   /* ── graph mutations (identical semantics to V4) ── */
@@ -290,13 +320,19 @@ const Console = () => {
     ));
     if (tickers.length) await primeHistory(tickers, { interval: '1m', points: 300 });
 
+    // Give the quote feed a moment to deliver a first real tick for every ticker
+    // in the graph, so the opening tick does not fail with "no live price".
+    for (let i = 0; i < 12 && tickers.some((t) => priceRef.current(t) <= 0); i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
     const collected: RunEvent[] = [];
     let result: RunResult | null = null;
     try {
       result = await runGraph(
         graphRef.current,
         {
-          getPrice: resolvePriceForTicker,
+          getPrice: priceForTicker,
           getSeries,
           getHistory,
           classified,
@@ -329,7 +365,7 @@ const Console = () => {
             ` · ${errors} error${errors === 1 ? '' : 's'} · paper equity ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)}.`,
       );
     }
-  }, [running, resolvePriceForTicker, getSeries, getHistory, primeHistory, classified, blocks, runAgent]);
+  }, [running, priceForTicker, getSeries, getHistory, primeHistory, classified, blocks, runAgent]);
 
   /* ── session settings ── */
   const session = graph.session ?? { durationMin: 15, tickSec: 10, flattenOnStop: true };
@@ -441,7 +477,7 @@ const Console = () => {
                     step={selectedStep}
                     price={selectedPrice}
                     ticker={selectedTicker}
-                    getPrice={resolvePriceForTicker}
+                    getPrice={priceForTicker}
                     blocks={blocks}
                     lanes={graph.lanes}
                     currentLaneId={selected?.lane.id ?? null}
@@ -494,7 +530,7 @@ const Console = () => {
 
 export default function PipelineV5() {
   return (
-    <PipelineProvider>
+    <PipelineProvider seedTickers={SEED} intervalMs={8000}>
       <Console />
     </PipelineProvider>
   );
