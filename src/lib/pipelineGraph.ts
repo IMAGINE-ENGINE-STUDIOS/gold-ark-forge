@@ -153,6 +153,7 @@ export function validateGraph(
 
     let hasContext = false;
     lane.steps.forEach((s) => {
+      if (s.enabled === false) return; // muted steps are not validated
       switch (s.kind) {
         case 'asset':
           hasContext = !!s.config?.ticker;
