@@ -9,7 +9,9 @@
 
 import type { BpKind, BpNode } from './blueprintEngine';
 
-export type StepKind = BpKind;
+/** Every action a step can perform. `agent` is a configurable AI worker. */
+export type StepKind = BpKind | 'agent';
+
 
 export interface PipeStep {
   id: string;
