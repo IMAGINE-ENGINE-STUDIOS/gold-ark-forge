@@ -249,8 +249,15 @@ export const loadGraph = (): PipeGraph => {
     if (raw) {
       const parsed = JSON.parse(raw) as PipeGraph;
       if (parsed && Array.isArray(parsed.lanes)) {
-        return { ...emptyGraph(), ...parsed, risk: { ...emptyGraph().risk, ...(parsed.risk ?? {}) } };
+        const base = emptyGraph();
+        return {
+          ...base,
+          ...parsed,
+          risk: { ...base.risk, ...(parsed.risk ?? {}) },
+          session: { ...base.session, ...(parsed.session ?? {}) },
+        };
       }
+
     }
     const legacy = localStorage.getItem(LEGACY_KEY);
     if (legacy) {
