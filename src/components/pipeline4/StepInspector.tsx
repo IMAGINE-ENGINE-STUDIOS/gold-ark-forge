@@ -290,55 +290,135 @@ export default function StepInspector({
 
         {step.kind === 'agent' && (
           <>
-            <Field label="Agent name" hint="Shown in the report so you know which agent said what.">
-              <input value={cfg.agentName ?? ''} onChange={(e) => set({ agentName: e.target.value }, e.target.value)} className={inputCls} />
-            </Field>
-            <Field label="How the agent should behave" hint="Its standing character and rules.">
-              <textarea rows={3} value={cfg.systemPrompt ?? ''} onChange={(e) => set({ systemPrompt: e.target.value })} className={inputCls} />
-            </Field>
-            <Field label="What you want it to decide" hint="The task it performs on every tick. It answers buy, sell, neutral or hold with a confidence.">
-              <textarea rows={4} value={cfg.taskPrompt ?? ''} onChange={(e) => set({ taskPrompt: e.target.value })} className={inputCls} />
-            </Field>
-            <Field label="Model">
-              <select value={cfg.model ?? 'google/gemini-2.5-flash'} onChange={(e) => set({ model: e.target.value })} className={inputCls}>
-                <option value="google/gemini-2.5-flash">Fast (Gemini 2.5 Flash)</option>
-                <option value="google/gemini-2.5-flash-lite">Cheapest (Gemini 2.5 Flash Lite)</option>
-                <option value="google/gemini-2.5-pro">Most capable (Gemini 2.5 Pro)</option>
-              </select>
-            </Field>
-            <Field label={`Creativity — ${Number(cfg.temperature ?? 0.3).toFixed(1)}`} hint="Lower is more consistent, higher explores more ideas.">
-              <input type="range" min={0} max={1} step={0.1} value={cfg.temperature ?? 0.3} onChange={(e) => set({ temperature: Number(e.target.value) })} className="w-full" />
-            </Field>
-            <Field label="Ignore verdicts below this confidence (%)">
-              <input
-                type="number" min={0} max={100} step={5}
-                value={Math.round(Number(cfg.minConfidence ?? 0.55) * 100)}
-                onChange={(e) => set({ minConfidence: Number(e.target.value) / 100 })}
+            {/* --- The simple path: pick a job, pick a speed, done. ------------- */}
+            <div className="space-y-1">
+              <div className="text-[12px] uppercase tracking-wider text-muted-foreground">What is this agent's job?</div>
+              <div className="flex flex-wrap gap-1">
+                {AGENT_PRESETS.map((p) => {
+                  const on = (cfg.preset ?? 'custom') === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      title={p.blurb}
+                      onClick={() =>
+                        set(
+                          p.id === 'custom'
+                            ? { preset: 'custom' }
+                            : {
+                                preset: p.id,
+                                systemPrompt: p.systemPrompt,
+                                taskPrompt: p.taskPrompt,
+                                temperature: p.temperature,
+                                minConfidence: p.minConfidence,
+                              },
+                          p.id === 'custom' ? undefined : p.label,
+                        )
+                      }
+                      className={`rounded-full border px-2 py-0.5 text-[12px] transition ${
+                        on ? 'border-primary/60 bg-primary/15 text-primary' : 'border-border/60 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="block text-[12px] text-muted-foreground">
+                {PRESET_BY_ID[cfg.preset ?? 'custom']?.blurb ?? 'Write your own job description.'}
+              </span>
+            </div>
+
+            <Field label="Anything else it should know" hint="Plain English. Leave empty to use the job above as-is.">
+              <textarea
+                rows={3}
+                placeholder="e.g. only trade during New York hours and never risk more than $500 at once"
+                value={cfg.taskPrompt ?? ''}
+                onChange={(e) => set({ taskPrompt: e.target.value, preset: 'custom' })}
                 className={inputCls}
               />
             </Field>
+
             <div className="space-y-1">
-              <div className="text-[12px] uppercase tracking-wider text-muted-foreground">What the agent may read</div>
-              {([
-                ['price', 'The live price'],
-                ['series', 'Recent real closes'],
-                ['indicators', 'The last analysis result in this lane'],
-                ['screen', 'Any market-condition matches'],
-                ['positions', 'Open positions and the account'],
-                ['lanes', 'What every other lane concluded'],
-              ] as const).map(([k, labelText]) => (
-                <label key={k} className="flex items-center gap-2 text-[13px] text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={(cfg.context ?? {})[k] !== false}
-                    onChange={(e) => set({ context: { ...(cfg.context ?? {}), [k]: e.target.checked } })}
-                  />
-                  {labelText}
-                </label>
-              ))}
+              <div className="text-[12px] uppercase tracking-wider text-muted-foreground">Thinking speed</div>
+              <div className="flex flex-wrap gap-1">
+                {SPEED_PRESETS.map((s) => {
+                  const on = (cfg.model ?? DEFAULT_AGENT_MODEL) === s.model;
+                  return (
+                    <button
+                      key={s.id}
+                      title={s.note}
+                      onClick={() => set({ model: s.model })}
+                      className={`rounded-full border px-2 py-0.5 text-[12px] transition ${
+                        on ? 'border-primary/60 bg-primary/15 text-primary' : 'border-border/60 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="block text-[12px] text-muted-foreground">
+                Using {modelLabel(cfg.model ?? DEFAULT_AGENT_MODEL)}.
+              </span>
             </div>
+
+            {/* --- Everything else is tucked away. ------------------------------ */}
+            <details className="rounded-md border border-border/60 bg-background/40 p-2">
+              <summary className="cursor-pointer text-[12px] uppercase tracking-wider text-muted-foreground">Advanced agent settings</summary>
+              <div className="mt-2 space-y-2">
+                <Field label="Agent name" hint="Shown in the report so you know which agent said what.">
+                  <input value={cfg.agentName ?? ''} onChange={(e) => set({ agentName: e.target.value }, e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="Standing character and rules">
+                  <textarea rows={3} value={cfg.systemPrompt ?? ''} onChange={(e) => set({ systemPrompt: e.target.value })} className={inputCls} />
+                </Field>
+                <Field label="Exact model">
+                  <select value={cfg.model ?? DEFAULT_AGENT_MODEL} onChange={(e) => set({ model: e.target.value })} className={inputCls}>
+                    {MODEL_VENDORS.map((vendor) => (
+                      <optgroup key={vendor} label={vendor}>
+                        {AI_MODELS.filter((m) => m.vendor === vendor).map((m) => (
+                          <option key={m.id} value={m.id}>{m.label} — {m.hint}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={`Creativity — ${Number(cfg.temperature ?? 0.3).toFixed(1)}`} hint="Lower is more consistent, higher explores more ideas.">
+                  <input type="range" min={0} max={1} step={0.1} value={cfg.temperature ?? 0.3} onChange={(e) => set({ temperature: Number(e.target.value) })} className="w-full" />
+                </Field>
+                <Field label="Ignore verdicts below this confidence (%)">
+                  <input
+                    type="number" min={0} max={100} step={5}
+                    value={Math.round(Number(cfg.minConfidence ?? 0.55) * 100)}
+                    onChange={(e) => set({ minConfidence: Number(e.target.value) / 100 })}
+                    className={inputCls}
+                  />
+                </Field>
+                <div className="space-y-1">
+                  <div className="text-[12px] uppercase tracking-wider text-muted-foreground">What the agent may read</div>
+                  {([
+                    ['price', 'The live price'],
+                    ['series', 'Recent real closes'],
+                    ['indicators', 'The last analysis result in this lane'],
+                    ['screen', 'Any market-condition matches'],
+                    ['positions', 'Open positions and the account'],
+                    ['lanes', 'What every other lane concluded'],
+                  ] as const).map(([k, labelText]) => (
+                    <label key={k} className="flex items-center gap-2 text-[13px] text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={(cfg.context ?? {})[k] !== false}
+                        onChange={(e) => set({ context: { ...(cfg.context ?? {}), [k]: e.target.checked } })}
+                      />
+                      {labelText}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </details>
           </>
         )}
+
 
         {step.kind === 'alert' && (
           <>
