@@ -282,7 +282,37 @@ export default function StepInspector({
             <textarea value={cfg.text ?? ''} onChange={(e) => set({ text: e.target.value })} rows={4} className={inputCls} />
           </Field>
         )}
+
+        {/* ── Advanced controls shared by every action ── */}
+        <div className="h-px bg-border/50" />
+        <details className="rounded-md border border-border/50 p-2">
+          <summary className="cursor-pointer text-[13px] font-medium text-foreground">Advanced</summary>
+          <div className="mt-2 space-y-2">
+            <Field label="Operator note" hint="Shown in the run report next to this step.">
+              <textarea
+                value={step.note ?? ''}
+                onChange={(e) => onPatch?.({ note: e.target.value })}
+                rows={2}
+                placeholder="Why this step exists"
+                className={inputCls}
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-[13px] text-foreground">
+              <input
+                type="checkbox"
+                checked={step.continueOnError === true}
+                onChange={(e) => onPatch?.({ continueOnError: e.target.checked })}
+              />
+              Keep the lane running if this step fails
+            </label>
+            <label className="flex items-center gap-2 text-[13px] text-foreground">
+              <input type="checkbox" checked={enabled} onChange={(e) => onPatch?.({ enabled: e.target.checked })} />
+              Step is active
+            </label>
+          </div>
+        </details>
       </div>
+
     </div>
   );
 }
