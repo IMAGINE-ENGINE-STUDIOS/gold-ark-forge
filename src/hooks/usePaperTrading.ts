@@ -72,9 +72,9 @@ const loadLocal = () => {
   return null;
 };
 
-const saveLocal = (positions: PaperPosition[], orders: PaperOrder[], cash: number, totalFees: number, realizedPnl: number, winCount: number, lossCount: number) => {
+const saveLocal = (positions: PaperPosition[], orders: PaperOrder[], cash: number, totalFees: number, realizedPnl: number, winCount: number, lossCount: number, updatedAt: number) => {
   try {
-    localStorage.setItem('ga_paper_trading_v2', JSON.stringify({ positions, orders, cash, totalFees, realizedPnl, winCount, lossCount }));
+    localStorage.setItem('ga_paper_trading_v2', JSON.stringify({ positions, orders, cash, totalFees, realizedPnl, winCount, lossCount, updatedAt }));
   } catch { /* ignore */ }
 };
 
@@ -95,6 +95,11 @@ export interface PaperState {
   realizedPnl: number;
   winCount: number;
   lossCount: number;
+  /** When this book last changed (ms). The cloud copy is adopted ONLY
+      when it is newer than this — an old cloud snapshot must never
+      wipe trades this device made (the "my investments disappeared"
+      bug: an empty cloud row replaced a live local book on load). */
+  updatedAt: number;
 }
 
 const blankState = (): PaperState => {
@@ -107,6 +112,7 @@ const blankState = (): PaperState => {
     realizedPnl: saved?.realizedPnl ?? 0,
     winCount: saved?.winCount ?? 0,
     lossCount: saved?.lossCount ?? 0,
+    updatedAt: saved?.updatedAt ?? 0,
   };
 };
 
@@ -115,7 +121,8 @@ const paperListeners = new Set<() => void>();
 
 const notifyPaper = (persist = true) => {
   if (persist) {
-    saveLocal(paperState.positions, paperState.orders, paperState.cash, paperState.totalFees, paperState.realizedPnl, paperState.winCount, paperState.lossCount);
+    paperState = { ...paperState, updatedAt: Date.now() };
+    saveLocal(paperState.positions, paperState.orders, paperState.cash, paperState.totalFees, paperState.realizedPnl, paperState.winCount, paperState.lossCount, paperState.updatedAt);
   }
   paperListeners.forEach((l) => l());
 };
@@ -144,24 +151,40 @@ let activeUserId: string | null = null;
 let cloudLoadStarted = false;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
+const pushToCloud = async () => {
+  if (!activeUserId) return;
+  try {
+    await supabase.from('paper_portfolios').upsert({
+      user_id: activeUserId,
+      positions: paperState.positions as any,
+      orders: paperState.orders as any,
+      cash: paperState.cash,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+  } catch { /* silent */ }
+};
+
 const syncToCloud = () => {
   if (!activeUserId) return;
   if (syncTimer) clearTimeout(syncTimer);
-  syncTimer = setTimeout(async () => {
-    try {
-      await supabase.from('paper_portfolios').upsert({
-        user_id: activeUserId,
-        positions: paperState.positions as any,
-        orders: paperState.orders as any,
-        cash: paperState.cash,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-    } catch { /* silent */ }
-  }, 2000);
+  syncTimer = setTimeout(() => { void pushToCloud(); }, 2000);
+};
+
+/* Never lose the last trades to a closed tab: flush immediately when
+   the page hides or unloads (the 2s debounce alone could drop them). */
+let flushArmed = false;
+const armFlush = () => {
+  if (flushArmed || typeof window === 'undefined') return;
+  flushArmed = true;
+  window.addEventListener('beforeunload', () => { void pushToCloud(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void pushToCloud();
+  });
 };
 
 
 export const usePaperTrading = (userId?: string | null) => {
+  armFlush();
   const snap = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
   const { positions, orders, cash, totalFees, realizedPnl, winCount, lossCount } = snap;
   const [feeConfig] = useState<FeeStructure>(DEFAULT_FEES);
@@ -182,15 +205,23 @@ export const usePaperTrading = (userId?: string | null) => {
           .eq('user_id', userId)
           .maybeSingle();
         if (data) {
-          const cloudPositions = (data.positions as any[]) ?? [];
-          const cloudOrders = (data.orders as any[]) ?? [];
-          const cloudCash = Number(data.cash) || STARTING_BALANCE;
-          const stats = deriveStatsFromOrders(cloudOrders);
-          paperStore.set({
-            positions: cloudPositions, orders: cloudOrders, cash: cloudCash,
-            totalFees: stats.totalFees, realizedPnl: stats.realizedPnl,
-            winCount: stats.winCount, lossCount: stats.lossCount,
-          });
+          const localNow = paperStore.get();
+          const localPristine = localNow.orders.length === 0 && localNow.positions.length === 0;
+          const cloudTs = data.updated_at ? Date.parse(data.updated_at as string) : 0;
+          if (localPristine || cloudTs > (localNow.updatedAt ?? 0)) {
+            const cloudPositions = (data.positions as any[]) ?? [];
+            const cloudOrders = (data.orders as any[]) ?? [];
+            const cloudCash = Number(data.cash) || STARTING_BALANCE;
+            const stats = deriveStatsFromOrders(cloudOrders);
+            paperStore.set({
+              positions: cloudPositions, orders: cloudOrders, cash: cloudCash,
+              totalFees: stats.totalFees, realizedPnl: stats.realizedPnl,
+              winCount: stats.winCount, lossCount: stats.lossCount,
+              updatedAt: cloudTs || localNow.updatedAt || 0,
+            });
+          }
+          // else: this device's book is NEWER than the cloud copy — keep
+          // it; the debounced sync below pushes it up within seconds.
         }
       } catch { /* fallback to local */ }
       if (mounted.current) setCloudLoaded(true);
@@ -338,6 +369,7 @@ export const usePaperTrading = (userId?: string | null) => {
       positions: newPositions, orders: newOrders, cash: newCash,
       totalFees: newTotalFees, realizedPnl: newRealizedPnl,
       winCount: newWinCount, lossCount: newLossCount,
+      updatedAt: cur.updatedAt,
     });
     syncToCloud();
 
@@ -375,6 +407,7 @@ export const usePaperTrading = (userId?: string | null) => {
     paperStore.set({
       positions: [], orders: [], cash: STARTING_BALANCE,
       totalFees: 0, realizedPnl: 0, winCount: 0, lossCount: 0,
+      updatedAt: Date.now(),
     }, false);
     try {
       localStorage.removeItem('ga_paper_trading_v2');

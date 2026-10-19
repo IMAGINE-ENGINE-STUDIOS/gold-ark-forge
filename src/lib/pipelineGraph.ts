@@ -87,7 +87,7 @@ export interface PipeGraph {
   id: string;
   name: string;
   /** Applies across every lane at once. */
-  risk: { maxDrawdownPct: number; maxTotalInvestmentUsd: number; maxPerAssetUsd?: number };
+  risk: { maxDrawdownPct: number; maxTotalInvestmentUsd: number; maxPerAssetUsd?: number; adaptive?: boolean };
   session: SessionSettings;
   lanes: PipeLane[];
   updatedAt: number;

@@ -24,170 +24,150 @@ interface SpreadDataPoint {
   spread: number;
 }
 
-// ─── EIA API v2 ─────────────────────────────────────────
+/* ─── KEYLESS PRIMARY SOURCE: Yahoo Finance chart API ──────────────
+   The same source family the app's market-quotes function already
+   uses for stocks — no API key, so oil & gas prices can never die
+   because a secret lives in some other project's vault again.
+   Daily closes give the latest price, the day change, and (for WTI +
+   Brent) the 30-point spread history. EIA remains as a fallback for
+   whenever a key IS configured and Yahoo is unreachable. */
+
+const YAHOO_SYMBOLS: Array<{
+  symbol: string; yahoo: string; name: string; unit: string; color: string; decimals: number;
+}> = [
+  { symbol: "CL", yahoo: "CL=F", name: "WTI Crude Oil", unit: "$/bbl", color: "hsl(25, 80%, 50%)", decimals: 2 },
+  { symbol: "BZ", yahoo: "BZ=F", name: "Brent Crude Oil", unit: "$/bbl", color: "hsl(210, 60%, 50%)", decimals: 2 },
+  { symbol: "NG", yahoo: "NG=F", name: "Natural Gas", unit: "$/MMBtu", color: "hsl(145, 60%, 45%)", decimals: 3 },
+  { symbol: "HO", yahoo: "HO=F", name: "Heating Oil", unit: "$/gal", color: "hsl(0, 60%, 50%)", decimals: 3 },
+  { symbol: "RB", yahoo: "RB=F", name: "RBOB Gasoline", unit: "$/gal", color: "hsl(43, 72%, 50%)", decimals: 3 },
+];
+
+interface DailyBar { date: string; close: number }
+
+async function fetchYahooDaily(yahooSymbol: string): Promise<DailyBar[]> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=3mo&interval=1d`;
+  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Gold Arrow price service)" } });
+  if (!resp.ok) throw new Error(`Yahoo chart ${yahooSymbol} returned ${resp.status}`);
+  const data = await resp.json();
+  const result = data?.chart?.result?.[0];
+  const timestamps: number[] = result?.timestamp ?? [];
+  const closes: Array<number | null> = result?.indicators?.quote?.[0]?.close ?? [];
+  const bars: DailyBar[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const close = closes[i];
+    if (typeof close === "number" && close > 0) {
+      bars.push({ date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10), close });
+    }
+  }
+  return bars;
+}
+
+const roundTo = (n: number, d: number) => Math.round(n * 10 ** d) / 10 ** d;
+
+async function fetchFromYahoo(): Promise<CommodityPrice[]> {
+  const now = new Date().toISOString();
+  const settled = await Promise.allSettled(YAHOO_SYMBOLS.map((s) => fetchYahooDaily(s.yahoo)));
+  const results: CommodityPrice[] = [];
+  settled.forEach((res, i) => {
+    if (res.status !== "fulfilled" || res.value.length < 2) return;
+    const spec = YAHOO_SYMBOLS[i];
+    const bars = res.value;
+    const latest = bars[bars.length - 1].close;
+    const prev = bars[bars.length - 2].close;
+    results.push({
+      symbol: spec.symbol, name: spec.name,
+      price: roundTo(latest, spec.decimals),
+      change: prev > 0 ? roundTo(((latest - prev) / prev) * 100, 2) : 0,
+      unit: spec.unit, color: spec.color,
+      source: "yahoo_finance", timestamp: now,
+    });
+  });
+  return results;
+}
+
+async function fetchSpreadHistoryYahoo(): Promise<SpreadDataPoint[]> {
+  const [wti, brent] = await Promise.all([fetchYahooDaily("CL=F"), fetchYahooDaily("BZ=F")]);
+  const brentByDate = new Map(brent.map((b) => [b.date, b.close]));
+  const result: SpreadDataPoint[] = [];
+  for (const bar of wti) {
+    const b = brentByDate.get(bar.date);
+    if (b !== undefined) {
+      result.push({
+        date: bar.date,
+        wti: roundTo(bar.close, 2),
+        brent: roundTo(b, 2),
+        spread: roundTo(bar.close - b, 2),
+      });
+    }
+  }
+  result.sort((a, b) => a.date.localeCompare(b.date));
+  return result.slice(-30);
+}
+
+/* ─── EIA FALLBACK (only when a key is configured) ───────────────── */
 
 async function fetchFromEIA(apiKey: string): Promise<CommodityPrice[]> {
   const results: CommodityPrice[] = [];
   const now = new Date().toISOString();
-
   const petroUrl = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPCWTI&facets[product][]=EPCBRENT&sort[0][column]=period&sort[0][direction]=desc&length=5`;
-
-  console.log("[EIA] Fetching petroleum prices...");
   const petroResp = await fetch(petroUrl);
-
-  if (!petroResp.ok) {
-    const errText = await petroResp.text();
-    throw new Error(`EIA petroleum API returned ${petroResp.status}: ${errText}`);
-  }
-
+  if (!petroResp.ok) throw new Error(`EIA petroleum API returned ${petroResp.status}`);
   const petroData = await petroResp.json();
   const petroRows = petroData?.response?.data ?? [];
-  console.log(`[EIA] Got ${petroRows.length} petroleum rows`);
-
-  const wtiRows = petroRows.filter((r: any) => r.product === "EPCWTI");
-  if (wtiRows.length >= 2) {
-    const latest = parseFloat(wtiRows[0].value);
-    const prev = parseFloat(wtiRows[1].value);
-    const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
-    results.push({
-      symbol: "CL", name: "WTI Crude Oil",
-      price: Math.round(latest * 100) / 100, change,
-      unit: "$/bbl", color: "hsl(25, 80%, 50%)",
-      source: "eia_gov", timestamp: now,
-    });
-  }
-
-  const brentRows = petroRows.filter((r: any) => r.product === "EPCBRENT");
-  if (brentRows.length >= 2) {
-    const latest = parseFloat(brentRows[0].value);
-    const prev = parseFloat(brentRows[1].value);
-    const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
-    results.push({
-      symbol: "BZ", name: "Brent Crude Oil",
-      price: Math.round(latest * 100) / 100, change,
-      unit: "$/bbl", color: "hsl(210, 60%, 50%)",
-      source: "eia_gov", timestamp: now,
-    });
-  }
-
-  try {
-    const ngUrl = `https://api.eia.gov/v2/natural-gas/pri/fut/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[process][]=PRS&sort[0][column]=period&sort[0][direction]=desc&length=5`;
-    console.log("[EIA] Fetching natural gas prices...");
-    const ngResp = await fetch(ngUrl);
-    if (ngResp.ok) {
-      const ngData = await ngResp.json();
-      const ngRows = ngData?.response?.data ?? [];
-      console.log(`[EIA] Got ${ngRows.length} natural gas rows`);
-      if (ngRows.length >= 2) {
-        const latest = parseFloat(ngRows[0].value);
-        const prev = parseFloat(ngRows[1].value);
-        const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
-        results.push({
-          symbol: "NG", name: "Natural Gas",
-          price: Math.round(latest * 1000) / 1000, change,
-          unit: "$/MMBtu", color: "hsl(145, 60%, 45%)",
-          source: "eia_gov", timestamp: now,
-        });
-      }
+  const push = (rows: any[], symbol: string, name: string, unit: string, color: string, d: number) => {
+    if (rows.length >= 2) {
+      const latest = parseFloat(rows[0].value);
+      const prev = parseFloat(rows[1].value);
+      results.push({
+        symbol, name, price: roundTo(latest, d),
+        change: prev > 0 ? roundTo(((latest - prev) / prev) * 100, 2) : 0,
+        unit, color, source: "eia_gov", timestamp: now,
+      });
     }
-  } catch (e) {
-    console.log("[EIA] Natural gas fetch failed:", e);
-  }
-
-  try {
-    const hoUrl = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPD2DXL0&sort[0][column]=period&sort[0][direction]=desc&length=5`;
-    const hoResp = await fetch(hoUrl);
-    if (hoResp.ok) {
-      const hoData = await hoResp.json();
-      const hoRows = hoData?.response?.data ?? [];
-      if (hoRows.length >= 2) {
-        const latest = parseFloat(hoRows[0].value);
-        const prev = parseFloat(hoRows[1].value);
-        const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
-        results.push({
-          symbol: "HO", name: "Heating Oil",
-          price: Math.round(latest * 1000) / 1000, change,
-          unit: "$/gal", color: "hsl(0, 60%, 50%)",
-          source: "eia_gov", timestamp: now,
-        });
+  };
+  push(petroRows.filter((r: any) => r.product === "EPCWTI"), "CL", "WTI Crude Oil", "$/bbl", "hsl(25, 80%, 50%)", 2);
+  push(petroRows.filter((r: any) => r.product === "EPCBRENT"), "BZ", "Brent Crude Oil", "$/bbl", "hsl(210, 60%, 50%)", 2);
+  const extra: Array<[string, string, string, string, string]> = [
+    [`https://api.eia.gov/v2/natural-gas/pri/fut/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[process][]=PRS&sort[0][column]=period&sort[0][direction]=desc&length=5`, "NG", "Natural Gas", "$/MMBtu", "hsl(145, 60%, 45%)"],
+    [`https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPD2DXL0&sort[0][column]=period&sort[0][direction]=desc&length=5`, "HO", "Heating Oil", "$/gal", "hsl(0, 60%, 50%)"],
+    [`https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPC0&sort[0][column]=period&sort[0][direction]=desc&length=5`, "RB", "RBOB Gasoline", "$/gal", "hsl(43, 72%, 50%)"],
+  ];
+  for (const [url, symbol, name, unit, color] of extra) {
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const data = await resp.json();
+        push(data?.response?.data ?? [], symbol, name, unit, color, 3);
       }
-    }
-  } catch (e) {
-    console.log("[EIA] Heating oil fetch failed:", e);
+    } catch { /* best-effort leg */ }
   }
-
-  try {
-    const rbUrl = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPC0&sort[0][column]=period&sort[0][direction]=desc&length=5`;
-    const rbResp = await fetch(rbUrl);
-    if (rbResp.ok) {
-      const rbData = await rbResp.json();
-      const rbRows = rbData?.response?.data ?? [];
-      if (rbRows.length >= 2) {
-        const latest = parseFloat(rbRows[0].value);
-        const prev = parseFloat(rbRows[1].value);
-        const change = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
-        results.push({
-          symbol: "RB", name: "RBOB Gasoline",
-          price: Math.round(latest * 1000) / 1000, change,
-          unit: "$/gal", color: "hsl(43, 72%, 50%)",
-          source: "eia_gov", timestamp: now,
-        });
-      }
-    }
-  } catch (e) {
-    console.log("[EIA] Gasoline fetch failed:", e);
-  }
-
   return results;
 }
 
-// ─── HISTORICAL SPREAD DATA ─────────────────────────────
-
-async function fetchSpreadHistory(apiKey: string): Promise<SpreadDataPoint[]> {
+async function fetchSpreadHistoryEIA(apiKey: string): Promise<SpreadDataPoint[]> {
   const url = `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPCWTI&facets[product][]=EPCBRENT&sort[0][column]=period&sort[0][direction]=desc&length=70`;
-
-  console.log("[EIA] Fetching spread history...");
   const resp = await fetch(url);
-
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`EIA spread history returned ${resp.status}: ${errText}`);
-  }
-
+  if (!resp.ok) throw new Error(`EIA spread history returned ${resp.status}`);
   const data = await resp.json();
   const rows = data?.response?.data ?? [];
-  console.log(`[EIA] Got ${rows.length} spread history rows`);
-
-  // Group by date
   const byDate = new Map<string, { wti?: number; brent?: number }>();
   for (const row of rows) {
-    const date = row.period;
-    const val = parseFloat(row.value);
-    if (!byDate.has(date)) byDate.set(date, {});
-    const entry = byDate.get(date)!;
-    if (row.product === "EPCWTI") entry.wti = val;
-    if (row.product === "EPCBRENT") entry.brent = val;
+    if (!byDate.has(row.period)) byDate.set(row.period, {});
+    const entry = byDate.get(row.period)!;
+    if (row.product === "EPCWTI") entry.wti = parseFloat(row.value);
+    if (row.product === "EPCBRENT") entry.brent = parseFloat(row.value);
   }
-
-  // Build sorted array of complete pairs
   const result: SpreadDataPoint[] = [];
   for (const [date, vals] of byDate) {
     if (vals.wti !== undefined && vals.brent !== undefined) {
-      result.push({
-        date,
-        wti: Math.round(vals.wti * 100) / 100,
-        brent: Math.round(vals.brent * 100) / 100,
-        spread: Math.round((vals.wti - vals.brent) * 100) / 100,
-      });
+      result.push({ date, wti: roundTo(vals.wti, 2), brent: roundTo(vals.brent, 2), spread: roundTo(vals.wti - vals.brent, 2) });
     }
   }
-
   result.sort((a, b) => a.date.localeCompare(b.date));
-  // Return last 30 data points
   return result.slice(-30);
 }
 
-// ─── SERVE ──────────────────────────────────────────────
+/* ─── SERVE ──────────────────────────────────────────────────────── */
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -195,54 +175,49 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("EIA_API_KEY");
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: "EIA_API_KEY is not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const url = new URL(req.url);
     const history = url.searchParams.get("history");
+    const eiaKey = Deno.env.get("EIA_API_KEY"); // optional fallback only — never required
 
-    // Historical spread mode
     if (history === "30") {
-      const spreadData = await fetchSpreadHistory(apiKey);
-
-      if (spreadData.length === 0) {
+      let spread: SpreadDataPoint[] = [];
+      let source = "yahoo_finance";
+      try { spread = await fetchSpreadHistoryYahoo(); } catch (e) { console.log("[commodities] Yahoo spread failed:", e); }
+      if (spread.length === 0 && eiaKey) {
+        try { spread = await fetchSpreadHistoryEIA(eiaKey); source = "eia_gov"; } catch (e) { console.log("[commodities] EIA spread failed:", e); }
+      }
+      if (spread.length === 0) {
         return new Response(
-          JSON.stringify({ success: false, error: "No spread history returned" }),
+          JSON.stringify({ success: false, error: "No spread history available from any source" }),
           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      console.log(`[EIA] Returning ${spreadData.length} spread data points`);
       return new Response(
-        JSON.stringify({ success: true, spread: spreadData, source: "eia_gov", timestamp: new Date().toISOString() }),
+        JSON.stringify({ success: true, spread, source, timestamp: new Date().toISOString() }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Default: live prices
-    const prices = await fetchFromEIA(apiKey);
-
+    let prices: CommodityPrice[] = [];
+    let source = "yahoo_finance";
+    try { prices = await fetchFromYahoo(); } catch (e) { console.log("[commodities] Yahoo fetch failed:", e); }
+    if (prices.length === 0 && eiaKey) {
+      try { prices = await fetchFromEIA(eiaKey); source = "eia_gov"; } catch (e) { console.log("[commodities] EIA fetch failed:", e); }
+    }
     if (prices.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: "No price data returned from EIA", source: "eia_gov" }),
+        JSON.stringify({ success: false, error: "No price data returned from any source", source }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    console.log(`[EIA] Returning ${prices.length} commodity prices`);
-
+    console.log(`[commodities] Returning ${prices.length} prices from ${source}`);
     return new Response(
-      JSON.stringify({ success: true, prices, source: "eia_gov", timestamp: new Date().toISOString() }),
+      JSON.stringify({ success: true, prices, source, timestamp: new Date().toISOString() }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("[EIA] Commodity price fetch error:", msg);
+    console.error("[commodities] fetch error:", msg);
     return new Response(
       JSON.stringify({ success: false, error: msg }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

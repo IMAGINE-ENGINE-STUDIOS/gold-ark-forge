@@ -57,6 +57,7 @@ import { useAutoSave } from '@/hooks/useAutoSave';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSyncExternalStore } from 'react';
 import { runPresence } from '@/lib/runPresence';
+import ServerDeskBook from '@/components/pipeline4/ServerDeskBook';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -968,6 +969,23 @@ const TradingBridge = () => {
                 
                 {bottomTab === 'book' && tradingMode === 'paper' && (
                   <div className="space-y-4">
+                    {/* Account strip — the money, accounted: equity, what is
+                        deployed in open investments, free cash, and the
+                        all-time earnings/losses line. Everything derives
+                        from the one shared paper book. */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { label: 'EQUITY', value: `$${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+                        { label: 'DEPLOYED', value: `$${paper.positions.reduce((sum, pos) => sum + pos.entryPrice * pos.qty, 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+                        { label: 'FREE CASH', value: `$${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+                        { label: 'EARNINGS − LOSSES', value: `${paper.account.realizedPnl >= 0 ? '+' : '−'}$${Math.abs(paper.account.realizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+                      ].map((t) => (
+                        <div key={t.label} className="rounded-md border border-gold/15 bg-black/30 px-2 py-1.5">
+                          <div className="text-[8px] font-display tracking-wider text-marble/35">{t.label}</div>
+                          <div className="font-mono text-[12px] text-marble/90">{t.value}</div>
+                        </div>
+                      ))}
+                    </div>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
@@ -1015,6 +1033,30 @@ const TradingBridge = () => {
                         ))}
                       </div>
                     )}
+                    {/* Earnings & losses — every closed trade with its P&L.
+                        This ledger is derived from the persisted order
+                        record, so it survives reloads and devices. */}
+                    {paper.orders.some(o => o.closedPnl !== undefined) && (
+                      <div className="border-t border-gold/10 pt-3 space-y-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] font-display tracking-wider text-marble/25">EARNINGS & LOSSES — CLOSED TRADES</span>
+                          <span className={`font-mono text-[10px] ${paper.account.realizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {paper.account.realizedPnl >= 0 ? '+' : '−'}${Math.abs(paper.account.realizedPnl).toFixed(2)} · {paper.account.winCount}W / {paper.account.lossCount}L
+                          </span>
+                        </div>
+                        {paper.orders.filter(o => o.closedPnl !== undefined).slice(0, 15).map(o => (
+                          <div key={o.id} className="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono text-marble/40 border-b border-gold/5">
+                            <span>{o.symbol}</span>
+                            <span>{o.qty} @ ${o.price.toFixed(2)}</span>
+                            <span className={(o.closedPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                              {(o.closedPnl ?? 0) >= 0 ? '+' : '−'}${Math.abs(o.closedPnl ?? 0).toFixed(2)}
+                            </span>
+                            <span className="text-marble/15">{new Date(o.filledAt).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <ServerDeskBook />
                   </div>
                 )}
                 {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
@@ -1212,6 +1254,19 @@ const TradingBridge = () => {
                   
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { label: 'EQUITY', value: `$${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+                          { label: 'DEPLOYED', value: `$${paper.positions.reduce((sum, pos) => sum + pos.entryPrice * pos.qty, 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+                          { label: 'FREE CASH', value: `$${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+                          { label: 'EARNINGS − LOSSES', value: `${paper.account.realizedPnl >= 0 ? '+' : '−'}$${Math.abs(paper.account.realizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+                        ].map((t) => (
+                          <div key={t.label} className="rounded-md border border-gold/15 bg-black/30 px-2 py-1.5">
+                            <div className="text-[8px] font-display tracking-wider text-marble/35">{t.label}</div>
+                            <div className="font-mono text-[12px] text-marble/90">{t.value}</div>
+                          </div>
+                        ))}
+                      </div>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
@@ -1262,6 +1317,27 @@ const TradingBridge = () => {
                       )}
                     </div>
                   )}
+                  {bottomTab === 'book' && tradingMode === 'paper' && paper.orders.some(o => o.closedPnl !== undefined) && (
+                    <div className="border-t border-gold/10 pt-3 space-y-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] font-display tracking-wider text-marble/25">EARNINGS & LOSSES — CLOSED TRADES</span>
+                        <span className={`font-mono text-[10px] ${paper.account.realizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {paper.account.realizedPnl >= 0 ? '+' : '−'}${Math.abs(paper.account.realizedPnl).toFixed(2)} · {paper.account.winCount}W / {paper.account.lossCount}L
+                        </span>
+                      </div>
+                      {paper.orders.filter(o => o.closedPnl !== undefined).slice(0, 15).map(o => (
+                        <div key={o.id} className="flex items-center justify-between px-2 py-1.5 text-[9px] font-mono text-marble/40 border-b border-gold/5">
+                          <span>{o.symbol}</span>
+                          <span>{o.qty} @ ${o.price.toFixed(2)}</span>
+                          <span className={(o.closedPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                            {(o.closedPnl ?? 0) >= 0 ? '+' : '−'}${Math.abs(o.closedPnl ?? 0).toFixed(2)}
+                          </span>
+                          <span className="text-marble/15">{new Date(o.filledAt).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {bottomTab === 'book' && tradingMode === 'paper' && <ServerDeskBook />}
                   {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
                     <div className="space-y-4">
                       <PositionsPanel connectionId={activeConn.id} />

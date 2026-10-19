@@ -197,6 +197,10 @@ interface SharedState {
   gate: { open: boolean; reason: string };
   /** Per-step entry bookkeeping so a step does not re-enter every tick. */
   entries: Map<string, { count: number; lastAt: number }>;
+  /** The realtime adaptive governor: reads market breadth/strength and
+      the run's own results every tick and rescales (or pauses) new
+      entries — strategies adapt to the tape instead of trading blind. */
+  adaptive: { enabled: boolean; scale: number; paused: boolean; lossStreak: number; band: string };
 }
 
 /** Bare tickers that trade around the clock (metals) — never session-gated. */
@@ -625,6 +629,14 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
           }
 
           let spend = amount;
+          if (step.kind === 'buy' && shared.adaptive.enabled) {
+            if (shared.adaptive.paused) {
+              push(step, 'skip', 'Adaptive governor paused new entries — market breadth collapsed; capital is preserved until the tape improves.',
+                { decision: 'no order', reason: 'adaptive governor pause' });
+              break;
+            }
+            spend = amount * shared.adaptive.scale;
+          }
           if (step.kind === 'buy') {
             const remaining = shared.budget - shared.deployed;
             if (remaining <= 0) {
@@ -632,7 +644,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
                 { decision: 'no order', reason: 'budget exhausted' });
               break;
             }
-            spend = Math.min(amount, remaining);
+            spend = Math.min(spend, remaining);
             if (shared.maxPerAssetUsd > 0) {
               const inName = shared.trades
                 .filter((t) => t.open && t.ticker === outcome.ticker)
@@ -748,7 +760,11 @@ function closeTrade(t: TradeRecord, price: number, reason: string, shared?: Shar
   t.exitAt = now();
   t.exitReason = reason;
   t.pnl = (t.realisedPnl ?? 0) + (price - t.entryPrice) * t.qty - t.fees;
-  if (shared) shared.deployed = Math.max(0, shared.deployed - t.qty * t.entryPrice);
+  if (shared) {
+    shared.deployed = Math.max(0, shared.deployed - t.qty * t.entryPrice);
+    if (t.pnl < 0) shared.adaptive.lossStreak += 1;
+    else if (t.pnl > 0) shared.adaptive.lossStreak = 0;
+  }
 }
 
 /** Close part of a position (the scale-out harvest leg) and bank its P&L. */
@@ -863,6 +879,53 @@ export async function runGraph(
     trades: [],
     gate: { open: true, reason: 'no consensus lane has ruled yet' },
     entries: new Map(),
+    adaptive: { enabled: (graph.risk as any)?.adaptive !== false, scale: 1, paused: false, lossStreak: 0, band: '' },
+  };
+
+  /** Realtime adaptation, recomputed every tick from the live tape
+      (classified breadth + strength) and the run's own realised line:
+      press size into a hot, broad tape; cut size after losses or when
+      the run is bleeding; pause entries entirely when breadth
+      collapses. Every band change is announced in the run trace. */
+  const updateGovernor = () => {
+    const a = shared.adaptive;
+    if (!a.enabled) return;
+    const cls = (hooks.classified ?? []).filter((c) => typeof c.change24h === 'number' && (c.samples?.length ?? 0) > 0);
+    if (cls.length < 3) return;
+    const adv = cls.filter((c) => (c.change24h ?? 0) > 0).length / cls.length;
+    const strong = cls.filter((c) => (c.change24h ?? 0) >= 2).length / cls.length;
+    const realised = shared.trades.filter((t) => !t.open).reduce((sum, t) => sum + t.pnl, 0);
+    const realisedPct = shared.budget > 0 ? (realised / shared.budget) * 100 : 0;
+    let target = 1;
+    if (adv >= 0.6 && strong >= 0.2) target = 1.5;
+    if (adv <= 0.3) target = 0.5;
+    if (a.lossStreak >= 3) target = Math.min(target, 0.5);
+    if (realisedPct <= -1.5) target = Math.min(target, 0.5);
+    target = Math.max(0.25, Math.min(2, target));
+    a.scale += (target - a.scale) / 2;
+    a.paused = adv <= 0.18;
+    const band = a.paused ? 'paused' : a.scale >= 1.2 ? 'pressing' : a.scale <= 0.7 ? 'cautious' : 'normal';
+    if (band !== a.band) {
+      a.band = band;
+      const why = a.paused
+        ? `market breadth collapsed — only ${Math.round(adv * 100)}% of the tape is advancing`
+        : band === 'pressing'
+          ? `the tape is hot and broad — ${Math.round(adv * 100)}% advancing, ${Math.round(strong * 100)}% up 2%+`
+          : band === 'cautious'
+            ? a.lossStreak >= 3
+              ? `${a.lossStreak} straight losses — protecting capital`
+              : realisedPct <= -1.5
+                ? `the run is down ${Math.abs(realisedPct).toFixed(1)}% of its budget — protecting capital`
+                : `the tape is weak — only ${Math.round(adv * 100)}% advancing`
+            : 'balanced tape';
+      emit({
+        ts: now(), tick, laneId: 'governor', laneName: 'Governor', stepId: null, stepLabel: 'Adaptive',
+        status: 'info',
+        message: a.paused
+          ? `Adaptive governor PAUSED new entries: ${why}. Existing positions keep their exits; entries resume when breadth recovers.`
+          : `Adaptive governor ${band.toUpperCase()} — ticket size ×${a.scale.toFixed(2)}: ${why}.`,
+      });
+    }
   };
 
   const parallel = graph.lanes.filter((l) => !l.consensus);
@@ -884,6 +947,7 @@ export async function runGraph(
   do {
     tick += 1;
     hooks.onTickStart?.(tick);
+    updateGovernor();
     emit({
       ts: now(), tick, laneId: '', laneName: 'Session', stepId: null, stepLabel: `Tick ${tick}`,
       status: 'info',

@@ -17,6 +17,8 @@ import SwarmPanel from '@/components/pipeline4/SwarmPanel';
 import PerformanceReport from '@/components/pipeline4/PerformanceReport';
 import TimeMachinePanel from '@/components/pipeline4/TimeMachinePanel';
 import ServerRunsCard from '@/components/pipeline4/ServerRunsCard';
+import RunCapitalPanel from '@/components/pipeline4/RunCapitalPanel';
+import { applyRunBudget } from '@/lib/runBudget';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { useMarketHistory } from '@/hooks/useMarketHistory';
 import { supabase } from '@/integrations/supabase/client';
@@ -77,15 +79,32 @@ const Workspace = () => {
     (typeof localStorage !== 'undefined' && localStorage.getItem('ga_pipeline_v4_target') === 'server') ? 'server' : 'browser');
   useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_target', runTarget); } catch { /* ignore */ } }, [runTarget]);
   const [serverNotice, setServerNotice] = useState<string | null>(null);
+  // Run capital: the operator's number IS the budget. Strategies adapt
+  // to it at run time (tickets + caps rescale) — the saved design and
+  // its old budget field no longer decide anything.
+  const [runBudgetUsd, setRunBudgetUsd] = useState<number>(() => {
+    const v = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('ga_pipeline_v4_run_budget')) : 0;
+    return v > 0 ? v : 100;
+  });
+  const [adaptiveOn, setAdaptiveOn] = useState<boolean>(() =>
+    typeof localStorage === 'undefined' || localStorage.getItem('ga_pipeline_v4_adaptive') !== 'off');
+  const [lastRunBudget, setLastRunBudget] = useState<number | null>(null);
+  useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_run_budget', String(runBudgetUsd)); } catch { /* ignore */ } }, [runBudgetUsd]);
+  useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_adaptive', adaptiveOn ? 'on' : 'off'); } catch { /* ignore */ } }, [adaptiveOn]);
+  const runBudgetRef = useRef(runBudgetUsd);
+  runBudgetRef.current = runBudgetUsd;
+  const adaptiveRef = useRef(adaptiveOn);
+  adaptiveRef.current = adaptiveOn;
 
   /** Queue the current graph to the server worker (Phase 0): the worker
       claims it within seconds and executes the whole session server-side. */
   const queueServerRun = useCallback(async () => {
     setServerNotice(null);
     const { data: u } = await supabase.auth.getUser().catch(() => ({ data: null as any }));
+    const adapted = applyRunBudget(graphRef.current, runBudgetRef.current, adaptiveRef.current);
     const { error } = await (supabase as any).from('pipeline_runs').insert({
-      graph_name: graphRef.current.name,
-      graph: graphRef.current,
+      graph_name: adapted.name,
+      graph: adapted,
       status: 'queued',
       mode: 'server',
       user_id: u?.user?.id ?? null,
@@ -388,7 +407,9 @@ const Workspace = () => {
     setPanel('report');
     setRunSummary(null);
     setRunResult(null);
-    runPresence.set({ name: graphRef.current.name, startedAt: Date.now(), ticks: 0 });
+    const g = applyRunBudget(graphRef.current, runBudgetRef.current, adaptiveRef.current);
+    setLastRunBudget(runBudgetRef.current);
+    runPresence.set({ name: g.name, startedAt: Date.now(), ticks: 0 });
     const startEquity = paperRef.current.account.equity;
     setRunStartEquity(startEquity);
     setEquityCurve([startEquity]);
@@ -399,7 +420,7 @@ const Workspace = () => {
     // tracked screen universe too — otherwise screen lanes sit in
     // "insufficient samples" for minutes and the run looks dead.
     const tickers = Array.from(new Set([
-      ...graphRef.current.lanes.flatMap((l) => l.steps.map((st) => st.config?.ticker).filter(Boolean) as string[]),
+      ...g.lanes.flatMap((l) => l.steps.map((st) => st.config?.ticker).filter(Boolean) as string[]),
       ...tracked,
       // Screen steps can bind ANY asset in the classified universe mid-run —
       // prime those too, so a newly bound asset starts with real history
@@ -447,18 +468,19 @@ const Workspace = () => {
       // Checkpoint (a closed page is detectable on return) + a server-side
       // registry row in her Supabase: the foundation the always-on worker
       // will tick from, so runs can outlive the browser entirely.
-      try { localStorage.setItem('ga_pipeline_v4_active_run', JSON.stringify({ name: graphRef.current.name, at: Date.now() })); } catch { /* private mode */ }
+      try { localStorage.setItem('ga_pipeline_v4_active_run', JSON.stringify({ name: g.name, at: Date.now() })); } catch { /* private mode */ }
       try {
         const { data: u } = await supabase.auth.getUser();
         const { data } = await (supabase as any)
           .from('pipeline_runs')
-          .insert({ user_id: u?.user?.id ?? null, graph_name: graphRef.current.name, graph: graphRef.current, status: 'running' })
+          .insert({ user_id: u?.user?.id ?? null, graph_name: g.name, graph: g, status: 'running' })
           .select('id')
           .single();
         registryId = (data as any)?.id ?? null;
       } catch { /* the registry mirrors runs; it never blocks one */ }
+      sessionEvent('info', `Run capital $${runBudgetRef.current.toLocaleString()} — the strategy was adapted to this budget (tickets and caps rescaled, deployed capital can never exceed it). Adaptive sizing ${adaptiveRef.current ? 'ON: the governor resizes and pauses entries from live breadth, tape strength and realised P&L' : 'OFF'}.`);
       result = await runGraph(
-        graphRef.current,
+        g,
         {
           getPrice: resolvePriceForTicker,
           getSeries,
@@ -512,7 +534,7 @@ const Workspace = () => {
       );
       // Memory: every finished run joins the permanent track record.
       if (result) {
-        recordRun(result, graphRef.current.name, null);
+        recordRun(result, g.name, null);
         setRunMemory(loadRunMemory());
       }
       if (reportToGenius && reporterRef.current) {
@@ -753,15 +775,6 @@ const Workspace = () => {
           </div>
 
           <label className="text-[12px] text-muted-foreground">
-            Strategy budget
-            <input
-              type="number"
-              value={graph.risk.maxTotalInvestmentUsd}
-              onChange={(e) => setGraph((g) => ({ ...g, risk: { ...g.risk, maxTotalInvestmentUsd: Number(e.target.value) } }))}
-              className="ml-2 w-28 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
-            />
-          </label>
-          <label className="text-[12px] text-muted-foreground">
             Loss limit %
             <input
               type="number"
@@ -932,10 +945,18 @@ const Workspace = () => {
           </div>
         )}
 
+        <RunCapitalPanel
+          graph={graph}
+          budget={runBudgetUsd}
+          onBudgetChange={setRunBudgetUsd}
+          adaptive={adaptiveOn}
+          onAdaptiveChange={setAdaptiveOn}
+          disabled={running}
+        />
         <AccountHud
           account={paper.account}
           positions={paper.positions}
-          budget={graph.risk.maxTotalInvestmentUsd}
+          budget={lastRunBudget ?? runBudgetUsd}
           lossLimitPct={graph.risk.maxDrawdownPct}
           runStartEquity={runStartEquity}
         />
