@@ -214,3 +214,57 @@ describe('agent blackboard + committee voting', () => {
     expect(seenPeers.Captain).toContain('Breadth');
   }, 30000);
 });
+
+describe('execution order guarantees', () => {
+  it('steps run strictly in order within a lane, no step is skipped, and lanes run simultaneously', async () => {
+    const trace: string[] = [];
+    const g = emptyGraph();
+    g.session = { durationMin: 0.1, tickSec: 2, flattenOnStop: true };
+    g.risk = { maxDrawdownPct: 50, maxTotalInvestmentUsd: 100000 };
+
+    const mkLane = (name: string, idx: number, delayMs: number) => {
+      const lane = makeLane(name, idx);
+      lane.steps = [
+        makeStep('asset', 'Bind TEST', { ticker: 'TEST', label: 'Test Asset' }),
+        makeStep('agent', `${name} agent`, { agentName: name, systemPrompt: name, taskPrompt: 'judge', everyTicks: 99, minConfidence: 0 }),
+        makeStep('analysis', 'TREND SCORE', { programId: 'trend', params: {} }),
+        makeStep('buy', `${name} buy`, { amountUsd: 100, takeProfitPct: 50, stopLossPct: 50, maxEntries: 1 }),
+      ];
+      return lane;
+    };
+    g.lanes = [mkLane('LaneA', 0, 60), mkLane('LaneB', 1, 5)];
+
+    const stepEvents: Record<string, string[]> = { LaneA: [], LaneB: [] };
+    const res = await runGraph(g, {
+      ...makeHooks(() => 100),
+      getSeries: () => Array.from({ length: 60 }, (_, i) => 100 + i * 0.05),
+      runAgent: async (req: any) => {
+        const name = req.systemPrompt as string;
+        trace.push(`${name}:agent:start`);
+        await new Promise((r) => setTimeout(r, name === 'LaneA' ? 60 : 5));
+        trace.push(`${name}:agent:end`);
+        return { verdict: 'bullish', confidence: 0.9, reason: 'order test' } as any;
+      },
+    }, (e) => {
+      if (e.stepId && (e.laneName === 'LaneA' || e.laneName === 'LaneB')) {
+        stepEvents[e.laneName].push(e.stepLabel);
+      }
+    });
+
+    // 1 — within each lane the tick-1 step events are exactly the lane's
+    // steps, in order, none missing (asset, agent, analysis, buy).
+    for (const name of ['LaneA', 'LaneB'] as const) {
+      const firstFour = stepEvents[name].slice(0, 4);
+      expect(firstFour[0]).toContain('Bind TEST');
+      expect(firstFour[1]).toContain(`${name} agent`);
+      expect(firstFour[2]).toContain('TREND SCORE');
+      expect(firstFour[3]).toContain(`${name} buy`);
+    }
+    // 2 — simultaneity: LaneB's agent STARTED before LaneA's agent
+    // finished (LaneA's agent is deliberately slow) — the lanes truly
+    // run in parallel, not one after the other.
+    expect(trace.indexOf('LaneB:agent:start')).toBeLessThan(trace.indexOf('LaneA:agent:end'));
+    // 3 — both lanes actually traded.
+    expect(res.trades.length).toBe(2);
+  }, 30000);
+});
