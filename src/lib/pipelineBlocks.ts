@@ -86,6 +86,40 @@ export const BLOCKS: BlockDef[] = [
     what: 'Run your own saved code as a step in the lane.', config: { blockId: '', params: {}, timeoutMs: 4000 } },
 ];
 
+/* ── Specialist agent blocks ──────────────────────────────────────
+   Every desk specialist is its own one-click block (Agents tab): the
+   block carries the specialist's full doctrine, task and temperament
+   via templateConfig, so adding "Entry Sniper" adds the real Sniper —
+   not a blank agent. ─────────────────────────────────────────────── */
+import { AGENT_TEMPLATES, templateConfig } from './agentTemplates';
+
+const AGENT_BLOCK_DEFS: BlockDef[] = AGENT_TEMPLATES.map((t) => ({
+  id: `agent_${t.id}`,
+  kind: 'agent' as const,
+  group: 'Agents',
+  name: t.name,
+  what: `${t.role} Temperament: checks every ${t.everyTicks} ticks, needs ${Math.round(t.minConfidence * 100)}% confidence${t.referee ? ' — serves as a referee' : ''}.`,
+  config: {
+    ...DEFAULT_AGENT,
+    ...templateConfig(t),
+    templateId: t.id,
+    model: 'llama-3.3-70b-versatile',
+  },
+}));
+
+/* Pre-configured analysis blocks for the newer programs, so they are
+   one click in the Decide tab instead of hidden in the inspector. */
+const PROGRAM_BLOCK_DEFS: BlockDef[] = [
+  { id: 'analysis_breakout_confirm', kind: 'analysis', group: 'Decide', name: 'BREAKOUT CONFIRM',
+    what: 'Bullish only when a breakout HOLDS above the prior high for several samples and the drift agrees — the fakeout filter.',
+    config: { programId: 'breakout_confirm', params: { window: 30, hold: 3 } } },
+  { id: 'analysis_pullback_entry', kind: 'analysis', group: 'Decide', name: 'PULLBACK ENTRY',
+    what: 'Bullish when price dips 0.15-0.70% off a strong run yet holds above the level it broke — buy the retest, not the chase.',
+    config: { programId: 'pullback_entry', params: { window: 30 } } },
+];
+
+BLOCKS.push(...PROGRAM_BLOCK_DEFS, ...AGENT_BLOCK_DEFS);
+
 export const BLOCK_BY_ID = new Map(BLOCKS.map((b) => [b.id, b]));
 
 /** Human sentence describing a configured step, used across the 3D scene and reports. */

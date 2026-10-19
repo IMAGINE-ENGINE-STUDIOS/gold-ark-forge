@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid, Library } from 'lucide-react';
+import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid, Library, MessagesSquare, History } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import PipelineScene3D from '@/components/pipeline4/PipelineScene3D';
@@ -13,6 +13,9 @@ import TradeDesk from '@/components/pipeline4/TradeDesk';
 import ScreensPanel from '@/components/pipeline4/ScreensPanel';
 import RunPerformance, { type LaneStat } from '@/components/pipeline4/RunPerformance';
 import RunReport from '@/components/pipeline4/RunReport';
+import SwarmPanel from '@/components/pipeline4/SwarmPanel';
+import PerformanceReport from '@/components/pipeline4/PerformanceReport';
+import TimeMachinePanel from '@/components/pipeline4/TimeMachinePanel';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { useMarketHistory } from '@/hooks/useMarketHistory';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +30,7 @@ import GALiveChart from '@/components/trading/GALiveChart';
 import { loadRunMemory, recordRun, clearRunMemory, memoryTotals, type RunMemoryEntry } from '@/lib/pipelineMemory';
 import { useBrokerConnections, brokerCall } from '@/hooks/useBrokerTrading';
 import { BUILT_IN_STRATEGIES, listSavedStrategies, saveStrategy, deleteSavedStrategy, performanceByStrategy, type LibraryEntry } from '@/lib/strategyLibrary';
+import { AGENT_TEMPLATES, templateConfig } from '@/lib/agentTemplates';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
   convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
@@ -72,7 +76,7 @@ const Workspace = () => {
   const execRef = useRef<{ mode: 'paper' | 'broker'; conn?: { id: string; broker: string; environment: string; label: string | null } }>({ mode: 'paper' });
   execRef.current = { mode: execMode, conn: activeConn ? { id: activeConn.id, broker: activeConn.broker, environment: activeConn.environment, label: activeConn.label } : undefined };
   useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_exec', execMode); } catch { /* ignore */ } }, [execMode]);
-  const [panel, setPanel] = useState<'genius' | 'step' | 'report' | 'charts'>('genius');
+  const [panel, setPanel] = useState<'genius' | 'step' | 'report' | 'charts' | 'swarm' | 'timemachine'>('genius');
   const [runMemory, setRunMemory] = useState<RunMemoryEntry[]>(() => loadRunMemory());
   const [chartKey, setChartKey] = useState<string>('gold');
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -533,6 +537,19 @@ const Workspace = () => {
     };
   }, [classified, getSeries, paper.account, issues, events, running]);
 
+  /** Build a real step from a Genius step spec. Agent steps that name a
+      specialist (config.templateId) are expanded into the specialist's
+      full doctrine — the Genius can field the actual desk, not blanks. */
+  const materializeStep = useCallback((s: { kind: string; label?: string; config?: Record<string, any> }) => {
+    const def = BLOCK_BY_ID.get(s.kind);
+    let config: Record<string, any> = { ...(def?.config ?? {}), ...(s.config ?? {}) };
+    if (s.kind === 'agent' && config.templateId) {
+      const t = AGENT_TEMPLATES.find((x) => x.id === config.templateId);
+      if (t) config = { ...templateConfig(t), templateId: t.id, model: 'llama-3.3-70b-versatile', ...s.config };
+    }
+    return makeStep(s.kind as any, s.label || (config.agentName as string) || def?.name || s.kind, config);
+  }, []);
+
   const applyActions = useCallback((actions: GeniusAction[]) => {
     const notes: string[] = [];
     let created = [...blocksRef.current];
@@ -549,10 +566,7 @@ const Workspace = () => {
             const lane = makeLane(l.name || `Lane ${i + 1}`, i);
             lane.consensus = !!l.consensus;
             if (l.agree) lane.agree = l.agree;
-            lane.steps = (l.steps ?? []).map((s) => {
-              const def = BLOCK_BY_ID.get(s.kind);
-              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
-            });
+            lane.steps = (l.steps ?? []).map((s) => materializeStep(s));
             return lane;
           });
           if (lanes.length) {
@@ -568,10 +582,7 @@ const Workspace = () => {
             const lane = makeLane(l.name || `Lane ${graphRef.current.lanes.length + i + 1}`, graphRef.current.lanes.length + i);
             lane.consensus = !!l.consensus;
             if (l.agree) lane.agree = l.agree;
-            lane.steps = (l.steps ?? []).map((s) => {
-              const def = BLOCK_BY_ID.get(s.kind);
-              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
-            });
+            lane.steps = (l.steps ?? []).map((s) => materializeStep(s));
             return lane;
           });
           if (lanes.length) {
@@ -586,10 +597,7 @@ const Workspace = () => {
           const target = graphRef.current.lanes[a.laneIndex ?? -1];
           const spec = a.lanes?.[0];
           if (target && spec) {
-            const steps = (spec.steps ?? []).map((s) => {
-              const def = BLOCK_BY_ID.get(s.kind);
-              return makeStep(s.kind as any, s.label || def?.name || s.kind, { ...(def?.config ?? {}), ...(s.config ?? {}) });
-            });
+            const steps = (spec.steps ?? []).map((s) => materializeStep(s));
             mutate((g) => ({
               ...g,
               lanes: g.lanes.map((l) => (l.id === target.id
@@ -1087,6 +1095,8 @@ const Workspace = () => {
                 { id: 'step', label: 'Step', icon: SlidersHorizontal },
                 { id: 'report', label: 'Report', icon: ScrollText },
                 { id: 'charts', label: 'Charts', icon: CandlestickChart },
+                { id: 'swarm', label: 'Swarm', icon: MessagesSquare },
+                { id: 'timemachine', label: 'Time Machine', icon: History },
               ] as const).map((t) => (
                 <button
                   key={t.id}
@@ -1111,6 +1121,10 @@ const Workspace = () => {
                   issueCount={blockingIssues.length}
                 />
               )}
+
+              {panel === 'swarm' && <SwarmPanel events={events} running={running} />}
+
+              {panel === 'timemachine' && <TimeMachinePanel />}
 
               {panel === 'step' && (
                 selectedStep ? (
@@ -1263,6 +1277,12 @@ const Workspace = () => {
                       startEquity={runStartEquity}
                     />
                   </div>
+
+                  <PerformanceReport
+                    memory={runMemory}
+                    buildContext={buildContext}
+                    onApplyActions={applyActions}
+                  />
 
                   <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                     <div className="mb-2 flex items-center justify-between">

@@ -21,6 +21,8 @@ export interface RunMemoryEntry {
   errors: number;
   stoppedByRisk: boolean;
   summary: string | null;
+  /** Per-specialist verdict tallies for this run (name → counts). */
+  agentStats?: Record<string, { calls: number; bullish: number; neutral: number; bearish: number; confSum: number }>;
 }
 
 const KEY = 'ga_pipeline_v4_run_memory';
@@ -39,6 +41,18 @@ export const loadRunMemory = (): RunMemoryEntry[] => {
 
 export const recordRun = (result: RunResult, graphName: string, summary: string | null): RunMemoryEntry => {
   const closed = result.trades.filter((t) => t.exitPrice !== null);
+  const agentStats: RunMemoryEntry['agentStats'] = {};
+  for (const e of result.events) {
+    const v = (e as any).data?.verdict as string | undefined;
+    if (!v || !e.stepLabel) continue;
+    const name = e.stepLabel.replace(/\s*\(consensus\)\s*/i, '');
+    const st = (agentStats[name] ??= { calls: 0, bullish: 0, neutral: 0, bearish: 0, confSum: 0 });
+    st.calls += 1;
+    if (v === 'bullish') st.bullish += 1;
+    else if (v === 'bearish' || v === 'sell') st.bearish += 1;
+    else st.neutral += 1;
+    st.confSum += Number((e as any).data?.confidence ?? 0);
+  }
   const entry: RunMemoryEntry = {
     id: `run_${result.finishedAt}_${Math.random().toString(36).slice(2, 7)}`,
     at: result.finishedAt,
@@ -53,6 +67,7 @@ export const recordRun = (result: RunResult, graphName: string, summary: string 
     errors: result.errors,
     stoppedByRisk: result.stoppedByRisk,
     summary,
+    agentStats,
   };
   try {
     const next = [entry, ...loadRunMemory()].slice(0, MAX_RUNS);

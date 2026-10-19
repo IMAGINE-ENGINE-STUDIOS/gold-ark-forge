@@ -5,6 +5,7 @@ import { PROGRAM_BY_ID } from '@/lib/analysisPrograms';
 import { BLOCK_BY_ID } from '@/lib/pipelineBlocks';
 import { classifyAssets, rankByClass, type AssetMetrics } from '@/lib/assetClassifiers';
 import { BUILT_IN_STRATEGIES } from '@/lib/strategyLibrary';
+import { buildBlitzGraph } from '@/lib/blitzPreset';
 
 /* Price as a function of elapsed time, so a run can be scripted:
    flat at 100, step to 101.5 (past the +1% target), then to 102.2
@@ -310,4 +311,31 @@ describe('diversification mechanics', () => {
     expect(res.trades.length).toBe(1);
     expect(res.events.some((e) => e.message.includes('Diversification cap'))).toBe(true);
   }, 30000);
+});
+
+describe('BLITZ-100 — the high-count sample', () => {
+  it('fires trades at blitz pace when the tape offers setups', async () => {
+    const g = buildBlitzGraph();
+    g.session = { ...g.session, durationMin: 0.5, tickSec: 1, tradeWindowEt: undefined };
+    const samples = () => Array.from({ length: 40 }, (_, j) => 100 + j * 0.3 + Math.sin(j * 2.1) * 0.3);
+    const metrics: AssetMetrics[] = Array.from({ length: 10 }, (_, i) => ({
+      ticker: `B${i}`, label: `B${i}`, cat: 'stock', symbolKey: `B${i}`,
+      last: 100 + i, change24h: 6, samples: samples(),
+    }));
+    const t0 = Date.now();
+    const rising = () => 100 * (1 + Math.min(0.05, ((Date.now() - t0) / 1000) * 0.002));
+    const hooks: RunHooks = {
+      ...makeHooks(rising, {
+        runAgent: async () => ({ verdict: 'bullish', confidence: 0.8, reason: 'tape is hot' } as any),
+      }),
+      classified: classifyAssets(metrics),
+      getSeries: samples,
+    };
+    const res = await runGraph(g, hooks, () => {});
+    expect(res.errors).toBe(0);
+    // ~5 fills per tick across the lanes in this window — at the real
+    // 5-second cadence that pace is 100+ fills inside the 5-minute
+    // session whenever the tape keeps offering qualifying setups.
+    expect(res.trades.length).toBeGreaterThanOrEqual(40);
+  }, 90000);
 });

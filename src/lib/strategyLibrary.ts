@@ -12,6 +12,7 @@ import { AGENT_TEMPLATE_BY_ID, templateConfig } from './agentTemplates';
 import { buildSipvbGraph } from './sipvbPreset';
 import { buildApexGraph, buildMicroGraph } from './apexPreset';
 import { buildSwarmGraph } from './swarmPreset';
+import { buildBlitzGraph } from './blitzPreset';
 
 const blockConfig = (id: string) => ({ ...(BLOCK_BY_ID.get(id)?.config ?? {}) });
 
@@ -121,6 +122,13 @@ const buildMomentumRider = (): PipeGraph => {
 };
 
 export const BUILT_IN_STRATEGIES: LibraryEntry[] = [
+  {
+    builtIn: true,
+    id: 'blitz100',
+    name: 'BLITZ-100 — 100 trades in 5 minutes',
+    blurb: 'The high-count sample: six lanes hunting different screens at once, $50 tickets, no cooldown, 25 entries per lane — capacity for 100+ investments inside one 5-minute, $5,000 session when the tape offers the setups. $250 per-name cap, +0.5% fast harvests, Risk Guardian referee, −3% ($150) limit.',
+    build: buildBlitzGraph,
+  },
   {
     id: 'builtin_swarm', name: 'SWARM — the agent committee', builtIn: true,
     blurb: 'The smart pipeline: every lane is a council of specialists who read each other\'s fresh verdicts on the shared blackboard before judging, and a three-agent referee committee (regime, breadth, defence) votes by majority with veto power. Entries need a council AND the committee leaning bullish.',
