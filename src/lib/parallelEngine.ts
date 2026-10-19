@@ -178,6 +178,10 @@ interface SharedState {
   /** Last AI verdict per agent step — agents re-check on an interval
       instead of calling the AI every tick. */
   agentCache: Map<string, { tick: number; reply: AgentReply }>;
+  /** The agents' shared blackboard: every fresh verdict is posted here and
+      fed into the next agent's context, so the desk reasons as a committee
+      instead of as isolated judges. */
+  peerVerdicts: { agent: string; ticker: string | null; verdict: string; confidence: number; tick: number }[];
   /** Optional ET trading window for stock entries, e.g. "09:30-16:00". */
   tradeWindowEt?: string;
   /** Replay mode: ticks run instantly and wall-clock gates (session
@@ -303,7 +307,8 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
       }
     }
 
-    if (!passed) { outcome.halted = true; return outcome; }
+    const isCommittee = lane.steps.some((st) => st.kind === 'agent');
+    if (!passed && !isCommittee) { outcome.halted = true; return outcome; }
     const lead = ctx.upstream.find((u) => u.signal === expects && u.ticker);
     if (lead) { outcome.ticker = lead.ticker; outcome.label = lead.label; }
   }
@@ -311,6 +316,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
   let screen: { ticker: string; label: string; score: number }[] = [];
   let lastAnalysis: { id: string; value: number; verdict: string; detail: string } | null = null;
 
+  const agentVotes: { verdict: string; veto: boolean }[] = [];
   for (const step of lane.steps) {
     if (hooks.shouldStop?.()) { outcome.halted = true; break; }
     if (shared.stoppedByRisk) { push(step, 'skip', 'Strategy loss limit hit — lane halted.'); outcome.halted = true; break; }
@@ -401,6 +407,16 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
           if (cachedAgent && tick - cachedAgent.tick < everyTicks) {
             const held = cachedAgent.reply;
             outcome.agentNotes.push(`${cfg.agentName ?? 'Agent'}: ${held.verdict} (${Math.round(held.confidence * 100)}%) — held verdict, re-checks every ${everyTicks} ticks`);
+            if (lane.consensus) agentVotes.push({ verdict: held.verdict, veto: cfg.committeeVeto === true });
+            // A held verdict is still the agent's CURRENT stance: it must
+            // keep ruling the lane signal, or agent-driven lanes go silent
+            // on every held tick and the consensus gate flaps shut.
+            const heldMinConf = Number(cfg.minConfidence ?? 0);
+            if (held.confidence >= heldMinConf && held.verdict !== 'hold') {
+              outcome.signal = held.verdict;
+              outcome.confidence = held.confidence;
+              outcome.reason = held.reason;
+            }
             push(step, 'info', `${cfg.agentName ?? 'Agent'} verdict held from ${tick - cachedAgent.tick} tick(s) ago: ${held.verdict} — ${held.reason}`);
             break;
           }
@@ -422,6 +438,9 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
             context.openPositions = shared.trades.filter((t) => t.open)
               .map((t) => ({ label: t.label, side: t.side, entry: t.entryPrice, pnl: Number(t.pnl.toFixed(2)) }));
             context.account = hooks.getAccount();
+          }
+          if (shared.peerVerdicts.length) {
+            context.peerVerdicts = shared.peerVerdicts.slice(-12);
           }
           if (wants.lanes !== false && ctx.upstream.length) {
             context.laneResults = ctx.upstream.map((u) => ({
@@ -449,6 +468,12 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
             break;
           }
           shared.agentCache.set(step.id, { tick, reply });
+          shared.peerVerdicts.push({
+            agent: String(cfg.agentName ?? 'Agent'), ticker: outcome.ticker,
+            verdict: reply.verdict, confidence: reply.confidence, tick,
+          });
+          if (shared.peerVerdicts.length > 24) shared.peerVerdicts.splice(0, shared.peerVerdicts.length - 24);
+          if (lane.consensus) agentVotes.push({ verdict: reply.verdict, veto: cfg.committeeVeto === true });
 
           const minConf = Number(cfg.minConfidence ?? 0);
           const strong = reply.confidence >= minConf;
@@ -666,6 +691,31 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
     }
   }
 
+  // ── Committee resolution ──────────────────────────────────────────────
+  // In a consensus lane with several agents, the lane speaks with ONE
+  // voice: the majority. A veto member (a referee-grade specialist) can
+  // block the lane outright with a bearish or hold verdict.
+  if (lane.consensus && agentVotes.length > 1) {
+    const bull = agentVotes.filter((v) => v.verdict === 'bullish').length;
+    const bear = agentVotes.filter((v) => v.verdict === 'bearish').length;
+    const vetoBlock = agentVotes.some((v) => v.veto && (v.verdict === 'bearish' || v.verdict === 'hold'));
+    const verdict = vetoBlock ? 'bearish' : bull * 2 > agentVotes.length ? 'bullish' : bear > 0 ? 'bearish' : 'neutral';
+    outcome.signal = verdict as LaneOutcome['signal'];
+    if (lane.consensus) {
+      const expects = (lane.agree?.expects ?? 'bullish') as string;
+      shared.gate = {
+        open: verdict === expects,
+        reason: `committee vote in ${lane.name}: ${bull} bullish of ${agentVotes.length}${vetoBlock ? ' (veto member blocking)' : ''} → ${verdict}`,
+      };
+    }
+    const lastStep = lane.steps[lane.steps.length - 1];
+    if (lastStep) {
+      push(lastStep, 'info',
+        `Committee vote in ${lane.name}: ${bull} bullish · ${agentVotes.length - bull - bear} neutral/hold · ${bear} bearish${vetoBlock ? ' · VETO member blocking' : ''} → lane signal ${verdict}.`,
+        { inputs: { votes: agentVotes.map((v) => v.verdict) }, decision: `committee ${verdict}` });
+    }
+  }
+
   return outcome;
 }
 
@@ -782,6 +832,7 @@ export async function runGraph(
     deployed: 0,
     peakDeployed: 0,
     agentCache: new Map(),
+    peerVerdicts: [],
     tradeWindowEt: (graph.session as any)?.tradeWindowEt,
     fastForward: (hooks as any)?.fastForward === true,
     fees: 0,

@@ -42,6 +42,21 @@ const Workspace = () => {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
+  const [interruptedRun, setInterruptedRun] = useState<{ name: string; at: number } | null>(() => {
+    try {
+      const raw = localStorage.getItem('ga_pipeline_v4_active_run');
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+
+  // A run stops ONLY when its program ends, its risk rules stop it, or the
+  // user stops it — so warn before the page itself is closed mid-run.
+  useEffect(() => {
+    if (!running) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [running]);
   // Execution mode: 'paper' = the internal paper account (default, guest OK);
   // 'broker' = the same strategy signals ALSO route real orders through the
   // connected broker (Trading Bridge connection, sign-in required).
@@ -390,7 +405,21 @@ const Workspace = () => {
     }
 
     let result: RunResult | null = null;
+    let registryId: string | null = null;
     try {
+      // Checkpoint (a closed page is detectable on return) + a server-side
+      // registry row in her Supabase: the foundation the always-on worker
+      // will tick from, so runs can outlive the browser entirely.
+      try { localStorage.setItem('ga_pipeline_v4_active_run', JSON.stringify({ name: graphRef.current.name, at: Date.now() })); } catch { /* private mode */ }
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        const { data } = await (supabase as any)
+          .from('pipeline_runs')
+          .insert({ user_id: u?.user?.id ?? null, graph_name: graphRef.current.name, graph: graphRef.current, status: 'running' })
+          .select('id')
+          .single();
+        registryId = (data as any)?.id ?? null;
+      } catch { /* the registry mirrors runs; it never blocks one */ }
       result = await runGraph(
         graphRef.current,
         {
@@ -416,6 +445,19 @@ const Workspace = () => {
       );
       setRunResult(result);
     } finally {
+      try { localStorage.removeItem('ga_pipeline_v4_active_run'); } catch { /* ignore */ }
+      if (registryId) {
+        const closedTrades = (result?.trades ?? []).filter((t) => !t.open).length;
+        (supabase as any)
+          .from('pipeline_runs')
+          .update({
+            status: result?.stoppedByRisk ? 'stopped_by_risk' : 'finished',
+            stopped_at: new Date().toISOString(),
+            summary: result ? `${result.ticks} ticks · ${closedTrades} closed trades · $${result.realised.toFixed(2)} realised` : 'run ended',
+          })
+          .eq('id', registryId)
+          .then(() => undefined, () => undefined);
+      }
       setRunning(false);
       const errors = collected.filter((e) => e.status === 'error').length;
       const delta = equityRef.current - startEquity;
@@ -750,6 +792,17 @@ const Workspace = () => {
           </button>
 
         </section>
+
+        {interruptedRun && !running && (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+            <p className="text-[13px] text-foreground">
+              A run of <strong>{interruptedRun.name}</strong> was interrupted when this page closed ({new Date(interruptedRun.at).toLocaleTimeString()}).
+              Runs now survive navigation inside the app; closing the page still stops them until the always-on server runner is live.
+              Any open paper positions remain in the paper account (Trading Bridge → BOOK) to review or close.
+            </p>
+            <button type="button" className="rounded-md border border-border px-3 py-1.5 text-[12px] font-medium hover:bg-muted" onClick={() => setInterruptedRun(null)}>Dismiss</button>
+          </div>
+        )}
 
         {libraryOpen && (
           <section className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3">

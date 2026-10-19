@@ -11,6 +11,7 @@ import { BLOCK_BY_ID } from './pipelineBlocks';
 import { AGENT_TEMPLATE_BY_ID, templateConfig } from './agentTemplates';
 import { buildSipvbGraph } from './sipvbPreset';
 import { buildApexGraph, buildMicroGraph } from './apexPreset';
+import { buildSwarmGraph } from './swarmPreset';
 
 const blockConfig = (id: string) => ({ ...(BLOCK_BY_ID.get(id)?.config ?? {}) });
 
@@ -120,6 +121,11 @@ const buildMomentumRider = (): PipeGraph => {
 };
 
 export const BUILT_IN_STRATEGIES: LibraryEntry[] = [
+  {
+    id: 'builtin_swarm', name: 'SWARM — the agent committee', builtIn: true,
+    blurb: 'The smart pipeline: every lane is a council of specialists who read each other\'s fresh verdicts on the shared blackboard before judging, and a three-agent referee committee (regime, breadth, defence) votes by majority with veto power. Entries need a council AND the committee leaning bullish.',
+    build: buildSwarmGraph,
+  },
   {
     id: 'builtin_apex', name: 'APEX — Full-Spectrum Momentum System', builtIn: true,
     blurb: 'The flagship. Four specialised lanes (confirmed breakouts, retests, catalyst gaps, momentum runners), five specialist agents, a two-agent referee, precision exits on every position, ET session window, −3% / $25K envelope.',

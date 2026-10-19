@@ -19,6 +19,7 @@ import { runGraph, type RunHooks, type RunResult } from '@/lib/parallelEngine';
 import { classifyAssets, type ClassifiedAsset } from '@/lib/assetClassifiers';
 import { buildApexGraph, buildMicroGraph } from '@/lib/apexPreset';
 import { buildSipvbGraph } from '@/lib/sipvbPreset';
+import { buildSwarmGraph } from '@/lib/swarmPreset';
 import type { PipeGraph } from '@/lib/pipelineGraph';
 
 const RUN = process.env.RUN_REPLAY === '1';
@@ -132,6 +133,7 @@ describe.skipIf(!RUN)('replay scorecard on real bars', () => {
     expect(Object.keys(bars).length).toBeGreaterThan(5);
 
     const rows = [];
+    rows.push(scorecard('SWARM', await replay(buildSwarmGraph(), bars, 100_000), 25_000));
     rows.push(scorecard('APEX', await replay(buildApexGraph(), bars, 100_000), 25_000));
     rows.push(scorecard('6X v2', await replay(buildSipvbGraph(), bars, 100_000), 25_000));
     rows.push(scorecard('MICRO-100', await replay(buildMicroGraph(), bars, 100), 100));

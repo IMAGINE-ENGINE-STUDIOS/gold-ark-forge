@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { WalletProvider } from "@/contexts/WalletContext";
 import WalletSelectorDialog from "@/components/wallet/WalletSelectorDialog";
 import Index from "./pages/Index";
@@ -28,6 +28,18 @@ import Hologram from "./pages/Hologram";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+/** Pipeline V4 stays MOUNTED at all times (hidden off-route) so a running
+    pipeline is never killed by navigating to another screen. */
+const PersistentPipelineV4 = () => {
+  const { pathname } = useLocation();
+  const active = pathname === "/pipeline-v4";
+  return (
+    <div style={{ display: active ? "block" : "none" }} aria-hidden={!active}>
+      <PipelineV4 />
+    </div>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -56,11 +68,12 @@ const App = () => (
             <Route path="/deck" element={<Deck />} />
             <Route path="/globe" element={<Globe />} />
             <Route path="/investors" element={<Investors />} />
-            <Route path="/pipeline-v4" element={<PipelineV4 />} />
+            <Route path="/pipeline-v4" element={null} />
            <Route path="/hologram" element={<Hologram />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <PersistentPipelineV4 />
         </BrowserRouter>
       </WalletProvider>
     </TooltipProvider>

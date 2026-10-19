@@ -21,7 +21,7 @@ export interface AgentTemplate {
 }
 
 const DOCTRINE =
-  'Answer with the verdict, a confidence that reflects the evidence (weak evidence = low confidence), and one short reason naming the deciding evidence. Never invent prices, volumes or news that are not in the context.';
+  'Answer with the verdict, a confidence that reflects the evidence (weak evidence = low confidence), and one short reason naming the deciding evidence. Never invent prices, volumes or news that are not in the context. Your context may include peerVerdicts — the fresh verdicts of the other specialists on this desk, posted to the shared blackboard. Weigh them: agreement across independent specialists strengthens a call; disagreement demands stronger evidence of your own before you break ranks.';
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
@@ -169,4 +169,7 @@ export const templateConfig = (t: AgentTemplate) => ({
   temperature: t.temperature,
   minConfidence: t.minConfidence,
   everyTicks: t.everyTicks,
+  // Referee-grade specialists sit on committees with veto power: in a
+  // consensus lane their bearish/hold verdict blocks the lane's signal.
+  committeeVeto: t.referee === true,
 });

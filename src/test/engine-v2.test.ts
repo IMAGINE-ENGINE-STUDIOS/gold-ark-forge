@@ -150,3 +150,67 @@ describe('strategy library', () => {
     }
   });
 });
+
+describe('agent blackboard + committee voting', () => {
+  const verdicts: Record<string, { verdict: string; confidence: number }> = {
+    Sniper: { verdict: 'bullish', confidence: 0.8 },
+    Breadth: { verdict: 'bullish', confidence: 0.7 },
+    Captain: { verdict: 'neutral', confidence: 0.6 },
+    Guardian: { verdict: 'bullish', confidence: 0.7 },
+  };
+  const seenPeers: Record<string, string[]> = {};
+
+  const committeeGraph = () => {
+    const g = emptyGraph();
+    const trade = makeLane('Trading', 0);
+    trade.steps = [
+      makeStep('agent', 'Sniper', { agentName: 'Sniper', systemPrompt: 'Sniper', taskPrompt: 'judge', everyTicks: 99, minConfidence: 0 }),
+      makeStep('buy', 'Buy', { amountUsd: 100, takeProfitPct: 1, stopLossPct: 0.5, maxEntries: 1 }),
+    ];
+    const committee = makeLane('Committee', 1);
+    committee.consensus = true;
+    committee.agree = { mode: 'any', expects: 'bullish', minConfidence: 0, veto: true };
+    committee.steps = ['Breadth', 'Captain', 'Guardian'].map((n) =>
+      makeStep('agent', n, {
+        agentName: n, systemPrompt: n, taskPrompt: 'judge', everyTicks: 99, minConfidence: 0,
+        committeeVeto: n === 'Guardian',
+      }));
+    g.lanes = [trade, committee];
+    g.session = { durationMin: 0.1, tickSec: 2, flattenOnStop: true };
+    return g;
+  };
+
+  const hooks = () => ({
+    ...makeHooks(() => 100),
+    runAgent: async (req: any) => {
+      const name = req.systemPrompt as string;
+      if (req.context?.peerVerdicts) seenPeers[name] = req.context.peerVerdicts.map((p: any) => p.agent);
+      const v = verdicts[name] ?? { verdict: 'neutral', confidence: 0.5 };
+      return { verdict: v.verdict, confidence: v.confidence, reason: `${name} test verdict` } as any;
+    },
+  });
+
+  it('committee majority rules the lane signal and the vote is reported', async () => {
+    const res = await runGraph(committeeGraph(), hooks(), () => {});
+    const committee = res.lanes.find((l) => l.laneName === 'Committee');
+    expect(committee?.signal).toBe('bullish'); // 2 bullish of 3
+    expect(res.events.some((e) => e.message.includes('Committee vote'))).toBe(true);
+  }, 30000);
+
+  it('a veto member blocks the committee with a bearish verdict', async () => {
+    verdicts.Guardian = { verdict: 'bearish', confidence: 0.9 };
+    const res = await runGraph(committeeGraph(), hooks(), () => {});
+    const committee = res.lanes.find((l) => l.laneName === 'Committee');
+    expect(committee?.signal).toBe('bearish');
+    expect(res.events.some((e) => e.message.includes('VETO member blocking'))).toBe(true);
+    verdicts.Guardian = { verdict: 'bullish', confidence: 0.7 };
+  }, 30000);
+
+  it('agents see each other on the blackboard (peerVerdicts in context)', async () => {
+    await runGraph(committeeGraph(), hooks(), () => {});
+    // The Captain runs after the Sniper and the Breadth Reader: both must
+    // already be on the blackboard in the Captain's context.
+    expect(seenPeers.Captain).toContain('Sniper');
+    expect(seenPeers.Captain).toContain('Breadth');
+  }, 30000);
+});
