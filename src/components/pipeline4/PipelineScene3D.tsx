@@ -18,29 +18,51 @@ interface SceneProps {
   selectedLaneId: string | null;
 }
 
-/** Smoothly glides the camera so the clicked block sits in the middle of the view. */
+/**
+ * Glides the camera ONCE when a new block is focused, then lets go.
+ *
+ * The old implementation lerped the camera toward the focus on every
+ * frame forever and clamped the viewing distance back to 9 whenever it
+ * left 5-16 — so zooming out "bounced in" on the next step event. Now:
+ * the glide preserves the operator's exact distance and angle, settles
+ * when it arrives, and ANY manual input (orbit / zoom / pan) cancels it
+ * instantly. The camera is the operator's; focus only suggests.
+ */
 function CameraFocus({ target }: { target: [number, number, number] | null }) {
   const { camera, controls } = useThree() as any;
   const desired = useRef(new THREE.Vector3(3, 0, 0));
   const offset = useRef(new THREE.Vector3(-5.5, 4.2, 8.5));
+  const animating = useRef(false);
+
+  // Manual input always wins: cancel any glide the moment the operator
+  // grabs the controls.
+  useEffect(() => {
+    if (!controls?.addEventListener) return;
+    const cancel = () => { animating.current = false; };
+    controls.addEventListener('start', cancel);
+    return () => controls.removeEventListener?.('start', cancel);
+  }, [controls]);
 
   useEffect(() => {
     if (!target) return;
     desired.current.set(target[0], target[1], target[2]);
-    // keep whatever viewing angle the operator has chosen, just re-centre on the block
     if (controls?.target && camera) {
+      // Preserve the operator's chosen angle AND distance exactly.
       offset.current.copy(camera.position).sub(controls.target);
-      const len = offset.current.length();
-      if (len < 5 || len > 16) offset.current.setLength(9);
+      if (offset.current.lengthSq() === 0) offset.current.set(-5.5, 4.2, 8.5);
     }
+    animating.current = true;
   }, [target, camera, controls]);
 
   useFrame(() => {
-    if (!controls?.target || !target) return;
-    controls.target.lerp(desired.current, 0.09);
+    if (!animating.current || !controls?.target || !camera) return;
+    controls.target.lerp(desired.current, 0.08);
     const wanted = desired.current.clone().add(offset.current);
-    camera.position.lerp(wanted, 0.09);
+    camera.position.lerp(wanted, 0.08);
     controls.update();
+    if (controls.target.distanceTo(desired.current) < 0.05 && camera.position.distanceTo(wanted) < 0.08) {
+      animating.current = false;
+    }
   });
 
   return null;

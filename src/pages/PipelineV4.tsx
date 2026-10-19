@@ -44,6 +44,9 @@ const Workspace = () => {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
+  const [followRun, setFollowRun] = useState(true);
+  const followRef = useRef(true);
+  useEffect(() => { followRef.current = followRun; }, [followRun]);
   const [interruptedRun, setInterruptedRun] = useState<{ name: string; at: number } | null>(() => {
     try {
       const raw = localStorage.getItem('ga_pipeline_v4_active_run');
@@ -380,7 +383,7 @@ const Workspace = () => {
       if (e.tick > 0) runPresence.tick(e.tick);
       collected.push(e);
       setEvents((prev) => [...prev, e]);
-      if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
+      if (e.stepId && followRef.current) setSelectedStepId(e.stepId); // camera follows the step being executed (toggleable)
     };
     const sessionEvent = (status: RunEvent['status'], message: string) =>
       emitRunEvent({ ts: Date.now(), tick: 0, laneId: 'session', laneName: 'Session', stepId: null, stepLabel: '', status, message });
@@ -979,6 +982,16 @@ const Workspace = () => {
               onSelectLane={(laneId) => { setSelectedLaneId(laneId); setSelectedStepId(null); }}
             />
 
+            {/* camera follow toggle — your zoom is never overridden while off */}
+            <button
+              type="button"
+              onClick={() => setFollowRun((v) => !v)}
+              className="absolute bottom-3 right-3 z-10 rounded-md border border-border/70 bg-background/85 px-2.5 py-1.5 text-[12px] font-medium text-foreground backdrop-blur hover:border-primary/60"
+              title="When ON, the 3D camera glides to the step being executed. When OFF, the camera is entirely yours — zoom and orbit freely."
+            >
+              {followRun ? 'Follow camera: ON' : 'Follow camera: OFF'}
+            </button>
+
             {/* live run banner */}
             {running && (
               <div className="pointer-events-none absolute left-1/2 top-3 w-[min(92%,560px)] -translate-x-1/2 rounded-lg border border-primary/50 bg-background/85 px-3 py-2 text-center backdrop-blur">
@@ -986,7 +999,7 @@ const Workspace = () => {
                   Running all {graph.lanes.length} lanes at once on the paper account
                 </p>
                 <p className="text-[12px] text-muted-foreground">
-                  {events.length} step{events.length === 1 ? '' : 's'} executed so far · the camera follows the step being run · live trace in Report
+                  {events.length} step{events.length === 1 ? '' : 's'} executed so far · {followRun ? 'the camera follows the step being run' : 'camera is free — follow is off'} · live trace in Report
                 </p>
               </div>
             )}
