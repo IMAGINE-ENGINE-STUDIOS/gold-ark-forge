@@ -11,6 +11,7 @@ const Header = () => {
   const navItems = [
     { label: 'Swap', href: '/trading-bridge', icon: ArrowLeftRight },
     { label: 'Pipeline V4', href: '/pipeline-v4', icon: Workflow },
+    { label: 'Pipeline V5', href: '/pipeline-v5', icon: Workflow },
     { label: 'About Us', href: '/about', icon: Info },
     { label: 'Admin', href: '/admin', icon: Settings },
   ];

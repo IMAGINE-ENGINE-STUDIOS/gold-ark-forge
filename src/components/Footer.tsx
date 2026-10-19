@@ -9,11 +9,19 @@ const Footer = () => {
       { label: 'Marketplace', href: '/marketplace' },
       { label: 'The Vault', href: '/vault' },
       { label: 'Certification', href: '/certification' },
+      { label: 'Proof of Reserve', href: '/proof-of-reserve' },
     ],
     company: [
       { label: 'About Us', href: '/about' },
+      { label: 'Insights', href: '/insights' },
+      { label: 'Contact', href: '/contact' },
+      { label: 'Careers', href: '/careers' },
     ],
     legal: [
+      { label: 'Terms of Service', href: '/terms' },
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Compliance', href: '/compliance' },
+      { label: 'Risk Disclosure', href: '/risk' },
     ],
   };
 
