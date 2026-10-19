@@ -19,17 +19,11 @@ import Intelligence from "./pages/Intelligence";
 import OilGasIntelligence from "./pages/OilGasIntelligence";
 import TradingBridge from "./pages/TradingBridge";
 import LogRegistry from "./pages/LogRegistry";
-import LogRegistry2 from "./pages/LogRegistry2";
-import OldBots from "./pages/OldBots";
 import Login from "./pages/Login";
 import Deck from "./pages/Deck";
 import Globe from "./pages/Globe";
 import Investors from "./pages/Investors";
-import Pipeline from "./pages/Pipeline";
-import PipelineV2 from "./pages/PipelineV2";
-import PipelineV3 from "./pages/PipelineV3";
 import PipelineV4 from "./pages/PipelineV4";
-import PipelineV5 from "./pages/PipelineV5";
 import Hologram from "./pages/Hologram";
 import NotFound from "./pages/NotFound";
 
@@ -48,7 +42,6 @@ const App = () => (
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="/marketplace/:metal" element={<Marketplace />} />
             <Route path="/marketplace/certificate/:certId" element={<CertificateDetail />} />
-            <Route path="/markets" element={<TradingBridge />} />
             <Route path="/vault" element={<Vault />} />
             <Route path="/certification" element={<Certification />} />
             <Route path="/verify" element={<Verify />} />
@@ -57,19 +50,13 @@ const App = () => (
             <Route path="/oil-gas" element={<OilGasIntelligence />} />
             <Route path="/trading-bridge" element={<TradingBridge />} />
             <Route path="/log-registry" element={<LogRegistry />} />
-            <Route path="/log-registry-2" element={<LogRegistry2 />} />
-            <Route path="/old-bots" element={<OldBots />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/deck" element={<Deck />} />
             <Route path="/globe" element={<Globe />} />
             <Route path="/investors" element={<Investors />} />
-            <Route path="/pipeline" element={<Pipeline />} />
-            <Route path="/pipeline-v2" element={<PipelineV2 />} />
-            <Route path="/pipeline-v3" element={<PipelineV3 />} />
             <Route path="/pipeline-v4" element={<PipelineV4 />} />
-            <Route path="/pipeline-v5" element={<PipelineV5 />} />
            <Route path="/hologram" element={<Hologram />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

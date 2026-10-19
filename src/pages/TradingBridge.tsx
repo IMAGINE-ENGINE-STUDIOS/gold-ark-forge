@@ -4,7 +4,6 @@ import { Activity, BarChart3, Briefcase, Bot, Shield, Users, ChevronLeft, Chevro
 import { AreaChart, Area, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import GALiveChart from '@/components/trading/GALiveChart';
 import GAMultiTicker from '@/components/ga-widgets/GAMultiTicker';
-import GAPriceCards from '@/components/ga-widgets/GAPriceCards';
 import GALivePriceNotice from '@/components/ga-widgets/GALivePriceNotice';
 import GACryptoMarket from '@/components/ga-widgets/GACryptoMarket';
 import GACryptoPriceCards from '@/components/ga-widgets/GACryptoPriceCards';
@@ -16,7 +15,6 @@ import GATechnicalGauge from '@/components/ga-widgets/GATechnicalGauge';
 import GANewsFeed from '@/components/ga-widgets/GANewsFeed';
 import GATopMovers from '@/components/ga-widgets/GATopMovers';
 import GAMetalScreener from '@/components/ga-widgets/GAMetalScreener';
-import GAMarketPulse from '@/components/ga-widgets/GAMarketPulse';
 import GACrossAssetDashboard from '@/components/ga-widgets/GACrossAssetDashboard';
 import GAAssetOverview from '@/components/ga-widgets/GAAssetOverview';
 import GAMiniCharts from '@/components/ga-widgets/GAMiniCharts';
@@ -143,8 +141,6 @@ const BOTTOM_TABS = [
   { key: 'market', label: 'MARKET', icon: Layers },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   { key: 'risk', label: 'RISK', icon: Shield },
-  { key: 'strategies', label: 'STRATEGIES', icon: Bot },
-  { key: 'social', label: 'SOCIAL', icon: Users },
 ] as const;
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
@@ -465,12 +461,6 @@ function TradeTabContent({
 
       {/* Column 2: Market Context */}
       <div className="space-y-3">
-        <CollapsibleSection title="MARKET PULSE" icon={Activity} defaultOpen>
-          <div className="space-y-3">
-            <GAPriceCards />
-          </div>
-        </CollapsibleSection>
-
         <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
           <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
         </CollapsibleSection>
@@ -1453,8 +1443,7 @@ const TradingBridge = () => {
                   <div className="space-y-4">
                     <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
                     <div className="border-t border-gold/10 pt-4 grid grid-cols-1 gap-3">
-                      <GAMarketPulse />
-                      <GACrossAssetDashboard />
+                                            <GACrossAssetDashboard />
                       <GAAssetOverview />
                       <GAMiniCharts />
                       <GAPortfolioAllocator />
@@ -1488,16 +1477,7 @@ const TradingBridge = () => {
                     <GANewsFeed />
                   </div>
                 )}
-                {bottomTab === 'strategies' && (
-                  <div className="space-y-4">
-                    <StrategiesPanel />
-                    <div className="border-t border-gold/10 pt-4">
-                      <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
-                    </div>
-                  </div>
-                )}
-                {bottomTab === 'social' && <SocialPanel />}
-              </div>
+                              </div>
             </div>
           </div>
         )}
@@ -1788,8 +1768,7 @@ const TradingBridge = () => {
                     <div className="space-y-4">
                       <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
                       <div className="border-t border-gold/10 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[50vh] lg:max-h-none overflow-y-auto lg:overflow-visible">
-                        <GAMarketPulse />
-                        <GACrossAssetDashboard />
+                                                <GACrossAssetDashboard />
                         <GAPerformanceDashboard />
                         <GATradingSessions />
                         <GAAssetOverview />
@@ -1827,16 +1806,7 @@ const TradingBridge = () => {
                       <div className="lg:col-span-2"><GANewsFeed /></div>
                     </div>
                   )}
-                  {bottomTab === 'strategies' && (
-                    <div className="space-y-4">
-                      <StrategiesPanel />
-                      <div className="border-t border-gold/10 pt-4">
-                        <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={getCandleData(activeSymbol.ticker)} />
-                      </div>
-                    </div>
-                  )}
-                  {bottomTab === 'social' && <SocialPanel />}
-                </div>
+                                  </div>
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -2360,217 +2330,5 @@ function RiskPanel({ connectionId }: { connectionId?: string }) {
 }
 
 // ─── Strategies Panel ────────────────────────────────────
-
-function StrategiesPanel() {
-  const [dcaAsset, setDcaAsset] = useState('BTC-USD');
-  const [dcaAmount, setDcaAmount] = useState('100');
-  const [dcaFreq, setDcaFreq] = useState('weekly');
-  const [gridLow, setGridLow] = useState('');
-  const [gridHigh, setGridHigh] = useState('');
-  const [gridLevels, setGridLevels] = useState('10');
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Bot className="w-4 h-4 text-gold" />
-        <span className="font-display text-sm tracking-wider text-gold-light">STRATEGY AUTOMATION</span>
-        <span className="text-[7px] font-display tracking-[0.2em] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/20">COMING SOON</span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-          <div className="flex items-center gap-1.5 mb-3">
-            <Clock className="w-3 h-3 text-gold/50" />
-            <span className="text-[10px] font-display tracking-wider text-gold/60">DCA BOT</span>
-          </div>
-          <div className="space-y-2">
-            <div>
-              <label className="text-[8px] text-marble/30 font-display tracking-wider">ASSET</label>
-              <select value={dcaAsset} onChange={(e) => setDcaAsset(e.target.value)} className="w-full bg-navy-light border border-gold/15 text-marble text-xs rounded px-2 py-2 font-mono mt-0.5">
-                <option value="BTC-USD">BTC-USD</option>
-                <option value="ETH-USD">ETH-USD</option>
-                <option value="GLD">GLD</option>
-                <option value="SPY">SPY</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[8px] text-marble/30 font-display tracking-wider">AMOUNT ($)</label>
-              <Input type="number" value={dcaAmount} onChange={(e) => setDcaAmount(e.target.value)} className="bg-navy-light border-gold/15 text-marble font-mono text-xs h-8 mt-0.5" />
-            </div>
-            <div>
-              <label className="text-[8px] text-marble/30 font-display tracking-wider">FREQUENCY</label>
-              <select value={dcaFreq} onChange={(e) => setDcaFreq(e.target.value)} className="w-full bg-navy-light border border-gold/15 text-marble text-xs rounded px-2 py-2 font-mono mt-0.5">
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            </div>
-            <Button className="w-full bg-gold/20 text-gold border border-gold/30 font-display text-[10px] tracking-wider hover:bg-gold/30 h-8" disabled>
-              ACTIVATE DCA
-            </Button>
-            <p className="text-[8px] text-marble/20 text-center">Requires active broker connection</p>
-          </div>
-        </div>
-
-        <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-          <div className="flex items-center gap-1.5 mb-3">
-            <Flame className="w-3 h-3 text-gold/50" />
-            <span className="text-[10px] font-display tracking-wider text-gold/60">GRID TRADING</span>
-          </div>
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className="text-[8px] text-marble/30 font-display tracking-wider">LOW ($)</label>
-                <Input type="number" value={gridLow} onChange={(e) => setGridLow(e.target.value)} placeholder="90" className="bg-navy-light border-gold/15 text-marble font-mono text-xs h-8 mt-0.5" />
-              </div>
-              <div>
-                <label className="text-[8px] text-marble/30 font-display tracking-wider">HIGH ($)</label>
-                <Input type="number" value={gridHigh} onChange={(e) => setGridHigh(e.target.value)} placeholder="110" className="bg-navy-light border-gold/15 text-marble font-mono text-xs h-8 mt-0.5" />
-              </div>
-            </div>
-            <div>
-              <label className="text-[8px] text-marble/30 font-display tracking-wider">GRID LEVELS</label>
-              <Input type="number" value={gridLevels} onChange={(e) => setGridLevels(e.target.value)} className="bg-navy-light border-gold/15 text-marble font-mono text-xs h-8 mt-0.5" min="3" max="50" />
-            </div>
-            {gridLow && gridHigh && (
-              <div className="bg-navy-dark/50 rounded p-2 space-y-0.5">
-                <div className="text-[8px] text-marble/20">Spacing: ${((parseFloat(gridHigh) - parseFloat(gridLow)) / parseInt(gridLevels)).toFixed(2)} per level</div>
-                <div className="text-[8px] text-marble/20">Buy orders: {Math.floor(parseInt(gridLevels) / 2)} | Sell: {Math.ceil(parseInt(gridLevels) / 2)}</div>
-              </div>
-            )}
-            <Button className="w-full bg-gold/20 text-gold border border-gold/30 font-display text-[10px] tracking-wider hover:bg-gold/30 h-8" disabled>
-              DEPLOY GRID
-            </Button>
-          </div>
-        </div>
-
-        <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5 sm:col-span-2 lg:col-span-1">
-          <div className="flex items-center gap-1.5 mb-3">
-            <Bot className="w-3 h-3 text-gold/50" />
-            <span className="text-[10px] font-display tracking-wider text-gold/60">RULE ENGINE</span>
-          </div>
-          <div className="space-y-2">
-            <div className="bg-navy-dark/50 rounded p-2 border border-gold/5">
-              <div className="text-[8px] text-gold/40 font-display tracking-wider mb-1">EXAMPLE RULE</div>
-              <div className="text-[9px] font-mono text-marble/40 leading-relaxed">
-                <span className="text-emerald-400">IF</span> BTC price {'<'} $80,000<br />
-                <span className="text-gold">THEN</span> BUY 0.01 BTC<br />
-                <span className="text-marble/30">VIA</span> Coinbase
-              </div>
-            </div>
-            <div className="bg-navy-dark/50 rounded p-2 border border-gold/5">
-              <div className="text-[8px] text-gold/40 font-display tracking-wider mb-1">EXAMPLE RULE</div>
-              <div className="text-[9px] font-mono text-marble/40 leading-relaxed">
-                <span className="text-emerald-400">IF</span> XAU/USD {'>'} $5,200<br />
-                <span className="text-gold">THEN</span> SELL 10 GLD<br />
-                <span className="text-marble/30">VIA</span> Alpaca
-              </div>
-            </div>
-            <Button className="w-full bg-gold/20 text-gold border border-gold/30 font-display text-[10px] tracking-wider hover:bg-gold/30 h-8" disabled>
-              CREATE RULE
-            </Button>
-            <p className="text-[8px] text-marble/20 text-center">IF-THEN rules based on price, indicators, or portfolio triggers</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 pt-4 border-t border-gold/10">
-        <RuleBuilder />
-      </div>
-    </div>
-  );
-}
-
-// ─── Social Panel ────────────────────────────────────────
-
-function SocialPanel() {
-  const mockTraders = [
-    { name: 'GoldBull_42', winRate: 72, returns: '+34.2%', followers: 1240, strategy: 'Precious metals momentum', rank: 1 },
-    { name: 'CryptoWhale', winRate: 65, returns: '+28.7%', followers: 890, strategy: 'BTC/ETH swing trading', rank: 2 },
-    { name: 'OilBaron_TX', winRate: 68, returns: '+21.5%', followers: 560, strategy: 'Energy sector rotation', rank: 3 },
-    { name: 'BondKing', winRate: 81, returns: '+12.8%', followers: 2100, strategy: 'Treasury yield curve', rank: 4 },
-    { name: 'IndexSurfer', winRate: 59, returns: '+18.3%', followers: 430, strategy: 'S&P momentum + hedging', rank: 5 },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Users className="w-4 h-4 text-gold" />
-        <span className="font-display text-sm tracking-wider text-gold-light">SOCIAL TRADING</span>
-        <span className="text-[7px] font-display tracking-[0.2em] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/80 border border-amber-500/20">COMING SOON</span>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-          <div className="flex items-center gap-1.5 mb-3">
-            <Award className="w-3 h-3 text-gold/50" />
-            <span className="text-[10px] font-display tracking-wider text-gold/60">TOP TRADERS</span>
-          </div>
-          <div className="space-y-1.5">
-            {mockTraders.map((trader) => (
-              <div key={trader.name} className="flex items-center gap-2 p-2 bg-navy-dark/30 rounded border border-gold/5 hover:border-gold/15 transition-colors group">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-mono flex-shrink-0 ${
-                  trader.rank === 1 ? 'bg-gold/20 text-gold' : trader.rank === 2 ? 'bg-silver/20 text-silver' : 'bg-navy-light text-marble/30'
-                }`}>
-                  {trader.rank}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono text-marble/70 truncate">{trader.name}</span>
-                    {trader.rank <= 3 && <Star className="w-2.5 h-2.5 text-gold/50 flex-shrink-0" />}
-                  </div>
-                  <div className="text-[8px] text-marble/25 truncate">{trader.strategy}</div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-[10px] font-mono text-emerald-400">{trader.returns}</div>
-                  <div className="text-[8px] text-marble/25">{trader.winRate}% win</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-            <div className="flex items-center gap-1.5 mb-3">
-              <Share2 className="w-3 h-3 text-gold/50" />
-              <span className="text-[10px] font-display tracking-wider text-gold/60">YOUR PROFILE</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {[
-                { label: 'RANK', value: '—' },
-                { label: 'FOLLOWERS', value: '0' },
-                { label: 'COPIERS', value: '0' },
-              ].map((s) => (
-                <div key={s.label} className="bg-navy-dark/50 rounded p-2 text-center">
-                  <div className="text-[7px] text-marble/25 font-display tracking-wider">{s.label}</div>
-                  <div className="text-sm font-mono text-marble/40">{s.value}</div>
-                </div>
-              ))}
-            </div>
-            <Button className="w-full bg-gold/20 text-gold border border-gold/30 font-display text-[10px] tracking-wider hover:bg-gold/30 h-8" disabled>
-              PUBLISH STRATEGY
-            </Button>
-            <p className="text-[8px] text-marble/20 text-center mt-1.5">Share your performance and let others copy your trades</p>
-          </div>
-
-          <div className="bg-navy-light/30 rounded-lg p-3 border border-gold/5">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Flame className="w-3 h-3 text-gold/50" />
-              <span className="text-[10px] font-display tracking-wider text-gold/60">TRENDING STRATEGIES</span>
-            </div>
-            {['Gold Accumulator (+22% 30d)', 'BTC Grid $85k-$105k', 'Oil Mean Reversion'].map((s) => (
-              <div key={s} className="flex items-center justify-between py-1.5 border-b border-gold/5 last:border-0">
-                <span className="text-[9px] font-mono text-marble/40">{s}</span>
-                <span className="text-[8px] text-gold/40">→</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default TradingBridge;
