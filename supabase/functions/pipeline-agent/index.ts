@@ -29,7 +29,7 @@ const ALLOWED_MODELS = new Set([
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 // Fallback order when a model fails at the provider: any model-level error
 // advances the chain; only an auth failure (401) stops it.
-const FALLBACK_CHAIN = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+const FALLBACK_CHAIN = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 Deno.serve(async (req) => {

@@ -83,24 +83,12 @@ Deno.serve(async (req) => {
     const key = Deno.env.get('GROQ_API_KEY');
     if (!key) throw new Error('GROQ_API_KEY is not configured');
 
-    // Groq transport with the Llama fallback chain (same resilience pattern
-    // as Startup Factory Hub): a model-level failure advances the chain,
-    // only an auth failure (401) stops it.
-    let res: Response | null = null;
-    let lastStatus = 0;
-    for (const model of ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
-      res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'system', content: `PAGE STATE (live, do not fabricate beyond this):\n${JSON.stringify(page ?? {}, null, 1)}` },
-          ...(Array.isArray(history) ? history.slice(-14) : []),
-          { role: 'user', content: String(message ?? '') },
-        ],
-        tools: [{
+    // Groq transport with the SFH resilience pattern, two tiers per model:
+    // first a forced emit_plan tool call; if the provider rejects that
+    // (schema validation differs per model), retry the same model with a
+    // plain JSON answer and parse it tolerantly. A model-level failure
+    // advances the chain; only an auth failure (401) stops it.
+    const TOOLS = [[{
           type: 'function',
           function: {
             name: 'emit_plan',
@@ -212,19 +200,37 @@ Deno.serve(async (req) => {
               additionalProperties: false,
             },
           },
-        }],
-          tool_choice: { type: 'function', function: { name: 'emit_plan' } },
-        }),
-      });
-      if (res.ok) break;
-      lastStatus = res.status;
-      const errText = await res.text().catch(() => '');
-      console.error(`groq ${res.status} on ${model}: ${errText.slice(0, 240)}`);
-      if (res.status === 401) {
-        return new Response(JSON.stringify({ error: 'GROQ_API_KEY was rejected by Groq — check the secret.' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }]];
+    const baseMessages = [
+      { role: 'system', content: SYSTEM },
+      { role: 'system', content: `PAGE STATE (live, do not fabricate beyond this):\n${JSON.stringify(page ?? {}, null, 1)}` },
+      ...(Array.isArray(history) ? history.slice(-14) : []),
+      { role: 'user', content: String(message ?? '') },
+    ];
+    const JSON_NOTE = 'Answer with ONE JSON object only, no prose around it, shaped exactly: {"reply": string, "objective": string, "feasibility": string, "memory": {"objective": string, "budget": number, "notes": string} | null, "actions": array, "choices": string array (3-4 short actions)}. The actions array uses the same operation shapes described in your instructions.';
+    const attempt = (model: string, withTools: boolean) => fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(withTools
+        ? { model, messages: baseMessages, tools: TOOLS, tool_choice: { type: 'function', function: { name: 'emit_plan' } } }
+        : { model, messages: [...baseMessages, { role: 'system', content: JSON_NOTE }] }),
+    });
+
+    let res: Response | null = null;
+    let lastStatus = 0;
+    outer:
+    for (const model of ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']) {
+      for (const withTools of [true, false]) {
+        const r = await attempt(model, withTools);
+        if (r.ok) { res = r; break outer; }
+        lastStatus = r.status;
+        const errText = await r.text().catch(() => '');
+        console.error(`groq ${r.status} on ${model} (tools=${withTools}): ${errText.slice(0, 240)}`);
+        if (r.status === 401) {
+          return new Response(JSON.stringify({ error: 'GROQ_API_KEY was rejected by Groq — check the secret.' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
       }
-      res = null;
     }
 
     if (!res) {
@@ -242,6 +248,11 @@ Deno.serve(async (req) => {
     const call = choice?.tool_calls?.[0];
     if (call?.function?.arguments) {
       try { payload = JSON.parse(call.function.arguments); } catch { /* keep fallback */ }
+    } else if (typeof choice?.content === 'string' && choice.content.trim().startsWith('{')) {
+      try { payload = JSON.parse(choice.content); } catch { /* keep fallback */ }
+    } else if (typeof choice?.content === 'string') {
+      const m = choice.content.match(/\{[\s\S]*\}/);
+      if (m) { try { const p = JSON.parse(m[0]); if (p && typeof p === 'object' && ('reply' in p || 'actions' in p)) payload = p; } catch { /* keep fallback */ } }
     }
 
     return new Response(JSON.stringify({
@@ -252,6 +263,7 @@ Deno.serve(async (req) => {
       actions: Array.isArray(payload.actions) ? payload.actions : [],
       choices: Array.isArray(payload.choices) ? payload.choices.slice(0, 4) : [],
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
   } catch (e) {
     console.error('pipeline-v4-genius failed', e);
     return new Response(JSON.stringify({ error: String((e as Error).message ?? e) }), {
