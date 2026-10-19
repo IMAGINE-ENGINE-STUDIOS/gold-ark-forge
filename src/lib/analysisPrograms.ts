@@ -604,6 +604,32 @@ const add = (
   },
 ));
 
+// ── Range breakout (SIP-VB entry engine) ──
+// Compares the latest print with the high/low of the PRIOR window: a close
+// beyond the range is the breakout signal; value = % travelled beyond it.
+[15, 30, 60].forEach((n) => add(
+  `breakout_${n}`, `BREAKOUT ${n}`, `Break of the prior ${n}-sample range (opening/rolling range).`, 'rose', n + 2, [WINDOW(n)],
+  (s, p) => {
+    const w = wnd(s, (p.window ?? n) + 1);
+    if (w.length < 6) return insufficient(6);
+    const prior = w.slice(0, -1);
+    const last = w[w.length - 1];
+    const hi = Math.max(...prior);
+    const lo = Math.min(...prior);
+    const widthPct = lo > 0 ? ((hi - lo) / lo) * 100 : 0;
+    if (last > hi) {
+      const beyond = ((last - hi) / hi) * 100;
+      return { value: Number(beyond.toFixed(4)), verdict: 'bullish', detail: `broke range high by ${beyond.toFixed(3)}% · range width ${widthPct.toFixed(2)}%` };
+    }
+    if (last < lo) {
+      const beyond = ((lo - last) / lo) * 100;
+      return { value: Number((-beyond).toFixed(4)), verdict: 'bearish', detail: `broke range low by ${beyond.toFixed(3)}% · range width ${widthPct.toFixed(2)}%` };
+    }
+    const pos = hi > lo ? ((last - lo) / (hi - lo)) * 100 : 50;
+    return { value: Number(pos.toFixed(2)), verdict: 'neutral', detail: `inside range (${pos.toFixed(0)}% of range) · width ${widthPct.toFixed(2)}%` };
+  },
+));
+
 // ── Sizing helpers ──
 [0.25, 0.5, 1].forEach((f) => add(
   `kelly_${String(f).replace('.', '')}`, `KELLY ${f === 1 ? 'FULL' : `${f * 100}%`}`, `Kelly exposure at ${f * 100}% fraction.`, 'gold', 6,

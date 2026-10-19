@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid } from 'lucide-react';
+import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid, Zap } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import PipelineScene3D from '@/components/pipeline4/PipelineScene3D';
@@ -20,7 +20,10 @@ import { ASSET_CLASSES, classifyAssets } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID } from '@/lib/analysisPrograms';
 import { buildMarketIntelligence } from '@/lib/objectiveEngine';
 import { loadBlocks, saveBlocks, normalizeBlockCode, type CustomBlock } from '@/lib/customBlocks';
-import { REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
+import GALiveChart from '@/components/trading/GALiveChart';
+import { loadRunMemory, recordRun, clearRunMemory, memoryTotals, type RunMemoryEntry } from '@/lib/pipelineMemory';
+import { buildSipvbGraph } from '@/lib/sipvbPreset';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
   convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
@@ -38,7 +41,9 @@ const Workspace = () => {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
-  const [panel, setPanel] = useState<'genius' | 'step' | 'report'>('genius');
+  const [panel, setPanel] = useState<'genius' | 'step' | 'report' | 'charts'>('genius');
+  const [runMemory, setRunMemory] = useState<RunMemoryEntry[]>(() => loadRunMemory());
+  const [chartKey, setChartKey] = useState<string>('gold');
   const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
@@ -366,6 +371,11 @@ const Workspace = () => {
             ` · ${errors} error${errors === 1 ? '' : 's'} · paper equity ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)}.` +
             ' The Report panel explains every decision in plain English.',
       );
+      // Memory: every finished run joins the permanent track record.
+      if (result) {
+        recordRun(result, graphRef.current.name, null);
+        setRunMemory(loadRunMemory());
+      }
       if (reportToGenius && reporterRef.current) {
         const trace = collected.length
           ? collected.slice(-50).map((e) => `[${e.status}] t${e.tick} ${e.laneName} \u203a ${e.stepLabel}: ${e.message ?? ''}`).join('\n')
@@ -662,6 +672,24 @@ const Workspace = () => {
           </button>
 
           <button
+            onClick={() => {
+              if (!window.confirm('Load the 6X strategy? It replaces the current pipeline (your saved graph is kept as a backup you can recover).')) return;
+              const preset = buildSipvbGraph();
+              setGraph(preset);
+              setSelectedLaneId(preset.lanes[0].id);
+              setSelectedStepId(null);
+              setEvents([]);
+              setRunSummary(null);
+              setRunResult(null);
+            }}
+            disabled={running}
+            className="flex items-center gap-1.5 rounded-md border border-primary/60 bg-primary/10 px-2.5 py-1.5 text-[13px] font-semibold text-primary hover:bg-primary/20 disabled:opacity-40"
+            title="Load the SIP-VB high-speed strategy: in-play screens, range breakouts, +1% harvest exits, referee veto"
+          >
+            <Zap className="h-3.5 w-3.5" /> Load 6X strategy
+          </button>
+
+          <button
             onClick={erasePipeline}
             disabled={running}
             className="flex items-center gap-1.5 rounded-md border border-destructive/50 px-2.5 py-1.5 text-[13px] text-destructive hover:bg-destructive/10 disabled:opacity-40"
@@ -838,6 +866,7 @@ const Workspace = () => {
                 { id: 'genius', label: 'Genius', icon: Bot },
                 { id: 'step', label: 'Step', icon: SlidersHorizontal },
                 { id: 'report', label: 'Report', icon: ScrollText },
+                { id: 'charts', label: 'Charts', icon: CandlestickChart },
               ] as const).map((t) => (
                 <button
                   key={t.id}
@@ -1014,8 +1043,70 @@ const Workspace = () => {
                       startEquity={runStartEquity}
                     />
                   </div>
+
+                  <div className="rounded-lg border border-white/10 bg-black/30 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-[13px] font-semibold text-foreground">Memory — every run, kept</p>
+                      {!!runMemory.length && (
+                        <button
+                          onClick={() => { clearRunMemory(); setRunMemory([]); }}
+                          className="text-[12px] text-muted-foreground hover:text-destructive"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {!runMemory.length && (
+                      <p className="text-[12px] text-muted-foreground">No runs remembered yet. Finish a run and it will be recorded here permanently — across refreshes and sessions.</p>
+                    )}
+                    {!!runMemory.length && (() => {
+                      const t = memoryTotals(runMemory);
+                      return (
+                        <p className="mb-2 text-[12px] text-muted-foreground">
+                          Lifetime: {t.runs} runs · {t.trades} closed trades · {t.wins}W / {t.losses}L · realised {t.realised >= 0 ? '+' : ''}${t.realised.toFixed(2)} · fees ${t.fees.toFixed(2)}
+                        </p>
+                      );
+                    })()}
+                    <div className="max-h-56 space-y-1.5 overflow-y-auto">
+                      {runMemory.map((e) => (
+                        <div key={e.id} className="rounded-md border border-white/5 bg-white/[0.02] px-2 py-1.5 text-[12px]">
+                          <span className="text-foreground">{new Date(e.at).toLocaleString()}</span>
+                          <span className="text-muted-foreground"> · {e.graphName} · {e.trades} trades · {e.wins}W/{e.losses}L · </span>
+                          <span className={e.realised >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                            {e.realised >= 0 ? '+' : ''}${e.realised.toFixed(2)}
+                          </span>
+                          {e.stoppedByRisk && <span className="text-amber-300"> · stopped by risk</span>}
+                          {!!e.errors && <span className="text-rose-300"> · {e.errors} errors</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
+
+              {panel === 'charts' && (() => {
+                const sym = ALL_SYMBOLS.find((s) => s.key === chartKey) ?? ALL_SYMBOLS[0];
+                const chartSymbols = ALL_SYMBOLS.filter((s) => ['metals', 'crypto', 'energy'].includes(s.cat)).slice(0, 60);
+                return (
+                  <div className="flex h-full flex-col gap-2">
+                    <select
+                      value={chartKey}
+                      onChange={(e) => setChartKey(e.target.value)}
+                      className="w-full rounded-md border border-border/60 bg-background px-2 py-1.5 text-[13px] text-foreground"
+                    >
+                      {chartSymbols.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label} · {s.ticker}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      Live chart from the Trading Bridge. Price level = live market-quotes feed (verified against external spot sources). Candle history is illustrative; the live price is real.
+                    </p>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      <GALiveChart symbolKey={sym.key} category={sym.cat} label={sym.label} />
+                    </div>
+                  </div>
+                );
+              })()}
 
             </div>
           </aside>

@@ -236,6 +236,7 @@ export function validateGraph(
 /* ─────────────────────────── persistence ─────────────────────────── */
 
 const STORAGE_KEY = 'ga_pipeline_v4_graph';
+const BACKUP_KEY = 'ga_pipeline_v4_graph_backup';
 const LEGACY_KEY = 'ga_blueprint_v2';
 
 export const migrateLegacy = (nodes: BpNode[]): PipeGraph => {
@@ -247,22 +248,31 @@ export const migrateLegacy = (nodes: BpNode[]): PipeGraph => {
   return g;
 };
 
+const parseGraph = (raw: string | null): PipeGraph | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PipeGraph;
+    if (parsed && Array.isArray(parsed.lanes)) {
+      const base = emptyGraph();
+      return {
+        ...base,
+        ...parsed,
+        risk: { ...base.risk, ...(parsed.risk ?? {}) },
+        session: { ...base.session, ...(parsed.session ?? {}) },
+      };
+    }
+  } catch { /* fall through to recovery */ }
+  return null;
+};
+
 export const loadGraph = (): PipeGraph => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as PipeGraph;
-      if (parsed && Array.isArray(parsed.lanes)) {
-        const base = emptyGraph();
-        return {
-          ...base,
-          ...parsed,
-          risk: { ...base.risk, ...(parsed.risk ?? {}) },
-          session: { ...base.session, ...(parsed.session ?? {}) },
-        };
-      }
-
-    }
+    // Memory with recovery: a corrupted main save falls back to the backup
+    // copy of the previous good graph before giving up to legacy/empty.
+    const main = parseGraph(localStorage.getItem(STORAGE_KEY));
+    if (main) return main;
+    const backup = parseGraph(localStorage.getItem(BACKUP_KEY));
+    if (backup) return backup;
     const legacy = localStorage.getItem(LEGACY_KEY);
     if (legacy) {
       const nodes = JSON.parse(legacy) as BpNode[];
@@ -273,5 +283,11 @@ export const loadGraph = (): PipeGraph => {
 };
 
 export const saveGraph = (g: PipeGraph) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(g)); } catch { /* ignore */ }
+  try {
+    // Keep the previous good save as a backup before overwriting, so a bad
+    // write or a corrupted entry can never wipe the operator's strategy.
+    const prev = localStorage.getItem(STORAGE_KEY);
+    if (prev && parseGraph(prev)) localStorage.setItem(BACKUP_KEY, prev);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(g));
+  } catch { /* ignore */ }
 };

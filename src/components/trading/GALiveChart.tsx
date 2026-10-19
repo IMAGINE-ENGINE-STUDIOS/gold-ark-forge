@@ -706,6 +706,13 @@ const GALiveChart = ({ symbolKey, category, label, onSymbolChange, headerLeftSlo
   const { basePrice, baseChange } = useMemo(() => {
     if (wsData && wsData.price > 0) return { basePrice: wsData.price, baseChange: wsData.change24h };
     if (category === 'metals') {
+      // Prefer the LIVE market-quotes feed (verified against external spot
+      // sources) over the price_feeds table: the table is only refreshed
+      // when fetch-metal-prices runs, so it can serve a stale price while
+      // looking live. The live quote is polled every 10s by useMarketQuote.
+      if (liveQuote && liveQuote.last > 0) {
+        return { basePrice: liveQuote.last, baseChange: liveQuote.change24h ?? 0 };
+      }
       const key = METAL_MAP[symbolKey];
       const feed = key ? metalPrices?.[key] : undefined;
       return { basePrice: feed?.price_usd ?? 0, baseChange: feed?.change_24h ?? 0 };
