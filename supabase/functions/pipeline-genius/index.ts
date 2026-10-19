@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
     // and takes over automatically if the account gains access to it.
     outer:
     for (const model of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
-      for (const withTools of [true, false]) {
+      for (const withTools of (model.startsWith('openai/') ? [false] : [true, false])) {
         let r = await attempt(model, withTools);
         if (!r.ok && (r.status === 429 || r.status === 413)) {
           sawBusy = true;
