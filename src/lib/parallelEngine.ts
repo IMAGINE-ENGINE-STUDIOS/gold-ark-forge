@@ -201,6 +201,10 @@ interface SharedState {
       the run's own results every tick and rescales (or pauses) new
       entries — strategies adapt to the tape instead of trading blind. */
   adaptive: { enabled: boolean; scale: number; paused: boolean; lossStreak: number; band: string };
+  /** Deploy-the-full-amount mandate + the session's planned tick count
+      (the deployment schedule's denominator). */
+  fullDeployment: boolean;
+  plannedTicks: number;
 }
 
 /** Bare tickers that trade around the clock (metals) — never session-gated. */
@@ -637,6 +641,20 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
             }
             spend = amount * shared.adaptive.scale;
           }
+          if (step.kind === 'buy' && shared.fullDeployment && shared.budget > 0) {
+            // FULL DEPLOYMENT — the operator's mandate: the whole typed
+            // budget gets worked into the strategy, not left idle. A
+            // deployment schedule targets 100% invested by the end of
+            // the session; every entry that the screens, analysis,
+            // swarm agents and referee have QUALIFIED sizes up to the
+            // schedule's gap, so capital follows the strategy's own
+            // signals — bigger when they fire early and often, patient
+            // when they don't — and never past the budget (the clamps
+            // below still rule).
+            const targetFrac = Math.min(1, ((tick + 1) / Math.max(1, shared.plannedTicks)) * 1.15);
+            const gap = shared.budget * targetFrac - shared.deployed;
+            if (gap > spend) spend = Math.min(gap, shared.budget - shared.deployed);
+          }
           if (step.kind === 'buy') {
             const remaining = shared.budget - shared.deployed;
             if (remaining <= 0) {
@@ -880,6 +898,8 @@ export async function runGraph(
     gate: { open: true, reason: 'no consensus lane has ruled yet' },
     entries: new Map(),
     adaptive: { enabled: (graph.risk as any)?.adaptive !== false, scale: 1, paused: false, lossStreak: 0, band: '' },
+    fullDeployment: (graph.risk as any)?.fullDeployment === true,
+    plannedTicks: Math.max(1, Math.round(((Number(session.durationMin) || 0) * 60) / Math.max(2, Number(session.tickSec) || 10))),
   };
 
   /** Realtime adaptation, recomputed every tick from the live tape

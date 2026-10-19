@@ -17,8 +17,8 @@ import SwarmPanel from '@/components/pipeline4/SwarmPanel';
 import PerformanceReport from '@/components/pipeline4/PerformanceReport';
 import TimeMachinePanel from '@/components/pipeline4/TimeMachinePanel';
 import ServerRunsCard from '@/components/pipeline4/ServerRunsCard';
-import RunCapitalPanel from '@/components/pipeline4/RunCapitalPanel';
-import { applyRunBudget } from '@/lib/runBudget';
+import RunSetupPanel from '@/components/pipeline4/RunSetupPanel';
+import { applyRunSetup, capitalPlan, type RunSetup } from '@/lib/runBudget';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { useMarketHistory } from '@/hooks/useMarketHistory';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,22 +86,46 @@ const Workspace = () => {
     const v = typeof localStorage !== 'undefined' ? Number(localStorage.getItem('ga_pipeline_v4_run_budget')) : 0;
     return v > 0 ? v : 100;
   });
-  const [adaptiveOn, setAdaptiveOn] = useState<boolean>(() =>
-    typeof localStorage === 'undefined' || localStorage.getItem('ga_pipeline_v4_adaptive') !== 'off');
+  const [runSetup, setRunSetup] = useState<RunSetup>(() => {
+    const base: RunSetup = {
+      adaptive: typeof localStorage === 'undefined' || localStorage.getItem('ga_pipeline_v4_adaptive') !== 'off',
+      fullDeployment: true, lossPct: 3, durationMin: 120, tickSec: 5, flatten: true,
+    };
+    try {
+      const raw = localStorage.getItem('ga_pipeline_v4_run_setup');
+      if (raw) return { ...base, ...JSON.parse(raw) };
+    } catch { /* fresh */ }
+    return base;
+  });
   const [lastRunBudget, setLastRunBudget] = useState<number | null>(null);
   useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_run_budget', String(runBudgetUsd)); } catch { /* ignore */ } }, [runBudgetUsd]);
-  useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_adaptive', adaptiveOn ? 'on' : 'off'); } catch { /* ignore */ } }, [adaptiveOn]);
+  useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_run_setup', JSON.stringify(runSetup)); } catch { /* ignore */ } }, [runSetup]);
   const runBudgetRef = useRef(runBudgetUsd);
   runBudgetRef.current = runBudgetUsd;
-  const adaptiveRef = useRef(adaptiveOn);
-  adaptiveRef.current = adaptiveOn;
+  const runSetupRef = useRef(runSetup);
+  runSetupRef.current = runSetup;
+  // Loading a strategy brings ITS limits into the one form (loss %,
+  // duration, check interval, close-at-end) — the amount and the two
+  // behaviour toggles stay the operator's.
+  const lastSetupSyncRef = useRef('');
+  useEffect(() => {
+    if (running || !graph.name || graph.name === lastSetupSyncRef.current) return;
+    lastSetupSyncRef.current = graph.name;
+    setRunSetup((prev) => ({
+      ...prev,
+      lossPct: graph.risk.maxDrawdownPct || prev.lossPct,
+      durationMin: graph.session?.durationMin ?? prev.durationMin,
+      tickSec: graph.session?.tickSec ?? prev.tickSec,
+      flatten: graph.session?.flattenOnStop !== false,
+    }));
+  }, [graph.name, running]);
 
   /** Queue the current graph to the server worker (Phase 0): the worker
       claims it within seconds and executes the whole session server-side. */
   const queueServerRun = useCallback(async () => {
     setServerNotice(null);
     const { data: u } = await supabase.auth.getUser().catch(() => ({ data: null as any }));
-    const adapted = applyRunBudget(graphRef.current, runBudgetRef.current, adaptiveRef.current);
+    const adapted = applyRunSetup(graphRef.current, runBudgetRef.current, runSetupRef.current);
     const { error } = await (supabase as any).from('pipeline_runs').insert({
       graph_name: adapted.name,
       graph: adapted,
@@ -407,7 +431,7 @@ const Workspace = () => {
     setPanel('report');
     setRunSummary(null);
     setRunResult(null);
-    const g = applyRunBudget(graphRef.current, runBudgetRef.current, adaptiveRef.current);
+    const g = applyRunSetup(graphRef.current, runBudgetRef.current, runSetupRef.current);
     setLastRunBudget(runBudgetRef.current);
     runPresence.set({ name: g.name, startedAt: Date.now(), ticks: 0 });
     const startEquity = paperRef.current.account.equity;
@@ -478,7 +502,8 @@ const Workspace = () => {
           .single();
         registryId = (data as any)?.id ?? null;
       } catch { /* the registry mirrors runs; it never blocks one */ }
-      sessionEvent('info', `Run capital $${runBudgetRef.current.toLocaleString()} — the strategy was adapted to this budget (tickets and caps rescaled, deployed capital can never exceed it). Adaptive sizing ${adaptiveRef.current ? 'ON: the governor resizes and pauses entries from live breadth, tape strength and realised P&L' : 'OFF'}.`);
+      sessionEvent('info', `Run capital $${runBudgetRef.current.toLocaleString()} — the strategy was adapted to this budget (tickets and caps rescaled, deployed capital can never exceed it). Adaptive sizing ${runSetupRef.current.adaptive ? 'ON: the governor resizes and pauses entries from live breadth, tape strength and realised P&L' : 'OFF'}.`);
+      sessionEvent('info', `Swarm allocation — the AI structure for this run: ${capitalPlan(g, runBudgetRef.current).map((pl) => `${pl.lane} ${pl.weightPct}%`).join(' · ')}. ${runSetupRef.current.fullDeployment ? `Full deployment ON: screens pick the names, the specialist swarm judges them, the referee guards the book, and position sizes follow a schedule that works toward 100% of the $${runBudgetRef.current.toLocaleString()} invested through qualified signals.` : 'Full deployment OFF: fixed adapted tickets.'}`);
       result = await runGraph(
         g,
         {
@@ -774,46 +799,6 @@ const Workspace = () => {
             </p>
           </div>
 
-          <label className="text-[12px] text-muted-foreground">
-            Loss limit %
-            <input
-              type="number"
-              value={graph.risk.maxDrawdownPct}
-              onChange={(e) => setGraph((g) => ({ ...g, risk: { ...g.risk, maxDrawdownPct: Number(e.target.value) } }))}
-              className="ml-2 w-20 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
-            />
-          </label>
-
-          {/* live session settings — a run is a timed session, not an instant pass */}
-          <label className="text-[12px] text-muted-foreground" title="How long the strategy stays live, holding positions on real prices.">
-            Run for (min)
-            <input
-              type="number" min={1} max={480}
-              value={graph.session?.durationMin ?? 15}
-              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, durationMin: Number(e.target.value) } }))}
-              className="ml-2 w-16 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
-            />
-          </label>
-          <label className="text-[12px] text-muted-foreground" title="How often every lane re-reads live prices and re-decides.">
-            Check every (s)
-            <input
-              type="number" min={2} max={600}
-              value={graph.session?.tickSec ?? 10}
-              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, tickSec: Number(e.target.value) } }))}
-              className="ml-2 w-16 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[13px] text-foreground outline-none"
-            />
-          </label>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground" title="Close every position the session opened when it ends.">
-            <input
-              type="checkbox"
-              checked={graph.session?.flattenOnStop !== false}
-              onChange={(e) => setGraph((g) => ({ ...g, session: { ...g.session, flattenOnStop: e.target.checked } }))}
-            />
-            Close all at end
-          </label>
-
-
-
           <button
             onClick={() => addLane()}
             className="flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] text-foreground hover:border-primary/60"
@@ -945,19 +930,19 @@ const Workspace = () => {
           </div>
         )}
 
-        <RunCapitalPanel
+        <RunSetupPanel
           graph={graph}
           budget={runBudgetUsd}
-          onBudgetChange={setRunBudgetUsd}
-          adaptive={adaptiveOn}
-          onAdaptiveChange={setAdaptiveOn}
+          onBudget={setRunBudgetUsd}
+          setup={runSetup}
+          onSetup={setRunSetup}
           disabled={running}
         />
         <AccountHud
           account={paper.account}
           positions={paper.positions}
           budget={lastRunBudget ?? runBudgetUsd}
-          lossLimitPct={graph.risk.maxDrawdownPct}
+          lossLimitPct={runSetup.lossPct}
           runStartEquity={runStartEquity}
         />
 

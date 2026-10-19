@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { runGraph, type RunHooks } from '@/lib/parallelEngine';
 import { emptyGraph, makeLane, makeStep } from '@/lib/pipelineGraph';
 import { classifyAssets, type AssetMetrics } from '@/lib/assetClassifiers';
-import { applyRunBudget, previewRunBudget } from '@/lib/runBudget';
+import { applyRunBudget, previewRunBudget, applyRunSetup, capitalPlan } from '@/lib/runBudget';
 import { buildMicroGraph, buildApexGraph } from '@/lib/apexPreset';
 import { buildBlitzGraph } from '@/lib/blitzPreset';
 
@@ -99,5 +99,65 @@ describe('adaptive governor — realtime strategy adaptation', () => {
     const amounts = res.trades.map((t) => t.amountUsd);
     expect(Math.max(...amounts)).toBeGreaterThan(100);
     expect(res.events.some((e) => e.laneName === 'Governor' && e.message.includes('PRESSING'))).toBe(true);
+  }, 60000);
+});
+
+describe('unified run setup + full deployment', () => {
+  const setup = { adaptive: true, fullDeployment: true, lossPct: 5, durationMin: 30, tickSec: 2, flatten: false };
+
+  it('stamps the form limits onto the run copy and preserves the strategy session window', () => {
+    const g = buildApexGraph();
+    const run = applyRunSetup(g, 100, setup);
+    expect(run.risk.maxTotalInvestmentUsd).toBe(100);
+    expect(run.risk.maxDrawdownPct).toBe(5);
+    expect(run.risk.fullDeployment).toBe(true);
+    expect(run.session.durationMin).toBe(30);
+    expect(run.session.tickSec).toBe(2);
+    expect(run.session.flattenOnStop).toBe(false);
+    expect(run.session.tradeWindowEt).toBe('09:30-16:00');
+    expect(g.risk.maxTotalInvestmentUsd).toBe(25000);
+    expect(g.risk.maxDrawdownPct).toBe(3);
+  });
+
+  it('capitalPlan weights the lanes by designed work and sums to 100%', () => {
+    const plan = capitalPlan(buildMicroGraph(), 100);
+    expect(plan.length).toBe(3);
+    const sum = plan.reduce((a, p) => a + p.weightPct, 0);
+    expect(Math.abs(sum - 100)).toBeLessThanOrEqual(1);
+    for (const p of plan) expect(p.ticket).toBe(10);
+  });
+
+  const deployGraph = (full: boolean) => {
+    const g = emptyGraph();
+    g.name = 'Deploy test';
+    g.risk = { maxDrawdownPct: 50, maxTotalInvestmentUsd: 100, adaptive: false, fullDeployment: full };
+    g.session = { durationMin: 0.2, tickSec: 1, flattenOnStop: true };
+    const lane = makeLane('Deploy lane', 0);
+    lane.steps = [
+      makeStep('asset', 'Pick', { ticker: 'TEST', label: 'Test' }),
+      makeStep('buy', 'Buy', { amountUsd: 5, takeProfitPct: 50, stopLossPct: 50, maxHoldMin: 30, maxEntries: 30, cooldownMin: 0 }),
+    ];
+    g.lanes = [lane];
+    return g;
+  };
+  const flatHooks = (): RunHooks => ({
+    getPrice: () => 100,
+    getSeries: () => Array.from({ length: 60 }, () => 100),
+    classified: [],
+    blocks: [],
+    getAccount: () => ({ equity: 100000, totalPnl: 0, startingBalance: 100000, cash: 100000 }),
+    submitOrder: ({ price }) => ({ id: `o_${Math.random().toString(36).slice(2, 8)}`, price, fees: 0 }),
+    closePosition: () => {},
+  });
+
+  it('full deployment works the whole $100 into qualifying positions', async () => {
+    const res = await runGraph(deployGraph(true), flatHooks(), () => {});
+    expect(res.peakDeployed).toBeGreaterThanOrEqual(90);
+    expect(res.peakDeployed).toBeLessThanOrEqual(100.01);
+  }, 60000);
+
+  it('without the mandate the same run deploys only the fixed tickets', async () => {
+    const res = await runGraph(deployGraph(false), flatHooks(), () => {});
+    expect(res.peakDeployed).toBeLessThanOrEqual(65);
   }, 60000);
 });

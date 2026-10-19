@@ -79,3 +79,53 @@ export const applyRunBudget = (graph: PipeGraph, budget: number, adaptive = true
   }
   return g;
 };
+
+/* ─── The unified run setup ────────────────────────────────────────
+   ONE form rules the run: the amount AND the limits. applyRunSetup
+   stamps them all onto the run copy — budget adaptation first, then
+   the operator's limits (loss limit, duration, check interval, close
+   at end) and the full-deployment mandate. The saved design keeps
+   its own values; the form wins for the run. */
+
+export interface RunSetup {
+  adaptive: boolean;
+  fullDeployment: boolean;
+  lossPct: number;
+  durationMin: number;
+  tickSec: number;
+  flatten: boolean;
+}
+
+export function applyRunSetup(graph: PipeGraph, budget: number, setup: RunSetup): PipeGraph {
+  const g = applyRunBudget(graph, budget, setup.adaptive);
+  if (setup.lossPct > 0) g.risk.maxDrawdownPct = setup.lossPct;
+  g.risk.fullDeployment = setup.fullDeployment === true;
+  g.session = {
+    ...g.session,
+    durationMin: Math.max(0.1, setup.durationMin || g.session?.durationMin || 15),
+    tickSec: Math.max(1, setup.tickSec || g.session?.tickSec || 5),
+    flattenOnStop: setup.flatten,
+  };
+  return g;
+}
+
+/* The swarm allocation plan, in one line per lane: each lane's share
+   of the budget, weighted by what the strategy designed it to work
+   (ticket × entry capacity). This is the structure the run follows —
+   screens pick the names, the swarm's agents judge them, the referee
+   guards the whole book, and the deployment schedule works the full
+   amount in. */
+export function capitalPlan(graph: PipeGraph, budget: number): Array<{ lane: string; weightPct: number; ticket: number }> {
+  const adapted = applyRunBudget(graph, budget);
+  const rows = adapted.lanes
+    .map((lane) => {
+      const buy = lane.steps.find((s) => s.kind === 'buy');
+      if (!buy) return null;
+      const ticket = Number(buy.config?.amountUsd ?? 0);
+      const capacity = Math.max(1, Number(buy.config?.maxEntries ?? 1));
+      return { lane: lane.name, weight: ticket * capacity, ticket };
+    })
+    .filter((r): r is { lane: string; weight: number; ticket: number } => r !== null && r.weight > 0);
+  const total = rows.reduce((s, r) => s + r.weight, 0) || 1;
+  return rows.map((r) => ({ lane: r.lane, weightPct: Math.round((r.weight / total) * 100), ticket: r.ticket }));
+}
