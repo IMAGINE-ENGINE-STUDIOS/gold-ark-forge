@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid, Zap } from 'lucide-react';
+import { Play, Square, Plus, Layers, Bot, SlidersHorizontal, ScrollText, Trash2, Users, Boxes, Wallet, Receipt, CandlestickChart, LayoutGrid, Library } from 'lucide-react';
 import Header from '@/components/Header';
 import { PipelineProvider, usePipeline } from '@/components/pipeline/PipelineProvider';
 import PipelineScene3D from '@/components/pipeline4/PipelineScene3D';
@@ -24,7 +24,7 @@ import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import GALiveChart from '@/components/trading/GALiveChart';
 import { loadRunMemory, recordRun, clearRunMemory, memoryTotals, type RunMemoryEntry } from '@/lib/pipelineMemory';
 import { useBrokerConnections, brokerCall } from '@/hooks/useBrokerTrading';
-import { buildSipvbGraph } from '@/lib/sipvbPreset';
+import { BUILT_IN_STRATEGIES, listSavedStrategies, saveStrategy, deleteSavedStrategy, type LibraryEntry } from '@/lib/strategyLibrary';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
   convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
@@ -55,7 +55,9 @@ const Workspace = () => {
   const [panel, setPanel] = useState<'genius' | 'step' | 'report' | 'charts'>('genius');
   const [runMemory, setRunMemory] = useState<RunMemoryEntry[]>(() => loadRunMemory());
   const [chartKey, setChartKey] = useState<string>('gold');
-  const [confirmLoad6x, setConfirmLoad6x] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [savedStrategies, setSavedStrategies] = useState<LibraryEntry[]>(() => listSavedStrategies());
+  const [saveName, setSaveName] = useState('');
   const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
@@ -292,8 +294,12 @@ const Workspace = () => {
     const done = new Set(evs.map((e) => e.stepId).filter(Boolean)).size;
     const trades = evs.filter((e) => e.status === 'ok' && /^(Bought|Sold) \$/.test(e.message)).length;
     const invested = evs.reduce((sum, e) => {
-      const m = e.message.match(/^Bought \$([\d,]+)/);
-      return m ? sum + Number(m[1].replace(/,/g, '')) : sum;
+      const inp: any = (e as any).detail?.inputs;
+      if (!inp) return sum;
+      if (typeof inp.amountUsd === 'number') return sum + inp.amountUsd;
+      if (typeof inp.entry === 'number' && typeof inp.qty === 'number' && e.message.startsWith('Closed')) return sum - inp.entry * inp.qty;
+      if (typeof inp.qtyClosed === 'number' && typeof inp.entry === 'number') return sum - inp.entry * inp.qtyClosed;
+      return sum;
     }, 0);
     const errors = evs.filter((e) => e.status === 'error').length;
     const status: LaneStat['status'] =
@@ -725,38 +731,14 @@ const Workspace = () => {
           </button>
 
           <button
-            onClick={() => {
-              // Two-click inline confirm (no native dialog): first click arms
-              // the button for 12 seconds, second click loads the preset.
-              // (Was 4s — real users read the button, pause, and clicked into
-              // a silently expired arm, which looked like "6X won't load".)
-              if (!confirmLoad6x) {
-                setConfirmLoad6x(true);
-                window.setTimeout(() => setConfirmLoad6x(false), 12000);
-                return;
-              }
-              setConfirmLoad6x(false);
-              const preset = buildSipvbGraph();
-              setGraph(preset);
-              setSelectedLaneId(preset.lanes[0].id);
-              setSelectedStepId(null);
-              setEvents([]);
-              setRunResult(null);
-              setRunSummary(
-                `6X strategy loaded — ${preset.lanes.length} lanes · ${preset.lanes.reduce((n, l) => n + l.steps.length, 0)} steps · +1% harvest exits · -0.5% stops · referee veto · -3% session limit. Press Play strategy to run it.`,
-              );
-              setPanel('report');
-            }}
+            onClick={() => setLibraryOpen((v) => !v)}
             disabled={running}
-            className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[13px] font-semibold disabled:opacity-40 ${
-              confirmLoad6x
-                ? 'border-amber-400/70 bg-amber-400/15 text-amber-300 hover:bg-amber-400/25'
-                : 'border-primary/60 bg-primary/10 text-primary hover:bg-primary/20'
-            }`}
-            title="Load the SIP-VB high-speed strategy: in-play screens, range breakouts, +1% harvest exits, referee veto. Your current pipeline is kept as a recoverable backup."
+            className="flex items-center gap-1.5 rounded-md border border-primary/60 bg-primary/10 px-2.5 py-1.5 text-[13px] font-semibold text-primary hover:bg-primary/20 disabled:opacity-40"
+            title="Open the strategy library — one click loads a strategy. Your current pipeline is kept as a recoverable backup."
           >
-            <Zap className="h-3.5 w-3.5" /> {confirmLoad6x ? 'Click again to load 6X' : 'Load 6X strategy'}
+            <Library className="h-3.5 w-3.5" /> Strategy library
           </button>
+
 
           <button
             onClick={erasePipeline}
@@ -768,6 +750,66 @@ const Workspace = () => {
           </button>
 
         </section>
+
+        {libraryOpen && (
+          <section className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-[13px] font-semibold tracking-wide text-primary">STRATEGY LIBRARY — one click loads</h3>
+              <button onClick={() => setLibraryOpen(false)} className="text-[12px] text-muted-foreground hover:text-foreground">Close</button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {[...BUILT_IN_STRATEGIES, ...savedStrategies].map((entry) => (
+                <div key={entry.id} className="flex items-start justify-between gap-2 rounded-md border border-border/60 bg-background/60 p-2.5">
+                  <div>
+                    <p className="text-[13px] font-semibold">{entry.name}</p>
+                    <p className="text-[12px] text-muted-foreground">{entry.blurb}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <button
+                      disabled={running}
+                      onClick={() => {
+                        const preset = entry.build();
+                        setGraph(preset);
+                        setSelectedLaneId(preset.lanes[0]?.id ?? null);
+                        setSelectedStepId(null);
+                        setEvents([]);
+                        setRunResult(null);
+                        setRunSummary(`${entry.name} loaded from the library — ${preset.lanes.length} lanes · ${preset.lanes.reduce((n, l) => n + l.steps.length, 0)} steps. Press Play strategy to run it. Your previous pipeline is kept in the automatic backup.`);
+                        setPanel('report');
+                        setLibraryOpen(false);
+                      }}
+                      className="rounded-md border border-primary/60 bg-primary/10 px-2 py-1 text-[12px] font-semibold text-primary hover:bg-primary/20 disabled:opacity-40"
+                    >
+                      Load
+                    </button>
+                    {!entry.builtIn && (
+                      <button
+                        onClick={() => { deleteSavedStrategy(entry.id); setSavedStrategies(listSavedStrategies()); }}
+                        className="rounded-md border border-destructive/40 px-2 py-1 text-[12px] text-destructive hover:bg-destructive/10"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="Name your current strategy…"
+                className="min-w-[220px] flex-1 rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-[13px]"
+              />
+              <button
+                onClick={() => { saveStrategy(saveName || graph.name, graph); setSavedStrategies(listSavedStrategies()); setSaveName(''); }}
+                className="rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] hover:border-primary/60"
+              >
+                Save current strategy to the library
+              </button>
+            </div>
+          </section>
+        )}
 
         {!!issues.length && (
           <div className="mb-3 space-y-1 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2">

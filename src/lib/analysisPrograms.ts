@@ -653,6 +653,58 @@ const add = (
   },
 ));
 
+// ── Precision entries (fewer false breaks, better fills) ──
+// BREAKOUT CONFIRM: a break only counts if price broke the prior range a few
+// samples ago AND still holds beyond it with the short drift agreeing —
+// filters the one-print pokes that fade straight back inside.
+add(
+  'breakout_confirm', 'BREAKOUT CONFIRM', 'A range break that HELD for several samples with drift agreeing — precision entry filter.', 'rose', 20,
+  [{ key: 'window', label: 'Range window', default: 30, min: 8, max: 120 }, { key: 'hold', label: 'Hold samples', default: 3, min: 2, max: 8 }],
+  (s, p) => {
+    const w = wnd(s, (p.window ?? 30) + (p.hold ?? 3) + 1);
+    const hold = Math.max(2, p.hold ?? 3);
+    if (w.length < hold + 8) return insufficient(hold + 8);
+    const last = w[w.length - 1];
+    const breakPoint = w[w.length - 1 - hold];
+    const prior = w.slice(0, w.length - 1 - hold);
+    const hi = Math.max(...prior); const lo = Math.min(...prior);
+    const heldAbove = w.slice(-hold).every((v) => v > hi);
+    const heldBelow = w.slice(-hold).every((v) => v < lo);
+    const drift = ((last - w[w.length - 4]) / w[w.length - 4]) * 100;
+    if (breakPoint > hi && heldAbove && drift >= 0) {
+      const beyond = ((last - hi) / hi) * 100;
+      return { value: Number(beyond.toFixed(4)), verdict: 'bullish', detail: `break held ${hold} samples · ${beyond.toFixed(3)}% beyond the high · drift ${drift.toFixed(3)}%` };
+    }
+    if (breakPoint < lo && heldBelow && drift <= 0) {
+      const beyond = ((lo - last) / lo) * 100;
+      return { value: Number((-beyond).toFixed(4)), verdict: 'bearish', detail: `breakdown held ${hold} samples · ${beyond.toFixed(3)}% beyond the low · drift ${drift.toFixed(3)}%` };
+    }
+    return { value: 0, verdict: 'neutral', detail: 'no held break — pokes beyond the range do not count' };
+  },
+);
+// PULLBACK ENTRY: after a real break above the range, the first orderly dip
+// that holds ABOVE the broken level is the higher-quality entry.
+add(
+  'pullback_entry', 'PULLBACK ENTRY', 'Post-breakout dip that holds above the broken range — buy the retest, not the chase.', 'emerald', 24,
+  [{ key: 'window', label: 'Range window', default: 30, min: 10, max: 120 }],
+  (s, p) => {
+    const w = wnd(s, (p.window ?? 30) + 12);
+    if (w.length < 16) return insufficient(16);
+    const prior = w.slice(0, -12);
+    const hi = Math.max(...prior);
+    const recent = w.slice(-12);
+    const last = w[w.length - 1];
+    const peak = Math.max(...recent);
+    const brokeOut = peak > hi;
+    const dipPct = peak > 0 ? ((peak - last) / peak) * 100 : 0;
+    const holdsAbove = last > hi;
+    if (brokeOut && holdsAbove && dipPct >= 0.15 && dipPct <= 0.7) {
+      return { value: Number(dipPct.toFixed(4)), verdict: 'bullish', detail: `retest holding ${( ((last - hi) / hi) * 100).toFixed(3)}% above the broken high after a ${dipPct.toFixed(2)}% dip` };
+    }
+    return { value: 0, verdict: 'neutral', detail: brokeOut ? (holdsAbove ? `dip ${dipPct.toFixed(2)}% — outside the 0.15–0.70% retest band` : 'retest failed — back inside the range') : 'no breakout to retest yet' };
+  },
+);
+
 export const ANALYSIS_PROGRAMS: AnalysisProgram[] = [...BASE_PROGRAMS, ...GENERATED];
 
 export const PROGRAM_BY_ID = new Map(ANALYSIS_PROGRAMS.map((p) => [p.id, p]));

@@ -71,6 +71,14 @@ export interface TradeRecord {
   /** Take-profit / stop levels in absolute price terms. */
   takeProfit: number | null;
   stopLoss: number | null;
+  /** Precision exit plan captured from the buy step at entry. */
+  exitPlan?: { tpPct: number; scaleOutPct: number; tp2Pct: number; trailPct: number };
+  /** True once the scale-out (partial harvest) leg has executed. */
+  scaledOut?: boolean;
+  /** Highest price seen since entry — drives the trailing stop. */
+  peak?: number;
+  /** P&L already banked by partial closes. */
+  realisedPnl?: number;
   maxHoldMs: number | null;
 }
 
@@ -109,6 +117,10 @@ export interface RunResult {
   consensus: ConsensusVerdict[];
   ticks: number;
   invested: number;
+  /** Capital actually at risk in open positions when the session ended. */
+  deployed: number;
+  /** Highest capital-at-risk reached during the session. */
+  peakDeployed: number;
   fees: number;
   realised: number;
   errors: number;
@@ -156,6 +168,15 @@ export interface RunHooks {
 interface SharedState {
   stoppedByRisk: boolean;
   invested: number;
+  /** Capital at risk RIGHT NOW (open positions at entry cost). The budget
+      gate uses this — closed positions release their capital for reuse. */
+  deployed: number;
+  peakDeployed: number;
+  /** Last AI verdict per agent step — agents re-check on an interval
+      instead of calling the AI every tick. */
+  agentCache: Map<string, { tick: number; reply: AgentReply }>;
+  /** Optional ET trading window for stock entries, e.g. "09:30-16:00". */
+  tradeWindowEt?: string;
   fees: number;
   budget: number;
   startEquity: number;
@@ -165,6 +186,9 @@ interface SharedState {
   /** Per-step entry bookkeeping so a step does not re-enter every tick. */
   entries: Map<string, { count: number; lastAt: number }>;
 }
+
+/** Bare tickers that trade around the clock (metals) — never session-gated. */
+const ALWAYS_OPEN = new Set(['XAU', 'XAG', 'XPT', 'XPD', 'GOLD', 'SILVER', 'COPPER', 'BTC', 'ETH']);
 
 const now = () => Date.now();
 const clampPct = (n: unknown, fallback: number) => {
@@ -266,7 +290,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
         const px = hooks.getPrice(t.ticker);
         if (px > 0) {
           hooks.closePosition({ ticker: t.ticker, qty: t.qty, price: px });
-          closeTrade(t, px, 'consensus veto');
+          closeTrade(t, px, 'consensus veto', shared);
           push(null, 'ok', `Consensus veto closed ${t.label} from ${t.laneName} at ${px.toFixed(4)} (${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}).`,
             { decision: 'flatten position', reason });
         }
@@ -356,6 +380,18 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
         case 'agent': {
           if (!hooks.runAgent) throw new Error('agent runtime unavailable');
           const cfg = step.config ?? {};
+          // AI calls are expensive and rate-limited: an agent re-checks on an
+          // interval (default every 6 ticks) and its last verdict is held in
+          // between. A failed call degrades to "no verdict this tick" — it
+          // must never spam errors or halt the lane.
+          const everyTicks = Math.max(1, Number(cfg.everyTicks ?? 6));
+          const cachedAgent = shared.agentCache.get(step.id);
+          if (cachedAgent && tick - cachedAgent.tick < everyTicks) {
+            const held = cachedAgent.reply;
+            outcome.agentNotes.push(`${cfg.agentName ?? 'Agent'}: ${held.verdict} (${Math.round(held.confidence * 100)}%) — held verdict, re-checks every ${everyTicks} ticks`);
+            push(step, 'info', `${cfg.agentName ?? 'Agent'} verdict held from ${tick - cachedAgent.tick} tick(s) ago: ${held.verdict} — ${held.reason}`);
+            break;
+          }
           const wants = cfg.context ?? {};
           const series = outcome.ticker ? fullSeries(hooks, outcome.ticker) : [];
           const price = outcome.ticker ? hooks.getPrice(outcome.ticker) : 0;
@@ -382,13 +418,25 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
             }));
           }
 
-          const reply = await hooks.runAgent({
-            systemPrompt: String(cfg.systemPrompt ?? ''),
-            taskPrompt: String(cfg.taskPrompt ?? ''),
-            model: String(cfg.model ?? 'llama-3.3-70b-versatile'),
-            temperature: Number(cfg.temperature ?? 0.3),
-            context,
-          });
+          let reply: AgentReply;
+          try {
+            reply = await hooks.runAgent({
+              systemPrompt: String(cfg.systemPrompt ?? ''),
+              taskPrompt: String(cfg.taskPrompt ?? ''),
+              model: String(cfg.model ?? 'llama-3.3-70b-versatile'),
+              temperature: Number(cfg.temperature ?? 0.3),
+              context,
+            });
+          } catch (agentErr: any) {
+            // Cache the failure as a HOLD so a struggling AI service is not
+            // retried every tick — it is re-tried on the normal interval.
+            shared.agentCache.set(step.id, { tick, reply: { verdict: 'hold', confidence: 0, reason: 'agent unavailable — holding' } });
+            push(step, 'skip',
+              `${cfg.agentName ?? 'Agent'} unavailable this tick (${String(agentErr?.message ?? agentErr).slice(0, 120)}) — lane continues without a verdict.`,
+              { decision: 'no verdict', reason: 'agent call failed; treated as hold' });
+            break;
+          }
+          shared.agentCache.set(step.id, { tick, reply });
 
           const minConf = Number(cfg.minConfidence ?? 0);
           const strong = reply.confidence >= minConf;
@@ -504,11 +552,24 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
             break;
           }
 
+          if (step.kind === 'buy' && shared.tradeWindowEt && outcome.ticker && /^[A-Z]{1,5}$/.test(outcome.ticker) && !ALWAYS_OPEN.has(outcome.ticker)) {
+            const [sh, sm] = shared.tradeWindowEt.split('-')[0].split(':').map(Number);
+            const [eh, em] = (shared.tradeWindowEt.split('-')[1] ?? '16:00').split(':').map(Number);
+            const etNow = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+            const [nh, nm] = etNow.split(':').map(Number);
+            const cur = nh * 60 + nm, from = sh * 60 + sm, to = eh * 60 + em;
+            if (cur < from || cur >= to) {
+              push(step, 'skip', `Outside the ${shared.tradeWindowEt} ET stock window — ${outcome.ticker} entries wait for the session.`,
+                { decision: 'no order', reason: 'session window' });
+              break;
+            }
+          }
+
           let spend = amount;
           if (step.kind === 'buy') {
-            const remaining = shared.budget - shared.invested;
+            const remaining = shared.budget - shared.deployed;
             if (remaining <= 0) {
-              push(step, 'skip', `Strategy budget of $${shared.budget.toLocaleString()} is fully deployed — no new order.`,
+              push(step, 'skip', `Strategy budget of $${shared.budget.toLocaleString()} is fully deployed in open positions — no new order.`,
                 { decision: 'no order', reason: 'budget exhausted' });
               break;
             }
@@ -525,6 +586,8 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
 
           if (step.kind === 'buy') {
             shared.invested += spend;
+            shared.deployed += spend;
+            shared.peakDeployed = Math.max(shared.peakDeployed, shared.deployed);
             outcome.invested += spend;
             const tpPct = clampPct(step.config?.takeProfitPct, 0);
             const slPct = clampPct(step.config?.stopLossPct, 0);
@@ -539,6 +602,13 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
               takeProfit: tpPct ? order.price * (1 + tpPct / 100) : null,
               stopLoss: slPct ? order.price * (1 - slPct / 100) : null,
               maxHoldMs: holdMin ? holdMin * 60_000 : null,
+              exitPlan: {
+                tpPct,
+                scaleOutPct: Math.max(0, Math.min(90, Number(step.config?.scaleOutPct ?? 0))),
+                tp2Pct: Math.max(0, Number(step.config?.takeProfit2Pct ?? 0)),
+                trailPct: Math.max(0, Number(step.config?.trailPct ?? 0)),
+              },
+              peak: order.price,
             });
             push(step, 'ok',
               `Bought $${Math.round(spend).toLocaleString()} of ${outcome.label} at ${order.price.toFixed(4)} (fee $${(order.fees ?? 0).toFixed(2)}).` +
@@ -551,7 +621,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
           } else {
             // A sell reduces an open long from this run when one exists.
             const openTrade = shared.trades.find((t) => t.open && t.ticker === outcome.ticker);
-            if (openTrade) closeTrade(openTrade, order.price, 'sell step');
+            if (openTrade) closeTrade(openTrade, order.price, 'sell step', shared);
             push(step, 'ok',
               `Sold $${Math.round(spend).toLocaleString()} of ${outcome.label} at ${order.price.toFixed(4)} (fee $${(order.fees ?? 0).toFixed(2)}).`,
               { inputs: { price: order.price, qty: Number(qty.toFixed(6)) }, decision: 'closed exposure', reason: outcome.reason ?? undefined });
@@ -577,12 +647,23 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
 
 /* ─────────────────────────── position management ─────────────────────────── */
 
-function closeTrade(t: TradeRecord, price: number, reason: string) {
+function closeTrade(t: TradeRecord, price: number, reason: string, shared?: SharedState) {
   t.open = false;
   t.exitPrice = price;
   t.exitAt = now();
   t.exitReason = reason;
-  t.pnl = (price - t.entryPrice) * t.qty - t.fees;
+  t.pnl = (t.realisedPnl ?? 0) + (price - t.entryPrice) * t.qty - t.fees;
+  if (shared) shared.deployed = Math.max(0, shared.deployed - t.qty * t.entryPrice);
+}
+
+/** Close part of a position (the scale-out harvest leg) and bank its P&L. */
+function closePartial(t: TradeRecord, price: number, qtyClose: number, shared: SharedState) {
+  const leg = (price - t.entryPrice) * qtyClose;
+  t.realisedPnl = (t.realisedPnl ?? 0) + leg;
+  t.qty = Math.max(0, t.qty - qtyClose);
+  t.amountUsd = t.qty * t.entryPrice;
+  shared.deployed = Math.max(0, shared.deployed - qtyClose * t.entryPrice);
+  return leg;
 }
 
 /** Mark open trades to market and close the ones that hit a rule. */
@@ -596,16 +677,46 @@ function manageExits(
   for (const t of shared.trades.filter((x) => x.open)) {
     const px = hooks.getPrice(t.ticker);
     if (!(px > 0)) continue;
-    t.pnl = (px - t.entryPrice) * t.qty - t.fees;
+    t.peak = Math.max(t.peak ?? t.entryPrice, px);
+    t.pnl = (t.realisedPnl ?? 0) + (px - t.entryPrice) * t.qty - t.fees;
+    const plan = t.exitPlan;
+
+    // Scale-out: at the first target, bank the harvest on part of the
+    // position and let the runner ride to a second target / trailing stop
+    // with its stop moved to breakeven.
+    if (!force && plan && plan.scaleOutPct > 0 && !t.scaledOut && t.takeProfit && px >= t.takeProfit) {
+      const qtyClose = t.qty * (plan.scaleOutPct / 100);
+      try { hooks.closePosition?.({ ticker: t.ticker, qty: qtyClose, price: px }); } catch { /* already gone */ }
+      const leg = closePartial(t, px, qtyClose, shared);
+      t.scaledOut = true;
+      if (plan.tp2Pct > 0) t.takeProfit = t.entryPrice * (1 + plan.tp2Pct / 100);
+      if (plan.tp2Pct > 0 || plan.trailPct > 0) t.stopLoss = Math.max(t.stopLoss ?? 0, t.entryPrice);
+      t.pnl = (t.realisedPnl ?? 0) + (px - t.entryPrice) * t.qty - t.fees;
+      emit({
+        ts: now(), tick, laneId: t.laneId, laneName: t.laneName, stepId: t.stepId,
+        stepLabel: `${t.label} position`,
+        status: 'ok',
+        message: `Banked the +${plan.tpPct}% harvest on ${plan.scaleOutPct}% of ${t.label} at ${px.toFixed(4)} (${leg >= 0 ? '+' : ''}$${leg.toFixed(2)}) — the rest rides${plan.tp2Pct > 0 ? ` to +${plan.tp2Pct}%` : ''}${plan.trailPct > 0 ? ` behind a ${plan.trailPct}% trailing stop` : ''}, stop moved to breakeven.`,
+        detail: {
+          inputs: { entry: t.entryPrice, exit: px, qtyClosed: Number(qtyClose.toFixed(6)), qtyRemaining: Number(t.qty.toFixed(6)) },
+          decision: 'partial take-profit (scale out)',
+          reason: 'first target reached',
+        },
+      });
+    }
 
     let reason: string | null = force ?? null;
-    if (!reason && t.takeProfit && px >= t.takeProfit) reason = 'target reached';
+    if (!reason && t.takeProfit && px >= t.takeProfit) reason = t.scaledOut ? 'second target reached' : 'target reached';
+    if (!reason && plan && plan.trailPct > 0 && t.peak && t.peak > t.entryPrice) {
+      const trailStop = t.peak * (1 - plan.trailPct / 100);
+      if (trailStop > (t.stopLoss ?? 0) && px <= trailStop) reason = 'trailing stop';
+    }
     if (!reason && t.stopLoss && px <= t.stopLoss) reason = 'stop hit';
     if (!reason && t.maxHoldMs && now() - t.entryAt >= t.maxHoldMs) reason = 'time limit reached';
     if (!reason) continue;
 
     try { hooks.closePosition?.({ ticker: t.ticker, qty: t.qty, price: px }); } catch { /* position already gone */ }
-    closeTrade(t, px, reason);
+    closeTrade(t, px, reason, shared);
     const held = Math.round((t.exitAt! - t.entryAt) / 1000);
     emit({
       ts: now(), tick, laneId: t.laneId, laneName: t.laneName, stepId: t.stepId,
@@ -640,6 +751,10 @@ export async function runGraph(
   const shared: SharedState = {
     stoppedByRisk: false,
     invested: 0,
+    deployed: 0,
+    peakDeployed: 0,
+    agentCache: new Map(),
+    tradeWindowEt: (graph.session as any)?.tradeWindowEt,
     fees: 0,
     budget: Math.max(0, Number(graph.risk?.maxTotalInvestmentUsd ?? plannedInvestment(graph))),
     startEquity: hooks.getAccount().equity,
@@ -714,7 +829,7 @@ export async function runGraph(
     message:
       `Session finished after ${tick} tick${tick === 1 ? '' : 's'} and ${((finishedAt - startedAt) / 1000).toFixed(0)}s — ` +
       `${shared.trades.length} position${shared.trades.length === 1 ? '' : 's'} opened, ` +
-      `$${Math.round(shared.invested).toLocaleString()} deployed, $${shared.fees.toFixed(2)} in fees, ` +
+      `$${Math.round(shared.invested).toLocaleString()} bought in total, $${Math.round(shared.deployed).toLocaleString()} still deployed at the end (peak $${Math.round(shared.peakDeployed).toLocaleString()}), $${shared.fees.toFixed(2)} in fees, ` +
       `${realised >= 0 ? '+' : ''}$${realised.toFixed(2)} realised.`,
   });
 
@@ -725,6 +840,8 @@ export async function runGraph(
     consensus,
     ticks: tick,
     invested: shared.invested,
+    deployed: shared.deployed,
+    peakDeployed: shared.peakDeployed,
     fees: shared.fees,
     realised,
     errors,

@@ -78,6 +78,9 @@ export interface SessionSettings {
   tickSec: number;
   /** Close every position the run opened when the session ends or is stopped. */
   flattenOnStop: boolean;
+  /** Optional ET window for STOCK entries only, e.g. "09:30-16:00".
+      Crypto and metals ignore it (they trade around the clock). */
+  tradeWindowEt?: string;
 }
 
 export interface PipeGraph {

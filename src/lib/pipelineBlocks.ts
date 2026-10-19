@@ -28,6 +28,7 @@ export const DEFAULT_AGENT = {
   model: 'llama-3.3-70b-versatile',
   temperature: 0.3,
   minConfidence: 0.55,
+  everyTicks: 6,
   context: { price: true, series: true, indicators: true, screen: true, positions: true, lanes: true },
 };
 
@@ -67,7 +68,7 @@ export const BLOCKS: BlockDef[] = [
 
   { id: 'buy', kind: 'buy', group: 'Trade', name: 'Buy',
     what: 'Invest a dollar amount at the live market price, then manage the position with a target, a stop and a time limit.',
-    config: { amountUsd: 1000, takeProfitPct: 0.6, stopLossPct: 0.4, maxHoldMin: 10, maxEntries: 1, cooldownMin: 3 } },
+    config: { amountUsd: 1000, takeProfitPct: 0.6, stopLossPct: 0.4, maxHoldMin: 10, maxEntries: 1, cooldownMin: 3, scaleOutPct: 0, takeProfit2Pct: 0, trailPct: 0 } },
   { id: 'sell', kind: 'sell', group: 'Trade', name: 'Sell',
     what: 'Sell a dollar amount of what this lane already holds, at the live market price.',
     config: { amountUsd: 1000, maxEntries: 3, cooldownMin: 1 } },

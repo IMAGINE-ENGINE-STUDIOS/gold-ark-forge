@@ -14,6 +14,7 @@ import { Trash2, ArrowLeft, ArrowRight, Copy, EyeOff, Eye } from 'lucide-react';
 import { ALL_SYMBOLS } from '@/data/tradingSymbols';
 import { ASSET_CLASSES } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS } from '@/lib/analysisPrograms';
+import { AGENT_TEMPLATES, AGENT_TEMPLATE_BY_ID, templateConfig } from '@/lib/agentTemplates';
 import { BLOCKS, BLOCK_GROUPS } from '@/lib/pipelineBlocks';
 import LivePriceIndicator from '@/components/trading/LivePriceIndicator';
 import {
@@ -277,6 +278,15 @@ export default function StepInspector({
                 <Field label="Stop loss (%)" hint="The position is closed on a live tick once this loss is reached. 0 turns it off.">
                   <input type="number" min={0} step={0.1} value={cfg.stopLossPct ?? 0} onChange={(e) => set({ stopLossPct: Number(e.target.value) })} className={inputCls} />
                 </Field>
+                <Field label="Bank at target — sell this % of the position (%)" hint="Scale-out: at the take-profit, sell only this share and let the rest ride. 0 = all-or-nothing.">
+                  <input type="number" min={0} max={90} step={5} value={cfg.scaleOutPct ?? 0} onChange={(e) => set({ scaleOutPct: Number(e.target.value) })} className={inputCls} />
+                </Field>
+                <Field label="Second target for the runner (%)" hint="After a scale-out, the rest aims here with its stop moved to breakeven.">
+                  <input type="number" min={0} step={0.1} value={cfg.takeProfit2Pct ?? 0} onChange={(e) => set({ takeProfit2Pct: Number(e.target.value) })} className={inputCls} />
+                </Field>
+                <Field label="Trailing stop (%)" hint="Once in profit, the stop follows this far below the best price seen. 0 = off.">
+                  <input type="number" min={0} step={0.1} value={cfg.trailPct ?? 0} onChange={(e) => set({ trailPct: Number(e.target.value) })} className={inputCls} />
+                </Field>
                 <Field label="Close after (minutes)" hint="A time limit so money is never parked in a trade that goes nowhere. 0 turns it off.">
                   <input type="number" min={0} step={1} value={cfg.maxHoldMin ?? 0} onChange={(e) => set({ maxHoldMin: Number(e.target.value) })} className={inputCls} />
                 </Field>
@@ -364,6 +374,19 @@ export default function StepInspector({
                 Using {modelLabel(cfg.model ?? DEFAULT_AGENT_MODEL)}.
               </span>
             </div>
+
+            <Field label="Specialist" hint="Drop in a ready-made desk specialist — sets its name, doctrine, task and temperament in one click.">
+              <select
+                defaultValue=""
+                onChange={(e) => { const t = AGENT_TEMPLATE_BY_ID.get(e.target.value); if (t) set({ ...templateConfig(t) }); e.currentTarget.value = ''; }}
+                className={inputCls}
+              >
+                <option value="">Choose a specialist…</option>
+                {AGENT_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} — {t.role}</option>
+                ))}
+              </select>
+            </Field>
 
             {/* --- Everything else is tucked away. ------------------------------ */}
             <details className="rounded-md border border-border/60 bg-background/40 p-2">

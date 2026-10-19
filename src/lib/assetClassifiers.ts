@@ -90,7 +90,7 @@ const CORE_CLASSES: ClassDefinition[] = [
   { id: 'trend_down', label: 'TREND DOWN', blurb: 'Persistent negative drift across the live window.', tint: 'rose',
     score: (d) => clamp01(-d.momentum / 3) * (d.change <= 0 ? 1 : 0.5) },
   { id: 'momentum_surge', label: 'MOMENTUM SURGE', blurb: 'Acceleration inside the current session.', tint: 'violet',
-    score: (d) => clamp01(Math.abs(d.momentum) / 2.5) * clamp01(Math.abs(d.change) / 3) },
+    score: (d) => clamp01(d.momentum / 2.5) * clamp01(Math.abs(d.change) / 3) },
   { id: 'mean_revert', label: 'MEAN REVERSION', blurb: 'Mid-range with mild volatility — statistical fade setups.', tint: 'indigo',
     score: (d) => clamp01(1 - Math.abs(d.rangePos - 0.5) * 2) * clamp01(d.volatility / 3) },
   { id: 'stability_anchor', label: 'STABILITY ANCHOR', blurb: 'Low move, low dispersion — collateral-grade behaviour.', tint: 'slate',
@@ -145,7 +145,14 @@ const EXTRA: ClassDefinition[] = [
   { id: 'asymmetric', label: 'ASYMMETRIC SETUP', blurb: 'Deep drawdown with rebuilding drift — best reward/risk.', tint: 'gold', score: (d) => clamp01(-d.drawdown / 10) * clamp01(d.momentum / 1.5) * clamp01(1 - d.volatility / 4) },
 ];
 
-export const ASSET_CLASSES: ClassDefinition[] = [...CORE_CLASSES, ...EXTRA];
+const STRATEGY_SCREENS: ClassDefinition[] = [
+  { id: 'in_play', label: 'STOCKS IN PLAY', blurb: 'The SIP-VB selection: a real move underway, live volatility to harvest, and enough prints to trust the stats.', tint: 'gold',
+    score: (d) => (d.samples >= 8 ? clamp01(Math.abs(d.change) / 3) * 0.45 + clamp01(d.volatility / 3.5) * 0.3 + clamp01(d.samples / 40) * 0.25 : 0) },
+  { id: 'momentum_crash', label: 'MOMENTUM CRASH', blurb: 'Acceleration to the downside inside the current session.', tint: 'rose',
+    score: (d) => clamp01(-d.momentum / 2.5) * clamp01(Math.abs(d.change) / 3) },
+];
+
+export const ASSET_CLASSES: ClassDefinition[] = [...CORE_CLASSES, ...EXTRA, ...STRATEGY_SCREENS];
 
 export const CLASS_BY_ID = new Map(ASSET_CLASSES.map((c) => [c.id, c]));
 
@@ -171,9 +178,10 @@ export const classifyAssets = (metrics: AssetMetrics[]): ClassifiedAsset[] =>
     });
 
 /** Rank the universe for one class — the screen a SCREEN node resolves at runtime. */
+const EVIDENCE_EXEMPT = new Set(['thin_data', 'fresh_signal', 'in_play']);
 export const rankByClass = (assets: ClassifiedAsset[], id: ClassId, limit = 10) =>
   assets
-    .filter((a) => a.scores[id] > 0.05)
+    .filter((a) => a.scores[id] > 0.05 && (EVIDENCE_EXEMPT.has(id) || a.derived.samples >= 8))
     .sort((a, b) => b.scores[id] - a.scores[id])
     .slice(0, limit);
 
