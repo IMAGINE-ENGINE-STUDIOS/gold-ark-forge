@@ -727,10 +727,12 @@ const Workspace = () => {
           <button
             onClick={() => {
               // Two-click inline confirm (no native dialog): first click arms
-              // the button for 4 seconds, second click loads the preset.
+              // the button for 12 seconds, second click loads the preset.
+              // (Was 4s — real users read the button, pause, and clicked into
+              // a silently expired arm, which looked like "6X won't load".)
               if (!confirmLoad6x) {
                 setConfirmLoad6x(true);
-                window.setTimeout(() => setConfirmLoad6x(false), 4000);
+                window.setTimeout(() => setConfirmLoad6x(false), 12000);
                 return;
               }
               setConfirmLoad6x(false);
@@ -739,8 +741,10 @@ const Workspace = () => {
               setSelectedLaneId(preset.lanes[0].id);
               setSelectedStepId(null);
               setEvents([]);
-              setRunSummary(null);
               setRunResult(null);
+              setRunSummary(
+                `6X strategy loaded — ${preset.lanes.length} lanes · ${preset.lanes.reduce((n, l) => n + l.steps.length, 0)} steps · +1% harvest exits · -0.5% stops · referee veto · -3% session limit. Press Play strategy to run it.`,
+              );
               setPanel('report');
             }}
             disabled={running}
