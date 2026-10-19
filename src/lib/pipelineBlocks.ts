@@ -20,7 +20,7 @@ export const DEFAULT_AGENT = {
   agentName: 'Desk analyst',
   systemPrompt: 'You are a disciplined short-term trading analyst. You only act on evidence in the context.',
   taskPrompt: 'Judge whether this asset is a buy right now. Use the indicators and the recent price path in the context.',
-  model: 'google/gemini-2.5-flash',
+  model: 'llama-3.3-70b-versatile',
   temperature: 0.3,
   minConfidence: 0.55,
   context: { price: true, series: true, indicators: true, screen: true, positions: true, lanes: true },

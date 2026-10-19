@@ -15,14 +15,11 @@ Step kinds and their config:
   You configure agents yourself when the operator asks for one — never tell them to fill the form.
   preset is one of momentum | meanrev | riskguard | news | referee | custom (it only pre-fills the prompts; always
   also write systemPrompt and taskPrompt explicitly so the agent is fully specified).
-  model must be one of:
-    google/gemini-3.1-flash-lite, google/gemini-3.7-flash, google/gemini-3.6-flash, google/gemini-3.5-flash,
-    google/gemini-3-flash-preview, google/gemini-3.1-pro-preview, google/gemini-2.5-flash,
-    google/gemini-2.5-flash-lite, google/gemini-2.5-pro, openai/gpt-5.6-luna, openai/gpt-5.6-terra,
-    openai/gpt-5.6-sol, openai/gpt-5.5, openai/gpt-5.4, openai/gpt-5.4-mini, openai/gpt-5.4-nano,
-    openai/gpt-5.2, openai/gpt-5, openai/gpt-5-mini, openai/gpt-5-nano.
-  Default to google/gemini-3.7-flash for fast ticks, openai/gpt-5.6-sol or google/gemini-3.1-pro-preview when the
-  decision is complex, and a lite/nano model when the tick is a few seconds.
+  model must be one of (Meta Llama, served by Groq — the same configuration as Startup Factory Hub):
+    llama-3.3-70b-versatile, meta-llama/llama-4-maverick-17b-128e-instruct,
+    meta-llama/llama-4-scout-17b-16e-instruct, llama-3.1-8b-instant.
+  Default to llama-3.3-70b-versatile for fast ticks, meta-llama/llama-4-maverick-17b-128e-instruct when the
+  decision is complex, and llama-3.1-8b-instant when the tick is a few seconds.
   context is { price, series, indicators, screen, positions, lanes } booleans — switch off what the agent should ignore.
 - buy      { amountUsd, takeProfitPct, stopLossPct, maxHoldMin, maxEntries, cooldownMin }
                                                       market buy on the PAPER account, managed with a target, a stop and a time limit
@@ -83,14 +80,20 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const { message, page, history } = (await req.json()) ?? {};
-    const key = Deno.env.get('LOVABLE_API_KEY');
-    if (!key) throw new Error('AI gateway key missing');
+    const key = Deno.env.get('GROQ_API_KEY');
+    if (!key) throw new Error('GROQ_API_KEY is not configured');
 
-    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+    // Groq transport with the Llama fallback chain (same resilience pattern
+    // as Startup Factory Hub): a model-level failure advances the chain,
+    // only an auth failure (401) stops it.
+    let res: Response | null = null;
+    let lastStatus = 0;
+    for (const model of ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
+      res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
         messages: [
           { role: 'system', content: SYSTEM },
           { role: 'system', content: `PAGE STATE (live, do not fabricate beyond this):\n${JSON.stringify(page ?? {}, null, 1)}` },
@@ -210,23 +213,27 @@ Deno.serve(async (req) => {
             },
           },
         }],
-        tool_choice: { type: 'function', function: { name: 'emit_plan' } },
-      }),
-    });
+          tool_choice: { type: 'function', function: { name: 'emit_plan' } },
+        }),
+      });
+      if (res.ok) break;
+      lastStatus = res.status;
+      const errText = await res.text().catch(() => '');
+      console.error(`groq ${res.status} on ${model}: ${errText.slice(0, 240)}`);
+      if (res.status === 401) {
+        return new Response(JSON.stringify({ error: 'GROQ_API_KEY was rejected by Groq — check the secret.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      res = null;
+    }
 
-    if (res.status === 429) {
-      return new Response(JSON.stringify({ reply: 'The AI service is rate limited right now — try again in a moment.', actions: [], choices: ['Try again'] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (res.status === 402) {
-      return new Response(JSON.stringify({ reply: 'AI credits are exhausted — top up workspace credits to keep using Genius.', actions: [], choices: [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    if (!res.ok) {
-      const details = await res.text();
-      console.error(`gateway ${res.status}: ${details}`);
-      return new Response(JSON.stringify({ error: 'AI request failed', status: res.status, details }),
-        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!res) {
+      if (lastStatus === 429) {
+        return new Response(JSON.stringify({ reply: 'The AI service is rate limited right now — try again in a moment.', actions: [], choices: ['Try again'] }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ error: 'AI request failed', status: lastStatus }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const data = await res.json();

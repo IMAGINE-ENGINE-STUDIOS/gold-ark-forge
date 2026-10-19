@@ -537,7 +537,15 @@ const useLiveCandleEngine = (price: number, tf: Timeframe, historicalData: Chart
     const symbolChanged = symbolKey !== lastSymbolRef.current;
     const tfChanged = tf !== lastTfRef.current;
     const dataArrived = candlesRef.current.length === 0 && historicalData.length > 0;
-    if (symbolChanged || tfChanged || dataArrived) {
+    // Anchor-jump guard: the candle history is generated around the FIRST
+    // price the component sees. If a slower-but-truer feed then arrives
+    // (e.g. the live quote lands after a cached table price seeded the
+    // chart), the candles would stay anchored to the wrong level forever.
+    // A >1% gap between the live price and the seeded anchor means the
+    // anchor was wrong — reseed around the true price.
+    const anchor = candlesRef.current.length ? candlesRef.current[candlesRef.current.length - 1].close : 0;
+    const anchorJump = anchor > 0 && price > 0 && Math.abs(price - anchor) / price > 0.01;
+    if (symbolChanged || tfChanged || dataArrived || anchorJump) {
       lastSymbolRef.current = symbolKey;
       lastTfRef.current = tf;
       candlesRef.current = [...historicalData];

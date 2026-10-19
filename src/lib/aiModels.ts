@@ -1,8 +1,10 @@
 // aiModels — the model catalog offered to operators anywhere an AI step or the
 // Genius assistant needs a brain.
 //
-// Ids are exact Lovable AI Gateway ids. Anything not in this list is rejected by
-// the pipeline-agent edge function, so keep the two in sync.
+// Configuration mirrors Startup Factory Hub: Meta Llama models served by Groq
+// through the Supabase edge functions (GROQ_API_KEY secret). Ids are exact
+// Groq model ids. Anything not in this list is rejected by the pipeline-agent
+// edge function, so keep the two in sync.
 
 export interface AiModelOption {
   id: string;
@@ -10,50 +12,31 @@ export interface AiModelOption {
   label: string;
   /** One-line "pick me when…" hint. */
   hint: string;
-  vendor: 'Google' | 'OpenAI';
+  vendor: 'Meta';
   /** Rough relative cost/speed badge for the picker. */
   tier: 'fastest' | 'balanced' | 'deep';
 }
 
 export const AI_MODELS: AiModelOption[] = [
-  // ---- Google ----------------------------------------------------------
-  { id: 'google/gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', hint: 'Cheapest — good for simple, very frequent checks.', vendor: 'Google', tier: 'fastest' },
-  { id: 'google/gemini-3.7-flash', label: 'Gemini 3.7 Flash', hint: 'Latest fast Gemini. Great default for live trading ticks.', vendor: 'Google', tier: 'balanced' },
-  { id: 'google/gemini-3.6-flash', label: 'Gemini 3.6 Flash', hint: 'Fast and reliable, one generation back.', vendor: 'Google', tier: 'balanced' },
-  { id: 'google/gemini-3.5-flash', label: 'Gemini 3.5 Flash', hint: 'Fast reasoning for agentic lanes.', vendor: 'Google', tier: 'balanced' },
-  { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)', hint: 'Preview build of the Gemini 3 line.', vendor: 'Google', tier: 'balanced' },
-  { id: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', hint: 'Strongest Gemini reasoning when quality beats speed.', vendor: 'Google', tier: 'deep' },
-  { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', hint: 'Proven, low-cost workhorse.', vendor: 'Google', tier: 'balanced' },
-  { id: 'google/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', hint: 'Very cheap for high-volume screening.', vendor: 'Google', tier: 'fastest' },
-  { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro', hint: 'Deep multimodal reasoning on large context.', vendor: 'Google', tier: 'deep' },
-
-  // ---- OpenAI ----------------------------------------------------------
-  { id: 'openai/gpt-5.6-luna', label: 'GPT-5.6 Luna', hint: 'Fast and cheap GPT-5.6 for frequent decisions.', vendor: 'OpenAI', tier: 'fastest' },
-  { id: 'openai/gpt-5.6-terra', label: 'GPT-5.6 Terra', hint: 'Balanced GPT-5.6 — flagship quality at lower cost.', vendor: 'OpenAI', tier: 'balanced' },
-  { id: 'openai/gpt-5.6-sol', label: 'GPT-5.6 Sol', hint: 'Flagship OpenAI reasoning for the hardest calls.', vendor: 'OpenAI', tier: 'deep' },
-  { id: 'openai/gpt-5.5', label: 'GPT-5.5', hint: 'Frontier analysis and complex strategy logic.', vendor: 'OpenAI', tier: 'deep' },
-  { id: 'openai/gpt-5.4', label: 'GPT-5.4', hint: 'Affordable frontier model for serious analysis.', vendor: 'OpenAI', tier: 'balanced' },
-  { id: 'openai/gpt-5.4-mini', label: 'GPT-5.4 Mini', hint: 'Strong mini model for high-volume lanes.', vendor: 'OpenAI', tier: 'fastest' },
-  { id: 'openai/gpt-5.4-nano', label: 'GPT-5.4 Nano', hint: 'Fastest, cheapest GPT-5.4 for simple screens.', vendor: 'OpenAI', tier: 'fastest' },
-  { id: 'openai/gpt-5.2', label: 'GPT-5.2', hint: 'Solid reasoning and problem solving.', vendor: 'OpenAI', tier: 'balanced' },
-  { id: 'openai/gpt-5', label: 'GPT-5', hint: 'Accurate all-rounder.', vendor: 'OpenAI', tier: 'balanced' },
-  { id: 'openai/gpt-5-mini', label: 'GPT-5 Mini', hint: 'Lower-cost general performance.', vendor: 'OpenAI', tier: 'fastest' },
-  { id: 'openai/gpt-5-nano', label: 'GPT-5 Nano', hint: 'Cheapest OpenAI option.', vendor: 'OpenAI', tier: 'fastest' },
+  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', hint: 'The default brain — strongest all-round judgement for agent steps and referees.', vendor: 'Meta', tier: 'balanced' },
+  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick', hint: 'Deepest reasoning — for the hardest strategy calls.', vendor: 'Meta', tier: 'deep' },
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout', hint: 'Fast and light — good for bulk screening across many lanes.', vendor: 'Meta', tier: 'balanced' },
+  { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', hint: 'Fastest — for ticks every few seconds and simple checks.', vendor: 'Meta', tier: 'fastest' },
 ];
 
-export const DEFAULT_AGENT_MODEL = 'google/gemini-3.7-flash';
+export const DEFAULT_AGENT_MODEL = 'llama-3.3-70b-versatile';
 
 export const MODEL_BY_ID = Object.fromEntries(AI_MODELS.map((m) => [m.id, m])) as Record<string, AiModelOption>;
 
-export const MODEL_VENDORS: Array<AiModelOption['vendor']> = ['Google', 'OpenAI'];
+export const MODEL_VENDORS: Array<AiModelOption['vendor']> = ['Meta'];
 
 export const modelLabel = (id?: string) => MODEL_BY_ID[id ?? '']?.label ?? id ?? DEFAULT_AGENT_MODEL;
 
 /** The three one-click speeds an operator picks before ever opening Advanced. */
 export const SPEED_PRESETS = [
-  { id: 'fastest', label: 'Fast & cheap', model: 'google/gemini-3.1-flash-lite', note: 'Best for ticks every few seconds.' },
+  { id: 'fastest', label: 'Fast & cheap', model: 'llama-3.1-8b-instant', note: 'Best for ticks every few seconds.' },
   { id: 'balanced', label: 'Balanced', model: DEFAULT_AGENT_MODEL, note: 'Good judgement, still quick.' },
-  { id: 'deep', label: 'Deep thinker', model: 'openai/gpt-5.6-sol', note: 'Slower, most careful reasoning.' },
+  { id: 'deep', label: 'Deep thinker', model: 'meta-llama/llama-4-maverick-17b-128e-instruct', note: 'Slower, most careful reasoning.' },
 ] as const;
 
 /** Ready-made agent jobs so the operator only fills in one box (or none). */

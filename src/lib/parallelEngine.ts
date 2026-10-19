@@ -382,7 +382,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
           const reply = await hooks.runAgent({
             systemPrompt: String(cfg.systemPrompt ?? ''),
             taskPrompt: String(cfg.taskPrompt ?? ''),
-            model: String(cfg.model ?? 'google/gemini-2.5-flash'),
+            model: String(cfg.model ?? 'llama-3.3-70b-versatile'),
             temperature: Number(cfg.temperature ?? 0.3),
             context,
           });

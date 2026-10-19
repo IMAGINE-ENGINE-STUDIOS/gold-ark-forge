@@ -17,16 +17,20 @@ Answer with a verdict the lane can act on: bullish (buy), bearish (sell), neutra
 Give a confidence between 0 and 1 and one short plain-English reason (max 30 words) that names the numbers you used.
 If the context is too thin to justify a trade, say neutral with low confidence — do not guess.`;
 
+// Genius configuration mirrors Startup Factory Hub: Meta Llama models served
+// by Groq (GROQ_API_KEY secret), called from this edge function.
 // Keep in sync with src/lib/aiModels.ts.
 const ALLOWED_MODELS = new Set([
-  'google/gemini-3.1-flash-lite', 'google/gemini-3.7-flash', 'google/gemini-3.6-flash',
-  'google/gemini-3.5-flash', 'google/gemini-3-flash-preview', 'google/gemini-3.1-pro-preview',
-  'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite', 'google/gemini-2.5-pro',
-  'openai/gpt-5.6-luna', 'openai/gpt-5.6-terra', 'openai/gpt-5.6-sol',
-  'openai/gpt-5.5', 'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano',
-  'openai/gpt-5.2', 'openai/gpt-5', 'openai/gpt-5-mini', 'openai/gpt-5-nano',
+  'llama-3.3-70b-versatile',
+  'meta-llama/llama-4-maverick-17b-128e-instruct',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'llama-3.1-8b-instant',
 ]);
-const DEFAULT_MODEL = 'google/gemini-3.7-flash';
+const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+// Fallback order when a model fails at the provider: any model-level error
+// advances the chain; only an auth failure (401) stops it.
+const FALLBACK_CHAIN = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -35,26 +39,24 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const systemPrompt = typeof body?.systemPrompt === 'string' ? body.systemPrompt.slice(0, 4000) : '';
     const taskPrompt = typeof body?.taskPrompt === 'string' ? body.taskPrompt.slice(0, 4000) : '';
-    const model = ALLOWED_MODELS.has(body?.model) ? body.model as string : DEFAULT_MODEL;
+    const requested = ALLOWED_MODELS.has(body?.model) ? body.model as string : DEFAULT_MODEL;
     const temperature = Math.max(0, Math.min(1.5, Number(body?.temperature ?? 0.3)));
     const context = body?.context ?? {};
 
-    // OpenAI GPT-5 models reject a non-default temperature; the GPT-5.6 family on
-    // chat completions additionally rejects tools unless reasoning is turned off.
-    const isGpt5 = model.startsWith('openai/gpt-5');
-    const isGpt56 = model.startsWith('openai/gpt-5.6');
+    const key = Deno.env.get('GROQ_API_KEY');
+    if (!key) return json({ error: 'GROQ_API_KEY is not configured' }, 500);
 
-    const key = Deno.env.get('LOVABLE_API_KEY');
-    if (!key) return json({ error: 'AI gateway key missing' }, 500);
-
-    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        ...(isGpt5 ? {} : { temperature }),
-        ...(isGpt56 ? { reasoning_effort: 'none' } : {}),
-        messages: [
+    const chain = Array.from(new Set([requested, ...FALLBACK_CHAIN]));
+    let res: Response | null = null;
+    let lastStatus = 0;
+    for (const model of chain) {
+      res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          temperature,
+          messages: [
           { role: 'system', content: `${BASE_SYSTEM}\n\nOPERATOR INSTRUCTIONS:\n${systemPrompt || '(none)'}` },
           { role: 'system', content: `LIVE CONTEXT (real data, do not go beyond it):\n${JSON.stringify(context).slice(0, 12000)}` },
           { role: 'user', content: taskPrompt || 'Judge the current setup and give your verdict.' },
@@ -77,16 +79,22 @@ Deno.serve(async (req) => {
             },
           },
         }],
-        tool_choice: { type: 'function', function: { name: 'emit_verdict' } },
-      }),
-    });
+          tool_choice: { type: 'function', function: { name: 'emit_verdict' } },
+        }),
+      });
+      if (res.ok) break;
+      lastStatus = res.status;
+      const details = await res.text().catch(() => '');
+      console.error(`[pipeline-agent] groq ${res.status} on ${model}: ${details.slice(0, 240)}`);
+      if (res.status === 401) {
+        return json({ error: 'ai_auth', message: 'GROQ_API_KEY was rejected by Groq — check the secret.' }, 500);
+      }
+      res = null;
+    }
 
-    if (res.status === 429) return json({ error: 'rate_limited', message: 'AI is rate limited — the agent step was skipped.' }, 429);
-    if (res.status === 402) return json({ error: 'no_credits', message: 'AI credits are exhausted — add credits to run agent steps.' }, 402);
-    if (!res.ok) {
-      const details = await res.text();
-      console.error(`[pipeline-agent] gateway ${res.status}: ${details}`);
-      return json({ error: 'ai_failed', message: `AI request failed (${res.status}).` }, res.status);
+    if (!res) {
+      if (lastStatus === 429) return json({ error: 'rate_limited', message: 'AI is rate limited — the agent step was skipped.' }, 429);
+      return json({ error: 'ai_failed', message: `AI request failed (${lastStatus}).` }, 502);
     }
 
     const data = await res.json();
