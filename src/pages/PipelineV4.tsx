@@ -16,6 +16,8 @@ import RunReport from '@/components/pipeline4/RunReport';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { useMarketHistory } from '@/hooks/useMarketHistory';
 import { supabase } from '@/integrations/supabase/client';
+import { runPresence } from '@/lib/runPresence';
+import { Link } from 'react-router-dom';
 import { ASSET_CLASSES, classifyAssets } from '@/lib/assetClassifiers';
 import { ANALYSIS_PROGRAMS, PROGRAM_BY_ID } from '@/lib/analysisPrograms';
 import { buildMarketIntelligence } from '@/lib/objectiveEngine';
@@ -353,6 +355,7 @@ const Workspace = () => {
     setPanel('report');
     setRunSummary(null);
     setRunResult(null);
+    runPresence.set({ name: graphRef.current.name, startedAt: Date.now(), ticks: 0 });
     const startEquity = paperRef.current.account.equity;
     setRunStartEquity(startEquity);
     setEquityCurve([startEquity]);
@@ -374,6 +377,7 @@ const Workspace = () => {
 
     const collected: RunEvent[] = [];
     const emitRunEvent = (e: RunEvent) => {
+      if (e.tick > 0) runPresence.tick(e.tick);
       collected.push(e);
       setEvents((prev) => [...prev, e]);
       if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
@@ -445,6 +449,7 @@ const Workspace = () => {
       );
       setRunResult(result);
     } finally {
+      runPresence.clear();
       try { localStorage.removeItem('ga_pipeline_v4_active_run'); } catch { /* ignore */ }
       if (registryId) {
         const closedTrades = (result?.trades ?? []).filter((t) => !t.open).length;
@@ -771,6 +776,14 @@ const Workspace = () => {
           >
             <Users className="h-3.5 w-3.5" /> Consensus lane
           </button>
+
+          <Link
+            to="/trading-bridge"
+            className="flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1.5 text-[13px] text-foreground hover:border-primary/60"
+            title="Open the Swap — the same paper book and positions this pipeline trades"
+          >
+            <Wallet className="h-3.5 w-3.5" /> Swap — book &amp; positions
+          </Link>
 
           <button
             onClick={() => setLibraryOpen((v) => !v)}

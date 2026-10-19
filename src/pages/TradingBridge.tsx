@@ -55,6 +55,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useSyncExternalStore } from 'react';
+import { runPresence } from '@/lib/runPresence';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -255,6 +257,28 @@ function resolveFxPair(ticker: string, data?: Record<string, ForexRates>): numbe
   if (usd?.[base] && usd?.[quote]) return usd[quote] / usd[base];
   return 0;
 }
+
+/** Live strip: when a pipeline run is in flight anywhere in the app, the
+    Swap says so and links straight back to it — one desk, two screens. */
+const PipelinePresenceStrip = () => {
+  const presence = useSyncExternalStore(runPresence.subscribe, runPresence.get, runPresence.get);
+  if (!presence) return null;
+  const mins = Math.max(0, Math.round((Date.now() - presence.startedAt) / 60000));
+  return (
+    <div className="flex items-center gap-3 border-t border-gold/20 bg-gold/10 px-4 py-2">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+      </span>
+      <p className="text-[11px] font-display tracking-wider text-marble/80">
+        PIPELINE RUNNING — {presence.name} · TICK {presence.ticks}{mins > 0 ? ` · ${mins} MIN IN` : ''}
+      </p>
+      <Link to="/pipeline-v4" className="ml-auto text-[11px] font-display tracking-wider text-gold hover:text-gold-light">
+        OPEN PIPELINE →
+      </Link>
+    </div>
+  );
+};
 
 const TradingBridge = () => {
   const { preferences, updatePrefs } = useUserPreferences();
@@ -865,6 +889,8 @@ const TradingBridge = () => {
           />
           
         </div>
+
+        <PipelinePresenceStrip />
 
         {/* Bottom Tab Bar — always visible, scrollable on mobile */}
         <div className="flex-shrink-0 border-t border-gold/10 bg-navy-dark">

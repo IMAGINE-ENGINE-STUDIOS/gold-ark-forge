@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PaperPosition {
@@ -78,23 +78,103 @@ const saveLocal = (positions: PaperPosition[], orders: PaperOrder[], cash: numbe
   } catch { /* ignore */ }
 };
 
-export const usePaperTrading = (userId?: string | null) => {
-  const saved = loadLocal();
-  const [positions, setPositions] = useState<PaperPosition[]>(saved?.positions ?? []);
-  const [orders, setOrders] = useState<PaperOrder[]>(saved?.orders ?? []);
-  const [cash, setCash] = useState<number>(saved?.cash ?? STARTING_BALANCE);
-  const [totalFees, setTotalFees] = useState<number>(saved?.totalFees ?? 0);
-  const [realizedPnl, setRealizedPnl] = useState<number>(saved?.realizedPnl ?? 0);
-  const [winCount, setWinCount] = useState<number>(saved?.winCount ?? 0);
-  const [lossCount, setLossCount] = useState<number>(saved?.lossCount ?? 0);
-  const [feeConfig] = useState<FeeStructure>(DEFAULT_FEES);
-  const [cloudLoaded, setCloudLoaded] = useState(false);
-  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+/* ─────────────────────── ONE shared paper account ───────────────────────
+   The paper account is a module-level singleton: Pipeline V4, the Swap
+   (Trading Bridge) and every panel read and write the SAME in-memory
+   book, so a position opened by a pipeline run is instantly the Swap's
+   position and vice versa — no page can overwrite the other's trades
+   with a stale copy. localStorage + the cloud portfolio remain the
+   persistence layers; the store is the single writer to both.
+   ─────────────────────────────────────────────────────────────────────── */
 
-  // Load from cloud on mount if authenticated
+export interface PaperState {
+  positions: PaperPosition[];
+  orders: PaperOrder[];
+  cash: number;
+  totalFees: number;
+  realizedPnl: number;
+  winCount: number;
+  lossCount: number;
+}
+
+const blankState = (): PaperState => {
+  const saved = loadLocal();
+  return {
+    positions: saved?.positions ?? [],
+    orders: saved?.orders ?? [],
+    cash: saved?.cash ?? STARTING_BALANCE,
+    totalFees: saved?.totalFees ?? 0,
+    realizedPnl: saved?.realizedPnl ?? 0,
+    winCount: saved?.winCount ?? 0,
+    lossCount: saved?.lossCount ?? 0,
+  };
+};
+
+let paperState: PaperState = blankState();
+const paperListeners = new Set<() => void>();
+
+const notifyPaper = (persist = true) => {
+  if (persist) {
+    saveLocal(paperState.positions, paperState.orders, paperState.cash, paperState.totalFees, paperState.realizedPnl, paperState.winCount, paperState.lossCount);
+  }
+  paperListeners.forEach((l) => l());
+};
+
+export const paperStore = {
+  get: (): PaperState => paperState,
+  set: (next: PaperState, persist = true) => { paperState = next; notifyPaper(persist); },
+  subscribe: (fn: () => void) => {
+    paperListeners.add(fn);
+    return () => { paperListeners.delete(fn); };
+  },
+};
+
+/* Cross-tab coherence: another tab's trades reload this tab's book. */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'ga_paper_trading_v2') {
+      paperState = blankState();
+      notifyPaper(false);
+    }
+  });
+}
+
+/* Cloud sync (debounced) + one-time cloud load, shared across consumers. */
+let activeUserId: string | null = null;
+let cloudLoadStarted = false;
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+const syncToCloud = () => {
+  if (!activeUserId) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    try {
+      await supabase.from('paper_portfolios').upsert({
+        user_id: activeUserId,
+        positions: paperState.positions as any,
+        orders: paperState.orders as any,
+        cash: paperState.cash,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+    } catch { /* silent */ }
+  }, 2000);
+};
+
+
+export const usePaperTrading = (userId?: string | null) => {
+  const snap = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  const { positions, orders, cash, totalFees, realizedPnl, winCount, lossCount } = snap;
+  const [feeConfig] = useState<FeeStructure>(DEFAULT_FEES);
+  const [cloudLoaded, setCloudLoaded] = useState(cloudLoadStarted);
+  const mounted = useRef(true);
+
   useEffect(() => {
+    mounted.current = true;
+    if (userId) activeUserId = userId;
     if (!userId) { setCloudLoaded(true); return; }
-    const load = async () => {
+    if (cloudLoadStarted) { setCloudLoaded(true); return; }
+    cloudLoadStarted = true;
+    (async () => {
       try {
         const { data } = await supabase
           .from('paper_portfolios')
@@ -106,42 +186,17 @@ export const usePaperTrading = (userId?: string | null) => {
           const cloudOrders = (data.orders as any[]) ?? [];
           const cloudCash = Number(data.cash) || STARTING_BALANCE;
           const stats = deriveStatsFromOrders(cloudOrders);
-          setPositions(cloudPositions);
-          setOrders(cloudOrders);
-          setCash(cloudCash);
-          setTotalFees(stats.totalFees);
-          setRealizedPnl(stats.realizedPnl);
-          setWinCount(stats.winCount);
-          setLossCount(stats.lossCount);
-          saveLocal(cloudPositions, cloudOrders, cloudCash, stats.totalFees, stats.realizedPnl, stats.winCount, stats.lossCount);
+          paperStore.set({
+            positions: cloudPositions, orders: cloudOrders, cash: cloudCash,
+            totalFees: stats.totalFees, realizedPnl: stats.realizedPnl,
+            winCount: stats.winCount, lossCount: stats.lossCount,
+          });
         }
       } catch { /* fallback to local */ }
-      setCloudLoaded(true);
-    };
-    load();
+      if (mounted.current) setCloudLoaded(true);
+    })();
+    return () => { mounted.current = false; };
   }, [userId]);
-
-  // Debounced cloud sync
-  const syncToCloud = useCallback((p: PaperPosition[], o: PaperOrder[], c: number) => {
-    if (!userId) return;
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(async () => {
-      try {
-        await supabase.from('paper_portfolios').upsert({
-          user_id: userId,
-          positions: p as any,
-          orders: o as any,
-          cash: c,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
-      } catch { /* silent */ }
-    }, 2000);
-  }, [userId]);
-
-  const persist = useCallback((p: PaperPosition[], o: PaperOrder[], c: number, f: number, rPnl: number, wc: number, lc: number) => {
-    saveLocal(p, o, c, f, rPnl, wc, lc);
-    syncToCloud(p, o, c);
-  }, [syncToCloud]);
 
   // Calculate fees for a trade
   const computeFees = useCallback((price: number, qty: number): { fees: number; slippageAdjustment: number } => {
@@ -163,6 +218,10 @@ export const usePaperTrading = (userId?: string | null) => {
     limitPrice?: number;
     botSource?: boolean;
   }) => {
+    // Always trade against the freshest shared book — never a page's
+    // possibly-stale snapshot.
+    const cur = paperStore.get();
+    const curPositions = cur.positions, curOrders = cur.orders, curCash = cur.cash;
     const basePrice = params.type === 'market' ? params.price : (params.limitPrice ?? params.price);
     const { fees, slippageAdjustment } = computeFees(basePrice, params.qty);
 
@@ -173,13 +232,13 @@ export const usePaperTrading = (userId?: string | null) => {
 
     const cost = fillPrice * params.qty + (params.side === 'buy' ? fees : 0);
 
-    if (params.side === 'buy' && cost > cash) {
-      throw new Error(`Insufficient funds: need $${cost.toFixed(2)}, have $${cash.toFixed(2)}`);
+    if (params.side === 'buy' && cost > curCash) {
+      throw new Error(`Insufficient funds: need $${cost.toFixed(2)}, have $${curCash.toFixed(2)}`);
     }
 
     // CRITICAL: Block naked short selling — can only sell what you own
     if (params.side === 'sell') {
-      const ownedPosition = positions.find(
+      const ownedPosition = curPositions.find(
         p => p.symbol === params.symbol && p.side === 'buy'
       );
       const ownedQty = ownedPosition?.qty ?? 0;
@@ -193,16 +252,16 @@ export const usePaperTrading = (userId?: string | null) => {
 
     let closedPnl: number | undefined;
 
-    const existingIdx = positions.findIndex(
+    const existingIdx = curPositions.findIndex(
       p => p.symbol === params.symbol && p.side !== params.side
     );
 
-    let newPositions = [...positions];
-    let newCash = cash;
-    let newTotalFees = totalFees + fees;
-    let newRealizedPnl = realizedPnl;
-    let newWinCount = winCount;
-    let newLossCount = lossCount;
+    let newPositions = [...curPositions];
+    let newCash = curCash;
+    let newTotalFees = cur.totalFees + fees;
+    let newRealizedPnl = cur.realizedPnl;
+    let newWinCount = cur.winCount;
+    let newLossCount = cur.lossCount;
 
     if (existingIdx >= 0) {
       const existing = newPositions[existingIdx];
@@ -274,32 +333,33 @@ export const usePaperTrading = (userId?: string | null) => {
       closedPnl,
     };
 
-    const newOrders = [order, ...orders].slice(0, 200);
-    setPositions(newPositions);
-    setOrders(newOrders);
-    setCash(newCash);
-    setTotalFees(newTotalFees);
-    setRealizedPnl(newRealizedPnl);
-    setWinCount(newWinCount);
-    setLossCount(newLossCount);
-    persist(newPositions, newOrders, newCash, newTotalFees, newRealizedPnl, newWinCount, newLossCount);
+    const newOrders = [order, ...curOrders].slice(0, 200);
+    paperStore.set({
+      positions: newPositions, orders: newOrders, cash: newCash,
+      totalFees: newTotalFees, realizedPnl: newRealizedPnl,
+      winCount: newWinCount, lossCount: newLossCount,
+    });
+    syncToCloud();
 
     return order;
-  }, [positions, orders, cash, totalFees, realizedPnl, winCount, lossCount, persist, computeFees]);
+  }, [computeFees]);
 
   const updatePrices = useCallback((priceMap: Record<string, number>) => {
-    setPositions(prev => prev.map(p => {
+    const cur = paperStore.get();
+    const next = cur.positions.map(p => {
       const currentPrice = priceMap[p.symbol] ?? p.currentPrice;
       const pnl = p.side === 'buy'
         ? (currentPrice - p.entryPrice) * p.qty
         : (p.entryPrice - currentPrice) * p.qty;
       const pnlPercent = p.entryPrice > 0 ? (pnl / (p.entryPrice * p.qty)) * 100 : 0;
       return { ...p, currentPrice, pnl, pnlPercent };
-    }));
+    });
+    // Price marks move constantly; don't write storage for them.
+    paperStore.set({ ...cur, positions: next }, false);
   }, []);
 
   const closePosition = useCallback((positionId: string, currentPrice: number, botSource?: boolean) => {
-    const pos = positions.find(p => p.id === positionId);
+    const pos = paperStore.get().positions.find(p => p.id === positionId);
     if (!pos) return;
     submitOrder({
       symbol: pos.symbol,
@@ -309,22 +369,21 @@ export const usePaperTrading = (userId?: string | null) => {
       price: currentPrice,
       botSource,
     });
-  }, [positions, submitOrder]);
+  }, [submitOrder]);
 
   const resetAccount = useCallback(async () => {
-    setPositions([]);
-    setOrders([]);
-    setCash(STARTING_BALANCE);
-    setTotalFees(0);
-    setRealizedPnl(0);
-    setWinCount(0);
-    setLossCount(0);
-    localStorage.removeItem('ga_paper_trading_v2');
-    localStorage.removeItem('ga_paper_trading');
-    if (userId) {
+    paperStore.set({
+      positions: [], orders: [], cash: STARTING_BALANCE,
+      totalFees: 0, realizedPnl: 0, winCount: 0, lossCount: 0,
+    }, false);
+    try {
+      localStorage.removeItem('ga_paper_trading_v2');
+      localStorage.removeItem('ga_paper_trading');
+    } catch { /* ignore */ }
+    if (activeUserId) {
       try {
         await supabase.from('paper_portfolios').upsert({
-          user_id: userId,
+          user_id: activeUserId,
           positions: [] as any,
           orders: [] as any,
           cash: STARTING_BALANCE,
@@ -332,7 +391,7 @@ export const usePaperTrading = (userId?: string | null) => {
         }, { onConflict: 'user_id' });
       } catch { /* silent */ }
     }
-  }, [userId]);
+  }, []);
 
   const account = useMemo<PaperAccount>(() => {
     const positionsValue = positions.reduce((s, p) => {
