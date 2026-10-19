@@ -163,6 +163,9 @@ export interface RunHooks {
   closePosition?: (p: { ticker: string; qty: number; price: number }) => void;
   runAgent?: (req: AgentRequest) => Promise<AgentReply>;
   shouldStop?: () => boolean;
+  /** Called once at the start of every pass — replay harnesses drive
+      their bar cursor from here; live UIs can use it for heartbeats. */
+  onTickStart?: (tick: number) => void;
 }
 
 interface SharedState {
@@ -177,6 +180,9 @@ interface SharedState {
   agentCache: Map<string, { tick: number; reply: AgentReply }>;
   /** Optional ET trading window for stock entries, e.g. "09:30-16:00". */
   tradeWindowEt?: string;
+  /** Replay mode: ticks run instantly and wall-clock gates (session
+      window, cooldowns) are treated as already satisfied by the bars. */
+  fastForward?: boolean;
   fees: number;
   budget: number;
   startEquity: number;
@@ -353,7 +359,13 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
         }
 
         case 'analysis': {
-          if (!outcome.ticker) throw new Error('no asset chosen earlier in this lane');
+          if (!outcome.ticker) {
+            // No asset bound (the screen matched nothing this tick): a
+            // normal, quiet wait — never an error.
+            push(step, 'skip', 'No asset bound yet — waiting for the screen to match.', { decision: 'no asset bound' });
+            outcome.halted = true;
+            break;
+          }
           const prog = PROGRAM_BY_ID.get(step.config?.programId);
           if (!prog) throw new Error('unknown analysis program');
           const series = fullSeries(hooks, outcome.ticker);
@@ -507,7 +519,13 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
         }
 
         case 'alert': {
-          if (!outcome.ticker) throw new Error('no asset chosen earlier in this lane');
+          if (!outcome.ticker) {
+            // No asset bound (the screen matched nothing this tick): a
+            // normal, quiet wait — never an error.
+            push(step, 'skip', 'No asset bound yet — waiting for the screen to match.', { decision: 'no asset bound' });
+            outcome.halted = true;
+            break;
+          }
           const price = hooks.getPrice(outcome.ticker);
           const trigger = Number(step.config?.price);
           const dir = step.config?.direction === 'below' ? 'below' : 'above';
@@ -523,7 +541,13 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
 
         case 'buy':
         case 'sell': {
-          if (!outcome.ticker) throw new Error('no asset chosen earlier in this lane');
+          if (!outcome.ticker) {
+            // No asset bound (the screen matched nothing this tick): a
+            // normal, quiet wait — never an error.
+            push(step, 'skip', 'No asset bound yet — waiting for the screen to match.', { decision: 'no asset bound' });
+            outcome.halted = true;
+            break;
+          }
           const price = hooks.getPrice(outcome.ticker);
           if (!(price > 0)) throw new Error(`no live price for ${outcome.label}`);
           const amount = Number(step.config?.amountUsd ?? 0);
@@ -552,7 +576,7 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
             break;
           }
 
-          if (step.kind === 'buy' && shared.tradeWindowEt && outcome.ticker && /^[A-Z]{1,5}$/.test(outcome.ticker) && !ALWAYS_OPEN.has(outcome.ticker)) {
+          if (step.kind === 'buy' && !shared.fastForward && shared.tradeWindowEt && outcome.ticker && /^[A-Z]{1,5}$/.test(outcome.ticker) && !ALWAYS_OPEN.has(outcome.ticker)) {
             const [sh, sm] = shared.tradeWindowEt.split('-')[0].split(':').map(Number);
             const [eh, em] = (shared.tradeWindowEt.split('-')[1] ?? '16:00').split(':').map(Number);
             const etNow = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
@@ -745,8 +769,12 @@ export async function runGraph(
 
   const session = graph.session ?? { durationMin: 15, tickSec: 10, flattenOnStop: true };
   const durationMs = Math.max(0, Number(session.durationMin) || 0) * 60_000;
-  const tickMs = Math.max(2, Number(session.tickSec) || 10) * 1000;
+  const ffReplay = (hooks as any)?.fastForward === true;
+  const tickMs = ffReplay ? 0 : Math.max(2, Number(session.tickSec) || 10) * 1000;
   const endAt = startedAt + durationMs;
+  const tickBudget = ffReplay
+    ? Math.max(1, Math.round(((Number(session.durationMin) || 0) * 60) / Math.max(1, Number(session.tickSec) || 10)))
+    : Number.POSITIVE_INFINITY;
 
   const shared: SharedState = {
     stoppedByRisk: false,
@@ -755,6 +783,7 @@ export async function runGraph(
     peakDeployed: 0,
     agentCache: new Map(),
     tradeWindowEt: (graph.session as any)?.tradeWindowEt,
+    fastForward: (hooks as any)?.fastForward === true,
     fees: 0,
     budget: Math.max(0, Number(graph.risk?.maxTotalInvestmentUsd ?? plannedInvestment(graph))),
     startEquity: hooks.getAccount().equity,
@@ -781,6 +810,7 @@ export async function runGraph(
 
   do {
     tick += 1;
+    hooks.onTickStart?.(tick);
     emit({
       ts: now(), tick, laneId: '', laneName: 'Session', stepId: null, stepLabel: `Tick ${tick}`,
       status: 'info',
@@ -807,10 +837,10 @@ export async function runGraph(
       break;
     }
     if (hooks.shouldStop?.()) break;
-    if (now() >= endAt) break;
+    if (ffReplay ? tick >= tickBudget : now() >= endAt) break;
 
-    await sleep(Math.min(tickMs, Math.max(0, endAt - now())), hooks.shouldStop);
-  } while (!hooks.shouldStop?.() && now() < endAt);
+    if (!ffReplay) await sleep(Math.min(tickMs, Math.max(0, endAt - now())), hooks.shouldStop);
+  } while (!hooks.shouldStop?.() && (ffReplay ? tick < tickBudget : now() < endAt));
 
   const stopped = !!hooks.shouldStop?.();
   if (session.flattenOnStop !== false) {

@@ -10,6 +10,7 @@ import { emptyGraph, makeLane, makeStep, type PipeGraph } from './pipelineGraph'
 import { BLOCK_BY_ID } from './pipelineBlocks';
 import { AGENT_TEMPLATE_BY_ID, templateConfig } from './agentTemplates';
 import { buildSipvbGraph } from './sipvbPreset';
+import { buildApexGraph, buildMicroGraph } from './apexPreset';
 
 const blockConfig = (id: string) => ({ ...(BLOCK_BY_ID.get(id)?.config ?? {}) });
 
@@ -120,6 +121,16 @@ const buildMomentumRider = (): PipeGraph => {
 
 export const BUILT_IN_STRATEGIES: LibraryEntry[] = [
   {
+    id: 'builtin_apex', name: 'APEX — Full-Spectrum Momentum System', builtIn: true,
+    blurb: 'The flagship. Four specialised lanes (confirmed breakouts, retests, catalyst gaps, momentum runners), five specialist agents, a two-agent referee, precision exits on every position, ET session window, −3% / $25K envelope.',
+    build: buildApexGraph,
+  },
+  {
+    id: 'builtin_micro', name: 'MICRO-100 — the $100 account strategy', builtIn: true,
+    blurb: 'Built for a $100 start: one lane, $45 tickets, at most 2 entries a session, −$5 daily risk cap, wider +1.5% / +3% targets so the few trades taken actually matter.',
+    build: buildMicroGraph,
+  },
+  {
     id: 'builtin_6x', name: '6X — Stocks-in-Play Volatility Breakout', builtIn: true,
     blurb: 'The house strategy. In-play screens → confirmed breakouts → Entry Sniper → bank 50% at +1%, runner to +2% behind a trailing stop. Referee veto, −3% session limit, ET stock window.',
     build: buildSipvbGraph,
@@ -178,4 +189,30 @@ export const saveStrategy = (name: string, graph: PipeGraph): LibraryEntry => {
 
 export const deleteSavedStrategy = (id: string) => {
   try { localStorage.setItem(KEY, JSON.stringify(readSaved().filter((e) => e.id !== id))); } catch { /* ignore */ }
+};
+
+/* ── Recorded live performance, aggregated from the run memory ── */
+export interface StrategyPerformance { runs: number; trades: number; winRate: number; realised: number }
+
+export const performanceByStrategy = (
+  memory: { graphName: string; trades: number; wins: number; losses: number; realised: number }[],
+): Map<string, StrategyPerformance> => {
+  const acc = new Map<string, { runs: number; trades: number; wins: number; decided: number; realised: number }>();
+  for (const m of memory) {
+    const cur = acc.get(m.graphName) ?? { runs: 0, trades: 0, wins: 0, decided: 0, realised: 0 };
+    cur.runs += 1;
+    cur.trades += m.trades;
+    cur.wins += m.wins;
+    cur.decided += m.wins + m.losses;
+    cur.realised += m.realised;
+    acc.set(m.graphName, cur);
+  }
+  const out = new Map<string, StrategyPerformance>();
+  for (const [name, a] of acc) {
+    out.set(name, {
+      runs: a.runs, trades: a.trades, realised: a.realised,
+      winRate: a.decided > 0 ? (a.wins / a.decided) * 100 : 0,
+    });
+  }
+  return out;
 };

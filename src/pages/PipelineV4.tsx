@@ -24,7 +24,7 @@ import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import GALiveChart from '@/components/trading/GALiveChart';
 import { loadRunMemory, recordRun, clearRunMemory, memoryTotals, type RunMemoryEntry } from '@/lib/pipelineMemory';
 import { useBrokerConnections, brokerCall } from '@/hooks/useBrokerTrading';
-import { BUILT_IN_STRATEGIES, listSavedStrategies, saveStrategy, deleteSavedStrategy, type LibraryEntry } from '@/lib/strategyLibrary';
+import { BUILT_IN_STRATEGIES, listSavedStrategies, saveStrategy, deleteSavedStrategy, performanceByStrategy, type LibraryEntry } from '@/lib/strategyLibrary';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
   convertStep, emptyGraph, loadGraph, makeLane, makeStep, saveGraph, stepPath, totalSteps, uid,
@@ -763,6 +763,14 @@ const Workspace = () => {
                   <div>
                     <p className="text-[13px] font-semibold">{entry.name}</p>
                     <p className="text-[12px] text-muted-foreground">{entry.blurb}</p>
+                    {(() => {
+                      const perf = performanceByStrategy(loadRunMemory()).get(entry.name);
+                      return perf && perf.runs > 0 ? (
+                        <p className="mt-1 text-[12px] font-medium text-foreground/80">
+                          Live record: {perf.runs} run{perf.runs === 1 ? '' : 's'} · {perf.trades} closed trades · {perf.winRate.toFixed(0)}% wins · {perf.realised >= 0 ? '+' : ''}${perf.realised.toFixed(2)} realised
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">
                     <button
