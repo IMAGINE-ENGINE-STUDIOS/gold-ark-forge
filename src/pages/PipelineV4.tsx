@@ -970,7 +970,7 @@ const Workspace = () => {
                 </button>
               ))}
             </div>
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-0.5 watchlist-scroll">
               {rail === 'blocks' && <BlockPalette onAdd={addBlock} laneName={selectedLane?.name ?? 'Lane 1'} />}
               {rail === 'positions' && (
                 <PositionsPanel
@@ -1141,7 +1141,7 @@ const Workspace = () => {
 
           {/* right rail */}
           <aside className="order-3 flex h-[540px] flex-col rounded-xl border border-border/60 bg-card/40 p-3 backdrop-blur lg:h-[640px]">
-            <div className="mb-2 flex gap-1">
+            <div className="mb-2 grid grid-cols-3 gap-1">
               {([
                 { id: 'genius', label: 'Genius', icon: Bot },
                 { id: 'step', label: 'Step', icon: SlidersHorizontal },
@@ -1153,16 +1153,16 @@ const Workspace = () => {
                 <button
                   key={t.id}
                   onClick={() => setPanel(t.id)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[13px] transition ${
+                  className={`flex min-w-0 items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[12px] transition ${
                     panel === t.id ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border/50 text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <t.icon className="h-3.5 w-3.5" /> {t.label}
+                  <t.icon className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{t.label}</span>
                 </button>
               ))}
             </div>
 
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-0.5 watchlist-scroll">
               {panel === 'genius' && (
                 <GeniusPanel
                   buildContext={buildContext}
@@ -1320,7 +1320,7 @@ const Workspace = () => {
                     startEquity={runStartEquity}
                     equity={paper.account.equity}
                   />
-                  <div className="rounded-lg border border-white/10 bg-black/30">
+                  <div className="h-[430px] shrink-0 rounded-lg border border-white/10 bg-black/30">
                     <RunReport
                       events={events}
                       result={runResult}
@@ -1361,7 +1361,7 @@ const Workspace = () => {
                         </p>
                       );
                     })()}
-                    <div className="max-h-56 space-y-1.5 overflow-y-auto">
+                    <div className="space-y-1.5">
                       {runMemory.map((e) => (
                         <div key={e.id} className="rounded-md border border-white/5 bg-white/[0.02] px-2 py-1.5 text-[12px]">
                           <span className="text-foreground">{new Date(e.at).toLocaleString()}</span>
@@ -1395,7 +1395,7 @@ const Workspace = () => {
                     <p className="text-[11px] leading-snug text-muted-foreground">
                       Live chart from the Trading Bridge. Price level = live market-quotes feed (verified against external spot sources). Candle history is illustrative; the live price is real.
                     </p>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="min-h-0 flex-1">
                       <GALiveChart symbolKey={sym.key} category={sym.cat} label={sym.label} />
                     </div>
                   </div>
