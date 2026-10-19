@@ -44,6 +44,7 @@ const Workspace = () => {
   const [panel, setPanel] = useState<'genius' | 'step' | 'report' | 'charts'>('genius');
   const [runMemory, setRunMemory] = useState<RunMemoryEntry[]>(() => loadRunMemory());
   const [chartKey, setChartKey] = useState<string>('gold');
+  const [confirmLoad6x, setConfirmLoad6x] = useState(false);
   const [rail, setRail] = useState<'blocks' | 'positions' | 'orders' | 'trade' | 'screens'>('blocks');
   const [equityCurve, setEquityCurve] = useState<number[]>([]);
   const [runStartEquity, setRunStartEquity] = useState<number | null>(null);
@@ -326,9 +327,13 @@ const Workspace = () => {
 
     // Seed every lane with REAL historical closes so indicators are meaningful
     // from the first tick instead of waiting for live prints to accumulate.
-    const tickers = Array.from(new Set(
-      graphRef.current.lanes.flatMap((l) => l.steps.map((st) => st.config?.ticker).filter(Boolean) as string[]),
-    ));
+    // Screen steps bind their asset DURING the run, so prime the whole
+    // tracked screen universe too — otherwise screen lanes sit in
+    // "insufficient samples" for minutes and the run looks dead.
+    const tickers = Array.from(new Set([
+      ...graphRef.current.lanes.flatMap((l) => l.steps.map((st) => st.config?.ticker).filter(Boolean) as string[]),
+      ...tracked,
+    ]));
     if (tickers.length) await primeHistory(tickers, { interval: '1m', points: 300 });
 
     const collected: RunEvent[] = [];
@@ -673,7 +678,14 @@ const Workspace = () => {
 
           <button
             onClick={() => {
-              if (!window.confirm('Load the 6X strategy? It replaces the current pipeline (your saved graph is kept as a backup you can recover).')) return;
+              // Two-click inline confirm (no native dialog): first click arms
+              // the button for 4 seconds, second click loads the preset.
+              if (!confirmLoad6x) {
+                setConfirmLoad6x(true);
+                window.setTimeout(() => setConfirmLoad6x(false), 4000);
+                return;
+              }
+              setConfirmLoad6x(false);
               const preset = buildSipvbGraph();
               setGraph(preset);
               setSelectedLaneId(preset.lanes[0].id);
@@ -681,12 +693,17 @@ const Workspace = () => {
               setEvents([]);
               setRunSummary(null);
               setRunResult(null);
+              setPanel('report');
             }}
             disabled={running}
-            className="flex items-center gap-1.5 rounded-md border border-primary/60 bg-primary/10 px-2.5 py-1.5 text-[13px] font-semibold text-primary hover:bg-primary/20 disabled:opacity-40"
-            title="Load the SIP-VB high-speed strategy: in-play screens, range breakouts, +1% harvest exits, referee veto"
+            className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[13px] font-semibold disabled:opacity-40 ${
+              confirmLoad6x
+                ? 'border-amber-400/70 bg-amber-400/15 text-amber-300 hover:bg-amber-400/25'
+                : 'border-primary/60 bg-primary/10 text-primary hover:bg-primary/20'
+            }`}
+            title="Load the SIP-VB high-speed strategy: in-play screens, range breakouts, +1% harvest exits, referee veto. Your current pipeline is kept as a recoverable backup."
           >
-            <Zap className="h-3.5 w-3.5" /> Load 6X strategy
+            <Zap className="h-3.5 w-3.5" /> {confirmLoad6x ? 'Click again to load 6X' : 'Load 6X strategy'}
           </button>
 
           <button
