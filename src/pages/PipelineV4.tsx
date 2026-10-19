@@ -16,6 +16,7 @@ import RunReport from '@/components/pipeline4/RunReport';
 import SwarmPanel from '@/components/pipeline4/SwarmPanel';
 import PerformanceReport from '@/components/pipeline4/PerformanceReport';
 import TimeMachinePanel from '@/components/pipeline4/TimeMachinePanel';
+import ServerRunsCard from '@/components/pipeline4/ServerRunsCard';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { useMarketHistory } from '@/hooks/useMarketHistory';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,6 +72,31 @@ const Workspace = () => {
   // connected broker (Trading Bridge connection, sign-in required).
   const [execMode, setExecMode] = useState<'paper' | 'broker'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('ga_pipeline_v4_exec') === 'broker') ? 'broker' : 'paper');
+  // Run target: this tab (browser engine) or the always-on server worker.
+  const [runTarget, setRunTarget] = useState<'browser' | 'server'>(() =>
+    (typeof localStorage !== 'undefined' && localStorage.getItem('ga_pipeline_v4_target') === 'server') ? 'server' : 'browser');
+  useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_target', runTarget); } catch { /* ignore */ } }, [runTarget]);
+  const [serverNotice, setServerNotice] = useState<string | null>(null);
+
+  /** Queue the current graph to the server worker (Phase 0): the worker
+      claims it within seconds and executes the whole session server-side. */
+  const queueServerRun = useCallback(async () => {
+    setServerNotice(null);
+    const { data: u } = await supabase.auth.getUser().catch(() => ({ data: null as any }));
+    const { error } = await (supabase as any).from('pipeline_runs').insert({
+      graph_name: graphRef.current.name,
+      graph: graphRef.current,
+      status: 'queued',
+      mode: 'server',
+      user_id: u?.user?.id ?? null,
+    });
+    if (error) {
+      setServerNotice(`Could not queue the run: ${error.message}`);
+      return;
+    }
+    setServerNotice('Queued to the server worker — it claims the run within seconds and trades the whole session on its own. You can close this tab now; watch progress in the Report tab under "Server runs".');
+    setPanel('report');
+  }, []);
   const { data: brokerConns } = useBrokerConnections();
   const activeConn = brokerConns?.[0];
   const execRef = useRef<{ mode: 'paper' | 'broker'; conn?: { id: string; broker: string; environment: string; label: string | null } }>({ mode: 'paper' });
@@ -1037,6 +1063,21 @@ const Workspace = () => {
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
               {!running && (
                 <div className="mb-2 flex items-center justify-center gap-1 text-[12px]">
+                  <span className="mr-1 text-muted-foreground">Runs on:</span>
+                  <button
+                    onClick={() => setRunTarget('browser')}
+                    className={`rounded-full border px-3 py-1 font-medium backdrop-blur ${runTarget === 'browser' ? 'border-primary/70 bg-primary/25 text-primary' : 'border-border/60 bg-card/50 text-muted-foreground hover:text-foreground'}`}
+                  >
+                    This tab
+                  </button>
+                  <button
+                    onClick={() => setRunTarget('server')}
+                    className={`rounded-full border px-3 py-1 font-medium backdrop-blur ${runTarget === 'server' ? 'border-primary/70 bg-primary/25 text-primary' : 'border-border/60 bg-card/50 text-muted-foreground hover:text-foreground'}`}
+                    title="Queue the run to the always-on server worker — it trades even with this tab closed"
+                  >
+                    Server worker
+                  </button>
+                  <span className="mx-1 text-muted-foreground">·</span>
                   <span className="mr-1 text-muted-foreground">Execution:</span>
                   <button
                     onClick={() => setExecMode('paper')}
@@ -1062,13 +1103,18 @@ const Workspace = () => {
                 </button>
               ) : (
                 <button
-                  onClick={() => void run()}
+                  onClick={() => void (runTarget === 'server' ? queueServerRun() : run())}
                   disabled={!!blockingIssues.length || !totalSteps(graph)}
                   className="flex items-center gap-2 rounded-full border border-primary/70 bg-primary/25 px-7 py-3 text-[15px] font-semibold text-primary shadow-[0_0_28px_hsl(var(--primary)/0.35)] backdrop-blur transition hover:bg-primary/35 disabled:opacity-40"
-                  title={blockingIssues.length ? blockingIssues[0].message : 'Run every lane at once on the paper account'}
+                  title={blockingIssues.length ? blockingIssues[0].message : runTarget === 'server' ? 'Queue every lane to the always-on server worker' : 'Run every lane at once on the paper account'}
                 >
-                  <Play className="h-4 w-4" /> Play strategy
+                  <Play className="h-4 w-4" /> {runTarget === 'server' ? 'Play on server' : 'Play strategy'}
                 </button>
+              )}
+              {serverNotice && (
+                <p className="mx-auto mt-1.5 max-w-md rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[12px] text-primary">
+                  {serverNotice}
+                </p>
               )}
               <p className="mt-1.5 text-[12px] text-muted-foreground">
                 {blockingIssues.length
@@ -1283,6 +1329,8 @@ const Workspace = () => {
                     buildContext={buildContext}
                     onApplyActions={applyActions}
                   />
+
+                  <ServerRunsCard />
 
                   <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                     <div className="mb-2 flex items-center justify-between">
