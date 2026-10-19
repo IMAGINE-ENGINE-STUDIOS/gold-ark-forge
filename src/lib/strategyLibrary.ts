@@ -133,7 +133,7 @@ export const BUILT_IN_STRATEGIES: LibraryEntry[] = [
   },
   {
     id: 'builtin_micro', name: 'MICRO-100 — the $100 account strategy', builtIn: true,
-    blurb: 'Built for a $100 start: one lane, $45 tickets, at most 2 entries a session, −$5 daily risk cap, wider +1.5% / +3% targets so the few trades taken actually matter.',
+    blurb: 'Built for a $100 start: three swarm lanes firing $10 tickets — up to a dozen entries per lane per session, 10-minute holds, +0.8% harvests, capital recycling all session, −$5 risk cap over everything.',
     build: buildMicroGraph,
   },
   {

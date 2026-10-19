@@ -49,7 +49,7 @@ export interface PaperAccount {
   lossCount: number;
 }
 
-const DEFAULT_FEES: FeeStructure = { spreadBps: 5, commissionPerTrade: 1.50, slippageBps: 2 };
+const DEFAULT_FEES: FeeStructure = { spreadBps: 5, commissionPerTrade: 0, slippageBps: 2 }; // commission $0 — matches her broker (Alpaca charges none); spread + slippage are the real friction
 const STARTING_BALANCE = 100_000;
 
 const deriveStatsFromOrders = (orders: PaperOrder[]) => {

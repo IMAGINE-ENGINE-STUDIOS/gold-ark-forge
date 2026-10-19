@@ -102,24 +102,45 @@ export const buildMicroGraph = (): PipeGraph => {
   const g = emptyGraph();
   g.name = 'MICRO-100 — the $100 account strategy';
   g.risk = { maxDrawdownPct: 5, maxTotalInvestmentUsd: 100 };
-  g.session = { durationMin: 60, tickSec: 5, flattenOnStop: true, tradeWindowEt: '09:30-16:00' };
+  g.session = { durationMin: 120, tickSec: 5, flattenOnStop: true, tradeWindowEt: '09:30-16:00' };
 
-  const lane = makeLane('MICRO — best setup only', 0);
-  lane.steps = [
+  // Many small trades, capital recycling fast: $10 tickets, up to a dozen
+  // entries per lane per session, 10-minute holds, +0.8% harvests against
+  // -0.4% stops, a 0.3% trailing stop to squeeze the runners. Three
+  // lanes hunt different setups so the account is always working; the
+  // $100 deployed cap and the -$5 session limit still rule everything.
+  const microBuy = (label: string, over: Record<string, number> = {}) => makeStep('buy', label, {
+    ...blockConfig('buy'), amountUsd: 10,
+    takeProfitPct: 0.8, stopLossPct: 0.4, maxHoldMin: 10, maxEntries: 12, cooldownMin: 1,
+    scaleOutPct: 0, takeProfit2Pct: 0, trailPct: 0.3, ...over,
+  });
+
+  const l1 = makeLane('MICRO — breakout swarm', 0);
+  l1.steps = [
     makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'in_play', limit: 3, bindTop: true }),
     makeStep('analysis', 'BREAKOUT CONFIRM', { programId: 'breakout_confirm', params: { window: 30, hold: 3 } }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
-    makeStep('analysis', 'TREND SCORE', { programId: 'trend', params: {} }),
-    makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     agentStep('entry_sniper', 'Entry Sniper'),
-    makeStep('buy', 'Buy — $45 ticket', {
-      ...blockConfig('buy'), amountUsd: 45,
-      takeProfitPct: 1.5, stopLossPct: 0.75, maxHoldMin: 30, maxEntries: 2, cooldownMin: 5,
-      scaleOutPct: 50, takeProfit2Pct: 3.0, trailPct: 0.5,
-    }),
+    microBuy('Buy — $10 ticket'),
   ];
 
-  const referee = makeLane('Referee — risk only', 1);
+  const l2 = makeLane('MICRO — retest swarm', 1);
+  l2.steps = [
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'breakout', limit: 3, bindTop: true }),
+    makeStep('analysis', 'PULLBACK ENTRY', { programId: 'pullback_entry', params: { window: 30 } }),
+    makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
+    microBuy('Buy the retest — $10 ticket'),
+  ];
+
+  const l3 = makeLane('MICRO — momentum swarm', 2);
+  l3.steps = [
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'momentum_surge', limit: 3, bindTop: true }),
+    makeStep('analysis', 'TREND SCORE', { programId: 'trend', params: {} }),
+    makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
+    microBuy('Ride it — $10 ticket', { takeProfitPct: 1.2, trailPct: 0.4 }),
+  ];
+
+  const referee = makeLane('Referee — risk only', 3);
   referee.consensus = true;
   referee.agree = { mode: 'any', expects: 'bullish', minConfidence: 0, veto: true };
   referee.steps = [
@@ -127,7 +148,7 @@ export const buildMicroGraph = (): PipeGraph => {
     makeStep('risk', 'Loss limit −5% ($5)', { ...blockConfig('risk'), maxDrawdownPct: 5, blockOnBreach: true }),
   ];
 
-  g.lanes = [lane, referee];
+  g.lanes = [l1, l2, l3, referee];
   g.updatedAt = Date.now();
   return g;
 };
