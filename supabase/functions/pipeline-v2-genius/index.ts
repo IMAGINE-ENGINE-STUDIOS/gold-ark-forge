@@ -93,23 +93,16 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { message, page, history } = body ?? {};
-    const key = Deno.env.get("LOVABLE_API_KEY");
-    if (!key) throw new Error("AI gateway key missing");
+    const key = Deno.env.get("GROQ_API_KEY");
+    if (!key) throw new Error("GROQ_API_KEY is not configured");
 
     const context = `PAGE STATE (live, do not fabricate beyond this):\n${JSON.stringify(page ?? {}, null, 1)}`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "system", content: context },
-          ...(Array.isArray(history) ? history.slice(-8) : []),
-          { role: "user", content: String(message ?? "") },
-        ],
-        tools: [{
+    // Groq-only transport (founder directive), SFH resilience pattern:
+    // per model, first a forced emit_plan tool call; if the provider rejects
+    // it, retry the same model with a plain JSON answer parsed tolerantly.
+    // A model-level failure advances the chain; only a 401 stops it.
+    const TOOLS = [[{
           type: "function",
           function: {
             name: "emit_plan",
@@ -173,20 +166,43 @@ Deno.serve(async (req) => {
               additionalProperties: false,
             },
           },
-        }],
-        tool_choice: { type: "function", function: { name: "emit_plan" } },
-      }),
+        }]];
+    const baseMessages = [
+      { role: "system", content: SYSTEM },
+      { role: "system", content: context },
+      ...(Array.isArray(history) ? history.slice(-8) : []),
+      { role: "user", content: String(message ?? "") },
+    ];
+    const JSON_NOTE = 'Answer with ONE JSON object only, no prose around it, shaped exactly: {"reply": string, "objective": string, "feasibility": string, "actions": array, "choices": string array (2-4 short actions)}. The actions array uses the same operation shapes described in your instructions.';
+    const attempt = (model: string, withTools: boolean) => fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(withTools
+        ? { model, messages: baseMessages, tools: TOOLS, tool_choice: { type: "function", function: { name: "emit_plan" } } }
+        : { model, messages: [...baseMessages, { role: "system", content: JSON_NOTE }] }),
     });
 
-    if (res.status === 429) {
-      return new Response(JSON.stringify({ reply: "Rate limited by the AI gateway — retry in a moment.", actions: [] }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    let res: Response | null = null;
+    let lastStatus = 0;
+    outer:
+    for (const model of ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']) {
+      for (const withTools of [true, false]) {
+        const r = await attempt(model, withTools);
+        if (r.ok) { res = r; break outer; }
+        lastStatus = r.status;
+        const errText = await r.text().catch(() => "");
+        console.error(`groq ${r.status} on ${model} (tools=${withTools}): ${errText.slice(0, 200)}`);
+        if (r.status === 401) break outer;
+      }
     }
-    if (res.status === 402) {
-      return new Response(JSON.stringify({ reply: "AI credits exhausted — top up workspace credits to keep using Genius.", actions: [] }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    if (!res) {
+      if (lastStatus === 429) {
+        return new Response(JSON.stringify({ reply: "Rate limited by the AI service — retry in a moment.", actions: [] }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw new Error(`groq ${lastStatus}`);
     }
-    if (!res.ok) throw new Error(`gateway ${res.status}: ${await res.text()}`);
 
     const data = await res.json();
     const choice = data?.choices?.[0]?.message;
@@ -194,6 +210,10 @@ Deno.serve(async (req) => {
     const call = choice?.tool_calls?.[0];
     if (call?.function?.arguments) {
       try { payload = JSON.parse(call.function.arguments); } catch { /* keep fallback */ }
+    }
+    else if (typeof choice?.content === "string") {
+      const m = choice.content.match(/\{[\s\S]*\}/);
+      if (m) { try { const p = JSON.parse(m[0]); if (p && typeof p === "object" && ("reply" in p || "actions" in p)) payload = p; } catch { /* keep fallback */ } }
     }
     return new Response(JSON.stringify({
       reply: payload.reply ?? "",

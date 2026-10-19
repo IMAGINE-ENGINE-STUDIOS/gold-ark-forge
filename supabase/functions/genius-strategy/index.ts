@@ -107,6 +107,8 @@ function buildStrategyPrompt(body: GeniusRequest): { system: string; user: strin
 
   const system = `You are GENIUS, an elite quantitative trading strategist. You analyze real-time market data and produce ACTIONABLE trade recommendations.
 
+DESK DOCTRINE (Gold Arrow): the desk harvests +1% take-profit targets with -0.5% stops, per-trade risk capped at 0.10-0.25% of capital, a hard daily loss limit of -2% to -3%, and everything flat before the close. A +1% gain on ONE trade is a harvest target, not a promise — never present any return as guaranteed or typical. Prefer trades in liquid, in-play assets with real breakouts over quiet sideways names; a flat tape means the honest recommendation is to wait.
+
 RULES:
 1. ONLY recommend assets from the provided market data — never invent tickers
 2. Every recommendation must have a clear entry, target, and stop-loss
@@ -244,12 +246,35 @@ Design a realistic plan to achieve this goal. Be specific with assets, quantitie
   return { system, user };
 }
 
+// ─── Groq-only transport (founder directive: Genius runs on Groq, nothing else).
+// Chain mirrors Startup Factory Hub: Llama first, Groq's GPT-OSS models as the
+// safety net, Llama 3.1 8B last. A model-level failure advances the chain;
+// only an auth failure (401) stops it.
+const GROQ_MODELS = ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
+
+async function groqComplete(key: string, messages: unknown, temperature: number): Promise<Response> {
+  let last: Response | null = null;
+  for (const model of GROQ_MODELS) {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature }),
+    });
+    if (r.ok) return r;
+    const errText = await r.text().catch(() => "");
+    console.error(`groq ${r.status} on ${model}: ${errText.slice(0, 200)}`);
+    last = new Response(errText, { status: r.status, headers: r.headers });
+    if (r.status === 401) break;
+  }
+  return last!;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
 
     const body: GeniusRequest = await req.json();
     const mode = body.mode || 'strategy';
@@ -257,15 +282,7 @@ serve(async (req) => {
     // ─── CHAT MODE ───
     if (mode === 'chat') {
       const { system, messages } = buildChatPrompt(body);
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: system }, ...messages],
-          temperature: 0.4,
-        }),
-      });
+      const response = await groqComplete(GROQ_API_KEY, [{ role: "system", content: system }, ...messages], 0.4);
 
       if (!response.ok) {
         const status = response.status;
@@ -292,15 +309,7 @@ serve(async (req) => {
     // ─── GOAL MODE ───
     if (mode === 'goal') {
       const { system, user } = buildGoalPrompt(body);
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: system }, { role: "user", content: user }],
-          temperature: 0.3,
-        }),
-      });
+      const response = await groqComplete(GROQ_API_KEY, [{ role: "system", content: system }, { role: "user", content: user }], 0.3);
 
       if (!response.ok) {
         const status = response.status;
@@ -338,15 +347,7 @@ serve(async (req) => {
     }
 
     const { system, user } = buildStrategyPrompt(body);
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: system }, { role: "user", content: user }],
-        temperature: 0.3,
-      }),
-    });
+    const response = await groqComplete(GROQ_API_KEY, [{ role: "system", content: system }, { role: "user", content: user }], 0.3);
 
     if (!response.ok) {
       const status = response.status;

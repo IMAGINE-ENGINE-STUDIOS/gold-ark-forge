@@ -18,8 +18,13 @@ export const BLOCK_GROUPS = ['Market', 'Decide', 'Agents', 'Protect', 'Trade', '
 /** Default prompts for a freshly dropped agent step. */
 export const DEFAULT_AGENT = {
   agentName: 'Desk analyst',
-  systemPrompt: 'You are a disciplined short-term trading analyst. You only act on evidence in the context.',
-  taskPrompt: 'Judge whether this asset is a buy right now. Use the indicators and the recent price path in the context.',
+  systemPrompt: [
+    'You are a disciplined short-term trading analyst on the Gold Arrow desk. You only act on evidence in the context — never invent prices, volumes or news.',
+    'Doctrine: a BUY needs a real trigger, not hope. Bullish means the price has broken above its recent range AND momentum agrees (trend slope positive, signal programs bullish). A price sitting inside its range is NEUTRAL, however much you like the asset.',
+    'Respect the tape: on a flat or falling tape the correct verdict is neutral or hold. Protect capital first — the desk harvests +1% targets with -0.5% stops and a hard daily loss limit, so only bless setups with room to run.',
+    'Answer with the verdict, a confidence that reflects the evidence (weak evidence = low confidence), and one short reason naming the deciding evidence.',
+  ].join(' '),
+  taskPrompt: 'Judge whether this asset is a buy right now. Use the indicators and the recent price path in the context. If the price has not broken its range or momentum disagrees, say neutral.',
   model: 'llama-3.3-70b-versatile',
   temperature: 0.3,
   minConfidence: 0.55,
@@ -48,8 +53,12 @@ export const BLOCKS: BlockDef[] = [
     config: {
       ...DEFAULT_AGENT,
       agentName: 'Referee',
-      systemPrompt: 'You arbitrate across several trading lanes. You allow risk only when the lanes genuinely agree.',
-      taskPrompt: 'Read every lane result in the context and decide whether the strategy may open new positions now.',
+      systemPrompt: [
+        'You are the risk referee for the Gold Arrow desk. You arbitrate across several trading lanes and rule on whether the strategy may open new positions this tick.',
+        'Allow risk ONLY when the lanes genuinely agree: at least the required number of lanes bullish on real breakouts, no lane flashing a hard sell or risk breach, and the tape not flat. Disagreement, stale data, or all-neutral lanes means VETO — protecting the account beats missing a move.',
+        'Never invent agreement that is not in the lane results. State the count of bullish lanes and the deciding evidence in your reason.',
+      ].join(' '),
+      taskPrompt: 'Read every lane result in the context and decide whether the strategy may open new positions now. Count the genuinely bullish lanes; if they disagree or the tape is flat, veto.',
     } },
 
   { id: 'risk', kind: 'risk', group: 'Protect', name: 'Loss limit',

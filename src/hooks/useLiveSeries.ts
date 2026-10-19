@@ -24,7 +24,10 @@ export function useLiveSeries(
         const p = getRef.current(t);
         if (!(p > 0)) return;
         const arr = store.current.get(t) ?? [];
-        if (arr[arr.length - 1] === p) return;
+        // Record EVERY sample, even when the price is unchanged: the series is
+        // time-sampled (one print per interval), and analysis windows count
+        // samples. Dropping unchanged prices starved quiet assets — a flat
+        // Sunday-night metal could sit at "2 prints" for a whole run.
         arr.push(p);
         if (arr.length > maxPoints) arr.splice(0, arr.length - maxPoints);
         store.current.set(t, arr);

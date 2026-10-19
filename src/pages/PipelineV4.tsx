@@ -23,6 +23,7 @@ import { loadBlocks, saveBlocks, normalizeBlockCode, type CustomBlock } from '@/
 import { ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import GALiveChart from '@/components/trading/GALiveChart';
 import { loadRunMemory, recordRun, clearRunMemory, memoryTotals, type RunMemoryEntry } from '@/lib/pipelineMemory';
+import { useBrokerConnections, brokerCall } from '@/hooks/useBrokerTrading';
 import { buildSipvbGraph } from '@/lib/sipvbPreset';
 import { BLOCK_BY_ID, describeStep, type BlockDef } from '@/lib/pipelineBlocks';
 import {
@@ -41,6 +42,16 @@ const Workspace = () => {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [running, setRunning] = useState(false);
+  // Execution mode: 'paper' = the internal paper account (default, guest OK);
+  // 'broker' = the same strategy signals ALSO route real orders through the
+  // connected broker (Trading Bridge connection, sign-in required).
+  const [execMode, setExecMode] = useState<'paper' | 'broker'>(() =>
+    (typeof localStorage !== 'undefined' && localStorage.getItem('ga_pipeline_v4_exec') === 'broker') ? 'broker' : 'paper');
+  const { data: brokerConns } = useBrokerConnections();
+  const activeConn = brokerConns?.[0];
+  const execRef = useRef<{ mode: 'paper' | 'broker'; conn?: { id: string; broker: string; environment: string; label: string | null } }>({ mode: 'paper' });
+  execRef.current = { mode: execMode, conn: activeConn ? { id: activeConn.id, broker: activeConn.broker, environment: activeConn.environment, label: activeConn.label } : undefined };
+  useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_exec', execMode); } catch { /* ignore */ } }, [execMode]);
   const [panel, setPanel] = useState<'genius' | 'step' | 'report' | 'charts'>('genius');
   const [runMemory, setRunMemory] = useState<RunMemoryEntry[]>(() => loadRunMemory());
   const [chartKey, setChartKey] = useState<string>('gold');
@@ -333,10 +344,45 @@ const Workspace = () => {
     const tickers = Array.from(new Set([
       ...graphRef.current.lanes.flatMap((l) => l.steps.map((st) => st.config?.ticker).filter(Boolean) as string[]),
       ...tracked,
+      // Screen steps can bind ANY asset in the classified universe mid-run —
+      // prime those too, so a newly bound asset starts with real history
+      // instead of zero samples.
+      ...classified.map((c) => c.ticker).filter(Boolean),
     ]));
     if (tickers.length) await primeHistory(tickers, { interval: '1m', points: 300 });
 
     const collected: RunEvent[] = [];
+    const emitRunEvent = (e: RunEvent) => {
+      collected.push(e);
+      setEvents((prev) => [...prev, e]);
+      if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
+    };
+    const sessionEvent = (status: RunEvent['status'], message: string) =>
+      emitRunEvent({ ts: Date.now(), tick: 0, laneId: 'session', laneName: 'Session', stepId: null, stepLabel: '', status, message });
+
+    // ── Broker execution (founder directive): in broker mode the run's book
+    // stays the strategy ledger (paper account), and every fill ALSO routes a
+    // real market order through broker-proxy to the connected broker. Symbols
+    // a broker cannot list (metals spot, funds) stay paper-only, said out loud.
+    const exec = execRef.current;
+    const brokerMode = exec.mode === 'broker' && !!exec.conn;
+    const brokerTradable = (sym: string) => /^[A-Z]{1,5}$/.test(sym) || /^[A-Z]{2,10}\/USD$/.test(sym);
+    const routeToBroker = (side: 'buy' | 'sell', symbol: string, qty: number) => {
+      if (!brokerMode || !exec.conn) return;
+      if (!brokerTradable(symbol)) {
+        sessionEvent('info', `Broker: ${symbol} is not listed on ${exec.conn.broker} — this position is tracked on paper only.`);
+        return;
+      }
+      brokerCall('order', { connectionId: exec.conn.id, symbol, qty, side, orderType: 'market', timeInForce: 'day' })
+        .then((r: any) => sessionEvent('info', `Broker order sent: ${side.toUpperCase()} ${qty} ${symbol} on ${exec.conn!.broker} (${exec.conn!.environment}) — status ${r?.order?.status ?? 'accepted'}.`))
+        .catch((err: any) => sessionEvent('error', `Broker order FAILED for ${symbol}: ${err?.message ?? 'unknown error'} — the position continues on paper only.`));
+    };
+    if (exec.mode === 'broker' && !exec.conn) {
+      sessionEvent('info', 'Execution is set to Broker but no broker is connected — this run executes on paper only. Connect a broker in Trading Bridge (sign-in required) to route real orders.');
+    } else if (brokerMode && exec.conn) {
+      sessionEvent('info', `Broker execution ON: fills will also be sent as real market orders to ${exec.conn.broker} (${exec.conn.environment}). Run stats track the strategy ledger.`);
+    }
+
     let result: RunResult | null = null;
     try {
       result = await runGraph(
@@ -348,17 +394,19 @@ const Workspace = () => {
           classified,
           blocks: blocksRef.current,
           getAccount: () => paperRef.current.account,
-          submitOrder: (o) => paperRef.current.submitOrder(o) as any,
-          closePosition: ({ ticker, qty, price }) =>
-            paperRef.current.submitOrder({ symbol: ticker, side: 'sell', qty, type: 'market', price, botSource: true }),
+          submitOrder: (o) => {
+            const filled = paperRef.current.submitOrder(o) as any;
+            routeToBroker(o.side, o.symbol, o.qty);
+            return filled;
+          },
+          closePosition: ({ ticker, qty, price }) => {
+            paperRef.current.submitOrder({ symbol: ticker, side: 'sell', qty, type: 'market', price, botSource: true });
+            routeToBroker('sell', ticker, qty);
+          },
           runAgent,
           shouldStop: () => stopRef.current,
         },
-        (e) => {
-          collected.push(e);
-          setEvents((prev) => [...prev, e]);
-          if (e.stepId) setSelectedStepId(e.stepId); // camera follows the step being executed
-        },
+        emitRunEvent,
       );
       setRunResult(result);
     } finally {
@@ -846,6 +894,24 @@ const Workspace = () => {
 
             {/* primary control, right where the strategy is */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
+              {!running && (
+                <div className="mb-2 flex items-center justify-center gap-1 text-[12px]">
+                  <span className="mr-1 text-muted-foreground">Execution:</span>
+                  <button
+                    onClick={() => setExecMode('paper')}
+                    className={`rounded-full border px-3 py-1 font-medium backdrop-blur ${execMode === 'paper' ? 'border-primary/70 bg-primary/25 text-primary' : 'border-border/60 bg-card/50 text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Paper account
+                  </button>
+                  <button
+                    onClick={() => setExecMode('broker')}
+                    className={`rounded-full border px-3 py-1 font-medium backdrop-blur ${execMode === 'broker' ? 'border-primary/70 bg-primary/25 text-primary' : 'border-border/60 bg-card/50 text-muted-foreground hover:text-foreground'}`}
+                    title={activeConn ? `Route fills to ${activeConn.broker} (${activeConn.environment})` : 'No broker connected — connect one in Trading Bridge (sign-in required)'}
+                  >
+                    Broker{activeConn ? `: ${activeConn.broker} ${activeConn.environment}` : ' (not connected)'}
+                  </button>
+                </div>
+              )}
               {running ? (
                 <button
                   onClick={() => { stopRef.current = true; }}
@@ -870,7 +936,11 @@ const Workspace = () => {
                     ? 'Add a block to a lane first'
                     : running
                       ? 'Steps light up as they execute'
-                      : `Plays all ${graph.lanes.length} lanes at once on paper money — orders, results and a step-by-step trace appear in Report`}
+                      : execMode === 'broker' && activeConn
+                        ? `Plays all ${graph.lanes.length} lanes at once — fills also route to your ${activeConn.broker} (${activeConn.environment}) account; results and a step-by-step trace appear in Report`
+                        : execMode === 'broker'
+                          ? 'Broker mode needs a connected broker (Trading Bridge, sign-in required) — without one this run executes on paper only'
+                          : `Plays all ${graph.lanes.length} lanes at once on paper money — orders, results and a step-by-step trace appear in Report`}
               </p>
             </div>
           </section>

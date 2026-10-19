@@ -277,7 +277,7 @@ export function useDeleteBrokerConnection() {
 
 // ─── Broker API Proxy Calls ──────────────────────────────
 
-async function brokerCall(action: string, params: Record<string, unknown> = {}) {
+export async function brokerCall(action: string, params: Record<string, unknown> = {}) {
   const { data, error } = await supabase.functions.invoke('broker-proxy', {
     body: { action, ...params },
   });
