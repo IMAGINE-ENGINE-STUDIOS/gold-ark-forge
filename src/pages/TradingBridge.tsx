@@ -27,27 +27,15 @@ import GAForexMatrix from '@/components/ga-widgets/GAForexMatrix';
 import GAEconomicCalendar from '@/components/ga-widgets/GAEconomicCalendar';
 import GAMarketQuotes from '@/components/ga-widgets/GAMarketQuotes';
 import GAMarketSummary from '@/components/ga-widgets/GAMarketSummary';
-import GATimeSales from '@/components/ga-widgets/GATimeSales';
 import GATradeJournal from '@/components/ga-widgets/GATradeJournal';
 import GAPerformanceDashboard from '@/components/ga-widgets/GAPerformanceDashboard';
 import GATradingSessions from '@/components/ga-widgets/GATradingSessions';
 import GAPipCalculator from '@/components/ga-widgets/GAPipCalculator';
 import GAMarginCalc from '@/components/ga-widgets/GAMarginCalc';
-import OneClickTrading from '@/components/trading/OneClickTrading';
-import TradingPanel from '@/components/trading/TradingPanel';
-import WaveBotPanel from '@/components/trading/WaveBotPanel';
-import GeniusPanel from '@/components/trading/GeniusPanel';
 import { useWaveBot } from '@/hooks/useWaveBot';
-import { useGeniusTrader } from '@/hooks/useGeniusTrader';
 import PortfolioSummary from '@/components/trading/PortfolioSummary';
 import PositionsPanel from '@/components/trading/PositionsPanel';
 import OrderHistory from '@/components/trading/OrderHistory';
-import BacktestPanel from '@/components/trading/BacktestPanel';
-import DepthOfMarket from '@/components/trading/DepthOfMarket';
-import RuleBuilder from '@/components/trading/RuleBuilder';
-import WorkflowCanvas from '@/components/trading/WorkflowCanvas';
-import SchedulePanel from '@/components/trading/SchedulePanel';
-import PriceAlerts from '@/components/trading/PriceAlerts';
 import RiskLimits from '@/components/trading/RiskLimits';
 import { WATCHLIST_CATEGORIES, ALL_SYMBOLS, REAL_FEED_SYMBOLS } from '@/data/tradingSymbols';
 import { quoteIdFor } from '@/lib/priceSource';
@@ -61,7 +49,6 @@ import { useMetalPrices } from '@/hooks/useMetalPrices';
 import { useCryptoData } from '@/hooks/useCryptoData';
 import { useOilGasPrices } from '@/hooks/useOilGasData';
 import { useForexRates, type ForexRates } from '@/hooks/useForexRates';
-import { usePriceAlerts } from '@/hooks/usePriceAlerts';
 import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { usePaperTrading, type PaperPosition } from '@/hooks/usePaperTrading';
 import { useAuth } from '@/hooks/useAuth';
@@ -120,24 +107,9 @@ function CollapsibleSection({
   );
 }
 
-// ─── Mobile section tabs ─────────────────────────────────
-const MOBILE_TABS = [
-  { key: 'chart', label: 'CHART', icon: LineChartIcon },
-  { key: 'trade', label: 'TRADE', icon: ArrowUpDown },
-  { key: 'portfolio', label: 'PORTFOLIO', icon: Briefcase },
-  { key: 'tools', label: 'TOOLS', icon: Bot },
-] as const;
-
-type MobileTab = (typeof MOBILE_TABS)[number]['key'];
-
 // ─── Bottom Panel Tabs ───────────────────────────────────
 const BOTTOM_TABS = [
-  { key: 'trade', label: 'TRADE', icon: ArrowUpDown },
-  { key: 'genius', label: 'GENIUS', icon: Brain },
   { key: 'book', label: 'BOOK', icon: Briefcase },
-  { key: 'bot', label: 'BOT', icon: Bot },
-  { key: 'pipeline', label: 'PIPELINE', icon: CalendarDays },
-  { key: 'backtest', label: 'BACKTEST', icon: FlaskConical },
   { key: 'market', label: 'MARKET', icon: Layers },
   { key: 'analytics', label: 'ANALYTICS', icon: BarChart3 },
   { key: 'risk', label: 'RISK', icon: Shield },
@@ -145,345 +117,9 @@ const BOTTOM_TABS = [
 
 type BottomTab = (typeof BOTTOM_TABS)[number]['key'];
 
-// ─── Paper Trading Panel ─────────────────────────────────
-function PaperTradingPanel({ activeSymbol, activePrice, paper }: {
-  activeSymbol: { key: string; label: string; ticker: string; cat: string };
-  activePrice: number;
-  paper: ReturnType<typeof usePaperTrading>;
-}) {
-  const [qty, setQty] = useState('');
-  const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop' | 'stop_limit'>('market');
-  const [limitPrice, setLimitPrice] = useState('');
-  const [stopPrice, setStopPrice] = useState('');
-  const [confirmData, setConfirmData] = useState<OrderConfirmationData | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const { toast } = useToast();
 
-  const parsedQty = parseFloat(qty) || 0;
-  const fillPrice = orderType === 'market' ? activePrice : (parseFloat(limitPrice) || activePrice);
-  const totalCost = parsedQty * fillPrice;
-  const portfolioPct = paper.account.equity > 0 ? (totalCost / paper.account.equity) * 100 : 0;
-  const remainingCash = side === 'buy' ? paper.account.cash - totalCost : paper.account.cash + totalCost;
-  const spread = activePrice * 0.0002;
 
-  // Find owned position for the active symbol
-  const ownedPosition = paper.positions.find(
-    p => p.symbol === activeSymbol.ticker && p.side === 'buy'
-  );
-  const ownedQty = ownedPosition?.qty ?? 0;
 
-  const setQtyPercent = (pct: number) => {
-    if (activePrice <= 0) return;
-    if (side === 'sell') {
-      // For sells, percentage of owned position qty
-      if (ownedQty <= 0) return;
-      const sellQty = ownedQty * pct;
-      setQty(sellQty < 1 ? sellQty.toFixed(4) : Math.floor(sellQty).toString());
-    } else {
-      // For buys, percentage of available cash
-      const maxQty = (paper.account.cash * pct) / activePrice;
-      setQty(maxQty < 1 ? maxQty.toFixed(4) : Math.floor(maxQty).toString());
-    }
-  };
-
-  const executeOrder = () => {
-    try {
-      paper.submitOrder({
-        symbol: activeSymbol.ticker,
-        side,
-        qty: parseFloat(qty),
-        type: orderType === 'stop_limit' ? 'limit' : (orderType === 'stop' ? 'stop' : orderType),
-        price: activePrice,
-        limitPrice: orderType === 'limit' || orderType === 'stop_limit' ? parseFloat(limitPrice) : undefined,
-      });
-      showTradeRecap({ side, qty: parseFloat(qty), symbol: activeSymbol.ticker, price: activePrice });
-      setQty('');
-    } catch (err) {
-      toast({ title: 'Order Failed', description: err instanceof Error ? err.message : 'Error', variant: 'destructive' });
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!qty || !activePrice) return;
-    setConfirmData({
-      symbol: activeSymbol.ticker,
-      symbolKey: activeSymbol.key,
-      symbolLabel: activeSymbol.label,
-      category: activeSymbol.cat,
-      side,
-      qty: parsedQty,
-      orderType,
-      fillPrice,
-      limitPrice: orderType === 'limit' ? parseFloat(limitPrice) : undefined,
-      stopPrice: orderType === 'stop' ? parseFloat(stopPrice) : undefined,
-      mode: 'paper',
-      currentEquity: paper.account.equity,
-      currentCash: paper.account.cash,
-      positionCount: paper.positions.length,
-      onConfirm: executeOrder,
-      onModify: () => {},
-    });
-    setConfirmOpen(true);
-  };
-
-  return (
-    <div className="space-y-3">
-      {/* Paper Account Summary */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/30 font-display tracking-wider">EQUITY</div>
-          <div className="text-xs font-mono text-marble">${paper.account.equity.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-        </div>
-        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/30 font-display tracking-wider">CASH</div>
-          <div className="text-xs font-mono text-marble">${paper.account.cash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
-        </div>
-        <div className="bg-navy-light/30 rounded-lg p-2 text-center border border-gold/5">
-          <div className="text-[7px] text-marble/30 font-display tracking-wider">P&L</div>
-          <div className={`text-xs font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {paper.account.totalPnl >= 0 ? '+' : ''}${paper.account.totalPnl.toFixed(2)}
-          </div>
-        </div>
-      </div>
-
-      {/* Bid/Ask Spread Indicator */}
-      {activePrice > 0 && (
-        <div className="flex items-center justify-between bg-navy-light/20 rounded px-2 py-1 border border-gold/5">
-          <span className="text-[8px] font-mono text-emerald-400/70">BID: ${(activePrice - spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
-          <span className="text-[7px] font-mono text-marble/20">SPREAD: ${spread.toFixed(activePrice < 10 ? 4 : 2)}</span>
-          <span className="text-[8px] font-mono text-red-400/70">ASK: ${(activePrice + spread / 2).toFixed(activePrice < 10 ? 4 : 2)}</span>
-        </div>
-      )}
-
-      {/* Order Form */}
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setSide('buy')}
-            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
-              side === 'buy' ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
-            }`}>
-            <TrendingUp className="w-3 h-3" /> BUY
-          </button>
-          <button type="button" onClick={() => setSide('sell')}
-            className={`flex-1 py-2 rounded font-display text-xs tracking-wider transition-all flex items-center justify-center gap-1 ${
-              side === 'sell' ? 'bg-red-500/20 border border-red-500/50 text-red-300' : 'bg-navy-light/50 border border-gold/10 text-marble/50'
-            }`}>
-            <TrendingDown className="w-3 h-3" /> SELL
-          </button>
-        </div>
-
-        {/* Order Type */}
-        <div className="flex gap-1">
-          {(['market', 'limit', 'stop', 'stop_limit'] as const).map(t => (
-            <button key={t} type="button" onClick={() => setOrderType(t)}
-              className={`flex-1 py-1 rounded text-[8px] font-display tracking-wider transition-all ${
-                orderType === t ? 'bg-gold/15 text-gold border border-gold/30' : 'bg-navy-light/30 text-marble/30 border border-gold/5'
-              }`}>
-              {t === 'stop_limit' ? 'STP-LMT' : t.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {/* Quantity + Quick Size */}
-        <div>
-          <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Quantity" min="0.001" step="any"
-            className="bg-navy-light border-gold/20 text-marble font-mono text-sm" required />
-          <div className="flex gap-1 mt-1">
-            {[0.25, 0.5, 0.75, 1].map(pct => (
-              <button key={pct} type="button" onClick={() => setQtyPercent(pct)}
-                className="flex-1 py-0.5 rounded text-[7px] font-mono text-marble/30 bg-navy-light/30 border border-gold/5 hover:text-gold hover:border-gold/20 transition-colors">
-                {pct === 1 ? 'MAX' : `${pct * 100}%`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Limit/Stop Price */}
-        {(orderType === 'limit' || orderType === 'stop_limit') && (
-          <div className="relative">
-            <Input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="Limit Price" step="0.01"
-              className="bg-navy-light border-gold/20 text-marble font-mono text-sm pr-14" required />
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
-              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) - (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
-                className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">−</button>
-              <button type="button" onClick={() => setLimitPrice(p => (parseFloat(p || String(activePrice)) + (activePrice < 10 ? 0.01 : 1)).toFixed(activePrice < 10 ? 4 : 2))}
-                className="w-5 h-5 rounded bg-navy-light/80 text-marble/40 hover:text-marble text-xs border border-gold/10">+</button>
-            </div>
-          </div>
-        )}
-        {(orderType === 'stop' || orderType === 'stop_limit') && (
-          <Input type="number" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="Stop Price" step="0.01"
-            className="bg-navy-light border-gold/20 text-marble font-mono text-sm" required />
-        )}
-
-        {/* Order Cost Breakdown */}
-        {parsedQty > 0 && activePrice > 0 && (
-          <div className="bg-navy-dark/50 rounded-lg p-2 space-y-1 border border-gold/5">
-            <div className="flex justify-between text-[9px] font-mono">
-              <span className="text-marble/40">{parsedQty} × ${fillPrice < 10 ? fillPrice.toFixed(4) : fillPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-              <span className="text-marble font-semibold">${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between text-[8px] font-mono">
-              <span className="text-marble/25">Commission</span>
-              <span className="text-marble/30">$0.00</span>
-            </div>
-            <div className="flex justify-between text-[8px] font-mono">
-              <span className="text-marble/25">Portfolio %</span>
-              <span className={`${portfolioPct > 25 ? 'text-amber-400' : 'text-marble/30'}`}>{portfolioPct.toFixed(1)}%</span>
-            </div>
-            <div className="border-t border-gold/5 pt-1 flex justify-between text-[8px] font-mono">
-              <span className="text-marble/25">Cash After</span>
-              <span className={`${remainingCash < 0 ? 'text-red-400' : 'text-marble/40'}`}>${remainingCash.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-            </div>
-          </div>
-        )}
-
-        <Button type="submit" disabled={!qty || (side === 'buy' && totalCost > paper.account.cash) || (side === 'sell' && (ownedQty <= 0 || parsedQty > ownedQty))}
-          className={`w-full font-display tracking-wider ${side === 'buy' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
-          {side === 'sell' && ownedQty <= 0 ? `NO ${activeSymbol.ticker} TO SELL` : side === 'sell' && parsedQty > ownedQty ? `MAX ${ownedQty} OWNED` : `${side.toUpperCase()} ${parsedQty > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : activeSymbol.ticker}`}
-        </Button>
-      </form>
-
-      {/* Paper Positions */}
-      {paper.positions.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">OPEN POSITIONS ({paper.positions.length})</div>
-          {paper.positions.map(pos => {
-            const livePrice = pos.symbol === activeSymbol.ticker && activePrice > 0 ? activePrice : pos.currentPrice;
-            const livePnl = pos.side === 'buy'
-              ? (livePrice - pos.entryPrice) * pos.qty
-              : (pos.entryPrice - livePrice) * pos.qty;
-            const livePnlPct = pos.entryPrice > 0 ? (livePnl / (pos.entryPrice * pos.qty)) * 100 : 0;
-            const isProfit = livePnl >= 0;
-            return (
-              <div key={pos.id} className="flex items-center justify-between p-2 bg-navy-light/20 rounded border border-gold/5">
-                <div>
-                  <div className="text-[10px] font-mono text-marble/70">{pos.symbol} <span className={pos.side === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{pos.side.toUpperCase()}</span></div>
-                  <div className="text-[8px] text-marble/25">{pos.qty} @ ${pos.entryPrice.toFixed(2)}</div>
-                </div>
-                <div className="text-right flex items-center gap-2">
-                  <div>
-                    <div className={`text-sm font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                      ${livePrice < 10 ? livePrice.toFixed(4) : livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                    <div className={`text-[9px] font-mono ${livePnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)} ({livePnlPct.toFixed(1)}%)
-                    </div>
-                  </div>
-                  <button onClick={() => paper.closePosition(pos.id, livePrice)} className="text-[8px] font-display tracking-wider text-red-400 hover:text-red-300 transition-colors px-1.5 py-0.5 rounded border border-red-500/30 bg-red-500/10">CLOSE</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Recent Orders */}
-      {paper.orders.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[8px] font-display tracking-wider text-marble/30 mt-2">RECENT ORDERS ({paper.orders.length})</div>
-          {paper.orders.slice(0, 5).map(o => (
-            <div key={o.id} className="flex items-center justify-between px-2 py-1 text-[9px] font-mono text-marble/30 border-b border-gold/5">
-              <span className={o.side === 'buy' ? 'text-emerald-400/60' : 'text-red-400/60'}>{o.side.toUpperCase()}</span>
-              <span>{o.qty} {o.symbol}</span>
-              <span>${o.price.toFixed(2)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-1 mt-1">
-        <div className="text-center bg-navy-light/15 rounded p-1 border border-gold/5">
-          <div className="text-[7px] text-marble/20 font-display tracking-wider">TRADES</div>
-          <div className="text-[10px] font-mono text-marble/50">{paper.account.totalTrades}</div>
-        </div>
-        <div className="text-center bg-navy-light/15 rounded p-1 border border-gold/5">
-          <div className="text-[7px] text-marble/20 font-display tracking-wider">WIN RATE</div>
-          <div className="text-[10px] font-mono text-marble/50">{paper.account.winRate.toFixed(0)}%</div>
-        </div>
-        <div className="text-center bg-navy-light/15 rounded p-1 border border-gold/5">
-          <div className="text-[7px] text-marble/20 font-display tracking-wider">ROI</div>
-          <div className={`text-[10px] font-mono ${paper.account.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {((paper.account.totalPnl / paper.account.startingBalance) * 100).toFixed(1)}%
-          </div>
-        </div>
-      </div>
-
-      {/* Reset */}
-      <button onClick={paper.resetAccount} className="flex items-center gap-1 mx-auto text-[8px] text-marble/20 hover:text-red-400 transition-colors mt-2">
-        <RotateCcw className="w-2.5 h-2.5" /> RESET PAPER ACCOUNT
-      </button>
-
-      <OrderConfirmationDialog open={confirmOpen} onOpenChange={setConfirmOpen} data={confirmData} />
-    </div>
-  );
-}
-
-// ─── Trade Tab Content (Collapsible Layout) ──────────────
-function TradeTabContent({ 
-  tradingMode, activeSymbol, activePrice, paper, activeConn, activeCandles 
-}: { 
-  tradingMode: 'live' | 'paper'; 
-  activeSymbol: { key: string; label: string; ticker: string; cat: string }; 
-  activePrice: number; 
-  paper: ReturnType<typeof usePaperTrading>; 
-  activeConn?: { id: string } | null;
-  activeCandles?: { closes: number[]; highs: number[]; lows: number[] } | null;
-}) {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-      {/* Column 1: Order Execution */}
-      <div className="space-y-3">
-        <CollapsibleSection 
-          title="ORDER TICKET" 
-          icon={ArrowUpDown} 
-          badge={tradingMode === 'paper' ? 'PAPER' : 'LIVE'} 
-          defaultOpen
-        >
-          {tradingMode === 'paper' ? (
-            <PaperTradingPanel activeSymbol={activeSymbol} activePrice={activePrice} paper={paper} />
-          ) : (
-            <TradingPanel activeSymbol={activeSymbol.ticker} />
-          )}
-        </CollapsibleSection>
-
-        <CollapsibleSection title="DEPTH OF MARKET" icon={BarChart3}>
-          <DepthOfMarket price={activePrice} symbolLabel={activeSymbol.label} />
-        </CollapsibleSection>
-
-        <CollapsibleSection title="TIME & SALES" icon={Clock}>
-          <GATimeSales symbol={activeSymbol.ticker} price={activePrice} />
-        </CollapsibleSection>
-      </div>
-
-      {/* Column 2: Market Context */}
-      <div className="space-y-3">
-        <CollapsibleSection title="TECHNICALS" icon={LineChartIcon}>
-          <GATechnicalGauge assetLabel={activeSymbol.ticker} candles={activeCandles} />
-        </CollapsibleSection>
-      </div>
-
-      {/* Column 3: Portfolio */}
-      <div className="space-y-3">
-        {tradingMode === 'paper' && (
-          <RiskThermometer positions={paper.positions} equity={paper.account.equity} />
-        )}
-        <CollapsibleSection title="PORTFOLIO" icon={Briefcase} defaultOpen>
-          <PortfolioSummary />
-        </CollapsibleSection>
-
-        {activeConn && (
-          <CollapsibleSection title="POSITIONS" icon={TrendingUp}>
-            <PositionsPanel connectionId={activeConn.id} />
-          </CollapsibleSection>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ─── Pending Limit Orders Display ────────────────────
 function PendingLimitOrders({ askPrices, buyPrices, positions, onCancelAsk, onCancelBuy }: {
@@ -660,16 +296,14 @@ const TradingBridge = () => {
   useAutoSave(() => {
     updatePrefs({ last_symbol_key: activeSymbol.key });
   }, [activeSymbol.key]);
-  const [bottomTab, setBottomTab] = useState<BottomTab>('trade');
+  const [bottomTab, setBottomTab] = useState<BottomTab>('book');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSnap, setDrawerSnap] = useState<string | number | null>(0.5);
   const [brokerDialogOpen, setBrokerDialogOpen] = useState(false);
   const [tradingMode, setTradingMode] = useState<'live' | 'paper'>('paper');
-  const [oneClickOpen, setOneClickOpen] = useState(false);
   const { data: connections } = useBrokerConnections();
   const activeConn = connections?.[0];
   const isMobile = useIsMobile();
@@ -678,7 +312,6 @@ const TradingBridge = () => {
   const { data: oilPricesData } = useOilGasPrices();
   const { data: forexRatesData } = useForexRates();
   // Live quotes for the active symbol + everything currently held (real feeds only)
-  const priceAlertsHook = usePriceAlerts();
   const riskMonitor = useRiskMonitor();
   const { user } = useAuth();
   const paper = usePaperTrading(user?.id);
@@ -1012,14 +645,6 @@ const TradingBridge = () => {
     cash: paper.account.cash,
   });
 
-  const genius = useGeniusTrader({
-    submitOrder: paper.submitOrder,
-    positions: paper.positions,
-    cash: paper.account.cash,
-    equity: paper.account.equity,
-    resolvePrice: resolvePriceForTicker,
-    getCandleHistory,
-  });
 
   // ─── Close Position with Notification ──────────────
   const { toast } = useToast();
@@ -1238,27 +863,7 @@ const TradingBridge = () => {
             headerLeftSlot={<BrokerHeaderButton />}
             headerRightSlot={<ModeToggle />}
           />
-          {/* 1-Click toggle — prominent inside chart */}
-          <button
-            onClick={() => setOneClickOpen(!oneClickOpen)}
-            className={`absolute bottom-5 right-3 z-40 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[10px] font-display tracking-[0.14em] transition-all border backdrop-blur-sm ${
-              oneClickOpen
-                ? 'bg-gold/25 text-gold border-gold/50'
-                : 'bg-navy-dark/90 text-gold border-gold/30 hover:bg-gold/15'
-            }`}
-          >
-            <Zap className="w-4 h-4" /> 1-CLICK
-          </button>
-          {oneClickOpen && (
-            <div className="absolute bottom-20 right-3 z-50">
-              <OneClickTrading
-                symbol={activeSymbol.ticker}
-                price={activePrice}
-                paper={paper}
-                onClose={() => setOneClickOpen(false)}
-              />
-            </div>
-          )}
+          
         </div>
 
         {/* Bottom Tab Bar — always visible, scrollable on mobile */}
@@ -1333,19 +938,8 @@ const TradingBridge = () => {
 
               {/* Drawer content — scrollable */}
               <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-3">
-                {bottomTab === 'trade' && (
-                  <TradeTabContent
-                    tradingMode={tradingMode}
-                    activeSymbol={activeSymbol}
-                    activePrice={activePrice}
-                    paper={paper}
-                    activeConn={activeConn}
-                    activeCandles={getCandleData(activeSymbol.ticker)}
-                  />
-                )}
-                {bottomTab === 'genius' && (
-                  <GeniusPanel {...genius} />
-                )}
+                
+                
                 {bottomTab === 'book' && tradingMode === 'paper' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
@@ -1406,39 +1000,9 @@ const TradingBridge = () => {
                   </div>
                 )}
                 {bottomTab === 'book' && tradingMode === 'live' && !activeConn && <EmptyState text="Connect a broker to view positions & orders" />}
-                {bottomTab === 'bot' && (
-                  <WaveBotPanel
-                    config={waveBot.config}
-                    updateConfig={waveBot.updateConfig}
-                    trades={waveBot.trades}
-                    stats={waveBot.stats}
-                    killAll={waveBot.killAll}
-                    clearHistory={waveBot.clearHistory}
-                    botPositions={waveBot.botPositions}
-                    resolvePrice={resolvePriceForTicker}
-                    onClosePosition={(id, price) => handleClosePosition(id, price)}
-                    onNavigate={(sym) => setActiveSymbol(sym)}
-                    equity={paper.account.equity}
-                  />
-                )}
-                {bottomTab === 'pipeline' && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CalendarDays className="w-4 h-4 text-gold" />
-                      <span className="font-display text-sm tracking-[0.15em] text-gold-light">AUTOMATION PIPELINE</span>
-                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">WORKFLOW · RULES · SCHEDULE · ALERTS</span>
-                    </div>
-                    <WorkflowCanvas paper={paper} getPriceByTicker={resolvePriceForTicker} />
-                    <RuleBuilder />
-                    <div className="border-t border-gold/10 pt-4">
-                      <SchedulePanel />
-                    </div>
-                    <div className="border-t border-gold/10 pt-4">
-                      <PriceAlerts alertsHook={priceAlertsHook} />
-                    </div>
-                  </div>
-                )}
-                {bottomTab === 'backtest' && <BacktestPanel />}
+                
+                
+                
                 {bottomTab === 'analytics' && (
                   <div className="space-y-4">
                     <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />
@@ -1503,12 +1067,6 @@ const TradingBridge = () => {
         <div className="flex items-center gap-3">
           <Link to="/intelligence" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">INTELLIGENCE</Link>
           <Link to="/oil-gas" className="text-[10px] font-display tracking-wider text-marble/30 hover:text-gold transition-colors">OIL & GAS</Link>
-          {priceAlertsHook.activeCount > 0 && (
-            <button onClick={() => setBottomTab('pipeline')} className="relative p-1 text-gold/60 hover:text-gold">
-              <Bell className="w-3.5 h-3.5" />
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full text-[6px] text-white flex items-center justify-center">{priceAlertsHook.activeCount}</span>
-            </button>
-          )}
           <ConnectWalletButton />
         </div>
       </div>
@@ -1594,27 +1152,7 @@ const TradingBridge = () => {
                   headerLeftSlot={<BrokerHeaderButton />}
                   headerRightSlot={<ModeToggle />}
                 />
-                {/* One-Click Trading Toggle — prominent inside chart */}
-                <button
-                  onClick={() => setOneClickOpen(!oneClickOpen)}
-                  className={`absolute bottom-5 right-3 z-40 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[10px] font-display tracking-[0.14em] transition-all border backdrop-blur-sm ${
-                    oneClickOpen
-                      ? 'bg-gold/25 text-gold border-gold/50'
-                      : 'bg-navy-dark/90 text-gold border-gold/30 hover:bg-gold/15'
-                  }`}
-                >
-                  <Zap className="w-4 h-4" /> 1-CLICK
-                </button>
-                {oneClickOpen && (
-                  <div className="absolute bottom-20 right-3 z-50">
-                    <OneClickTrading
-                      symbol={activeSymbol.ticker}
-                      price={activePrice}
-                      paper={paper}
-                      onClose={() => setOneClickOpen(false)}
-                    />
-                  </div>
-                )}
+                
               </div>
             </ResizablePanel>
 
@@ -1644,19 +1182,8 @@ const TradingBridge = () => {
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 watchlist-scroll">
-                  {bottomTab === 'trade' && (
-                    <TradeTabContent 
-                      tradingMode={tradingMode} 
-                      activeSymbol={activeSymbol}
-                      activePrice={activePrice}
-                      paper={paper}
-                      activeConn={activeConn}
-                      activeCandles={getCandleData(activeSymbol.ticker)}
-                    />
-                  )}
-                  {bottomTab === 'genius' && (
-                    <GeniusPanel {...genius} />
-                  )}
+                  
+                  
                   {bottomTab === 'book' && tradingMode === 'paper' && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-2">
@@ -1731,39 +1258,9 @@ const TradingBridge = () => {
                       </CollapsibleSection>
                     </div>
                   )}
-                  {bottomTab === 'bot' && (
-                    <WaveBotPanel
-                      config={waveBot.config}
-                      updateConfig={waveBot.updateConfig}
-                      trades={waveBot.trades}
-                      stats={waveBot.stats}
-                      killAll={waveBot.killAll}
-                      clearHistory={waveBot.clearHistory}
-                      botPositions={waveBot.botPositions}
-                      resolvePrice={resolvePriceForTicker}
-                      onClosePosition={(id, price) => handleClosePosition(id, price)}
-                      onNavigate={(sym) => { setActiveSymbol(sym); setMobileTab('chart'); }}
-                      equity={paper.account.equity}
-                    />
-                  )}
-                  {bottomTab === 'pipeline' && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CalendarDays className="w-4 h-4 text-gold" />
-                        <span className="font-display text-sm tracking-[0.15em] text-gold-light">AUTOMATION PIPELINE</span>
-                        <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-gold/10 text-gold/70 border border-gold/20">WORKFLOW · RULES · SCHEDULE · ALERTS</span>
-                      </div>
-                      <WorkflowCanvas paper={paper} getPriceByTicker={resolvePriceForTicker} />
-                      <RuleBuilder />
-                      <div className="border-t border-gold/10 pt-4">
-                        <SchedulePanel />
-                      </div>
-                      <div className="border-t border-gold/10 pt-4">
-                        <PriceAlerts alertsHook={priceAlertsHook} />
-                      </div>
-                    </div>
-                  )}
-                  {bottomTab === 'backtest' && <BacktestPanel />}
+                  
+                  
+                  
                   {bottomTab === 'analytics' && (
                     <div className="space-y-4">
                       <AnalyticsPanel connectionId={activeConn?.id} tradingMode={tradingMode} paper={paper} />

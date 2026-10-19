@@ -229,16 +229,19 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
     const minConf = Number(rule.minConfidence ?? 0);
     const counted = ctx.upstream.filter((u) => u.signal !== null);
     const agreeing = counted.filter((u) => u.signal === expects && u.confidence >= minConf);
-    const total = counted.length || ctx.upstream.length || 1;
+    const countedTotal = counted.length || ctx.upstream.length || 1;
+    const total = ctx.upstream.length || countedTotal;
+    const silent = total - counted.length;
     const need =
-      rule.mode === 'all' ? total
+      rule.mode === 'all' ? countedTotal
       : rule.mode === 'any' ? 1
       : rule.mode === 'count' ? Math.max(1, Number(rule.count ?? 2))
-      : Math.ceil(total / 2);
+      : Math.ceil(countedTotal / 2);
     const passed = agreeing.length >= need;
 
     const reason = `${agreeing.length} of ${total} lanes are ${expects}` +
       (minConf > 0 ? ` with at least ${Math.round(minConf * 100)}% confidence` : '') +
+      (silent > 0 ? ` (${silent} lane${silent === 1 ? ' has' : 's have'} not signalled yet)` : '') +
       `; ${need} required.`;
 
     ctx.consensusOut?.push({

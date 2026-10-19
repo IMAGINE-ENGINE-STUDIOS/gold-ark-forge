@@ -94,23 +94,6 @@ Deno.serve(async (req) => {
     const key = Deno.env.get('GROQ_API_KEY');
     if (!key) throw new Error('GROQ_API_KEY is not configured');
 
-    // TEMP DIAGNOSTIC (founder's in-browser Genius fails while API probes
-    // pass): record what arrived + how the chain ends, in genius_debug.
-    const debugLog = (outcome: string, lastStatus: number, attempts: string) => {
-      const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-      const url = Deno.env.get('SUPABASE_URL');
-      if (!svc || !url) return;
-      fetch(`${url}/rest/v1/genius_debug`, {
-        method: 'POST',
-        headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({
-          page_bytes: rawBody.length,
-          history_roles: Array.isArray(history) ? history.map((h: any) => String(h?.role)).join(',') : 'none',
-          history_count: Array.isArray(history) ? history.length : 0,
-          outcome, last_status: lastStatus, attempts: attempts.slice(0, 1800),
-        }),
-      }).catch(() => {});
-    };
 
     // Groq transport with the SFH resilience pattern, two tiers per model:
     // first a forced emit_plan tool call; if the provider rejects that
@@ -310,15 +293,12 @@ Deno.serve(async (req) => {
 
     if (!res) {
       if (sawBusy || lastStatus === 429 || lastStatus === 413) {
-        debugLog('busy', lastStatus, attemptErrors.join(' ;; '));
         return new Response(JSON.stringify({ reply: 'The AI service is rate limited right now — try again in a moment.', actions: [], choices: ['Try again'] }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      debugLog('chain_exhausted', lastStatus, attemptErrors.join(' ;; '));
       return new Response(JSON.stringify({ error: 'AI request failed', status: lastStatus, upstream: lastError, attempts: attemptErrors }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    debugLog('ok', 200, attemptErrors.join(' ;; '));
 
     const data = await res.json();
     const choice = data?.choices?.[0]?.message;
