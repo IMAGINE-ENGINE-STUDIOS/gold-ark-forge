@@ -268,3 +268,46 @@ describe('execution order guarantees', () => {
     expect(res.trades.length).toBe(2);
   }, 30000);
 });
+
+describe('diversification mechanics', () => {
+  const classified3: AssetMetrics[] = ['AAA', 'BBB', 'CCC'].map((t) => ({
+    ticker: t, label: t, cat: 'stock', symbolKey: t, last: 100, change24h: 5,
+    samples: Array.from({ length: 40 }, (_, i) => 100 + i * 0.1),
+  }));
+
+  it('screen rotation cycles the lane across its top matches', async () => {
+    const g = emptyGraph();
+    g.session = { durationMin: 0.16, tickSec: 2, flattenOnStop: true };
+    const lane = makeLane('Rotator', 0);
+    lane.steps = [
+      makeStep('screen', 'Find assets', { classId: 'hottest', limit: 3, bindTop: true, rotate: 3 }),
+      makeStep('buy', 'Buy', { amountUsd: 100, takeProfitPct: 50, stopLossPct: 50, maxEntries: 9 }),
+    ];
+    g.lanes = [lane];
+    const hooks: RunHooks = {
+      ...makeHooks(() => 100),
+      classified: classifyAssets(classified3),
+      getSeries: () => Array.from({ length: 40 }, (_, i) => 100 + i * 0.1),
+    };
+    const res = await runGraph(g, hooks, () => {});
+    const tickers = new Set(res.trades.map((t) => t.ticker));
+    expect(tickers.size).toBeGreaterThanOrEqual(2); // not married to one name
+  }, 30000);
+
+  it('the per-asset cap refuses to pile the whole book into one name', async () => {
+    const g = emptyGraph();
+    g.session = { durationMin: 0.1, tickSec: 2, flattenOnStop: true };
+    g.risk = { maxDrawdownPct: 50, maxTotalInvestmentUsd: 100000, maxPerAssetUsd: 250 };
+    const lane = makeLane('Piler', 0);
+    lane.steps = [
+      makeStep('asset', 'Bind AAA', { ticker: 'AAA', label: 'AAA' }),
+      makeStep('buy', 'Buy', { amountUsd: 200, takeProfitPct: 50, stopLossPct: 50, maxEntries: 9 }),
+    ];
+    g.lanes = [lane];
+    const res = await runGraph(g, { ...makeHooks(() => 100), getSeries: () => Array.from({ length: 40 }, () => 100) }, () => {});
+    // $200 tickets against a $250 per-name cap: exactly ONE position may
+    // ever open (the session-end flatten closes it, so count all trades).
+    expect(res.trades.length).toBe(1);
+    expect(res.events.some((e) => e.message.includes('Diversification cap'))).toBe(true);
+  }, 30000);
+});

@@ -28,18 +28,18 @@ export interface LibraryEntry {
 const buildRetestRider = (): PipeGraph => {
   const g = emptyGraph();
   g.name = 'Retest Rider — buy the pullback';
-  g.risk = { maxDrawdownPct: 3, maxTotalInvestmentUsd: 20000 };
+  g.risk = { maxDrawdownPct: 3, maxTotalInvestmentUsd: 20000, maxPerAssetUsd: 1000 };
   g.session = { durationMin: 60, tickSec: 5, flattenOnStop: true, tradeWindowEt: '09:30-16:00' };
   const lane = makeLane('Scanner — breakout retests', 0);
   lane.steps = [
-    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'breakout', limit: 5, bindTop: true }),
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'breakout', limit: 5, bindTop: true, rotate: 3 }),
     makeStep('analysis', 'PULLBACK ENTRY', { programId: 'pullback_entry', params: { window: 30 } }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('analysis', 'TREND SCORE', { programId: 'trend', params: {} }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('buy', 'Buy the retest', {
-      ...blockConfig('buy'), amountUsd: 2500, takeProfitPct: 1.0, stopLossPct: 0.45,
-      maxHoldMin: 25, maxEntries: 3, cooldownMin: 2,
+      ...blockConfig('buy'), amountUsd: 250, takeProfitPct: 1.0, stopLossPct: 0.45,
+      maxHoldMin: 15, maxEntries: 20, cooldownMin: 1,
       scaleOutPct: 50, takeProfit2Pct: 2.0, trailPct: 0.4,
     }),
   ];
@@ -60,18 +60,18 @@ const buildRetestRider = (): PipeGraph => {
 const buildFade = (): PipeGraph => {
   const g = emptyGraph();
   g.name = 'Fade the Stretch — mean reversion';
-  g.risk = { maxDrawdownPct: 2.5, maxTotalInvestmentUsd: 15000 };
+  g.risk = { maxDrawdownPct: 2.5, maxTotalInvestmentUsd: 15000, maxPerAssetUsd: 1000 };
   g.session = { durationMin: 60, tickSec: 5, flattenOnStop: true, tradeWindowEt: '09:30-16:00' };
   const lane = makeLane('Scanner — oversold stretch', 0);
   const fade = AGENT_TEMPLATE_BY_ID.get('fade_trader')!;
   lane.steps = [
-    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'oversold', limit: 5, bindTop: true }),
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'oversold', limit: 5, bindTop: true, rotate: 3 }),
     makeStep('analysis', 'Z-SCORE', { programId: 'zscore', params: { window: 50 } }),
     makeStep('branch', 'Only continue if bearish', { expects: 'bearish' }),
     makeStep('agent', 'Fade Trader', { ...blockConfig('agent'), ...templateConfig(fade), model: 'llama-3.3-70b-versatile' }),
     makeStep('buy', 'Buy the bounce', {
-      ...blockConfig('buy'), amountUsd: 2000, takeProfitPct: 0.8, stopLossPct: 0.4,
-      maxHoldMin: 30, maxEntries: 2, cooldownMin: 3,
+      ...blockConfig('buy'), amountUsd: 250, takeProfitPct: 0.8, stopLossPct: 0.4,
+      maxHoldMin: 20, maxEntries: 15, cooldownMin: 1,
       scaleOutPct: 50, takeProfit2Pct: 1.6, trailPct: 0.3,
     }),
   ];
@@ -92,18 +92,18 @@ const buildFade = (): PipeGraph => {
 const buildMomentumRider = (): PipeGraph => {
   const g = emptyGraph();
   g.name = 'Momentum Rider — ride the trend';
-  g.risk = { maxDrawdownPct: 3, maxTotalInvestmentUsd: 20000 };
+  g.risk = { maxDrawdownPct: 3, maxTotalInvestmentUsd: 20000, maxPerAssetUsd: 1000 };
   g.session = { durationMin: 120, tickSec: 5, flattenOnStop: true, tradeWindowEt: '09:30-16:00' };
   const lane = makeLane('Scanner — trend up', 0);
   lane.steps = [
-    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'trend_up', limit: 5, bindTop: true }),
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'trend_up', limit: 5, bindTop: true, rotate: 3 }),
     makeStep('analysis', 'TREND SCORE', { programId: 'trend', params: {} }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('analysis', 'MACD', { programId: 'macd', params: {} }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('buy', 'Ride it', {
-      ...blockConfig('buy'), amountUsd: 2500, takeProfitPct: 3.0, stopLossPct: 0.7,
-      maxHoldMin: 60, maxEntries: 2, cooldownMin: 5,
+      ...blockConfig('buy'), amountUsd: 250, takeProfitPct: 3.0, stopLossPct: 0.7,
+      maxHoldMin: 45, maxEntries: 12, cooldownMin: 2,
       scaleOutPct: 0, takeProfit2Pct: 0, trailPct: 0.5,
     }),
   ];

@@ -189,6 +189,8 @@ interface SharedState {
   fastForward?: boolean;
   fees: number;
   budget: number;
+  /** Diversification cap: most dollars allowed in ONE asset at a time (0 = off). */
+  maxPerAssetUsd: number;
   startEquity: number;
   trades: TradeRecord[];
   /** Gate produced by the consensus lanes on the previous tick. */
@@ -356,6 +358,14 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
           if (step.config?.bindTop !== false) {
             outcome.ticker = screen[0].ticker;
             outcome.label = screen[0].label;
+            // Diversification rotation: cycle the binding across the top
+            // matches instead of marrying the lane to a single name.
+            const rotate = Math.max(1, Number(step.config?.rotate ?? 1));
+            if (rotate > 1 && screen.length > 1) {
+              const pick = screen[tick % Math.min(rotate, screen.length)];
+              outcome.ticker = pick.ticker;
+              outcome.label = pick.label;
+            }
           }
           push(step, 'ok',
             `Matched ${screen.map((s) => s.label).join(', ')}${step.config?.bindTop !== false ? ` — using ${outcome.label}.` : '.'}`,
@@ -623,6 +633,17 @@ async function runLanePass(lane: PipeLane, ctx: PassCtx): Promise<LaneOutcome> {
               break;
             }
             spend = Math.min(amount, remaining);
+            if (shared.maxPerAssetUsd > 0) {
+              const inName = shared.trades
+                .filter((t) => t.open && t.ticker === outcome.ticker)
+                .reduce((a, t) => a + t.entryPrice * t.qty, 0);
+              if (inName + spend > shared.maxPerAssetUsd) {
+                push(step, 'skip',
+                  `Diversification cap: $${inName.toFixed(0)} already in ${outcome.label} — one name may hold at most $${shared.maxPerAssetUsd.toLocaleString()} of this strategy.`,
+                  { decision: 'no order', reason: 'per-asset diversification cap' });
+                break;
+              }
+            }
           }
 
           const qty = spend / price;
@@ -837,6 +858,7 @@ export async function runGraph(
     fastForward: (hooks as any)?.fastForward === true,
     fees: 0,
     budget: Math.max(0, Number(graph.risk?.maxTotalInvestmentUsd ?? plannedInvestment(graph))),
+    maxPerAssetUsd: Math.max(0, Number(graph.risk?.maxPerAssetUsd ?? 0)),
     startEquity: hooks.getAccount().equity,
     trades: [],
     gate: { open: true, reason: 'no consensus lane has ruled yet' },

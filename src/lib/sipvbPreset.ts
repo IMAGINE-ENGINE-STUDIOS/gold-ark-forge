@@ -33,9 +33,9 @@ const buyConfig = (amountUsd: number) => ({
   amountUsd,
   takeProfitPct: 1.0,   // the harvest level
   stopLossPct: 0.5,     // 2:1 reward:risk against the harvest
-  maxHoldMin: 20,
-  maxEntries: 3,
-  cooldownMin: 2,
+  maxHoldMin: 15,
+  maxEntries: 20,
+  cooldownMin: 1,
   scaleOutPct: 50,      // bank half at +1%…
   takeProfit2Pct: 2.0,  // …the runner aims for +2%…
   trailPct: 0.4,        // …protected by a trailing stop, stop to breakeven
@@ -49,37 +49,37 @@ const sniperStep = () => {
 export const buildSipvbGraph = (): PipeGraph => {
   const g = emptyGraph();
   g.name = '6X — Stocks-in-Play Volatility Breakout';
-  g.risk = { maxDrawdownPct: 3, maxTotalInvestmentUsd: 25000 };
+  g.risk = { maxDrawdownPct: 3, maxTotalInvestmentUsd: 25000, maxPerAssetUsd: 1000 };
   g.session = { durationMin: 60, tickSec: 5, flattenOnStop: true, tradeWindowEt: '09:30-16:00' };
 
   const lane1 = makeLane('Scanner — in-play breakouts', 0);
   lane1.steps = [
-    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'in_play', limit: 5, bindTop: true }),
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'in_play', limit: 5, bindTop: true, rotate: 3 }),
     makeStep('analysis', 'BREAKOUT CONFIRM', { programId: 'breakout_confirm', params: { window: 30, hold: 3 } }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('analysis', 'TREND SCORE', { programId: 'trend', params: {} }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     sniperStep(),
-    makeStep('buy', 'Buy — harvest +1%, runner to +2%', buyConfig(2500)),
+    makeStep('buy', 'Buy — harvest +1%, runner to +2%', buyConfig(250)),
   ];
 
   const lane2 = makeLane('Scanner — retest entries', 1);
   lane2.steps = [
-    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'momentum_surge', limit: 5, bindTop: true }),
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'momentum_surge', limit: 5, bindTop: true, rotate: 3 }),
     makeStep('analysis', 'BREAKOUT 15', { programId: 'breakout_15', params: { window: 15 } }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('analysis', 'PULLBACK ENTRY', { programId: 'pullback_entry', params: { window: 30 } }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
-    makeStep('buy', 'Buy the retest — harvest +1%', buyConfig(2500)),
+    makeStep('buy', 'Buy the retest — harvest +1%', buyConfig(250)),
   ];
 
   const lane3 = makeLane('Scanner — hottest movers', 2);
   lane3.steps = [
-    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'hottest', limit: 5, bindTop: true }),
+    makeStep('screen', 'Find assets by condition', { ...blockConfig('screen'), classId: 'hottest', limit: 5, bindTop: true, rotate: 3 }),
     makeStep('analysis', 'BREAKOUT CONFIRM', { programId: 'breakout_confirm', params: { window: 30, hold: 3 } }),
     makeStep('branch', 'Only continue if bullish', { expects: 'bullish' }),
     makeStep('analysis', 'REGIME DETECT', { programId: 'regime', params: {} }),
-    makeStep('buy', 'Buy — harvest +1%, runner to +2%', buyConfig(2000)),
+    makeStep('buy', 'Buy — harvest +1%, runner to +2%', buyConfig(250)),
   ];
 
   const referee = makeLane('Referee — consensus & risk', 3);
