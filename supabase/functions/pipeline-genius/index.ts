@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     // per model, first a forced emit_plan tool call; if the provider rejects
     // it, retry the same model with a plain JSON answer parsed tolerantly.
     // A model-level failure advances the chain; only a 401 stops it.
-    const TOOLS = [[{
+    const TOOLS = [{
           type: "function",
           function: {
             name: "emit_plan",
@@ -75,10 +75,10 @@ Deno.serve(async (req) => {
               additionalProperties: false,
             },
           },
-        }]];
+        }];
     const baseMessages = [
       { role: "system", content: SYSTEM },
-      { role: "system", content: context },
+      { role: "system", content: context.length > 12000 ? context.slice(0, 12000) + '\n...[context truncated for size]' : context },
       ...(Array.isArray(history) ? history.slice(-8) : []),
       { role: "user", content: String(message ?? "") },
     ];
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     }
 
     if (!res) {
-      if (lastStatus === 429) {
+      if (lastStatus === 429 || lastStatus === 413) {
         return new Response(JSON.stringify({ reply: "Rate limit hit on the AI service — try again in a moment.", actions: [] }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }

@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     // (schema validation differs per model), retry the same model with a
     // plain JSON answer and parse it tolerantly. A model-level failure
     // advances the chain; only an auth failure (401) stops it.
-    const TOOLS = [[{
+    const TOOLS = [{
           type: 'function',
           function: {
             name: 'emit_plan',
@@ -208,10 +208,33 @@ Deno.serve(async (req) => {
               additionalProperties: false,
             },
           },
-        }]];
+        }];
+    // Slim the page state for the model: agent step configs carry long prompt
+    // bodies, and the raw page can push the request past the provider's
+    // per-minute token budget (HTTP 413). Keep every fact Genius needs.
+    const rawPage: any = page ?? {};
+    const slimConfig = (cfg: any) => (cfg && typeof cfg === 'object')
+      ? Object.fromEntries(Object.entries(cfg).filter(([k]) => k !== 'systemPrompt' && k !== 'taskPrompt' && k !== 'code'))
+      : cfg;
+    const slimPage = {
+      ...rawPage,
+      strategy: Array.isArray(rawPage.strategy)
+        ? rawPage.strategy.map((l: any) => ({ ...l, steps: Array.isArray(l.steps) ? l.steps.map((s: any) => ({ ...s, config: slimConfig(s?.config) })) : l.steps }))
+        : rawPage.strategy,
+      lastRun: Array.isArray(rawPage.lastRun) ? rawPage.lastRun.slice(-12) : rawPage.lastRun,
+      screens: Array.isArray(rawPage.screens)
+        ? rawPage.screens.map((c: any) => ({ ...c, top: Array.isArray(c.top) ? c.top.slice(0, 2) : c.top }))
+        : rawPage.screens,
+      analysisPrograms: Array.isArray(rawPage.analysisPrograms)
+        ? rawPage.analysisPrograms.map((p: any) => ({ id: p.id, label: p.label }))
+        : rawPage.analysisPrograms,
+    };
+    let pageJson = JSON.stringify(slimPage, null, 1);
+    if (pageJson.length > 12000) pageJson = pageJson.slice(0, 12000) + '\n...[page state truncated for size]';
+
     const baseMessages = [
       { role: 'system', content: SYSTEM },
-      { role: 'system', content: `PAGE STATE (live, do not fabricate beyond this):\n${JSON.stringify(page ?? {}, null, 1)}` },
+      { role: 'system', content: `PAGE STATE (live, do not fabricate beyond this):\n${pageJson}` },
       ...(Array.isArray(history) ? history.slice(-14) : []),
       { role: 'user', content: String(message ?? '') },
     ];
@@ -226,6 +249,8 @@ Deno.serve(async (req) => {
 
     let res: Response | null = null;
     let lastStatus = 0;
+    let lastError = '';
+    const attemptErrors: string[] = [];
     outer:
     for (const model of ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']) {
       for (const withTools of [true, false]) {
@@ -233,6 +258,8 @@ Deno.serve(async (req) => {
         if (r.ok) { res = r; break outer; }
         lastStatus = r.status;
         const errText = await r.text().catch(() => '');
+        lastError = `${model} (tools=${withTools}): ${errText.slice(0, 240)}`;
+        attemptErrors.push(`${model}|tools=${withTools}|${r.status}|${errText.slice(0, 160)}`);
         console.error(`groq ${r.status} on ${model} (tools=${withTools}): ${errText.slice(0, 240)}`);
         if (r.status === 401) {
           return new Response(JSON.stringify({ error: 'GROQ_API_KEY was rejected by Groq — check the secret.' }),
@@ -242,11 +269,11 @@ Deno.serve(async (req) => {
     }
 
     if (!res) {
-      if (lastStatus === 429) {
+      if (lastStatus === 429 || lastStatus === 413) {
         return new Response(JSON.stringify({ reply: 'The AI service is rate limited right now — try again in a moment.', actions: [], choices: ['Try again'] }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      return new Response(JSON.stringify({ error: 'AI request failed', status: lastStatus }),
+      return new Response(JSON.stringify({ error: 'AI request failed', status: lastStatus, upstream: lastError, attempts: attemptErrors }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
