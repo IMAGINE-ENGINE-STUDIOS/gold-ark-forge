@@ -87,9 +87,30 @@ APP KNOWLEDGE — Gold Arrow as it actually is (use this, never guess):
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    const { message, page, history } = (await req.json()) ?? {};
+    const rawBody = await req.text();
+    let parsedBody: any = {};
+    try { parsedBody = JSON.parse(rawBody); } catch { /* handled below */ }
+    const { message, page, history } = parsedBody ?? {};
     const key = Deno.env.get('GROQ_API_KEY');
     if (!key) throw new Error('GROQ_API_KEY is not configured');
+
+    // TEMP DIAGNOSTIC (founder's in-browser Genius fails while API probes
+    // pass): record what arrived + how the chain ends, in genius_debug.
+    const debugLog = (outcome: string, lastStatus: number, attempts: string) => {
+      const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      const url = Deno.env.get('SUPABASE_URL');
+      if (!svc || !url) return;
+      fetch(`${url}/rest/v1/genius_debug`, {
+        method: 'POST',
+        headers: { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          page_bytes: rawBody.length,
+          history_roles: Array.isArray(history) ? history.map((h: any) => String(h?.role)).join(',') : 'none',
+          history_count: Array.isArray(history) ? history.length : 0,
+          outcome, last_status: lastStatus, attempts: attempts.slice(0, 1800),
+        }),
+      }).catch(() => {});
+    };
 
     // Groq transport with the SFH resilience pattern, two tiers per model:
     // first a forced emit_plan tool call; if the provider rejects that
@@ -250,13 +271,32 @@ Deno.serve(async (req) => {
     let res: Response | null = null;
     let lastStatus = 0;
     let lastError = '';
+    let sawBusy = false;
+    let busyRetried = false;
     const attemptErrors: string[] = [];
+    // Order matters for rate limits: the models this Groq account can actually
+    // reach go first, so a normal call costs 1-2 requests instead of burning
+    // the per-minute budget on 404s before reaching a working model. The
+    // Llama models stay in the chain and take over automatically if the
+    // account gains access to them.
     outer:
-    for (const model of ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']) {
+    for (const model of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
       for (const withTools of [true, false]) {
-        const r = await attempt(model, withTools);
+        let r = await attempt(model, withTools);
+        if (!r.ok && (r.status === 429 || r.status === 413)) {
+          sawBusy = true;
+          // Groq's window is per-minute: one patient retry on the plain tier
+          // rescues most busy calls instead of failing the operator's request.
+          if (!withTools && !busyRetried) {
+            busyRetried = true;
+            await r.text().catch(() => '');
+            await new Promise((resolve) => setTimeout(resolve, 25000));
+            r = await attempt(model, withTools);
+          }
+        }
         if (r.ok) { res = r; break outer; }
         lastStatus = r.status;
+        if (r.status === 429 || r.status === 413) sawBusy = true;
         const errText = await r.text().catch(() => '');
         lastError = `${model} (tools=${withTools}): ${errText.slice(0, 240)}`;
         attemptErrors.push(`${model}|tools=${withTools}|${r.status}|${errText.slice(0, 160)}`);
@@ -269,13 +309,16 @@ Deno.serve(async (req) => {
     }
 
     if (!res) {
-      if (lastStatus === 429 || lastStatus === 413) {
+      if (sawBusy || lastStatus === 429 || lastStatus === 413) {
+        debugLog('busy', lastStatus, attemptErrors.join(' ;; '));
         return new Response(JSON.stringify({ reply: 'The AI service is rate limited right now — try again in a moment.', actions: [], choices: ['Try again'] }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
+      debugLog('chain_exhausted', lastStatus, attemptErrors.join(' ;; '));
       return new Response(JSON.stringify({ error: 'AI request failed', status: lastStatus, upstream: lastError, attempts: attemptErrors }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    debugLog('ok', 200, attemptErrors.join(' ;; '));
 
     const data = await res.json();
     const choice = data?.choices?.[0]?.message;

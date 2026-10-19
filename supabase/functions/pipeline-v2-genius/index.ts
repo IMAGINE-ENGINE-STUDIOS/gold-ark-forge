@@ -184,12 +184,26 @@ Deno.serve(async (req) => {
 
     let res: Response | null = null;
     let lastStatus = 0;
+    let sawBusy = false;
+    let busyRetried = false;
+    // Reachable models first (rate-limit economy); Llama stays in the chain
+    // and takes over automatically if the account gains access to it.
     outer:
-    for (const model of ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant']) {
+    for (const model of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
       for (const withTools of [true, false]) {
-        const r = await attempt(model, withTools);
+        let r = await attempt(model, withTools);
+        if (!r.ok && (r.status === 429 || r.status === 413)) {
+          sawBusy = true;
+          if (!withTools && !busyRetried) {
+            busyRetried = true;
+            await r.text().catch(() => "");
+            await new Promise((resolve) => setTimeout(resolve, 25000));
+            r = await attempt(model, withTools);
+          }
+        }
         if (r.ok) { res = r; break outer; }
         lastStatus = r.status;
+        if (r.status === 429 || r.status === 413) sawBusy = true;
         const errText = await r.text().catch(() => "");
         console.error(`groq ${r.status} on ${model} (tools=${withTools}): ${errText.slice(0, 200)}`);
         if (r.status === 401) break outer;
@@ -197,7 +211,7 @@ Deno.serve(async (req) => {
     }
 
     if (!res) {
-      if (lastStatus === 429 || lastStatus === 413) {
+      if (sawBusy || lastStatus === 429 || lastStatus === 413) {
         return new Response(JSON.stringify({ reply: "Rate limited by the AI service — retry in a moment.", actions: [] }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
