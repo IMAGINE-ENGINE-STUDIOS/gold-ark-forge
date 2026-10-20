@@ -18,7 +18,9 @@ import PerformanceReport from '@/components/pipeline4/PerformanceReport';
 import TimeMachinePanel from '@/components/pipeline4/TimeMachinePanel';
 import ServerRunsCard from '@/components/pipeline4/ServerRunsCard';
 import RunSetupPanel from '@/components/pipeline4/RunSetupPanel';
-import { applyRunSetup, capitalPlan, type RunSetup } from '@/lib/runBudget';
+import TradeJournalPanel from '@/components/pipeline4/TradeJournalPanel';
+import { setPaperRunContext } from '@/hooks/usePaperTrading';
+import { applyRunBudget, applyRunSetup, capitalPlan, type RunSetup } from '@/lib/runBudget';
 import { useLiveSeries } from '@/hooks/useLiveSeries';
 import { useMarketHistory } from '@/hooks/useMarketHistory';
 import { supabase } from '@/integrations/supabase/client';
@@ -100,6 +102,16 @@ const Workspace = () => {
   const [lastRunBudget, setLastRunBudget] = useState<number | null>(null);
   useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_run_budget', String(runBudgetUsd)); } catch { /* ignore */ } }, [runBudgetUsd]);
   useEffect(() => { try { localStorage.setItem('ga_pipeline_v4_run_setup', JSON.stringify(runSetup)); } catch { /* ignore */ } }, [runSetup]);
+  const effectiveTickets = useMemo(() => {
+    const adapted = applyRunBudget(graph, runBudgetUsd);
+    const map = new Map<string, number>();
+    for (const lane of adapted.lanes) {
+      for (const st of lane.steps) {
+        if (st.kind === 'buy') map.set(st.id, Number(st.config?.amountUsd ?? 0));
+      }
+    }
+    return map;
+  }, [graph, runBudgetUsd]);
   const runBudgetRef = useRef(runBudgetUsd);
   runBudgetRef.current = runBudgetUsd;
   const runSetupRef = useRef(runSetup);
@@ -504,6 +516,7 @@ const Workspace = () => {
       } catch { /* the registry mirrors runs; it never blocks one */ }
       sessionEvent('info', `Run capital $${runBudgetRef.current.toLocaleString()} — the strategy was adapted to this budget (tickets and caps rescaled, deployed capital can never exceed it). Adaptive sizing ${runSetupRef.current.adaptive ? 'ON: the governor resizes and pauses entries from live breadth, tape strength and realised P&L' : 'OFF'}.`);
       sessionEvent('info', `Swarm allocation — the AI structure for this run: ${capitalPlan(g, runBudgetRef.current).map((pl) => `${pl.lane} ${pl.weightPct}%`).join(' · ')}. ${runSetupRef.current.fullDeployment ? `Full deployment ON: screens pick the names, the specialist swarm judges them, the referee guards the book, and position sizes follow a schedule that works toward 100% of the $${runBudgetRef.current.toLocaleString()} invested through qualified signals.` : 'Full deployment OFF: fixed adapted tickets.'}`);
+      setPaperRunContext({ runId: registryId, source: 'pipeline' });
       result = await runGraph(
         g,
         {
@@ -529,6 +542,7 @@ const Workspace = () => {
       );
       setRunResult(result);
     } finally {
+      setPaperRunContext(null);
       runPresence.clear();
       try { localStorage.removeItem('ga_pipeline_v4_active_run'); } catch { /* ignore */ }
       if (registryId) {
@@ -938,6 +952,13 @@ const Workspace = () => {
           onSetup={setRunSetup}
           disabled={running}
         />
+        <p className="text-[11px] text-muted-foreground" title="The trade book syncs to your account so Book, Fills and Report show the same trades on every device.">
+          Trade book:{' '}
+          {paper.syncStatus === 'synced' && <span className="text-emerald-500">● synced to your account — every fill is recorded and visible on all your devices</span>}
+          {paper.syncStatus === 'syncing' && <span className="text-amber-500">● syncing…</span>}
+          {paper.syncStatus === 'error' && <span className="text-rose-500">● sync failed — trades are safe on this device and will retry</span>}
+          {paper.syncStatus === 'local-only' && <span className="text-amber-500">● on this device only — sign in so your trades follow you to every device</span>}
+        </p>
         <AccountHud
           account={paper.account}
           positions={paper.positions}
@@ -1020,6 +1041,7 @@ const Workspace = () => {
               errorStepIds={errorStepIds}
               onSelectStep={(laneId, stepId) => { setSelectedLaneId(laneId); setSelectedStepId(stepId); setPanel('step'); }}
               onSelectLane={(laneId) => { setSelectedLaneId(laneId); setSelectedStepId(null); }}
+              effectiveTickets={effectiveTickets}
             />
 
             {/* camera follow toggle — your zoom is never overridden while off */}
@@ -1195,6 +1217,9 @@ const Workspace = () => {
                     onPatch={(patch) => patchStep(selectedStep.id, patch)}
                     onDuplicate={() => duplicateStep(selectedStep.id)}
                     onMoveToLane={(laneId) => moveStepToLane(selectedStep.id, laneId)}
+                    runTicketNote={selectedStep.kind === 'buy' && effectiveTickets.get(selectedStep.id) !== undefined && effectiveTickets.get(selectedStep.id) !== Number(selectedStep.config?.amountUsd ?? 0)
+                      ? `At your $${runBudgetUsd.toLocaleString()} run, this step trades $${effectiveTickets.get(selectedStep.id)?.toLocaleString()} per investment — the $${Number(selectedStep.config?.amountUsd ?? 0).toLocaleString()} here is the strategy's design value, and the run copy is what actually executes.`
+                      : undefined}
                   />
                 ) : selectedLane ? (
                   <div className="space-y-3">
@@ -1337,6 +1362,10 @@ const Workspace = () => {
                   />
 
                   <ServerRunsCard />
+
+                  <div className="rounded-lg border border-white/10 bg-black/30 p-3">
+                    <TradeJournalPanel />
+                  </div>
 
                   <div className="rounded-lg border border-white/10 bg-black/30 p-3">
                     <div className="mb-2 flex items-center justify-between">
