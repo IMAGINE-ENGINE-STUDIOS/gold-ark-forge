@@ -16,6 +16,8 @@ interface SceneProps {
   onSelectStep: (laneId: string, stepId: string) => void;
   onSelectLane: (laneId: string) => void;
   selectedLaneId: string | null;
+  /** stepId -> ticket the current run form will actually trade. */
+  effectiveTickets?: Map<string, number>;
 }
 
 /**
@@ -70,10 +72,11 @@ function CameraFocus({ target }: { target: [number, number, number] | null }) {
 
 
 function StepCard({
-  step, position, color, selected, active, errored, onClick,
+  step, position, color, selected, active, errored, onClick, effectiveAmountUsd,
 }: {
   step: PipeStep; position: [number, number, number]; color: string;
   selected: boolean; active: boolean; errored: boolean; onClick: () => void;
+  effectiveAmountUsd?: number;
 }) {
   const mesh = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
@@ -113,7 +116,7 @@ function StepCard({
             {step.label}
           </div>
           <div className="truncate text-[12px] leading-tight text-white/70">
-            {describeStep(step.kind, step.config) || '—'}
+            {describeStep(step.kind, step.config, effectiveAmountUsd) || '—'}
           </div>
         </div>
       </Html>
@@ -231,6 +234,7 @@ function GraphScene(props: SceneProps) {
                     active={active.has(step.id)}
                     errored={errored.has(step.id)}
                     onClick={() => onSelectStep(lane.id, step.id)}
+                    effectiveAmountUsd={props.effectiveTickets?.get(step.id)}
                   />
                 </group>
               );

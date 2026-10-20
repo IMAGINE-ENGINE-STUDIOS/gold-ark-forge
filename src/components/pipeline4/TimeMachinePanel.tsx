@@ -3,15 +3,17 @@ import { History, Play, Loader2, Download, ChevronDown, ChevronRight, ShieldChec
 import { supabase } from '@/integrations/supabase/client';
 import { BUILT_IN_STRATEGIES } from '@/lib/strategyLibrary';
 import { TIME_MACHINE_STRATEGIES } from '@/lib/timeMachineStrategies';
-import { TM_UNIVERSE, TM_SESSIONS, alignBars, runTournament, sessionLength, type Bars, type StrategyScore } from '@/lib/timeMachine';
+import { TM_POOL, TM_SESSIONS, alignBars, runTournamentV2, type Bars, type StrategyScore, type TmScenario } from '@/lib/timeMachine';
 
 /* ─────────────────────── Time Machine ─────────────────────────────
-   One week of real market history. Every strategy in the library —
-   plus the ten TM test strategies — replays the SAME week in 10
-   sessions, on causal data only (no strategy can see a future bar),
-   and the results are compared in one table when the tournament
-   ends. Agent verdicts inside history come from one fixed causal
-   rule, identical for everyone (disclosed in the panel).
+   Real market history, a FRESH scenario every run: the tournament
+   draws a rotated 10-name universe from the pool, a shifted window
+   across the fetched history, varied session lengths and a per-run
+   execution friction — all from one seed (shown in the panel, so
+   any scenario replays exactly). Every strategy faces the SAME
+   scenario inside one tournament, on causal data only (no strategy
+   can see a future bar). Agent verdicts inside history come from
+   one fixed causal rule, identical for everyone (disclosed).
    ──────────────────────────────────────────────────────────────── */
 
 const money = (v: number) => `${v < 0 ? '−' : '+'}$${Math.abs(v).toFixed(2)}`;
@@ -22,6 +24,7 @@ export default function TimeMachinePanel() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: string } | null>(null);
   const [scores, setScores] = useState<StrategyScore[] | null>(null);
+  const [scenario, setScenario] = useState<TmScenario | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [ranAt, setRanAt] = useState<number | null>(null);
 
@@ -30,7 +33,7 @@ export default function TimeMachinePanel() {
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('market-history', {
-          body: { symbols: TM_UNIVERSE, interval: '5m', range: '5d', points: 480 },
+          body: { symbols: TM_POOL, interval: '5m', range: '5d', points: 600 },
         });
         if (error) throw error;
         const series = (data?.series ?? {}) as Bars;
@@ -48,15 +51,16 @@ export default function TimeMachinePanel() {
     ...TIME_MACHINE_STRATEGIES.map((e) => ({ id: e.id, name: e.name, build: e.build })),
   ], []);
 
-  const segLen = bars ? sessionLength(bars) : 0;
   const barCount = bars ? bars[Object.keys(bars)[0]]?.length ?? 0 : 0;
 
   const run = async () => {
     if (!bars || running) return;
     setRunning(true); setScores(null); setProgress({ done: 0, total: entries.length * TM_SESSIONS, current: '' });
     try {
-      const result = await runTournament(entries, bars, (done, total, current) => setProgress({ done, total, current }));
+      const seed = (Date.now() % 2147483647) + Math.floor(Math.random() * 100000);
+      const { scores: result, scenario: sc } = await runTournamentV2(entries, bars, (done, total, current) => setProgress({ done, total, current }), seed);
       setScores(result);
+      setScenario(sc);
       setRanAt(Date.now());
     } finally {
       setRunning(false);
@@ -66,7 +70,7 @@ export default function TimeMachinePanel() {
 
   const download = () => {
     if (!scores) return;
-    const blob = new Blob([JSON.stringify({ ranAt, universe: TM_UNIVERSE, sessions: TM_SESSIONS, scores }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ ranAt, scenario, scores }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'time-machine-results.json'; a.click();
@@ -77,7 +81,7 @@ export default function TimeMachinePanel() {
     <div className="flex h-full flex-col gap-3 overflow-y-auto p-3">
       <div className="flex items-center gap-2">
         <History className="h-4 w-4 text-primary" />
-        <p className="text-[13px] font-semibold text-foreground">Time Machine — one week of history, every strategy, one fair fight</p>
+        <p className="text-[13px] font-semibold text-foreground">Time Machine — real history, a fresh scenario every run, every strategy, one fair fight</p>
       </div>
 
       <div className="rounded-md border border-white/10 bg-white/[0.02] p-2.5 text-[12px] leading-relaxed text-muted-foreground">
@@ -97,8 +101,8 @@ export default function TimeMachinePanel() {
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
         <span>
           {bars
-            ? <>Week loaded: {Object.keys(bars).length} symbols ({TM_UNIVERSE.join(', ')}) · {barCount} five-minute bars each · {TM_SESSIONS} sessions of {segLen} bars · {entries.length} strategies</>
-            : loadError ?? 'Loading one week of market history…'}
+            ? <>History loaded: {Object.keys(bars).length} symbols in the pool · {barCount} five-minute bars each · {entries.length} strategies. Each run draws a NEW scenario (rotated universe, shifted window, varied sessions, execution friction) from a fresh seed.</>
+            : loadError ?? 'Loading market history…'}
         </span>
         <span className="ml-auto flex items-center gap-2">
           {scores && (
@@ -135,6 +139,7 @@ export default function TimeMachinePanel() {
           <p className="mb-2 text-[12px] text-muted-foreground">
             Final comparison — ranked by realised P&L across all {TM_SESSIONS} sessions
             {ranAt ? ` · finished ${new Date(ranAt).toLocaleTimeString()}` : ''}
+            {scenario ? ` · scenario #${scenario.seed}: ${scenario.universe.join(', ')} · bars ${scenario.startBar}–${scenario.startBar + scenario.segLen * scenario.sessions} of ${scenario.totalBars} · friction ${scenario.frictionBps}bps` : ''}
           </p>
           <table className="w-full text-left text-[12px]">
             <thead>

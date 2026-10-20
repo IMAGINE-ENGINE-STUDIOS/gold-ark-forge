@@ -40,6 +40,7 @@ const iconBtn =
 export default function StepInspector({
   step, price, ticker, getPrice, blocks, lanes, currentLaneId,
   onChange, onDelete, onMove, onChangeKind, onPatch, onDuplicate, onMoveToLane,
+  runTicketNote,
 }: {
   step: PipeStep;
   /** Initial/fallback price. The live pill supersedes it once the feed ticks. */
@@ -61,6 +62,8 @@ export default function StepInspector({
   onPatch?: (patch: Partial<PipeStep>) => void;
   onDuplicate?: () => void;
   onMoveToLane?: (laneId: string) => void;
+  /** When the run form's amount adapts this buy step, say so plainly. */
+  runTicketNote?: string;
 }) {
   const [assetQuery, setAssetQuery] = useState('');
   const cfg = step.config ?? {};
@@ -101,6 +104,11 @@ export default function StepInspector({
 
   return (
     <div className="flex h-full flex-col gap-3">
+      {runTicketNote && step.kind === 'buy' && (
+        <p className="rounded-md border border-primary/40 bg-primary/10 px-2.5 py-2 text-[12px] leading-snug text-foreground">
+          {runTicketNote}
+        </p>
+      )}
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-foreground">{step.label}</div>
