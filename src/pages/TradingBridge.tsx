@@ -58,6 +58,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useSyncExternalStore } from 'react';
 import { runPresence } from '@/lib/runPresence';
 import ServerDeskBook from '@/components/pipeline4/ServerDeskBook';
+import TradeJournalPanel from '@/components/pipeline4/TradeJournalPanel';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -1057,6 +1058,9 @@ const TradingBridge = () => {
                       </div>
                     )}
                     <ServerDeskBook />
+                    <div className="border-t border-gold/10 pt-3">
+                      <TradeJournalPanel compact />
+                    </div>
                   </div>
                 )}
                 {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
@@ -1337,7 +1341,7 @@ const TradingBridge = () => {
                       ))}
                     </div>
                   )}
-                  {bottomTab === 'book' && tradingMode === 'paper' && <ServerDeskBook />}
+                  {bottomTab === 'book' && tradingMode === 'paper' && (<div className="space-y-3"><ServerDeskBook /><TradeJournalPanel compact /></div>)}
                   {bottomTab === 'book' && tradingMode === 'live' && activeConn && (
                     <div className="space-y-4">
                       <PositionsPanel connectionId={activeConn.id} />
