@@ -127,7 +127,28 @@ const recordOpen = async (runId: string, userId: string | null, ticker: string, 
   });
   const tradeId = rows?.[0]?.id as string;
   lots.push({ tradeId, ticker, qty, entry: price });
+  // The permanent trade journal gets the same fill (source 'server'),
+  // keyed by the ledger row id so replays can never duplicate it.
+  if (userId && tradeId) {
+    await rest('trade_journal', 'POST', {
+      user_id: userId, client_order_id: tradeId, run_id: runId, source: 'server',
+      lane_name: lane || null, ticker, side: 'buy', qty, price, fees: 0,
+      filled_at: new Date().toISOString(),
+    }).catch((e: any) => log('journal open failed:', e.message));
+  }
   return tradeId;
+};
+
+/* Journal the close of a lot (FIFO-matched in recordClose). */
+let journalUserId: string | null = null;
+let journalRunId: string | null = null;
+const journalClose = async (tradeId: string, ticker: string, qty: number, entry: number, exit: number, pnl: number) => {
+  if (!journalUserId) return;
+  await rest('trade_journal', 'POST', {
+    user_id: journalUserId, client_order_id: `${tradeId}-close`, run_id: journalRunId, source: 'server',
+    ticker, side: 'sell', qty, price: exit, fees: 0, closed_pnl: pnl,
+    filled_at: new Date().toISOString(),
+  }).catch((e: any) => log('journal close failed:', e.message));
 };
 
 const recordClose = async (ticker: string, qtyIn: number, price: number) => {
@@ -146,6 +167,7 @@ const recordClose = async (ticker: string, qtyIn: number, price: number) => {
       });
       lots.splice(lots.indexOf(lot), 1);
     }
+    if (take > 0) void journalClose(lot.tradeId, ticker, take, lot.entry, price, pnl);
   }
 };
 
@@ -155,6 +177,8 @@ const openSnapshot = () => lots.filter((l) => l.qty > 1e-9).map((l) => ({ ticker
 const executeRun = async (row: any) => {
   const graph = row.graph as PipeGraph;
   const runId = row.id as string;
+  journalUserId = row.user_id ?? null;
+  journalRunId = runId;
   const budget = Math.max(1, Number(graph?.risk?.maxTotalInvestmentUsd ?? 1000));
   lots.length = 0;
   ledgerRealised = 0;

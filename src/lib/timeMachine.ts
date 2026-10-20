@@ -26,6 +26,58 @@ import type { PipeGraph } from './pipelineGraph';
    ──────────────────────────────────────────────────────────────── */
 
 export const TM_UNIVERSE = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'AMD', 'COIN', 'SPY', 'QQQ'];
+/** The wider pool scenarios draw their 10-name universe from. */
+export const TM_POOL = [...TM_UNIVERSE, 'AVGO', 'PLTR', 'NFLX', 'CRM'];
+
+/* ─── Seeded scenarios ─────────────────────────────────────────────
+   The old tournament replayed the SAME week, the SAME sessions and
+   zero execution friction every time, so the table never changed —
+   the founder called it out. Now every run draws a fresh scenario
+   from the real fetched bars: a rotated 10-name universe, a shifted
+   window across the full history, varied session lengths, and a
+   per-run execution friction — all derived from one seed, so any
+   scenario can be replayed exactly by re-entering its seed, and no
+   two seeds give the same tournament. The bars are always real
+   market history and the causal rule (never see past the cursor)
+   is unchanged. */
+export const mulberry32 = (seed: number) => {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+export interface TmScenario {
+  seed: number;
+  universe: string[];
+  startBar: number;
+  segLen: number;
+  sessions: number;
+  frictionBps: number;
+  totalBars: number;
+}
+
+export const pickScenario = (seed: number, pool: string[], bars: Bars): TmScenario => {
+  const rand = mulberry32(seed);
+  const shuffled = [...pool].sort(() => rand() - 0.5);
+  const usable = shuffled.filter((s) => (bars[s]?.length ?? 0) > WARM + 50);
+  const universe = usable.slice(0, 10);
+  const subset: Bars = {};
+  for (const s of universe) subset[s] = bars[s];
+  const aligned = alignBars(subset);
+  const anySym = Object.keys(aligned)[0];
+  const totalBars = anySym ? aligned[anySym].length : 0;
+  const baseSeg = Math.max(10, Math.floor((totalBars - WARM) / TM_SESSIONS));
+  const fitSeg = Math.max(8, Math.floor((totalBars - WARM) / TM_SESSIONS));
+  const segLen = Math.max(8, Math.min(fitSeg, Math.round(baseSeg * (0.8 + rand() * 0.4))));
+  const span = Math.max(0, totalBars - WARM - segLen * TM_SESSIONS);
+  const startBar = WARM + Math.floor(rand() * (span + 1));
+  const frictionBps = 2 + Math.floor(rand() * 4);
+  return { seed, universe, startBar, segLen, sessions: TM_SESSIONS, frictionBps, totalBars };
+};
 export const TM_SESSIONS = 10;
 const WARM = 90;
 
@@ -74,6 +126,7 @@ export const sessionLength = (bars: Bars): number => {
 
 const runSession = async (
   graph: PipeGraph, aligned: Bars, segStart: number, segLen: number, equity: number,
+  frictionBps = 0,
 ): Promise<RunResult> => {
   const syms = Object.keys(aligned);
   const n = aligned[syms[0]].length;
@@ -85,7 +138,13 @@ const runSession = async (
     getPrice: (t: string) => priceAt(t),
     getSeries: (t: string) => seriesAt(t),
     getAccount: () => ({ equity, totalPnl: 0, startingBalance: equity, cash: equity }),
-    submitOrder: ({ price }: { price: number }) => ({ id: `tm-${Math.random().toString(36).slice(2, 8)}`, price, fees: 0 }),
+    submitOrder: ({ price, side }: { price: number; side?: string }) => {
+      // Execution friction for this scenario: buys fill a hair above
+      // the bar, sells a hair below — real tournaments pay the spread.
+      const f = frictionBps / 10000;
+      const fill = side === 'sell' ? price * (1 - f) : price * (1 + f);
+      return { id: `tm-${Math.random().toString(36).slice(2, 8)}`, price: fill, fees: 0 };
+    },
     runAgent: async (_step: any, ctx: any) => {
       const series = ctx?.ticker ? seriesAt(ctx.ticker) : [];
       const mom = series.length > 13 ? (series[series.length - 1] / series[series.length - 13] - 1) * 100 : 0;
@@ -117,13 +176,17 @@ const runSession = async (
   return runGraph(g, hooks, () => undefined);
 };
 
-export const runTournament = async (
+export const runTournamentV2 = async (
   entries: Array<{ id: string; name: string; build: () => PipeGraph }>,
   rawBars: Bars,
   onProgress?: (done: number, total: number, current: string) => void,
-): Promise<StrategyScore[]> => {
-  const aligned = alignBars(rawBars);
-  const segLen = sessionLength(aligned);
+  seed: number = Date.now() % 2147483647,
+): Promise<{ scores: StrategyScore[]; scenario: TmScenario }> => {
+  const scenario = pickScenario(seed, TM_POOL, rawBars);
+  const subset: Bars = {};
+  for (const s of scenario.universe) subset[s] = rawBars[s];
+  const aligned = alignBars(subset);
+  const segLen = scenario.segLen;
   const total = entries.length * TM_SESSIONS;
   let done = 0;
   const scores: StrategyScore[] = [];
@@ -133,7 +196,7 @@ export const runTournament = async (
     const budget = Math.max(1, graph.risk.maxTotalInvestmentUsd);
     const sessions: SessionStat[] = [];
     for (let k = 0; k < TM_SESSIONS; k++) {
-      const res = await runSession(graph, aligned, WARM + k * segLen, segLen, budget);
+      const res = await runSession(graph, aligned, scenario.startBar + k * segLen, segLen, budget, scenario.frictionBps);
       const closed = res.trades.filter((t) => !t.open);
       sessions.push({
         session: k + 1,
@@ -166,5 +229,11 @@ export const runTournament = async (
       returnOnBudgetPct: (realised / budget) * 100,
     });
   }
-  return scores.sort((a, b) => b.realised - a.realised);
+  return { scores: scores.sort((a, b) => b.realised - a.realised), scenario };
 };
+
+export const runTournament = async (
+  entries: Array<{ id: string; name: string; build: () => PipeGraph }>,
+  rawBars: Bars,
+  onProgress?: (done: number, total: number, current: string) => void,
+): Promise<StrategyScore[]> => (await runTournamentV2(entries, rawBars, onProgress)).scores;

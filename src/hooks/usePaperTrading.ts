@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { journalFill, flushJournal, backfillJournal } from '@/lib/tradeJournal';
 
 export interface PaperPosition {
   id: string;
@@ -146,22 +147,58 @@ if (typeof window !== 'undefined') {
   });
 }
 
-/* Cloud sync (debounced) + one-time cloud load, shared across consumers. */
+/* Cloud sync (debounced) + per-user cloud load, shared across consumers. */
 let activeUserId: string | null = null;
-let cloudLoadStarted = false;
+let cloudLoadedFor: string | null = null;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
+/* Sync is VISIBLE state now, never a silent failure: the UI shows
+   whether the book lives only on this device or is synced to the
+   account (and therefore visible on every device). */
+export type PaperSyncStatus = 'local-only' | 'syncing' | 'synced' | 'error';
+let syncStatus: PaperSyncStatus = 'local-only';
+let lastSyncAt = 0;
+const setSyncStatus = (st: PaperSyncStatus) => {
+  syncStatus = st;
+  if (st === 'synced') lastSyncAt = Date.now();
+  notifyPaper(false);
+};
+
+/* Which run a fill belongs to. PipelineV4 sets this for the length of
+   a run; manual Swap trades journal as 'swap'. */
+let runContext: { runId: string | null; source: 'pipeline' | 'swap' } | null = null;
+export const setPaperRunContext = (ctx: { runId: string | null; source: 'pipeline' | 'swap' } | null) => {
+  runContext = ctx;
+};
+
+/* The moment a session exists, everything waiting goes up: journal
+   outbox first, then the book itself. */
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      void flushJournal();
+      void pushToCloud();
+    }
+  });
+}
+
 const pushToCloud = async () => {
-  if (!activeUserId) return;
+  if (!activeUserId) { setSyncStatus('local-only'); return; }
+  setSyncStatus('syncing');
   try {
-    await supabase.from('paper_portfolios').upsert({
+    const { error } = await supabase.from('paper_portfolios').upsert({
       user_id: activeUserId,
       positions: paperState.positions as any,
       orders: paperState.orders as any,
       cash: paperState.cash,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
-  } catch { /* silent */ }
+    setSyncStatus(error ? 'error' : 'synced');
+    if (error) console.warn('[paper] cloud sync failed:', error.message);
+  } catch (e) {
+    setSyncStatus('error');
+    console.warn('[paper] cloud sync failed:', e);
+  }
 };
 
 const syncToCloud = () => {
@@ -188,15 +225,15 @@ export const usePaperTrading = (userId?: string | null) => {
   const snap = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
   const { positions, orders, cash, totalFees, realizedPnl, winCount, lossCount } = snap;
   const [feeConfig] = useState<FeeStructure>(DEFAULT_FEES);
-  const [cloudLoaded, setCloudLoaded] = useState(cloudLoadStarted);
+  const [cloudLoaded, setCloudLoaded] = useState(false);
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
     if (userId) activeUserId = userId;
-    if (!userId) { setCloudLoaded(true); return; }
-    if (cloudLoadStarted) { setCloudLoaded(true); return; }
-    cloudLoadStarted = true;
+    if (!userId) { setCloudLoaded(true); setSyncStatus('local-only'); return; }
+    if (cloudLoadedFor === userId) { setCloudLoaded(true); return; }
+    cloudLoadedFor = userId;
     (async () => {
       try {
         const { data } = await supabase
@@ -224,6 +261,12 @@ export const usePaperTrading = (userId?: string | null) => {
           // it; the debounced sync below pushes it up within seconds.
         }
       } catch { /* fallback to local */ }
+      // A session exists NOW: publish this device's book if it is the
+      // newer one, rescue any pre-journal orders into the permanent
+      // trade journal, and flush everything that waited signed-out.
+      void pushToCloud();
+      backfillJournal(paperStore.get().orders);
+      void flushJournal();
       if (mounted.current) setCloudLoaded(true);
     })();
     return () => { mounted.current = false; };
@@ -372,6 +415,12 @@ export const usePaperTrading = (userId?: string | null) => {
       updatedAt: cur.updatedAt,
     });
     syncToCloud();
+    journalFill({
+      clientOrderId: order.id, ticker: order.symbol, side: order.side,
+      qty: order.qty, price: order.price, fees: order.fees,
+      closedPnl: order.closedPnl, filledAt: order.filledAt,
+      source: runContext?.source ?? 'swap', runId: runContext?.runId ?? null,
+    });
 
     return order;
   }, [computeFees]);
@@ -460,5 +509,7 @@ export const usePaperTrading = (userId?: string | null) => {
     isPaper: true as const,
     cloudLoaded,
     feeConfig,
+    syncStatus,
+    lastSyncAt,
   };
 };

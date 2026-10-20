@@ -123,15 +123,20 @@ BLOCKS.push(...PROGRAM_BLOCK_DEFS, ...AGENT_BLOCK_DEFS);
 export const BLOCK_BY_ID = new Map(BLOCKS.map((b) => [b.id, b]));
 
 /** Human sentence describing a configured step, used across the 3D scene and reports. */
-export const describeStep = (kind: StepKind, config: Record<string, any> = {}): string => {
+export const describeStep = (kind: StepKind, config: Record<string, any> = {}, effectiveAmountUsd?: number): string => {
   switch (kind) {
     case 'asset': return config.label || config.ticker || 'no asset chosen';
     case 'screen': return `${String(config.classId ?? 'condition').replace(/_/g, ' ')} · top ${config.limit ?? 5}`;
     case 'analysis': return String(config.programId ?? 'no program');
     case 'branch': return `needs ${config.expects ?? 'any'} signal`;
     case 'risk': return `stop at −${config.maxDrawdownPct ?? 10}%`;
-    case 'buy':
-      return `$${Number(config.amountUsd ?? 0).toLocaleString()} · +${config.takeProfitPct ?? 0}% / −${config.stopLossPct ?? 0}%`;
+    case 'buy': {
+      const design = Number(config.amountUsd ?? 0);
+      const head = effectiveAmountUsd !== undefined && effectiveAmountUsd !== design
+        ? `RUN $${effectiveAmountUsd.toLocaleString()} · design $${design.toLocaleString()}`
+        : `$${design.toLocaleString()}`;
+      return `${head} · +${config.takeProfitPct ?? 0}% / −${config.stopLossPct ?? 0}%`;
+    }
     case 'sell': return `$${Number(config.amountUsd ?? 0).toLocaleString()}`;
     case 'agent': return String(config.agentName || 'AI agent');
     case 'alert': return `${config.direction ?? 'above'} ${config.price ?? 0}`;
